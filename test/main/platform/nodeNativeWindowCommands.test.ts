@@ -43,6 +43,41 @@ describe('native window command identity and lifecycle', () => {
     vi.unstubAllEnvs()
   })
 
+  it('consumes the latest live settings snapshot exactly once', () => {
+    commands.configureNativeSettingsSnapshot(JSON.stringify(state(9, 'settings', { sequence: 3 })))
+    const focused = state(9, 'settings', {
+      sequence: 4,
+      documentUrl: 'mygo://localhost/settings/index.html?panel=general#/common',
+      focused: true
+    })
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    shim.handleNativeWindowNotification('native.window.focused', focused, 9)
+
+    expect(commands.consumeNativeSettingsSnapshot()).toEqual(focused)
+    expect(commands.consumeNativeSettingsSnapshot()).toBeNull()
+  })
+
+  it('rejects invalid snapshots and never restores closed or closing windows', () => {
+    expect(() => commands.configureNativeSettingsSnapshot('{')).toThrow('snapshot JSON')
+    expect(() =>
+      commands.configureNativeSettingsSnapshot(JSON.stringify(state(1, 'main')))
+    ).toThrow('snapshot role')
+
+    commands.configureNativeSettingsSnapshot(JSON.stringify(state(9, 'settings', { sequence: 3 })))
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    shim.handleNativeWindowNotification(
+      'native.window.closed',
+      state(9, 'settings', { sequence: 4, documentUrl: '', visible: false }),
+      9
+    )
+    expect(commands.consumeNativeSettingsSnapshot()).toBeNull()
+
+    commands.configureNativeSettingsSnapshot(
+      JSON.stringify(state(10, 'settings', { sequence: 1, closeRequested: true }))
+    )
+    expect(commands.consumeNativeSettingsSnapshot()).toBeNull()
+  })
+
   it('preserves each asynchronous IPC caller outside its renderer input', async () => {
     const mainSource = { windowId: primary.id, documentUrl: 'mygo://localhost/index.html#/chat' }
     const secondary = new shim.BrowserWindow({})

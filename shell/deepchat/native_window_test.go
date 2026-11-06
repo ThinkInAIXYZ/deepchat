@@ -100,6 +100,13 @@ func TestSameRendererDocumentPathIgnoresQueryAndFragment(t *testing.T) {
 	}
 }
 
+func TestNativeWindowEnvironmentWithoutSettingsClearsInheritedValue(t *testing.T) {
+	environment := (&Bridge{}).nativeWindowEnvironment()
+	if len(environment) != 1 || environment[0] != nativeSettingsSnapshotEnv+"=" {
+		t.Fatalf("empty native settings snapshot must override inherited environment: %v", environment)
+	}
+}
+
 func TestNativeWindowCommandRequiresVerifiedCaller(t *testing.T) {
 	bridge := &Bridge{}
 	result, err := bridge.handleNativeWindowCommand(context.Background(), sidecar.NativeWindowCommand{

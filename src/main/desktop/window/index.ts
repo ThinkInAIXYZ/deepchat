@@ -1186,11 +1186,23 @@ export class WindowPresenter implements IWindowPresenter {
     }
   }
 
+  /** Restore only the descriptor Go supplied for this sidecar generation. */
+  public async restoreSettingsWindowFromNativeSnapshot(): Promise<void> {
+    const snapshot = appHost.consumeNativeSettingsSnapshot?.()
+    if (!snapshot || this.settingsWindow) return
+    try {
+      await this.createSettingsWindow(undefined, snapshot)
+    } catch (error) {
+      logger.error('Failed to restore the native settings window after sidecar restart', error)
+    }
+  }
+
   /**
    * Create or show Settings Window (singleton pattern)
    */
   public async createSettingsWindow(
-    navigation?: SettingsNavigationPayload
+    navigation?: SettingsNavigationPayload,
+    nativeSnapshot?: NativeWindowDescriptor
   ): Promise<number | null> {
     const pending = this.settingsWindowCreation
     if (pending) {
@@ -1198,7 +1210,7 @@ export class WindowPresenter implements IWindowPresenter {
       if (windowId !== null && navigation) return this.createSettingsWindow(navigation)
       return windowId
     }
-    const creation = this.createSettingsWindowCore(navigation)
+    const creation = this.createSettingsWindowCore(navigation, nativeSnapshot)
     this.settingsWindowCreation = creation
     try {
       return await creation
@@ -1267,7 +1279,8 @@ export class WindowPresenter implements IWindowPresenter {
   }
 
   private async createSettingsWindowCore(
-    navigation?: SettingsNavigationPayload
+    navigation?: SettingsNavigationPayload,
+    nativeSnapshot?: NativeWindowDescriptor
   ): Promise<number | null> {
     const settingsStartupStart = Date.now()
     console.info('[Startup][Settings][Main] createSettingsWindow start')
@@ -1276,6 +1289,7 @@ export class WindowPresenter implements IWindowPresenter {
     const existing = this.settingsWindow
     if (existing && !existing.isDestroyed()) {
       if (appHost.isNativeWindowClosing?.(existing.id)) {
+        if (nativeSnapshot) return null
         return this.recreateSettingsWindowAfterClose(existing, navigation)
       }
       try {
@@ -1319,6 +1333,7 @@ export class WindowPresenter implements IWindowPresenter {
         this.settingsWindow !== existing ||
         appHost.isNativeWindowClosing?.(existing.id)
       ) {
+        if (nativeSnapshot) return null
         return this.recreateSettingsWindowAfterClose(existing, navigation)
       }
       return existing.id
@@ -1336,19 +1351,22 @@ export class WindowPresenter implements IWindowPresenter {
       defaultHeight: 800
     })
 
-    const nativeWindow = await appHost.createNativeSettingsWindow?.({
-      width: settingsWindowState.width,
-      height: settingsWindowState.height,
-      minWidth: 900,
-      minHeight: 640,
-      x: settingsWindowState.x ?? 0,
-      y: settingsWindowState.y ?? 0
-    })
+    const nativeWindow =
+      nativeSnapshot ??
+      (await appHost.createNativeSettingsWindow?.({
+        width: settingsWindowState.width,
+        height: settingsWindowState.height,
+        minWidth: 900,
+        minHeight: 640,
+        x: settingsWindowState.x ?? 0,
+        y: settingsWindowState.y ?? 0
+      }))
 
     if (nativeWindow && nativeWindow.role !== 'settings') {
       throw new Error('native settings role does not match')
     }
     if (nativeWindow?.closeRequested) {
+      if (nativeSnapshot) return null
       if (!appHost.waitForNativeSettingsWindowClosed) {
         throw new Error('native closing-window lifecycle is unavailable')
       }
@@ -1462,8 +1480,14 @@ export class WindowPresenter implements IWindowPresenter {
       }
     })
 
-    // Load settings renderer HTML
-    const targetUrl = this.getSettingsWindowTargetUrl(navigation)
+    // A native restart preserves the allowed settings document. A snapshot for
+    // a half-created blank window still follows the normal startup entry.
+    const targetUrl =
+      nativeSnapshot &&
+      nativeSnapshot.documentUrl !== '' &&
+      nativeSnapshot.documentUrl !== 'about:blank'
+        ? nativeSnapshot.documentUrl
+        : this.getSettingsWindowTargetUrl(navigation)
     logger.info(`Loading settings renderer URL: ${targetUrl}`)
     console.info('[Startup][Settings][Main] loadURL start', targetUrl)
     try {
@@ -1487,6 +1511,7 @@ export class WindowPresenter implements IWindowPresenter {
       this.settingsWindow !== settingsWindow ||
       appHost.isNativeWindowClosing?.(windowId)
     ) {
+      if (nativeSnapshot) return null
       return this.recreateSettingsWindowAfterClose(settingsWindow, navigation)
     }
 

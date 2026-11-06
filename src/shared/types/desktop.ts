@@ -35,6 +35,7 @@ export interface IWindowPresenter {
   maximize(windowId: number): void
   close(windowId: number): void
   createSettingsWindow(navigation?: SettingsNavigationPayload): Promise<number | null>
+  restoreSettingsWindowFromNativeSnapshot?(): Promise<void>
   closeSettingsWindow(): void
   getSettingsWindowId(): number | null
   focusMainWindow(): boolean

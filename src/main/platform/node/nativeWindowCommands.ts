@@ -15,6 +15,7 @@ let transport: ((command: NativeWindowCommand) => void) | undefined
 const windowStates = new Map<number, NativeWindowDescriptor>()
 const closedWindowSequences = new Map<number, number>()
 const closingNativeWindows = new Set<number>()
+let nativeSettingsSnapshotId: number | null = null
 type CloseWaiter = {
   resolve: () => void
   reject: (error: Error) => void
@@ -37,6 +38,32 @@ export function recordNativeWindowState(state: NativeWindowDescriptor): boolean 
 
 export function cachedNativeWindowState(windowId: number): NativeWindowDescriptor | undefined {
   return windowStates.get(windowId)
+}
+
+export function configureNativeSettingsSnapshot(raw: string | undefined): void {
+  nativeSettingsSnapshotId = null
+  if (!raw) return
+  let value: unknown
+  try {
+    value = JSON.parse(raw)
+  } catch {
+    throw new Error('Invalid native settings snapshot JSON')
+  }
+  const state = parseNativeWindowDescriptor(value)
+  if (state.role !== 'settings' || !recordNativeWindowState(state)) {
+    throw new Error('Invalid native settings snapshot role or state')
+  }
+  nativeSettingsSnapshotId = state.windowId
+}
+
+/** Consume only a still-live startup snapshot; closed native IDs cannot be recreated here. */
+export function consumeNativeSettingsSnapshot(): NativeWindowDescriptor | null {
+  const windowId = nativeSettingsSnapshotId
+  nativeSettingsSnapshotId = null
+  if (windowId === null) return null
+  const state = windowStates.get(windowId)
+  if (!state || state.role !== 'settings' || state.closeRequested) return null
+  return state
 }
 
 export function forgetNativeWindowState(windowId: number, sequence = 0): boolean {

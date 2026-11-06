@@ -99,6 +99,17 @@
 
 ## 4. 当前验证与已知失败
 
+D2c2b2 sidecar 代次间自动恢复 settings：
+
+- 修复前实测 sidecar 21505 → 21653：主窗口确实 reload，但 settings 仍显示正常旧 DOM，`window.getRuntimeIdentity` 明确失败为 `IPC source has no live native window binding`；从主窗口显式重新打开才能恢复。这证明旧 DOM 和窗口存活不能充当恢复证据。
+- Go Manager 每代重新求值附加环境，注入当前 settings descriptor；Node 在 `startApp` 前校验并合并原生 sequence/tombstone。无存活 settings 时写入空快照覆盖继承环境。恢复一次性消费快照，复用正常 `WindowPresenter` 绑定/监听/ready 管线且不调用 `ensure_settings`，保留允许的文档 URL；`about:blank` 使用正常入口。重复消费、closed、pending-close、已有 wrapper 处于关闭中或恢复中途 close 都不创建替代窗口，普通显式打开不受影响。
+- 专项审查还构造出旧代 `ensure_settings` 在新代空快照后注册的竞态。Manager 现在先提高 generation 使未执行旧命令失效，再等待已进入 `OnCommand` 的同步原生工作结束，之后才能采集环境；等待期间收到 Manager.Close 也会重新拒绝启动。真实 Node helper 回归让进程在命令处理中退出，证明第二次环境求值在释放前不发生、释放后 replacement 正常 ready；此项不写成已动态复现隐藏原生窗口。
+- macOS disposable profile `/tmp/deepchat-d2c2b2-auto.GWBMIU` 中，杀死 sidecar 28616 后由 28746 接管。settings 自动重新加载并保持 `mygo://localhost/settings/index.html#/common`，旧 renderer 标记消失，runtime identity 为 window=2 / webContents=3，`config.getLanguage` 成功且日志出现新的 `window.notifySettingsReady`。恢复后监听者收到一次 `config.language.changed`，界面与查询同步为 `zh-CN`；`/tmp/deepchat-mygo-settings-auto-restored.png` 在目标 Common Settings 完成后生成并人工查看。
+- 再次杀死 28746 并立即调用 Go 原生 `window.closeCurrent`，页面销毁使 automation 返回 unsupported result type，但真实窗口已关闭。replacement 28892 与主窗口 reload 完成后仍只有主窗口，没有从快照创建设置窗口；随后明确调用 `system.openSettings` 才得到新窗口 3 和其业务身份。正常菜单退出完成数据库与业务销毁，无 EPIPE、uncaught exception、恢复耗尽、socket 或进程残留。
+- 最终修订版另在 `/tmp/deepchat-d2c2b2-final.fHGaNl` 的父进程注入非法 `DEEPCHAT_NATIVE_SETTINGS_SNAPSHOT='{'`，Go 的空快照覆盖后应用仍正常启动。创建 settings 后杀死 32473，由 32726 接管，旧 renderer 标记消失，settings Overview、语言和 identity 自动恢复并出现新 ready；`/tmp/deepchat-mygo-settings-recovery-final.png` 在恢复完成后生成并人工核对。
+- 带代次屏障的最终版还在 `/tmp/deepchat-d2c2b2-barrier.9u2K0s` 复验 34800→34872，settings Overview、语言、sender 与新 ready 自动恢复，`/tmp/deepchat-mygo-settings-recovery-barrier.png` 已人工核对；随后正常菜单退出。
+- 31 个相关 Node 测试（含快照校验/一次消费、关闭不复活、现有生命周期）通过；Node/Web typecheck、lint、i18n、icons freshness、sidecar build、Go 全包 race/vet 和正常/e2e 壳构建通过。最终完整 main 为 9829 项，其中 9821 passed / 2 failed / 6 skipped，678 文件通过、1 文件失败、2 文件跳过；仅有两项既有 tunnel 失败，没有新增失败。未执行 Windows/Linux 或完整 Electron UI 验收。
+
 D2c2b1 真实 settings 窗口：
 
 - Node→Go 使用负 ID 的 `native.window` 命令和独立 response，保留同一线性 write ticket；Go 仅在已注册窗口、当前顶层 Page 和 role/path 通过后允许操作。Node 用 `AsyncLocalStorage` 保留实际 IPC caller，不读取 renderer 提供的 source；没有 IPC 上下文的 `focus_app` 只采用启动环境指定的主窗口。sidecar host 与 renderer source 互斥，host 对 settings `about:blank` 仅有关闭权限。关闭通知解绑对应 wrapper，创建请求并发时共享同一 pending promise；单调 sequence、pending close 和 remove-and-append 合并阻止迟到 ready/focus 或 close acknowledgement 复活旧窗口。
@@ -119,7 +130,7 @@ D2c2a 可信原生窗口身份验证：
 - 实际 kill 旧 sidecar 25806 后检查到恰好一个替代进程 29859；页面导航类型为 `reload`，旧探针全局变量为 `undefined`，新调用仍得到 `windowId=1` / `webContentsId=2` 和 95 个 provider。`/tmp/deepchat-mygo-bound-recovered.png` 已人工核对。随后通过原生 `DeepChat → Quit DeepChat` 菜单退出，观察到 `destroy.mainDatabase.close done` 和应用级 `app exited`；没有 source rejection、sidecar 事件残留、进程组残留、control socket、data race 或 panic。
 - 两条 `[sidecar] discarding events from webContents(1) without a native window owner` 是主窗口注册前 splash 测试 webContents 的目标事件被有意丢弃，每个无主 webContents 仅告警一次。当前将未绑定窗口保持负占位 ID，拒绝它伪造原生 caller；这不是成功投递。Splash 尚未显式建立 Go 窗口注册与 Page 身份，真实 DB unlock / protected migration 流程也未验证，必须作为 D2c2b 输入而不是视为已完成能力。
 - Go source 校验保留 `mygo://localhost` 主文档的 `""`、`/`、`/index.html`，拒绝非主 Page、错误 origin 和带 userinfo 的 URL。Node 复核实际 mygo/frame URL、精确 main/settings/splash 文档路径和 live native window；Electron 端口不返回 mygo renderer origin，保持 Chromium sender 行为。定向 48 个 Node 测试、Go 普通/race/vet、Node/Web typecheck、完整 renderer 回归、lint、i18n、Electron 对照构建均通过；最新完整 main 为 677 个文件通过、1 失败、2 跳过，9804 passed / 2 failed / 6 skipped。仅有两项既有 tunnel 失败，见下文。
-- e2e race 二进制仅在 macOS disposable profile 执行，临时二进制、control socket 和截图都在工作区之外，不属于交付文件。`executeJavaScript` 仍是披露的非-Eval stub，通知“renderer ready”路径未使用；真实第二窗口、Page 级 nested identity、全局背压/内存预算、后台异常生命周期、Windows/Linux 运行、正式打包和真实用户数据迁移仍待完成。
+- e2e race 二进制仅在 macOS disposable profile 执行，临时二进制、control socket 和截图都在工作区之外，不属于交付文件。`executeJavaScript` 仍是披露的非-Eval stub，通知“renderer ready”路径未使用；普通聊天多窗口、Page 级 nested identity、splash/数据库解锁、全局背压/内存预算、后台异常生命周期、Windows/Linux 运行、正式打包和真实用户数据迁移仍待完成。
 
 D2c1 关闭协调、恢复和一次性 profile UI 验证：
 

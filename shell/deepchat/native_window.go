@@ -25,6 +25,7 @@ const (
 	nativeWindowClosed  = "native.window.closed"
 
 	nativeNotificationTimeout = 10 * time.Second
+	nativeSettingsSnapshotEnv = "DEEPCHAT_NATIVE_SETTINGS_SNAPSHOT"
 )
 
 type nativeWindowRecord struct {
@@ -263,6 +264,29 @@ func (b *Bridge) settingsWindow() *mygo.Window {
 		return nil
 	}
 	return b.settings
+}
+
+// nativeWindowEnvironment is evaluated for every new sidecar generation. A
+// closing or destroyed settings window never turns into an ensure/create hint.
+func (b *Bridge) nativeWindowEnvironment() []string {
+	empty := []string{nativeSettingsSnapshotEnv + "="}
+	window := b.settingsWindow()
+	if window == nil {
+		return empty
+	}
+	state, err := b.describeNativeWindow(nativeWindowRecord{window: window, role: nativeWindowSettings})
+	if err != nil {
+		return empty
+	}
+	b.mu.RLock()
+	state.CloseRequested = b.closingWindows[window.ID()]
+	b.mu.RUnlock()
+	payload, err := json.Marshal(state)
+	if err != nil {
+		log.Printf("encode native settings snapshot: %v", err)
+		return empty
+	}
+	return []string{nativeSettingsSnapshotEnv + "=" + string(payload)}
 }
 
 func (b *Bridge) nativeWindow(id int) (*mygo.Window, error) {

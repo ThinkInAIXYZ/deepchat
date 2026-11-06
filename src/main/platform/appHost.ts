@@ -42,6 +42,10 @@ export interface AppHost {
   createNativeSettingsWindow?(
     bounds: import('./node/nativeWindowProtocol').NativeWindowBounds
   ): Promise<import('./node/nativeWindowProtocol').NativeWindowDescriptor>
+  /** Consume this generation's still-live settings snapshot, if one needs restoration. */
+  consumeNativeSettingsSnapshot?():
+    | import('./node/nativeWindowProtocol').NativeWindowDescriptor
+    | null
   /** Bind a returned native descriptor without assigning local window IDs. */
   registerNativeWindow?(
     window: import('electron').BrowserWindow,

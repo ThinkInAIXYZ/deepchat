@@ -261,11 +261,14 @@ M2 Node sidecar 化、M3 Go 壳与桥、M4 周边能力、M5 打包与更新、M
 
 结果：macOS 隔离 profile 中主窗口与 settings 窗口同时存活，settings 的真实业务响应、DOM、原生 focused 状态与截图均已核对；重复打开复用窗口 2，关闭后立即重开得到 `windowId=3` / `webContentsId=4`。把窗口 3 切到 `about:blank` 后业务 IPC 被 Go 拒绝，随后关闭并恢复为窗口 4；最终通过原生菜单完成业务销毁和退出。生命周期审查还覆盖了 stale close/ready 通知、close 失败后的 attempt 回滚与重试、过期 caller 下的显式 host 补偿、并发 navigation 的新 ID、pending close、通知合并顺序、加载失败释放与 userinfo URL 绕过。settings 导航、窗口 RPC、`focus_app`、非 thenable wrapper 和现存 index 响应均有回归覆盖；27 个定向 Node 测试与 Go race/vet 通过。完整回归数字及 Electron 对照修复见 `acceptance-checklist.md`。正式 Bridge 不提供通用 Eval；此项不包含 sidecar 替换后的 settings 自动重绑定、splash 解锁、普通聊天多窗口或 nested Page，见 D2c2b2。
 
-#### [ ] D2c2b2 恢复保留窗口并绑定 Page 身份
+#### [x] D2c2b2 恢复保留窗口并绑定 Page 身份
 
-1. 每代 sidecar 获取当时原生 window/role/document snapshot，按真实 descriptor 重建现存活 settings 绑定，再恢复其页面和订阅；关闭后的窗口不得从旧 snapshot 复活。
-2. 显式实现 splash/数据库解锁窗口的原生所有权，避免未绑定导航继续装作成功。
-3. 利用 mygo `CallerPage().WebView()` 的独立身份建立 nested webContents/frame 映射，并继续执行 D2c2 的全局资源预算和内容隔离差距。
+1. Manager 每代重新获取 Go settings descriptor 并通过启动环境注入；Node 在业务启动前校验并接入共享 sequence/tombstone，Electron 不受影响。
+2. `WindowPresenter` 一次性消费恢复快照并复用正常 settings 绑定、监听、ready 和文档管线；保留允许页面的 URL，半创建窗口使用正常入口，恢复绝不通过 `ensure_settings` 或过期快照创建替代窗口，也不重放 mutation。
+3. 增加 sequence/closed/并发回归，真实杀死旧 sidecar 验证 settings 的新 renderer、sender 与业务恢复，并在 replacement 期间执行 native close 证明没有复活窗口；补齐质量门禁、差距记录、diff 审查和提交。
+4. 随后显式实现 splash/数据库解锁窗口的原生所有权，避免未绑定导航继续装作成功；利用 mygo `CallerPage().WebView()` 的独立身份建立 nested webContents/frame 映射，并继续执行 D2c2 的全局资源预算和内容隔离差距。
+
+结果：每代 sidecar 使用 Go 当前 settings descriptor，Manager 在进入环境采集前隔离未执行旧命令并等待已开始的同步原生命令结束，空快照覆盖继承环境，Node 校验后一次消费并复用正常 Presenter 恢复管线；恢复不经过 `ensure_settings`，保留允许的 settings URL，closed/pending-close、重复消费或中途关闭均不复活。真实 macOS 中，sidecar 28616→28746 后 settings 自动重载并保留 `#/common`，旧 renderer 标记消失，业务 sender、target language event 和新 ready 均恢复；第二次 kill 后立即 native close，replacement 28892 后没有自动重建，只有显式打开才创建 id=3。最终版本还证明非法继承快照被清空，并由 32473→32726 再次完成真实恢复。31 个相关 Node 回归、Go race/vet、类型/静态检查与构建通过；完整回归数字、两次截图和退出证据见 `acceptance-checklist.md`。普通聊天多窗口、splash、nested Page 和全局资源治理仍未完成。
 
 ### [ ] D3 完成窗口与原生能力
 

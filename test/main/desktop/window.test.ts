@@ -5,6 +5,7 @@ import { SETTINGS_EVENTS } from '@/events'
 const activateAppOnMacMock = vi.hoisted(() => vi.fn())
 const registerNativePrimaryWindowMock = vi.hoisted(() => vi.fn())
 const createNativeSettingsWindowMock = vi.hoisted(() => vi.fn())
+const consumeNativeSettingsSnapshotMock = vi.hoisted(() => vi.fn())
 const registerNativeWindowMock = vi.hoisted(() => vi.fn())
 const nativeRendererDirectoryUrlMock = vi.hoisted(() => vi.fn())
 const activateNativeSettingsWindowMock = vi.hoisted(() => vi.fn())
@@ -21,6 +22,7 @@ vi.mock('@/platform/appHost', async (importOriginal) => {
       ...actual.appHost,
       registerNativePrimaryWindow: registerNativePrimaryWindowMock,
       createNativeSettingsWindow: createNativeSettingsWindowMock,
+      consumeNativeSettingsSnapshot: consumeNativeSettingsSnapshotMock,
       registerNativeWindow: registerNativeWindowMock,
       activateNativeSettingsWindow: activateNativeSettingsWindowMock,
       closeNativeSettingsWindow: closeNativeSettingsWindowMock,
@@ -104,6 +106,8 @@ function createSettingsLifecycleWindow(placeholderId: number): {
 describe('WindowPresenter', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    consumeNativeSettingsSnapshotMock.mockReturnValue(null)
+    isNativeWindowClosingMock.mockReturnValue(false)
   })
 
   afterEach(() => {
@@ -497,6 +501,100 @@ describe('WindowPresenter', () => {
         minHeight: 640
       })
     )
+  })
+
+  it('restores the snapshot document without issuing another native create', async () => {
+    const fixture = createSettingsLifecycleWindow(-101)
+    const snapshot = {
+      windowId: 81,
+      role: 'settings' as const,
+      documentUrl: 'mygo://localhost/settings/index.html?panel=general#/common',
+      sequence: 4,
+      visible: true,
+      focused: false
+    }
+    consumeNativeSettingsSnapshotMock.mockReturnValueOnce(snapshot).mockReturnValue(null)
+    registerNativeWindowMock.mockImplementation((window, descriptor) => {
+      window.id = descriptor.windowId
+    })
+    vi.mocked(BrowserWindow).mockImplementationOnce(function () {
+      return fixture.window
+    })
+    const { WindowPresenter } = await import('@/desktop/window')
+    const presenter = new WindowPresenter(
+      { getContentProtectionEnabled: vi.fn(() => false) } as any,
+      vi.fn(),
+      vi.fn()
+    )
+
+    await presenter.restoreSettingsWindowFromNativeSnapshot()
+    await presenter.restoreSettingsWindowFromNativeSnapshot()
+
+    expect(createNativeSettingsWindowMock).not.toHaveBeenCalled()
+    expect(BrowserWindow).toHaveBeenCalledTimes(1)
+    expect(fixture.window.loadURL).toHaveBeenCalledWith(snapshot.documentUrl)
+    expect((presenter as any).settingsWindow).toBe(fixture.window)
+  })
+
+  it('does not recreate a settings window closed during snapshot restoration', async () => {
+    const fixture = createSettingsLifecycleWindow(-101)
+    consumeNativeSettingsSnapshotMock.mockReturnValue({
+      windowId: 81,
+      role: 'settings',
+      documentUrl: 'mygo://localhost/settings/index.html#/common',
+      sequence: 4,
+      visible: true,
+      focused: false
+    })
+    registerNativeWindowMock.mockImplementation((window, descriptor) => {
+      window.id = descriptor.windowId
+    })
+    isNativeWindowClosingMock.mockReturnValue(false)
+    let releaseLoad!: () => void
+    fixture.window.loadURL = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          releaseLoad = resolve
+        })
+    )
+    vi.mocked(BrowserWindow).mockImplementationOnce(function () {
+      return fixture.window
+    })
+    const { WindowPresenter } = await import('@/desktop/window')
+    const presenter = new WindowPresenter(
+      { getContentProtectionEnabled: vi.fn(() => false) } as any,
+      vi.fn(),
+      vi.fn()
+    )
+
+    const restoring = presenter.restoreSettingsWindowFromNativeSnapshot()
+    await vi.waitFor(() => expect(fixture.window.loadURL).toHaveBeenCalledTimes(1))
+    fixture.close()
+    releaseLoad()
+    await restoring
+
+    expect(createNativeSettingsWindowMock).not.toHaveBeenCalled()
+    expect(BrowserWindow).toHaveBeenCalledTimes(1)
+    expect(waitForNativeSettingsWindowClosedMock).not.toHaveBeenCalled()
+    expect((presenter as any).settingsWindow).toBeNull()
+
+    const alreadyClosing = createSettingsLifecycleWindow(-102)
+    alreadyClosing.window.id = 81
+    ;(presenter as any).settingsWindow = alreadyClosing.window
+    isNativeWindowClosingMock.mockReturnValue(true)
+    consumeNativeSettingsSnapshotMock.mockReturnValue({
+      windowId: 81,
+      role: 'settings',
+      documentUrl: 'mygo://localhost/settings/index.html#/common',
+      sequence: 5,
+      visible: true,
+      focused: false
+    })
+    await presenter.restoreSettingsWindowFromNativeSnapshot()
+    expect(createNativeSettingsWindowMock).not.toHaveBeenCalled()
+    expect(BrowserWindow).toHaveBeenCalledTimes(1)
+    expect(waitForNativeSettingsWindowClosedMock).not.toHaveBeenCalled()
+    expect((presenter as any).settingsWindow).toBe(alreadyClosing.window)
   })
 
   it('shares a pending native settings creation before constructing a wrapper', async () => {

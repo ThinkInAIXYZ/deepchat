@@ -92,6 +92,7 @@ func main() {
 				ShutdownTimeout: 5 * time.Second,
 				Env:             []string{"DEEPCHAT_NATIVE_WINDOW_ID=" + strconv.Itoa(window.ID())},
 			},
+			Environment: bridge.nativeWindowEnvironment,
 			MaxRestarts: 3,
 			Backoff:     500 * time.Millisecond,
 			OnUnexpectedExit: func(err error) {

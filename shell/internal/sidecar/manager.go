@@ -34,6 +34,9 @@ type ManagerOptions struct {
 	OnCommand        NativeWindowCommandHandler
 	OnReady          func()
 	OnExhausted      func(error)
+	// Environment is evaluated once per process generation. Callers can provide
+	// current native snapshots without mutating the original Process options.
+	Environment func() []string
 }
 
 // Manager coordinates native lifecycle and renderer recovery without tying
@@ -41,22 +44,24 @@ type ManagerOptions struct {
 type Manager struct {
 	options ManagerOptions
 
-	mu          sync.Mutex
-	process     *Process
-	generation  int
-	restarts    int
-	stopping    bool
-	failed      bool
-	ready       bool
-	lastErr     error
-	startupErr  error
-	onEvent     func(Event)
-	stop        chan struct{}
-	stopOnce    sync.Once
-	startFailed bool
-	runCtx      context.Context
-	cancel      context.CancelFunc
-	commands    chan managedCommand
+	mu             sync.Mutex
+	process        *Process
+	generation     int
+	restarts       int
+	stopping       bool
+	failed         bool
+	ready          bool
+	lastErr        error
+	startupErr     error
+	onEvent        func(Event)
+	stop           chan struct{}
+	stopOnce       sync.Once
+	startFailed    bool
+	runCtx         context.Context
+	cancel         context.CancelFunc
+	commands       chan managedCommand
+	commandRunning bool
+	commandIdle    *sync.Cond
 }
 
 type managedCommand struct {
@@ -97,6 +102,7 @@ func StartManager(options ManagerOptions) (*Manager, error) {
 		cancel:   cancel,
 		commands: make(chan managedCommand, 32),
 	}
+	manager.commandIdle = sync.NewCond(&manager.mu)
 	go manager.commandLoop()
 	if err := manager.start(); err != nil {
 		manager.stopOnce.Do(func() { close(manager.stop) })
@@ -134,9 +140,22 @@ func (m *Manager) start() error {
 
 	m.generation++
 	generation := m.generation
+	// A command that already began synchronous native work cannot be cancelled.
+	// Let it finish before the new generation snapshots window state. Commands
+	// still queued see the new generation above and cannot reach OnCommand.
+	for m.commandRunning {
+		m.commandIdle.Wait()
+	}
+	if m.stopping {
+		return ErrClosed
+	}
 	m.ready = false
 	m.startupErr = nil
 	options := m.options.Process
+	if m.options.Environment != nil {
+		options.Env = append([]string(nil), options.Env...)
+		options.Env = append(options.Env, m.options.Environment()...)
+	}
 	options.OnExit = func(err error) {
 		m.unexpectedExit(generation, err)
 	}
@@ -294,10 +313,19 @@ func (m *Manager) executeCommand(job managedCommand) {
 	generation, command := job.generation, job.command
 	m.mu.Lock()
 	current := m.process != nil && generation == m.generation && !m.stopping
+	if current {
+		m.commandRunning = true
+	}
 	m.mu.Unlock()
 	if !current {
 		return
 	}
+	defer func() {
+		m.mu.Lock()
+		m.commandRunning = false
+		m.commandIdle.Broadcast()
+		m.mu.Unlock()
+	}()
 	var result any
 	var err error
 	if err = ctx.Err(); err != nil {

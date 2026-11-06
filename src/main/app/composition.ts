@@ -3845,6 +3845,7 @@ export async function createMainProcessControl(dependencies: {
       throw new Error('Failed to create initial app window')
     }
   }
+  await windowPresenter.restoreSettingsWindowFromNativeSnapshot?.()
 
   shortcutPresenter.registerShortcuts()
   setupTray()

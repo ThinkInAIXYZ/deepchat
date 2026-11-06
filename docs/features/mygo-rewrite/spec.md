@@ -105,6 +105,16 @@ D2c1 的恢复验收必须包含真实 sidecar 故障注入和新代次 DOM 观�
 - close request 不等于 closed：创建/立即重开必须等待真实 closed 通知，构造、绑定或导航失败必须释放对应原生窗口。Go→Node 状态以单调 sequence 拒绝迟到事件，ready/focus 不得解除 pending close；同窗口通知按原生顺序 remove-and-append 合并，closed 清除尚未送达的 ready/focus。close 失败必须按独立 attempt 回滚最新状态并允许重试，并发 navigation 必须返回实际完成导航/重建后的窗口 ID。Electron 路径继续使用真实 Chromium 事件，不经过 Go sequence。
 - 本切片的验收目标是两个同时存活的真实原生窗口、独立 window/webContents 身份、settings IPC、按 window 的事件和实际关闭/重新创建。尚未覆盖 sidecar 替换时 settings 的自动恢复绑定、多个普通聊天窗口、splash/数据库解锁的实际 native 界面、nested `WebView` ID/frame 隔离，以及全局背压/内存预算。主窗口已有的恢复行为保持在正常 generation 下验证；不据此宣称第二窗口恢复完成。
 
+### 4.5 D2c2b2 sidecar 代次间恢复 settings 原生绑定
+
+- 实测已经证明：sidecar 异常退出后，主窗口 reload 可以恢复，但存活的 settings 保留完整旧 DOM 并因 Node 缺少原生绑定而拒绝 `IPC source has no live native window binding`。因此恢复验收不能只检查旧窗口、旧 DOM 或进程存活，必须验证新代实际 sender、renderer/preload 重建和业务调用。
+- Go 在每一代 Node 进程启动时重新采集当前已注册 settings 的 `NativeWindowDescriptor`，通过只读启动环境 `DEEPCHAT_NATIVE_SETTINGS_SNAPSHOT` 注入该代 sidecar；不得复用第一代环境或把旧启动状态当作恢复成功。快照只包含窗口身份、role、当前文档、sequence、显示/焦点和 close 状态，不包含 renderer input、凭据或业务 mutation。Manager 每代重新求值附加环境，无存活 settings 时也必须写入空快照覆盖继承环境，原有单调 generation、启动 deadline 和失败恢复不变。
+- 代次切换必须先更新 Manager generation，使尚未执行的旧队列命令失效，再等待已经进入 `OnCommand` 的同步原生工作结束，最后求值启动环境。这样旧代 `ensure_settings` 不能越过空快照再注册隐藏窗口；回复仍按旧代丢弃，且不得通过这个屏障重放 mutation；等待期间收到 Manager.Close 时也必须在启动前重新检查 stopping。
+- Node 在 `startApp` 前使用同一 descriptor parser 校验快照，要求正整数 ID 和 settings role，并写入与后续原生通知共享的状态序列。非法快照必须明确启动失败，不能猜窗口或退化为无主 sender。Electron 不读取这个环境，继续使用 Chromium 原生窗口。
+- 启动恢复只能消费一次快照，并将当时仍存活的 descriptor 传给 `WindowPresenter` 现有 settings 创建、事件监听、ready 和 pending-message 管线。该路径不得调用普通 `ensure_settings` 来创造替代窗口；快照之外的正常用户打开仍走 D2c2b1。恢复需要绑定实际原生 ID 并重载 renderer：允许的 `mygo` settings 文档保留其 path/query/hash，半创建的 `about:blank` 使用正常 settings 入口；不得重放崩溃前未确认的 mutation。
+- closed tombstone、缺失缓存、`closeRequested`、已有 wrapper 处于关闭中，或恢复期间到达的真实 close 都使本次恢复结束，不得等待后自动重建或申请一个新 ID。并发用户打开与恢复仍共用一个 `settingsWindowCreation`，但只有明确的用户新建操作可以进入普通 ensure/create。恢复失败必须记录并按 role/window ID 清理实际窗口或明确保留原因，不能静默留下一个看似正常但无 sender 的旧 DOM。
+- 验收必须在真实 macOS disposable profile 中杀死旧 sidecar，确认新代主窗口恢复之外，settings 也完成真实 renderer/preload 重建、ready、独立 sender、业务调用与目标事件；旧 renderer 标记必须消失。另在 replacement 启动期间关闭 settings，最终只能保留主窗口，不得从快照重新创建设置窗口。此项不包含多普通聊天窗口、splash/数据库解锁或 nested Page。
+
 ## 5. 后台进程与 worker 合同
 
 现有 file watcher、cron scheduler、background exec 和 code-mode host 共享一种窄的 parent-port 合同：`postMessage`、`message` 监听和可选 `start`。Electron 使用 `process.parentPort`，Node 使用 `process.send` 与 `process.on('message')` 适配，同一 utility host 主体不得复制两份。

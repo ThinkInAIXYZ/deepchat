@@ -83,6 +83,7 @@ import { appendFileSync, readFileSync } from 'node:fs'
 import { createInterface } from 'node:readline'
 const file = process.env.SIDECAR_TEST_INSTANCE_FILE
 appendFileSync(file, 'start\n')
+appendFileSync(file, 'environment:' + process.env.SIDECAR_TEST_DYNAMIC_VALUE + '\n')
 const generation = readFileSync(file, 'utf8').split('\n').filter((line) => line === 'start').length
 process.stdout.write(JSON.stringify({ event: 'sidecar.app.started', payload: { generation } }) + '\n')
 createInterface({ input: process.stdin }).on('line', (line) => {
@@ -94,8 +95,13 @@ createInterface({ input: process.stdin }).on('line', (line) => {
 `, instanceFile)
 	ready := make(chan struct{}, 4)
 	exhausted := make(chan error, 1)
+	environmentRevision := 0
 	manager, err := StartManager(ManagerOptions{
-		Process:     options,
+		Process: options,
+		Environment: func() []string {
+			environmentRevision++
+			return []string{fmt.Sprintf("SIDECAR_TEST_DYNAMIC_VALUE=%d", environmentRevision)}
+		},
 		MaxRestarts: 1,
 		Backoff:     5 * time.Millisecond,
 		OnReady:     func() { ready <- struct{}{} },
@@ -137,11 +143,97 @@ createInterface({ input: process.stdin }).on('line', (line) => {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if got := strings.Count(string(data), "environment:1\n"); got != 1 {
+		t.Fatalf("expected one initial dynamic environment, got %d in %s", got, data)
+	}
+	if got := strings.Count(string(data), "environment:2\n"); got != 1 {
+		t.Fatalf("expected one replacement dynamic environment, got %d in %s", got, data)
+	}
 	if count := strings.Count(string(data), "1:mutation\n"); count != 1 {
 		t.Fatalf("expected one first-generation mutation execution, got %d in %s", count, data)
 	}
 	if strings.Contains(string(data), "2:mutation\n") {
 		t.Fatalf("mutation was replayed on the replacement generation: %s", data)
+	}
+}
+
+func TestManagerEnvironmentWaitsForStartedCommand(t *testing.T) {
+	instanceFile := filepath.Join(t.TempDir(), "instances.log")
+	options := managedTestOptions(t, `
+import { appendFileSync, readFileSync } from 'node:fs'
+const file = process.env.SIDECAR_TEST_INSTANCE_FILE
+appendFileSync(file, 'start\n')
+const generation = readFileSync(file, 'utf8').split('\n').filter((line) => line === 'start').length
+process.stdout.write(JSON.stringify({ event: 'sidecar.app.started', payload: { generation } }) + '\n')
+if (generation === 1) {
+  process.stdout.write(JSON.stringify({ id: -1, command: 'native.window', input: { action: 'ensure_settings' } }) + '\n')
+  process.exit(17)
+}
+process.stdin.on('close', () => process.exit(0))
+process.stdin.resume()
+`, instanceFile)
+	ready := make(chan struct{}, 2)
+	commandStarted := make(chan struct{}, 1)
+	commandRelease := make(chan struct{})
+	snapshotTaken := make(chan struct{}, 1)
+	environmentCalls := 0
+	manager, err := StartManager(ManagerOptions{
+		Process: options,
+		Environment: func() []string {
+			environmentCalls++
+			if environmentCalls == 2 {
+				snapshotTaken <- struct{}{}
+			}
+			return []string{"SIDECAR_TEST_DYNAMIC_VALUE=ready"}
+		},
+		MaxRestarts: 1,
+		Backoff:     5 * time.Millisecond,
+		OnReady:     func() { ready <- struct{}{} },
+		OnCommand: func(context.Context, NativeWindowCommand) (any, error) {
+			commandStarted <- struct{}{}
+			<-commandRelease
+			return map[string]any{"windowId": 2}, nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	released := false
+	t.Cleanup(func() {
+		if !released {
+			close(commandRelease)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		_ = manager.Close(ctx)
+	})
+
+	select {
+	case <-ready:
+	case <-time.After(2 * time.Second):
+		t.Fatal("initial generation did not become ready")
+	}
+	select {
+	case <-commandStarted:
+	case <-time.After(2 * time.Second):
+		t.Fatal("native command did not start before the process exited")
+	}
+	select {
+	case <-snapshotTaken:
+		t.Fatal("replacement snapshot ran before the started native command finished")
+	case <-time.After(75 * time.Millisecond):
+	}
+	close(commandRelease)
+	released = true
+	select {
+	case <-snapshotTaken:
+	case <-time.After(2 * time.Second):
+		t.Fatal("replacement snapshot did not run after releasing the native command")
+	}
+	select {
+	case <-ready:
+	case <-time.After(2 * time.Second):
+		t.Fatal("replacement generation did not become ready")
 	}
 }
 

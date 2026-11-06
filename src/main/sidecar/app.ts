@@ -22,6 +22,7 @@ import {
 import { startApp } from '@/appMain'
 import { SidecarLifecycle } from './lifecycle'
 import {
+  configureNativeSettingsSnapshot,
   configureNativeWindowCommands,
   resolveNativeWindowCommand
 } from '@/platform/node/nativeWindowCommands'
@@ -53,6 +54,9 @@ installElectronShimHooks({
     write({ event: name, payload, source: windowId === undefined ? undefined : { windowId } }),
   quitRequested: () => lifecycle.notifyQuitRequested()
 })
+
+// Ingest Go's current-generation descriptor before any app window is restored.
+configureNativeSettingsSnapshot(process.env.DEEPCHAT_NATIVE_SETTINGS_SNAPSHOT)
 
 // Register the waiter before startup: route registration is the existing signal
 // that the real dispatcher and its route registry are ready to accept work.

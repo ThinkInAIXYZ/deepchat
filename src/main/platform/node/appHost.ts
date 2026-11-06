@@ -5,6 +5,7 @@ import {
   activateNativeSettingsWindow,
   cachedNativeWindowState,
   closeNativeSettingsWindow,
+  consumeNativeSettingsSnapshot,
   createNativeSettingsWindow,
   isNativeWindowClosing,
   waitForNativeSettingsWindowClosed
@@ -119,6 +120,7 @@ export const nodeAppHost: AppHost = {
   },
 
   createNativeSettingsWindow,
+  consumeNativeSettingsSnapshot,
   activateNativeSettingsWindow,
   closeNativeSettingsWindow,
   waitForNativeSettingsWindowClosed,
