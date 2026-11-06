@@ -157,9 +157,9 @@ export class FileWatcherHost {
     )
     activeWatch.snapshotPath = snapshotPath
 
-    const poll = async () => {
+    const poll = async (): Promise<boolean> => {
       if (activeWatch.disposed) {
-        return
+        return false
       }
 
       try {
@@ -175,11 +175,7 @@ export class FileWatcherHost {
             mode: activeWatch.mode,
             reason: 'root-deleted'
           })
-          if (activeWatch.pollTimer) {
-            clearInterval(activeWatch.pollTimer)
-            activeWatch.pollTimer = null
-          }
-          return
+          return false
         }
 
         if (!fs.existsSync(snapshotPath)) {
@@ -192,7 +188,7 @@ export class FileWatcherHost {
             reason: 'fallback-started',
             message
           })
-          return
+          return true
         }
 
         const events = await parcelWatcher.getEventsSince(
@@ -202,6 +198,10 @@ export class FileWatcherHost {
             ignore: activeWatch.request.excludes
           }
         )
+        // Writing after dispose would recreate the snapshot file that dispose just removed.
+        if (activeWatch.disposed) {
+          return false
+        }
         await parcelWatcher.writeSnapshot(activeWatch.request.rootPath, snapshotPath, {
           ignore: activeWatch.request.excludes
         })
@@ -214,12 +214,18 @@ export class FileWatcherHost {
           message: serializeErrorMessage(error)
         })
       }
+      return true
     }
 
-    activeWatch.pollTimer = setInterval(() => {
-      void poll()
-    }, SNAPSHOT_POLL_INTERVAL_MS)
-    void poll()
+    // Each poll is scheduled only after the previous one settles. Overlapping polls would queue
+    // behind the native backend lock and keep replaying events from the same stale snapshot.
+    const runPoll = async () => {
+      activeWatch.pollTimer = null
+      if ((await poll()) && !activeWatch.disposed) {
+        activeWatch.pollTimer = setTimeout(() => void runPoll(), SNAPSHOT_POLL_INTERVAL_MS)
+      }
+    }
+    void runPoll()
   }
 
   private enqueueEvents(activeWatch: ActiveWatch, events: WatcherEvent[]): void {
@@ -227,8 +233,10 @@ export class FileWatcherHost {
       return
     }
 
-    activeWatch.buffer.push(...events)
-    if (activeWatch.buffer.length > MAX_BUFFERED_EVENTS) {
+    // Check before spreading: spreading a very large batch into push() throws a RangeError.
+    if (activeWatch.buffer.length + events.length <= MAX_BUFFERED_EVENTS) {
+      activeWatch.buffer.push(...events)
+    } else {
       activeWatch.buffer = [
         {
           path: activeWatch.request.rootPath,
@@ -335,7 +343,7 @@ export class FileWatcherHost {
     }
 
     if (activeWatch.pollTimer) {
-      clearInterval(activeWatch.pollTimer)
+      clearTimeout(activeWatch.pollTimer)
       activeWatch.pollTimer = null
     }
 
