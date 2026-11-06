@@ -167,9 +167,21 @@ new Promise(async (resolve) => {
       providerId: '${PROVIDER_ID}',
       modelId: '${MODEL_ID}'
     })
+    const seen = []
+    window.deepchat.on('sessions.updated', () => seen.push('sessions.updated'))
+    window.deepchat.on('chat.stream.updated', () => seen.push('stream'))
+    await window.deepchat.invoke('onboarding.complete', { force: true })
+    await new Promise((r) => setTimeout(r, 1500))
+    console.log('events seen by page:', seen.length)
     location.hash = '#/chat'
-    window.localStorage.setItem('deepchat:session', created.session.id)
-    await new Promise((r) => setTimeout(r, 6000))
+    await new Promise((r) => setTimeout(r, 2500))
+    // Open the session the way a user would: click its row in the sidebar.
+    const row = [...document.querySelectorAll('*')].find(
+      (element) =>
+        element.children.length === 0 && element.textContent?.includes('你好，请用一句话介绍自己')
+    )
+    row?.closest('button, [role=button], li, div')?.click()
+    await new Promise((r) => setTimeout(r, 5000))
     const page = await window.deepchat.invoke('sessions.listMessagesPage', {
       sessionId: created.session.id,
       limit: 20
@@ -177,6 +189,7 @@ new Promise(async (resolve) => {
     resolve(JSON.stringify({
       sessionId: created.session.id,
       messages: page.messages.length,
+      pageEvents: seen.length,
       hasReply: JSON.stringify(page).includes('mock')
     }))
   } catch (error) {

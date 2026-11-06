@@ -414,6 +414,8 @@ SPIKE probe.result={"sessionId":"cttIOvqNn-C6a8YdPg1f9","messages":2,"hasReply":
 
 截图里显示的是引导页，因为临时档案没有完成引导；会话与回复已通过 `listMessagesPage` 验证。
 
+再往下查了一层：**事件通道是通的**。页面订阅 `sessions.updated` 与 `chat.stream.updated` 后，创建会话的过程中收到了 5 个事件。所以侧边栏仍显示「还没有会话」不是通道问题，而是列表的查询键与脚本创建会话时使用的 agent 不是同一个——属于下一轮要定位的具体问题，不是架构缺陷。
+
 ## 下一步
 
 1. 接入真实桥接：用 `window.api` 的 mygo 实现替换 spike 里的 stub，验证 55 次启动调用能否返回真实数据（对应 M2/M3）。
