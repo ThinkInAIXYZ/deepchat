@@ -45,6 +45,30 @@ const serializeErrorMessage = (error: unknown): string => {
   return String(error)
 }
 
+// Directories are walked because a ref update renames `<ref>.lock` into place, which changes the
+// mtime of the directory holding the ref but not of `refs` itself.
+const readPathSignatures = (targetPaths: string[]): Map<string, string> => {
+  const signatures = new Map<string, string>()
+  const visit = (targetPath: string) => {
+    try {
+      const stat = fs.statSync(targetPath)
+      signatures.set(targetPath, `${stat.mtimeMs}:${stat.size}`)
+      if (!stat.isDirectory()) {
+        return
+      }
+      for (const entry of fs.readdirSync(targetPath, { withFileTypes: true })) {
+        if (entry.isDirectory()) {
+          visit(path.join(targetPath, entry.name))
+        }
+      }
+    } catch {
+      // A missing path is recorded as absent.
+    }
+  }
+  targetPaths.forEach(visit)
+  return signatures
+}
+
 const toWatcherEvents = (events: parcelWatcher.Event[]): WatcherEvent[] =>
   events.map((event) => ({
     path: event.path,
@@ -193,11 +217,63 @@ export class FileWatcherHost {
     await this.unsubscribeNative(activeWatch)
 
     if (activeWatch.mode === 'git-metadata-polling') {
-      this.startSnapshotPolling(activeWatch, message)
+      this.startGitMetadataPolling(activeWatch, message)
       return
     }
 
     this.startSnapshotPolling(activeWatch, message)
+  }
+
+  // Git metadata is a handful of known paths, so stat them directly instead of diffing a snapshot
+  // of the whole watch root.
+  private startGitMetadataPolling(activeWatch: ActiveWatch, message?: string): void {
+    const metadataPaths = activeWatch.request.includes ?? []
+    let previous = readPathSignatures(metadataPaths)
+    this.sendStatus(activeWatch, {
+      health: 'degraded',
+      mode: activeWatch.mode,
+      reason: 'fallback-started',
+      message
+    })
+
+    const poll = () => {
+      activeWatch.pollTimer = null
+      if (activeWatch.disposed) {
+        return
+      }
+
+      if (!fs.existsSync(activeWatch.request.rootPath)) {
+        this.enqueueEvents(activeWatch, [
+          {
+            path: activeWatch.request.rootPath,
+            type: 'root-deleted'
+          }
+        ])
+        this.sendStatus(activeWatch, {
+          health: 'failed',
+          mode: activeWatch.mode,
+          reason: 'root-deleted'
+        })
+        return
+      }
+
+      const next = readPathSignatures(metadataPaths)
+      const events: WatcherEvent[] = []
+      for (const targetPath of new Set([...previous.keys(), ...next.keys()])) {
+        if (previous.get(targetPath) === next.get(targetPath)) {
+          continue
+        }
+        events.push({
+          path: targetPath,
+          type: !next.has(targetPath) ? 'delete' : previous.has(targetPath) ? 'update' : 'create'
+        })
+      }
+      previous = next
+      this.enqueueEvents(activeWatch, events)
+      activeWatch.pollTimer = setTimeout(poll, SNAPSHOT_POLL_INTERVAL_MS)
+    }
+
+    activeWatch.pollTimer = setTimeout(poll, SNAPSHOT_POLL_INTERVAL_MS)
   }
 
   private startSnapshotPolling(activeWatch: ActiveWatch, message?: string): void {
