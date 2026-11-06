@@ -223,4 +223,30 @@ describe('FileWatcherHost', () => {
     expect(statuses.at(-1)?.mode).toBe('snapshot-polling')
     expect(parcel.writeSnapshot).toHaveBeenCalledTimes(1)
   })
+
+  it('polls git metadata paths without snapshots when git subscribe fails', async () => {
+    const gitDir = path.join(rootPath, '.git')
+    const headsDir = path.join(gitDir, 'refs', 'heads')
+    fs.mkdirSync(headsDir, { recursive: true })
+    fs.writeFileSync(path.join(gitDir, 'HEAD'), 'ref: refs/heads/main\n')
+    parcel.subscribe.mockRejectedValue(new Error('subscribe failed'))
+
+    await host.watch({
+      ...request,
+      rootPath: gitDir,
+      hostKind: 'git',
+      purpose: 'workspace-git',
+      includes: [path.join(gitDir, 'HEAD'), path.join(gitDir, 'refs')],
+      fallbackMode: 'git-metadata-polling'
+    })
+    await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS + 100)
+    expect(eventBatches()).toEqual([])
+
+    fs.writeFileSync(path.join(headsDir, 'main'), 'abc\n')
+    await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS + 100)
+
+    expect(eventBatches()).toEqual([[{ path: headsDir, type: 'update' }]])
+    expect(parcel.writeSnapshot).not.toHaveBeenCalled()
+    expect(parcel.getEventsSince).not.toHaveBeenCalled()
+  })
 })
