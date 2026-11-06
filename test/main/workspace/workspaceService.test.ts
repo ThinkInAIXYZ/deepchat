@@ -309,6 +309,41 @@ describe('WorkspaceService watchers', () => {
     })
   })
 
+  it('watches the git directory that holds linked worktree metadata', async () => {
+    const mainGitDir = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-main-')), '.git')
+    const worktreeGitDir = path.join(mainGitDir, 'worktrees', 'feature')
+    const gitPaths: Record<string, string> = {
+      HEAD: path.join(worktreeGitDir, 'HEAD'),
+      index: path.join(worktreeGitDir, 'index'),
+      'packed-refs': path.join(mainGitDir, 'packed-refs'),
+      refs: path.join(mainGitDir, 'refs')
+    }
+    execFileMock.mockImplementation(
+      (
+        _command: string,
+        args: string[],
+        _options: unknown,
+        callback: (error: Error | null, result?: { stdout: string; stderr: string }) => void
+      ) => {
+        const stdout =
+          args[1] === '--show-toplevel'
+            ? workspacePath
+            : args[1] === '--git-path'
+              ? gitPaths[args[2]]
+              : ''
+        callback(null, { stdout: `${stdout}\n`, stderr: '' })
+      }
+    )
+
+    await presenter.registerWorkspace(workspacePath)
+    await presenter.watchWorkspace(workspacePath)
+
+    const [, gitWatcher] = fakeWatcherService.watchers
+    expect(gitWatcher.request.rootPath).toBe(mainGitDir)
+    expect(gitWatcher.request.includes).toContain(gitPaths.HEAD)
+    fs.rmSync(path.dirname(mainGitDir), { recursive: true, force: true })
+  })
+
   it('emits watcher status updates for the active workspace', async () => {
     await presenter.registerWorkspace(workspacePath)
     await presenter.watchWorkspace(workspacePath)
