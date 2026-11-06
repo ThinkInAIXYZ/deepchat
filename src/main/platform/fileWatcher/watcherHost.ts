@@ -16,7 +16,7 @@ const FILE_CHANGES_HANDLER_DELAY_MS = 75
 const MAX_BUFFERED_EVENTS = 30000
 const MAX_EVENT_CHUNK_SIZE = 500
 const EVENT_CHUNK_DELAY_MS = 200
-const SNAPSHOT_POLL_INTERVAL_MS = 5007
+export const SNAPSHOT_POLL_INTERVAL_MS = 5007
 
 type ParcelSubscription = Awaited<ReturnType<typeof parcelWatcher.subscribe>>
 
@@ -157,6 +157,19 @@ export class FileWatcherHost {
     )
     activeWatch.snapshotPath = snapshotPath
 
+    // The native write can still be running when dispose removes the snapshot, and would recreate
+    // it afterwards. Deleting again once the write settles converges whichever side finishes first.
+    const writeSnapshot = async (): Promise<boolean> => {
+      await parcelWatcher.writeSnapshot(activeWatch.request.rootPath, snapshotPath, {
+        ignore: activeWatch.request.excludes
+      })
+      if (activeWatch.disposed) {
+        fs.rmSync(snapshotPath, { force: true })
+        return false
+      }
+      return true
+    }
+
     const poll = async (): Promise<boolean> => {
       if (activeWatch.disposed) {
         return false
@@ -179,9 +192,9 @@ export class FileWatcherHost {
         }
 
         if (!fs.existsSync(snapshotPath)) {
-          await parcelWatcher.writeSnapshot(activeWatch.request.rootPath, snapshotPath, {
-            ignore: activeWatch.request.excludes
-          })
+          if (!(await writeSnapshot())) {
+            return false
+          }
           this.sendStatus(activeWatch, {
             health: 'degraded',
             mode: activeWatch.mode,
@@ -198,13 +211,9 @@ export class FileWatcherHost {
             ignore: activeWatch.request.excludes
           }
         )
-        // Writing after dispose would recreate the snapshot file that dispose just removed.
-        if (activeWatch.disposed) {
+        if (activeWatch.disposed || !(await writeSnapshot())) {
           return false
         }
-        await parcelWatcher.writeSnapshot(activeWatch.request.rootPath, snapshotPath, {
-          ignore: activeWatch.request.excludes
-        })
         this.enqueueEvents(activeWatch, toWatcherEvents(events))
       } catch (error) {
         this.sendStatus(activeWatch, {

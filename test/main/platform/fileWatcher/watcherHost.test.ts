@@ -2,7 +2,10 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { FileWatcherHost } from '../../../../src/main/platform/fileWatcher/watcherHost'
+import {
+  FileWatcherHost,
+  SNAPSHOT_POLL_INTERVAL_MS as POLL_INTERVAL_MS
+} from '../../../../src/main/platform/fileWatcher/watcherHost'
 import type {
   FileWatcherHostEvent,
   WatchRequest
@@ -25,8 +28,6 @@ vi.mock('path', async () => {
   const actual = await vi.importActual<typeof import('node:path')>('node:path')
   return { default: actual, ...actual }
 })
-
-const POLL_INTERVAL_MS = 5007
 
 describe('FileWatcherHost', () => {
   let rootPath: string
@@ -76,6 +77,30 @@ describe('FileWatcherHost', () => {
     resolveEvents([])
     await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS)
     expect(parcel.getEventsSince).toHaveBeenCalledTimes(2)
+  })
+
+  it('removes a snapshot that finishes writing after the watch is disposed', async () => {
+    parcel.subscribe.mockRejectedValue(new Error('subscribe failed'))
+    let snapshotPath = ''
+    let finishWrite = () => {}
+    parcel.writeSnapshot.mockImplementation(
+      (_root: string, targetPath: string) =>
+        new Promise<void>((resolve) => {
+          snapshotPath = targetPath
+          finishWrite = () => {
+            fs.writeFileSync(targetPath, '')
+            resolve()
+          }
+        })
+    )
+
+    await host.watch(request)
+    await host.unwatch(request.id)
+    finishWrite()
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(snapshotPath).not.toBe('')
+    expect(fs.existsSync(snapshotPath)).toBe(false)
   })
 
   it('emits overflow for a batch too large to buffer', async () => {
