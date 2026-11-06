@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import { createRequire } from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -260,6 +261,32 @@ describe('WorkspaceService watchers', () => {
         }
       }
     ])
+  })
+
+  it('ignores git internals and build output but keeps the .git directory event', async () => {
+    await presenter.registerWorkspace(workspacePath)
+    await presenter.watchWorkspace(workspacePath)
+
+    const [contentWatcher] = fakeWatcherService.watchers
+    const parcelRequire = createRequire(createRequire(import.meta.url).resolve('@parcel/watcher'))
+    const picomatch = parcelRequire('picomatch')
+    // Same matcher and options @parcel/watcher uses; it matches paths relative to the watch root.
+    const matchers: RegExp[] = (contentWatcher.request.excludes ?? []).map((glob) =>
+      picomatch.makeRe(glob, { dot: true, windows: process.platform === 'win32' })
+    )
+    const isIgnored = (relativePath: string) =>
+      matchers.some((matcher) => matcher.test(relativePath))
+
+    const ignored = [
+      '.git/HEAD',
+      'node_modules/a.js',
+      'pkg/node_modules/a.js',
+      'dist/out.js',
+      'clones/repo/.git/objects/ab'
+    ]
+    const kept = ['.git', 'src/a.ts', 'clones/repo/.git']
+    expect(ignored.filter((relativePath) => !isIgnored(relativePath))).toEqual([])
+    expect(kept.filter(isIgnored)).toEqual([])
   })
 
   it('emits git invalidations from git metadata watcher changes', async () => {
