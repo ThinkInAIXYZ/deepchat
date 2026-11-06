@@ -4,12 +4,17 @@ package sidecar
 
 import (
 	"errors"
+	"fmt"
 	"os/exec"
 	"syscall"
 )
 
 func configureProcessGroup(cmd *exec.Cmd) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+}
+
+func newProcessGroup(cmd *exec.Cmd) (func() error, error) {
+	return func() error { return killProcessGroup(cmd) }, nil
 }
 
 func killProcessGroup(cmd *exec.Cmd) error {
@@ -20,5 +25,8 @@ func killProcessGroup(cmd *exec.Cmd) error {
 	if errors.Is(err, syscall.ESRCH) {
 		return nil
 	}
-	return err
+	if err != nil {
+		return fmt.Errorf("kill process group %d: %w", cmd.Process.Pid, err)
+	}
+	return nil
 }

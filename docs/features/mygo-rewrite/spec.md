@@ -70,7 +70,20 @@ Go module 位于 `shell/`。正式应用在 `shell/deepchat`，探测应用在 `
 
 sidecar stdout 有且只有协议 writer 可以写入。`@shared/logger` 在早期绑定的 console 以及业务代码的直接 stdout 写入都重定向到 stderr；非空、非 JSON 行、未知响应 id 和不完整消息必须是协议错误。请求取消后的迟到响应按原 id 消费并丢弃，使后续请求能继续使用同一进程。超时取消不自动重试 mutation。
 
-D2b1 是单窗口、可监督的第一根产品脊柱。真实 Main shutdown coordinator、自动重连、跨窗口身份、deep link 和产品级隔离等价仍未完成，记录于 D2c，而不是借本切片的进程启动成功宣称整个生命周期通过。
+D2b1 是单窗口、可监督的第一根产品脊柱。D2c1 只关闭真实业务生命周期并补上单项 sidecar 自动恢复；跨窗口身份、deep link、大输入资源治理和产品级隔离等价归入 D2c2，仍不得合并称整个生命周期通过。
+
+### 4.2 D2c1 关闭和恢复合同
+
+- `SidecarLifecycle` 等待现有 `appMain` 的 `before-quit` 完成。只有真实 `app.quit()` 批准后才从 Node 进程退出；同步抛错和可重试注销不能被已完成 Promise 或重复退出请求吞并。
+- Supervisor 按进程代次区分响应和事件。请求只发送一次，退出使其返回明确错误；替换进程不得自动重放请求或 mutation。每代共享 Process 的关闭、进程组强杀及 reap 合同；正常及意外根进程退出都清理其剩余所属进程组，并透传实际关闭错误。
+- stdout 读管道由壳独立持有，读取与 `Wait` 分离，避免退出关闭截断合法响应或因子进程继承写端而永久阻塞。意外 EOF 不等于进程退出，超过该代关闭 deadline 必须强杀。清理失败独立结束等待和调用，标记终态，禁止在旧子树可能存活时创建新代次。
+- 大输入的序列化与实际写入不得占用生命周期状态锁。发送权按 context 等待，并在发送权范围内分配 ID、编码和写出帧，使 wire 顺序与 ID 顺序一致；残缺帧或阻塞写入超时必须终止当前代次，不能在后一请求前拼接不完整 JSON。取消期间发送权保持到实际 writer 完成，发送前再次检查进程关闭状态；关闭首先停止接受新调用，再异步关闭输入并保有强制回收 deadline。
+- startup event handler 必须在 reader goroutine 启动前安装，避免立即 ready 被丢失并触发错误的 startup timeout。Windows 使用每代独立 Job Object 和 `KILL_ON_JOB_CLOSE` 处理根进程退出后的子树，不能只依赖根 PID 的 `taskkill`；此项目前只有源码与交叉编译证据，仍需真实 Windows 运行验收。
+- 正常关闭和管理器关闭事件不得创建替代进程。连续启动失败默认最多重试 3 次，采用有上限的指数退避；每代有默认 60 秒的可配置 readiness deadline，活着但从不 ready 的进程必须被强杀并进入同一恢复流程。只有真实 `sidecar.app.started` 才清零连续失败计数，未经历这个信号的进程启动不算恢复成功。
+- 替换进程 ready 后等待真实 renderer reload，不得用单纯 Node 进程存活代替页面注册恢复。失败耗尽后请求返回明确错误，壳进入退出流程。
+- 正式生产绑定不包含通用 Eval。mygo 官方 automation 仅在 `e2e` 构建和显式 `MYGO_AUTOMATION` 下启用，用于测试窗口的 DOM、只读 IPC 与实际截图，其余发行构建必须保持该入口关闭。
+
+D2c1 的恢复验收必须包含真实 sidecar 故障注入和新代次 DOM 观察，不能仅依靠 helper 测试或路由数量。它不涵盖多窗口身份、批量流恢复、所有 worker 或平台发行矩阵。
 
 ## 5. 后台进程与 worker 合同
 

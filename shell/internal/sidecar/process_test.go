@@ -79,6 +79,63 @@ process.stdin.on('close', () => process.exit(0))
 	}
 }
 
+func TestRequestsKeepMonotonicIDOrderDuringEncoding(t *testing.T) {
+	orderFile := filepath.Join(t.TempDir(), "order.log")
+	process := startTestProcess(t, `
+import { appendFileSync } from 'node:fs'
+import { createInterface } from 'node:readline'
+const orderFile = process.env.SIDECAR_TEST_ORDER_FILE
+createInterface({ input: process.stdin }).on('line', (line) => {
+  const request = JSON.parse(line)
+  appendFileSync(orderFile, String(request.id) + ':' + request.route + '\n')
+  const respond = () => process.stdout.write(JSON.stringify({ id: request.id, result: { route: request.route } }) + '\n')
+  if (request.route === 'slow') setTimeout(respond, 25)
+  else respond()
+})
+`, func(options *Options) {
+		options.Env = append(options.Env, "SIDECAR_TEST_ORDER_FILE="+orderFile)
+	})
+	payload := `{"value":"` + strings.Repeat("x", 8<<20) + `"}`
+	slowResult := make(chan error, 1)
+	go func() {
+		_, err := process.Call(context.Background(), "slow", payload)
+		slowResult <- err
+	}()
+
+	deadline := time.After(2 * time.Second)
+	finishedEarly := false
+	for !finishedEarly && len(process.writeToken) == 0 {
+		select {
+		case err := <-slowResult:
+			if err != nil {
+				t.Fatalf("large request failed before the smaller call: %v", err)
+			}
+			finishedEarly = true
+		case <-deadline:
+			t.Fatal("the large request never acquired its write turn")
+		default:
+		}
+	}
+	if _, err := process.Call(context.Background(), "fast", `{}`); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-slowResult:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("the large request never completed")
+	}
+	data, err := os.ReadFile(orderFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := string(data), "1:slow\n2:fast\n"; got != want {
+		t.Fatalf("non-monotonic request frames: got %q, want %q", got, want)
+	}
+}
+
 func TestMalformedOutputFailsPendingCall(t *testing.T) {
 	process := startTestProcess(t, `
 process.stdout.write('not json\n')
@@ -152,5 +209,141 @@ process.stdin.once('data', () => process.exit(7))
 	_, err := process.Call(context.Background(), "test.exit", `{}`)
 	if err == nil || !strings.Contains(err.Error(), "sidecar stopped") {
 		t.Fatalf("expected process exit failure, got %v", err)
+	}
+}
+
+func TestClosedStdoutIsFatalWithinBoundedTime(t *testing.T) {
+	// Close the real OS descriptor; destroying only the JS stream wrapper need
+	// not close fd 1. The timer keeps Node alive after the transport EOF.
+	process := startTestProcess(t, `
+import { closeSync } from 'node:fs'
+closeSync(1)
+setInterval(() => {}, 1000)
+`, func(options *Options) {
+		options.ShutdownTimeout = 20 * time.Millisecond
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if _, err := process.Call(ctx, "unusable.transport", `{}`); err == nil ||
+		!strings.Contains(err.Error(), "sidecar stopped") {
+		t.Fatalf("expected a bounded transport failure, got %v", err)
+	}
+}
+
+func TestBlockedWriteHonorsDeadline(t *testing.T) {
+	process := startTestProcess(t, `
+import { createInterface } from 'node:readline'
+createInterface({ input: process.stdin }).on('line', (line) => {
+  const request = JSON.parse(line)
+  if (request.route === 'start') {
+    process.stdin.pause()
+    process.stdout.write(JSON.stringify({ id: request.id, result: { ready: true } }) + '\n')
+  }
+})
+setInterval(() => {}, 1000)
+`, nil)
+	if _, err := process.Call(context.Background(), "start", `{}`); err != nil {
+		t.Fatal(err)
+	}
+	payload := `{"value":"` + strings.Repeat("x", 4<<20) + `"}`
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+	started := time.Now()
+	if _, err := process.Call(ctx, "blocked.input", payload); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expected a blocked write deadline, got %v", err)
+	}
+	if elapsed := time.Since(started); elapsed >= 2*time.Second {
+		t.Fatalf("the blocked write escaped its deadline for %s", elapsed)
+	}
+	process.mu.Lock()
+	closed, stopping, pending := process.closed, process.stopping, len(process.pending)
+	process.mu.Unlock()
+	waiting := 0
+	select {
+	case <-process.waitDone:
+		waiting = 1
+	default:
+	}
+	if waiting == 0 {
+		t.Logf("after deadline: closed=%t stopping=%t pending=%d writeToken=%d exited=%d elapsed=%s", closed, stopping, pending, len(process.writeToken), waiting, time.Since(started))
+	}
+	select {
+	case <-process.done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("a partial frame did not terminate the process generation")
+	}
+	select {
+	case <-process.waitDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("the process was reported closed without reaping its root")
+	}
+}
+
+func TestCloseInterruptsBlockedWrite(t *testing.T) {
+	process := startTestProcess(t, `
+import { createInterface } from 'node:readline'
+createInterface({ input: process.stdin }).on('line', (line) => {
+  const request = JSON.parse(line)
+  if (request.route === 'start') {
+    process.stdin.pause()
+    process.stdout.write(JSON.stringify({ id: request.id, result: { ready: true } }) + '\n')
+  }
+})
+setInterval(() => {}, 1000)
+`, nil)
+	t.Cleanup(func() {
+		select {
+		case <-process.done:
+			return
+		default:
+			_ = process.Kill()
+		}
+	})
+	if _, err := process.Call(context.Background(), "start", `{}`); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	payload := `{"value":"` + strings.Repeat("x", 4<<20) + `"}`
+	callResult := make(chan error, 1)
+	closeResult := make(chan error, 1)
+	started := time.Now()
+	go func() {
+		_, err := process.Call(ctx, "blocked.input", payload)
+		callResult <- err
+	}()
+	time.AfterFunc(50*time.Millisecond, func() {
+		closeResult <- process.Close(ctx)
+	})
+	select {
+	case err := <-callResult:
+		if err == nil {
+			t.Fatal("a write canceled by Close must not report success")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Close did not release the blocked caller")
+	}
+	select {
+	case err := <-closeResult:
+		var exitErr *exec.ExitError
+		// A graceful EOF can finish first. Otherwise either the caller timed
+		// out, or closing an unfinished frame forced an immediate process exit.
+		// Other failures must still fail the test even after cleanup succeeds.
+		if err != nil && !errors.Is(err, context.DeadlineExceeded) && !errors.As(err, &exitErr) {
+			t.Fatalf("unexpected close failure: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("a blocked write defeated Close and its deadline")
+	}
+	if elapsed := time.Since(started); elapsed >= 2*time.Second {
+		t.Fatalf("Close remained blocked for %s", elapsed)
+	}
+}
+
+func TestCloseReportsFailedGracefulShutdown(t *testing.T) {
+	process := startTestProcess(t, `setTimeout(() => process.exit(7), 80)`, nil)
+	if err := closeTestProcess(t, process); err == nil || !strings.Contains(err.Error(), "exit status 7") {
+		t.Fatalf("expected the terminal sidecar error, got %v", err)
 	}
 }

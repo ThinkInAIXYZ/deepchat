@@ -38,33 +38,54 @@ func main() {
 	}
 
 	var stopping atomic.Bool
+	var rendererReady atomic.Bool
 	bridge := &Bridge{}
-	process, err := sidecar.Start(sidecar.Options{
-		NodePath:        layout.nodePath,
-		ScriptPath:      layout.sidecarEntry,
-		Stderr:          os.Stderr,
-		RequestTimeout:  90 * time.Second,
-		ShutdownTimeout: 5 * time.Second,
-		OnExit: func(err error) {
-			if stopping.Load() {
-				return
+	manager, err := sidecar.StartManager(sidecar.ManagerOptions{
+		Process: sidecar.Options{
+			NodePath:        layout.nodePath,
+			ScriptPath:      layout.sidecarEntry,
+			Stderr:          os.Stderr,
+			RequestTimeout:  90 * time.Second,
+			ShutdownTimeout: 5 * time.Second,
+		},
+		MaxRestarts: 3,
+		Backoff:     500 * time.Millisecond,
+		OnUnexpectedExit: func(err error) {
+			if !stopping.Load() {
+				log.Printf("sidecar exited unexpectedly; replacement scheduled: %v", err)
 			}
-			log.Printf("sidecar exited unexpectedly; application recovery is not yet available: %v", err)
-			go mygo.App.Quit()
+		},
+		OnReady: func() {
+			if rendererReady.Swap(true) {
+				log.Print("sidecar replacement ready; rebuilding renderer subscriptions")
+				if bridge.window != nil {
+					bridge.window.Page().Reload()
+				}
+			}
+		},
+		OnExhausted: func(err error) {
+			if !stopping.Load() {
+				log.Printf("sidecar recovery exhausted; application will stop: %v", err)
+				go mygo.App.Quit()
+			}
 		},
 	})
 	if err != nil {
 		log.Fatalf("start Node sidecar: %v", err)
 	}
-	bridge.process = process
-	process.SetEventHandler(func(event sidecar.Event) {
+	bridge.process = manager
+	manager.SetEventHandler(func(event sidecar.Event) {
+		if event.Name == "app.quit.requested" {
+			stopping.Store(true)
+			go mygo.App.Quit()
+		}
 		_ = deepchatEvent.Broadcast(deepchatEventPayload{Name: event.Name, Payload: event.Payload})
 	})
 	defer func() {
 		stopping.Store(true)
 		ctx, cancel := context.WithTimeout(context.Background(), 7*time.Second)
 		defer cancel()
-		if err := process.Close(ctx); err != nil {
+		if err := manager.Close(ctx); err != nil {
 			log.Printf("close Node sidecar: %v", err)
 		}
 	}()

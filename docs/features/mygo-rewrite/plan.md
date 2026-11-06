@@ -219,15 +219,21 @@ M2 Node sidecar 化、M3 Go 壳与桥、M4 周边能力、M5 打包与更新、M
 
 结果：`go test ./...`、`go test -race ./internal/sidecar ./deepchat`、`go vet ./...`、正式二进制构建以及 Windows/Linux 交叉编译通过。Go 生命周期测试覆盖响应/事件、非法输出、超时、迟到响应、异常退出、短 deadline 关闭和超时强杀。独立审查发现的 URL parse nil 解引用及关闭回收问题已修复并回归。构建后的应用真实启动完整主进程并显示 file watcher 与 SkillSync 正常运行，第二次启动立即退出，SIGTERM 后无测试 sidecar 残留。资源路径、外链 allowlist 和 preload 注入均有定向测试。正式切片仍是一个主窗口，未完成自动重连、Main shutdown coordinator、多窗口与完整原生能力，见 D2c。
 
-### [ ] D2c 完成正式壳与可靠生命周期
+### [x] D2c1 接入真实关闭协调器和有界 sidecar 恢复
 
-1. 将真实退出接入 Main shutdown coordinator，而不是只关闭 sidecar stdin；验证子进程、stream 和写操作按序停止。
-2. 完善大输入阻塞、启动失败终态、超时取消和 malformed/EOF 诊断，测量并拒绝资源耗尽路径。
-3. sidecar 非预期退出后有界退避重连并重建 renderer 订阅，禁止自动重放 mutation；覆盖进程组清理和重复失败。
-4. 建立真实多 window/webContents 身份映射、目标事件和 native close/destroy 通知，移除“选择最后一个窗口”的临时行为。
-5. 将 spike 的通用 Eval 与任意外链绑定排除在正式入口之外，保持 app-document 和外链 allowlist 校验，并解决或明确评审 mygo preload content-world 差距。
+1. sidecar stdin 关闭时复用真实 `appMain` 的 `before-quit` / shutdown coordinator，批准后才退出进程。
+2. sidecar 非预期退出后按代次有界退避重连，真实 dispatcher ready 后重载 renderer，禁止自动重放 mutation；累计启动失败或正常退出均有确定行为。
+3. 正式应用仅在显式 `e2e` 构建中引入 mygo 官方 automation 插件，不能以正常发行模式打开控制 socket。
 
-完成标准：正式构建可从干净临时目录启动；sidecar 未就绪、崩溃、重启和退出均有确定性行为与测试证据；不能把仅提前注入脚本宣称已具备 Electron context isolation。
+结果：`SidecarLifecycle` 已接入同一事件发射器和真实业务 app event，失败重试定向测试 4 项通过；相关 readiness/shutdown coordinator 共 15 项测试通过。Manager 的真实 Node helper 覆盖恢复后无重放、连续启动失败有界和关闭期间不重启。Go 全量普通/`-race` 测试、`vet` 和正式构建通过。macOS 开发构建中人为杀死两次真实 sidecar，Go 均生成新进程，重载后的导航类型为 `reload`、preload 为 `created`，恢复后的只读 `providers.listSummaries` 返回 95 项，DOM 和实际窗口截图正常。正常 SIGTERM 触发真实业务销毁序列并退出，无恢复重启。正式 Bridge 仍不暴露通用 Eval；只有带 `e2e` 标签并显式设置 `MYGO_AUTOMATION` 的构建使用官方插件。此项不包含多窗口、密钥迁移、打包发行或跨平台运行验收。
+
+### [ ] D2c2 完成大输入、多窗口身份和隔离边界
+
+1. 完善大消息/输出帧限额、全局背压与内存预算、流和后台任务的异常生命周期以及长期资源治理，测量并拒绝资源耗尽路径。单个请求的阻塞写入、残帧和关闭 deadline 已由 D2c1 覆盖，不能因此宣称全局有界。
+2. 建立真实多 window/webContents 身份映射、目标事件和 native close/destroy 通知，移除“选择最后一个窗口”的临时行为。
+3. 保持 app-document 和外链 allowlist 校验，并解决或明确评审 mygo preload content-world 差距；官方 e2e automation 不进入正常发行模式。
+
+完成标准：正式构建可从干净临时 profile 启动；sidecar 未就绪、崩溃、重启和退出均有确定性行为与测试证据；完整流/子进程异常生命周期、多窗口身份和 Web 安全边界已验证，不能把仅提前注入脚本或仅切换父进程 stdin 宣称已具备 Electron 同等隔离与资源治理。
 
 ### [ ] D3 完成窗口与原生能力
 

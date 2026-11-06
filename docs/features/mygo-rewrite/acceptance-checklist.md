@@ -1,6 +1,6 @@
 # mygo 完整替代验收与差距清单
 
-更新：2026-11-06（阶段 D 审计与后台进程运行时切片）
+更新：2026-11-06（D2c1 真实关闭与 sidecar 恢复切片）
 分支：`feat/mygo-rewrite`
 规范：`spec.md`；执行状态：`plan.md` 阶段 D
 整体结论：**尚未完成替代，不得发布为 Electron 的完整替代品。**
@@ -36,16 +36,16 @@
 | file watcher 独立 sidecar 入口 | 已验证本切片 | `out/sidecar/fileWatcherUtilityHost.mjs` 真实生成并执行 IPC，不依赖 `out/main` |
 | scheduler/background-exec/code-mode 独立 sidecar 入口 | 部分实现 | 4 个 `.mjs` 已生成且 Node ProcessHost 会优先选择同目录入口；其余 host 尚未分别执行业务级验收 |
 | SkillSync worker | 已验证本切片 | `out/sidecar/scanWorkerEntry.mjs` 真实 worker 返回 `{ok:true, scanResults:[], discoveries:[]}`；完整 sidecar 聊天启动中不再出现模块缺失和主线程 fallback 日志 |
-| 后台子进程异常诊断、恢复与关闭 | 未实现完整闭环 | 当前请求/进程级恢复和打包后完整生命周期仍待 D2/D4；单次成功启动不代表恢复已验证 |
+| 后台子进程异常诊断、恢复与关闭 | 未实现完整闭环 | D2c1 已覆盖父 sidecar 的有界恢复及 Unix 进程组回收，四个 utility host 的业务级崩溃、取消、重启和打包后生命周期仍待 D4/D6；单次成功启动不代表恢复已验证 |
 
 ### 3.2 正式产品壳与传输（阶段 D2）
 
 | 能力 | 状态 | 差距 |
 | --- | --- | --- |
 | 正式应用入口 | 部分实现（D2b1 已实测） | `shell/deepchat` 可构建并直接启动、获得单实例锁并回收 sidecar，不是正式打包发行版；spike 与正式入口共享 `internal/sidecar` |
-| 启动 readiness 与 route 错误 | 部分实现（D2a 已验证） | 早期请求现在等待真实 dispatcher 注册，ready 后才发布 started，缺 route/缺 dispatcher 返回错误；启动超时和启动失败终态仍未覆盖 |
-| 超时、取消、背压、损坏响应 | 部分实现（D2b1 已验证） | 共享 Process 支持请求 deadline、取消后的合法迟到响应丢弃、非法输出/异常 id 失败；超大阻塞输入和长期资源治理仍待 D2c |
-| sidecar 崩溃恢复和进程树关闭 | 部分实现（D2b1 已验证） | 在途请求收到确定错误、意外退出可终止壳、超时强杀覆盖进程组并等待回收；自动重连、renderer 重建和真实 Main shutdown coordinator 尚未完成 |
+| 启动 readiness 与 route 错误 | 部分实现（D2c1 已验证） | 早期请求等待真实 dispatcher 注册，ready 后才发布 started，缺 route/缺 dispatcher 返回错误；每代有 60 秒默认 readiness deadline，挂起也进入有界恢复。业务初始化卡死与大输入资源上限仍未覆盖 |
+| 超时、取消、背压、损坏响应 | 部分实现（D2c1 已验证单请求边界） | 共享 Process 支持请求 deadline、取消后的合法迟到响应丢弃、非法输出/异常 id 失败；4 MiB 阻塞写入与并发 Close 有界，残帧终止本代，不在通用状态锁中做管道 I/O。超大读取、全局内存/背压和长期资源治理仍待 D2c2 |
+| sidecar 崩溃恢复和进程树关闭 | 部分实现（D2c1 单项 macOS 已验证） | 在途请求收到确定错误；超时强杀覆盖进程组并等待回收；真实退出复用 Main shutdown coordinator；意外退出按代次有界恢复并重载 renderer，不自动重放 mutation。尚缺更多流/后台任务异常和多平台重复验收 |
 | 多窗口身份 | 部分实现（仅单窗口） | 正式 Bridge 使用 `mygo.CallerWindow` 校验当前真实主窗口；shim 内部多窗口身份仍固定/选择最后窗口，目标事件和关闭通知未对等 |
 | 单实例、deep link 和生命周期事件 | 部分实现（D2b1 已验证） | 第二次启动实测退出且不再启动业务进程；deep link、原生命运周期事件和 relaunch 尚未完整桥接 |
 
@@ -60,6 +60,7 @@
 | workspace 预览/长图 | 未实现完整链路 | `CapturePage`/`Eval` 能力存在不等于 tab capture、组合图片、滚动导出已成功 |
 | workspace/MCP Apps 协议隔离 | 未实现产品边界 | shim `protocol.handle()` 可能假报 true；未形成 origin、导航、session partition 与 sender 的完整安全验证 |
 | preload/context isolation | 未实现对等验证 | mygo v0.7.4 macOS 使用未指定 content world 的 `WKUserScript`；需要上游隔离能力或经评审的等价 least-privilege 设计，spike `Eval` 与任意外链转发禁止进入正式绑定 |
+| renderer sender 与文档来源 | 部分实现（仅单主窗口原生 Caller 校验） | Go 校验真实 `CallerWindow`，但 shim 仍选择最后窗口，并把 frame URL 固定为 canonical `file:` 以通过 Electron 授权；真实页面是 `mygo://localhost/`。D2c2 必须传递可信原生 window/page 身份与 document URL，拒绝未知/错配调用，扩展既有 app-document 授权而不是绕过它 |
 | OAuth | 部分受阻 | 系统浏览器迁移未完成；GitHub 回调页需配合回到 deep chat deep link，其他 OAuth 仍需逐项源审 |
 | 代理/权限/网络状态 | 未实现 | shim 的 proxy、permission、webRequest 和 `net.isOnline()` 等并非真实系统状态 |
 
@@ -98,6 +99,18 @@
 
 ## 4. 当前验证与已知失败
 
+D2c1 关闭协调、恢复和一次性 profile UI 验证：
+
+- `SidecarLifecycle` 等待现有 Main shutdown coordinator，shim `app.quit()` 先走真实 `before-quit`，只有业务批准后才发出 transport 退出许可；`app.exit()` 保留立即退出。17 个 lifecycle/quit-flow/readiness/shutdown-coordinator 定向测试通过，其中 quit-flow 使用实际 shim 和实际生命周期批准函数。
+- Manager 以进程代次管理有界恢复，每代默认 60 秒、可配置 readiness deadline。真实 Node 测试验证未响应 mutation 报错且不在第二代执行、快速/挂起启动均有界、backoff 中关闭不拉起新进程、异常退出回收进程树、关闭错误不被吞掉，并覆盖真实 OS stdout 关闭但 Node 存活及子进程继承保持 stdout 打开的边界。等待与读取分离后的 `go test -race -count=5 ./internal/sidecar ./deepchat` 通过，Windows/Linux 测试二进制也已交叉编译（未在这些平台运行）。
+- 使用带 `e2e` 标签的 mygo 官方 automation 接入真实窗口，没有给正式 Bridge 增加通用 Eval。此前两次实际 sidecar 故障注入均由 Go 拉起替换进程；恢复后导航类型为 `reload`、preload 为 `created`、DOM 正常，`providers.listSummaries` 再次实际返回 95 项，已人工查看窗口截图。
+- 修复后的 bundle 用显式 `/tmp/deepchat-d2c-runtime.LT09fB` 一次性 profile 验证：`window.deepchat.invoke("providers.listSummaries", {})` 返回 95 项，DOM `__step=created`，`/tmp/deepchat-mygo-final-before-quit.png` 已生成并核对。通过实际 `DeepChat → Quit DeepChat` 菜单完成普通退出，日志进入真实业务销毁并关闭数据库，无 replacement、graceful-shutdown 错误或 socket 残留。
+- 最终传输修复版使用 disposable profile 复验：旧 sidecar PID 2428 退出后由 PID 4548 接管，导航类型为 `reload`、桥重新 `created`、恢复后 provider 仍为 95；`/tmp/deepchat-mygo-ordered-recovery.png` 已核对。之后以 native menu 正常退出，业务数据库完成关闭，两个进程组无残留。
+- 应用级失败耗尽也已实测：仅给测试进程设置无效 `NODE_OPTIONS=--deepchat-invalid-startup-flag` 和新的 disposable profile，不改 bundle。日志恰好为初始加 3 次替换共 4 个失败代次、1 次 recovery exhausted，随后应用正常结束；没有假 ready 或无限重启。独立故障注入也证明：清理失败会结束等待和调用、拒绝后续请求且不重启；正常根进程退出后的遗留子树同样回收。
+- 4 MiB 阻塞写入及中途 Close 的用例分别重复普通和 `-race` 运行 20 次通过，覆盖调用超时、残帧强杀、实际 writer 完成后的锁释放与关闭状态。8 MiB 大请求首先占住发送权时，较小请求的实际 Node 接收记录保持 `1:slow`、`2:fast`，并发 ID 顺序回归连续 10 次通过。Electron `e2e:smoke` 本切片未执行；mygo 原生窗口验收不等于 Electron 安装/升级 smoke。Windows Job Object 仅有源码和交叉编译证据，未运行对应平台测试。
+- 最终完整回归：renderer 281 个文件、2704 测试通过；main 9797 通过、2 失败、6 跳过，失败仅为下面记录的两项既有 tunnel。Oxfmt、typecheck、lint、i18n、Electron 对照构建、正式 preload 与 sidecar 构建、Go 普通/race/vet、macOS e2e 构建和 Windows/Linux 交叉编译均通过。完整 renderer 另一次早期负载混合运行有 2 项超时，单独相关两文件 181 测试通过，串行重跑全量后为上述全绿。
+- Linux/Windows 尚只交叉编译；没有实际运行或安装验收。这里仍不是完整 stream/后台 worker 恢复、其他平台、迁移或正式发行完成证明。
+
 D2b1 生命周期与正式壳验证：
 
 - `go test ./...`、`go test -race ./internal/sidecar ./deepchat` 与 `go vet ./...` 通过。临时 Node helper 实测响应/事件、非法输出、超时与取消后迟到响应、异常退出和强制关闭；不会因客户端取消误杀后续请求。独立审查发现的 URL parse nil 解引用、短 deadline 回收问题已修复并有回归证据。
@@ -129,4 +142,4 @@ D1 直接验证：
 
 ## 6. 下一项最高优先级工作
 
-D1、D2a 已提交，D2b1 已完成共享监管和正式单窗口入口后进入 **D2c：完整真实生命周期**。下一优先级是把退出接入 Main shutdown coordinator 并实现有界重连和 renderer 状态重建；然后补多窗口身份、deep link 与真实原生能力。D2c 尚未完成，D3–D7 也不能从验收中删除。
+D2c1 的真实关闭协调和有界 sidecar 恢复已完成。下一优先级是 **D2c2：真实多 window/webContents 身份与 sender 校验、目标事件和关闭通知**，并继续大输入和长期资源治理；不能用固定/最后窗口身份运行多窗口功能。preload content-world 隔离、deep link 和真实原生能力紧随其后。D3–D7 仍是验收中不能删除的差距。

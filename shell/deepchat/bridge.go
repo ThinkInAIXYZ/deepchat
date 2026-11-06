@@ -26,7 +26,7 @@ var deepchatEvent = mygo.NewEvent[deepchatEventPayload]("deepchat.event")
 type Bridge struct {
 	window      *mygo.Window
 	windowID    int
-	process     *sidecar.Process
+	process     *sidecar.Manager
 	externalURL func(string) error
 }
 

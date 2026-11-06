@@ -12,11 +12,13 @@
 import { createInterface } from 'node:readline'
 import { DEEPCHAT_ROUTE_INVOKE_CHANNEL } from '@shared/contracts/channels'
 import {
+  emitAppBeforeQuit,
   installElectronShimHooks,
   invokeIpc,
   whenIpcHandlerRegistered
 } from '@/platform/node/electron'
 import { startApp } from '@/appMain'
+import { SidecarLifecycle } from './lifecycle'
 
 // Keep one private path for protocol envelopes. Everything else reaches stderr,
 // including shared/logger's pre-bound console and direct process.stdout writes.
@@ -29,8 +31,10 @@ const write = (payload: unknown): void => {
   protocolStdoutWrite(`${JSON.stringify(payload)}\n`)
 }
 
+const lifecycle = new SidecarLifecycle(emitAppBeforeQuit)
 installElectronShimHooks({
   sendEvent: (name, payload) => write({ event: name, payload }),
+  quitRequested: () => lifecycle.notifyQuitRequested(),
   windowId: () => Number(process.env.DEEPCHAT_WINDOW_ID ?? 1)
 })
 
@@ -57,6 +61,10 @@ const handleLine = async (line: string): Promise<void> => {
     write({ id: request.id, error: 'bad request: route is required' })
     return
   }
+  if (lifecycle.isStopping()) {
+    write({ id: request.id, error: 'sidecar is shutting down' })
+    return
+  }
 
   try {
     await appReady
@@ -77,7 +85,16 @@ const input = createInterface({ input: process.stdin })
 input.on('line', (line) => {
   void handleLine(line)
 })
-input.on('close', () => process.exit(0))
+input.on('close', () => {
+  void lifecycle.shutdown().then(
+    () => process.exit(0),
+    (error) => {
+      console.error('[sidecar] Graceful shutdown failed:', error)
+      process.exitCode = 1
+      process.exit(1)
+    }
+  )
+})
 
 // Transport startup alone is not readiness. Advertise only after the real route
 // dispatcher has been registered; requests already received await the same signal.

@@ -64,6 +64,8 @@ class Emitter {
 export type SidecarHooks = {
   /** Sends one event envelope to every page. */
   sendEvent(name: string, payload: unknown): void
+  /** Reports the business shutdown flow allowing the sidecar process to exit. */
+  quitRequested?(): void
   /** Window id the shell assigned to the window that hosts this page. */
   windowId(): number
 }
@@ -444,6 +446,18 @@ export const webContents = {
 const appEmitter = new Emitter()
 const overriddenPaths = new Map<string, string>()
 
+// Matches Electron's before-quit contract: listeners can prevent the native
+// action while they perform asynchronous teardown, then call app.quit() again.
+export function emitAppBeforeQuit(): boolean {
+  let prevented = false
+  appEmitter.emit('before-quit', {
+    preventDefault: () => {
+      prevented = true
+    }
+  })
+  return !prevented
+}
+
 export const app = Object.assign(appEmitter, {
   isReady: (): boolean => true,
   async whenReady(): Promise<void> {},
@@ -471,10 +485,15 @@ export const app = Object.assign(appEmitter, {
   // Quitting is the shell's decision: it owns the process tree and the window.
   // Exiting here would kill the sidecar while the page is still asking it things.
   quit: (): void => {
+    if (!emitAppBeforeQuit()) {
+      return
+    }
     hooks.sendEvent('app.quit.requested', {})
+    hooks.quitRequested?.()
   },
   exit: (): void => {
     hooks.sendEvent('app.quit.requested', {})
+    hooks.quitRequested?.()
   },
   relaunch: (): void => {
     console.warn('[sidecar] app.relaunch is handled by the shell')
