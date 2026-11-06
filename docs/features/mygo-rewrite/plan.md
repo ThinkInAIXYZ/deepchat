@@ -277,7 +277,7 @@ M2 Node sidecar 化、M3 Go 壳与桥、M4 周边能力、M5 打包与更新、M
 3. 保持现有 SplashWindow 显示、抑制和关闭业务不变，处理主窗口隐藏启动及早期 ready 重放，完成正常 profile UI 与复制加密 fixture 的实际解锁/恢复验证。
 4. 运行格式、类型、Go race/vet、main/受影响回归、sidecar/preload 构建和真实场景验收，更新已知差距，审查后提交推送；不把本切片扩大为平台发行或真实数据迁移完成证明。
 
-结果：真实 splash role、受限 channel/语言读取、主窗隐藏与早期 ready 重放已接通。修复了初始 `about:blank` 提前完成导航、独立缓存重放颠倒 progress/request、缺失 entry 被当成成功，以及 manual unlock 被 60 秒 readiness 看门狗误杀。`sidecar.process.ready` 仅解除 transport 超时，完整 `sidecar.app.started` 继续控制 renderer 加载和恢复成功。macOS 临时加密副本完成错误/正确密码、60 秒等待、锁定期 sidecar 替换、orphan recovery-cancel 文件保全和真实 data 回退验收；37 个相关 Node 测试、Go 全包 race/vet、类型/lint/i18n 与构建通过，完整 main 9827 passed / 2 既有 tunnel failed / 6 skipped，renderer 2704 全通过。证据与限制详见 `acceptance-checklist.md` D2c2b3；普通聊天多窗口、nested Page、OS Secrets 迁移、其他平台与正式发行仍未完成。独立终审指出的导航 P2 已由后续 committed-revision 修复和真实静态/回退/settings 复验覆盖，未将其隐瞒为原提交已验证能力。
+结果：真实 splash role、受限 channel/语言读取、主窗隐藏与早期 ready 重放已接通。修复了初始 `about:blank` 提前完成导航、独立缓存重放颠倒 progress/request、缺失 entry 被当成成功，以及 manual unlock 被 60 秒 readiness 看门狗误杀。`sidecar.process.ready` 仅解除 transport 超时，完整 `sidecar.app.started` 继续控制 renderer 加载和恢复成功。macOS 临时加密副本完成错误/正确密码、60 秒等待、锁定期 sidecar 替换、orphan recovery-cancel 文件保全和真实 data 回退验收；37 个相关 Node 测试、Go 全包 race/vet、类型/lint/i18n 与构建通过，完整 main 9827 passed / 2 既有 tunnel failed / 6 skipped，renderer 2704 全通过。证据与限制详见 `acceptance-checklist.md` D2c2b3；普通聊天多窗口、nested Page、OS Secrets 迁移、其他平台与正式发行仍未完成。独立终审指出的导航 P2 已由后续 committed-revision 修复和真实静态/回退/settings 复验覆盖，未将其隐瞒为原提交已验证能力。复核发现的 WebView2 fragment-only 不触发 ContentLoading 也已单列同文档完成路径，并通过 `e2e` 标签的真实 `#/old`→`#/new` 页面回归；Windows/Linux 实机验收仍未执行。
 
 #### [ ] D2c2c 接通 preview iframe 协议与隔离边界
 

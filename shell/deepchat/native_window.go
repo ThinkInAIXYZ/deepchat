@@ -573,6 +573,23 @@ func sameNativeDocumentURL(requested, candidate string) bool {
 	return left.Fragment == right.Fragment
 }
 
+func isSameDocumentFragmentNavigation(requested, current string) bool {
+	if requested == current || strings.HasPrefix(requested, splashInlineDocumentPrefix) ||
+		strings.HasPrefix(current, splashInlineDocumentPrefix) ||
+		!sameNativeDocumentRevisionURL(requested, current) {
+		return false
+	}
+	left, _ := url.Parse(requested)
+	right, _ := url.Parse(current)
+	return left.Fragment != right.Fragment
+}
+
+func canFinishSameDocumentLoad(
+	navigation *nativeDocumentNavigation, rawURL, currentURL string, loading bool,
+) bool {
+	return !loading && navigation.committed(rawURL, 0) && sameNativeDocumentURL(rawURL, currentURL)
+}
+
 func canFinishNativeDocumentLoad(
 	navigation *nativeDocumentNavigation, rawURL, currentURL string, after uint64,
 ) bool {
@@ -592,7 +609,17 @@ func (b *Bridge) loadNativeDocument(
 		once.Do(func() { loaded <- err })
 	}
 	page := window.Page()
+	beforeURL := page.URL()
+	fragmentOnly := isSameDocumentFragmentNavigation(rawURL, beforeURL)
 	offFinish := page.OnDidFinishLoad(func() {
+		if fragmentOnly {
+			// WebView2 does not emit ContentLoading for same-document fragment
+			// navigation. Its current URL and loading state are authoritative here.
+			if canFinishSameDocumentLoad(navigation, rawURL, page.URL(), page.IsLoading()) {
+				finish(nil)
+			}
+			return
+		}
 		// A blank or previous navigation may finish while page.URL() already
 		// shows this request. Require the target's committed generation too.
 		if canFinishNativeDocumentLoad(navigation, rawURL, page.URL(), beforeLoad) {
@@ -613,11 +640,28 @@ func (b *Bridge) loadNativeDocument(
 	if err := page.LoadURL(rawURL); err != nil {
 		return fmt.Errorf("load native window document: %w", err)
 	}
-	select {
-	case err := <-loaded:
-		return err
-	case <-ctx.Done():
-		return fmt.Errorf("wait for native document load: %w", ctx.Err())
+	if fragmentOnly && canFinishSameDocumentLoad(navigation, rawURL, page.URL(), page.IsLoading()) {
+		return nil
+	}
+	var fragmentTicks <-chan time.Time
+	if fragmentOnly {
+		// Some engines do not expose a completion callback for a hash-only
+		// navigation. Bound the URL/loading observation by the command context.
+		ticker := time.NewTicker(10 * time.Millisecond)
+		defer ticker.Stop()
+		fragmentTicks = ticker.C
+	}
+	for {
+		select {
+		case err := <-loaded:
+			return err
+		case <-fragmentTicks:
+			if canFinishSameDocumentLoad(navigation, rawURL, page.URL(), page.IsLoading()) {
+				return nil
+			}
+		case <-ctx.Done():
+			return fmt.Errorf("wait for native document load: %w", ctx.Err())
+		}
 	}
 }
 

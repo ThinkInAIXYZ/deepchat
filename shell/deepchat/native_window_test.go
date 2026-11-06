@@ -205,6 +205,38 @@ func TestNativeDocumentLoadWaitsForTargetCommit(t *testing.T) {
 	}
 }
 
+func TestNativeDocumentFragmentNavigationDoesNotRequireNewCommit(t *testing.T) {
+	const current = "mygo://localhost/settings/index.html#/old"
+	const target = "mygo://localhost/settings/index.html#/new"
+	navigation := &nativeDocumentNavigation{}
+	navigation.commit(current)
+
+	if !isSameDocumentFragmentNavigation(target, current) {
+		t.Fatal("a hash-only change was not recognized as same-document navigation")
+	}
+	if isSameDocumentFragmentNavigation(current, current) {
+		t.Fatal("an unchanged URL was treated as fragment navigation")
+	}
+	if isSameDocumentFragmentNavigation("mygo://localhost/settings/index.html?other=1#/new", current) {
+		t.Fatal("a query change was treated as fragment-only navigation")
+	}
+	if isSameDocumentFragmentNavigation(splashInlineDocumentPrefix+"one", splashInlineDocumentPrefix+"two") {
+		t.Fatal("inline documents were treated as fragment navigation")
+	}
+	if canFinishSameDocumentLoad(navigation, target, current, false) {
+		t.Fatal("fragment navigation completed before the target URL took effect")
+	}
+	if canFinishSameDocumentLoad(navigation, target, target, true) {
+		t.Fatal("fragment navigation completed while the page was still loading")
+	}
+	if !canFinishSameDocumentLoad(navigation, target, target, false) {
+		t.Fatal("fragment navigation incorrectly required a new committed revision")
+	}
+	if canFinishSameDocumentLoad(&nativeDocumentNavigation{}, target, target, false) {
+		t.Fatal("an uncommitted document completed a fragment navigation")
+	}
+}
+
 func TestNativeActionDocumentForErrorRedactsNonLocalAndPrivateURLParts(t *testing.T) {
 	if got := nativeActionDocumentForError("mygo://localhost/splash/index.html?query=private#private"); got != "/splash/index.html" {
 		t.Fatalf("local document diagnostic = %q", got)
