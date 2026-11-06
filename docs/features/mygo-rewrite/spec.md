@@ -138,6 +138,17 @@ D2c1 的恢复验收必须包含真实 sidecar 故障注入和新代次 DOM 观�
 - workspace/MCP iframe 保持独立 origin、既有 sandbox 和 root/instance 校验，不注入 DeepChat preload，不允许 app-origin srcdoc 同时获得脚本和 same-origin。mygo custom scheme 默认 trust 不是业务授权；必须实测 preview 无法读取 `parent.deepchat`、直接 Go/IPC 被拒绝，且 CSP/Permissions-Policy 不丢失。`PreloadAllFrames` 不为了预览开启，workspace/MCP 的权限声明和主 renderer 代发调用仍按现有 owner 管线处理。
 - 首片验收包含真实 `workspace.register`、`workspace.readFilePreview` 生成的 URL 在主 renderer iframe 中加载 HTML/脚本、实际内容和大文件分块，核对 DOM、截图、拒绝外部 root、关闭与 sidecar 异常；Go/Node 流合同覆盖 header、分片、取消和代次失败。MCP sandbox 的实例创建、完整工具/权限生命周期、legacy TabPresenter/native Content 宿主、独立 pageId/EmitPage、Windows/Linux 实机和正式打包仍单列，不能由 protocol handler 成功推断这些能力完成。
 
+### 4.8 D2c2e native Content 中的 primary renderer Page
+
+- mygo v0.7.4 只允许在 native `WindowOptions.Content` 宿主中创建 WebView；直接显示 page 的主窗口调用 `NewWebView` 会失败。要让现有 `TabPresenter` 最终获得真实 nested Page，必须先把主窗口改成无额外界面的 Content 宿主，并让现有 renderer 成为覆盖整个内容区域的 primary WebView。本切片只迁移 primary Page，不创建业务 tab、不复制 windowId 充当 pageId，也不宣称 `WebContentsView` 已迁移。
+- 主窗口的标题、尺寸、隐藏启动、单实例、菜单、托盘和现有 Vue 文档保持不变；Content 不增加工具栏或另一套 UI。primary WebView 从 `about:blank` 起步，使用现有 preload 和固定 renderer protocol，只有完整 sidecar dispatcher ready 后才加载 `/`。settings 与 splash 仍可使用顶层 Page，但必须和 primary WebView 共用同一套明确的 Page 所有权，而不是在各处猜测 `window.Page()`。
+- 每个注册的 native window record 必须保存业务 primary Page。导航、ready、descriptor document URL、host action、command caller、protocol caller、权限 handler 和 sidecar replacement 都使用该 Page；主 Content 窗口的 `window.Page()` 为 nil 不能成为无主回退。业务调用必须同时匹配真实 CallerWindow、已注册 primary Page 指针和允许文档，其他 WebView 在独立 registry 实现前一律拒绝。主窗口/primary renderer 的现有 native window ID 与 Node webContents 绑定不变，未来 nested pageId 是另一独立命名空间。
+- 所有发往 renderer 的业务事件使用 `EmitPage(primaryPage)`；Content 的 native UI 不是事件目标，不能用 `Emit(window)` 或广播冒充定向送达。primary 与后续 nested Page 的事件目标、关闭和恢复都必须有明确身份，但本切片不提前暴露 nested route。
+- 既有 committed URL/revision、fragment-only、失败回退和 ready 重放逻辑改为接受真实 Page，语义不得因 Content 改变。sidecar 替换仍只 reload primary Page，不重建宿主窗口，不重放 mutation；settings 快照与 splash-first 行为保持原合同。原生协议中的 iframe 请求仍属于其 primary Page，preview origin 不会因此获得业务 sender。
+- primary Page 安装与顶层 Page 相同的 fail-closed 权限 handler，保留 CSP、sandbox、context isolation 和文档白名单。Content 化不能绕过 D2c2d 的 custom-scheme 权限限制，也不能向 native UI 或其他 WebView 隐式开放业务 bridge。
+- mygo v0.7.4 的 e2e automation 只会对 `window.Page()` 执行 Eval，对 Content 返回 unsupported。验收前必须提供仅限 `e2e` 构建的 primary-page automation 适配，使现有 DOM/业务驱动和截图仍能针对真实 primary WebView；正常构建不得包含该适配，不得向 renderer 或生产 Bridge 新增通用 Eval route。临时探针和测试 server 不进入交付。
+- 验收至少覆盖真实启动与业务 RPC、DOM/截图、原生 maximize/restore、目标事件、workspace preview 与 MCP App iframe、sidecar 杀死后的 primary reload/身份恢复，以及 settings/splash 的回归。只有这些既有流程在 Content 宿主上重新通过后，才能进入独立 nested pageId、attach/detach、bounds 和 `WebContentsView` 切片。Windows/Linux 实机、正式打包和完整 tab 生命周期仍不属于本切片。
+
 ## 5. 后台进程与 worker 合同
 
 现有 file watcher、cron scheduler、background exec 和 code-mode host 共享一种窄的 parent-port 合同：`postMessage`、`message` 监听和可选 `start`。Electron 使用 `process.parentPort`，Node 使用 `process.send` 与 `process.on('message')` 适配，同一 utility host 主体不得复制两份。

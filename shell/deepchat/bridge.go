@@ -67,12 +67,12 @@ func (b *Bridge) deliverEvent(event sidecar.Event) error {
 		return errors.New("sidecar event has no native window target")
 	}
 	b.mu.RLock()
-	window := b.windows[event.Source.WindowID].window
+	registered := b.windows[event.Source.WindowID]
 	b.mu.RUnlock()
-	if window == nil || window.IsDestroyed() {
+	if registered.window == nil || registered.window.IsDestroyed() || registered.page == nil {
 		return errors.New("sidecar event targets an unregistered or destroyed native window")
 	}
-	return deepchatEvent.Emit(window, deepchatEventPayload{Name: event.Name, Payload: event.Payload})
+	return deepchatEvent.EmitPage(registered.page, deepchatEventPayload{Name: event.Name, Payload: event.Payload})
 }
 
 func isPrimaryRendererDocument(rawURL string) bool {
@@ -82,14 +82,17 @@ func isPrimaryRendererDocument(rawURL string) bool {
 func (b *Bridge) requestSource(ctx context.Context) (sidecar.RequestSource, *mygo.Window, error) {
 	window := mygo.CallerWindow(ctx)
 	page := mygo.CallerPage(ctx)
-	if window == nil || window.IsDestroyed() || page == nil || page != window.Page() {
-		return sidecar.RequestSource{}, nil, errors.New("renderer caller is not a live top-level application page")
+	if window == nil || window.IsDestroyed() || page == nil {
+		return sidecar.RequestSource{}, nil, errors.New("renderer caller is not a live application page")
 	}
 	b.mu.RLock()
 	registered := b.windows[window.ID()]
 	b.mu.RUnlock()
 	if window.ID() <= 0 || registered.window == nil || registered.window != window {
 		return sidecar.RequestSource{}, nil, errors.New("renderer caller is not a registered application window")
+	}
+	if registered.page == nil || page != registered.page {
+		return sidecar.RequestSource{}, nil, errors.New("renderer caller is not the registered primary application page")
 	}
 	documentURL := page.URL()
 	if !isRendererDocument(registered.role, documentURL) {

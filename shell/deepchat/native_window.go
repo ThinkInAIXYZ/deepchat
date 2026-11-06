@@ -64,6 +64,7 @@ func (n *nativeDocumentNavigation) committed(rawURL string, after uint64) bool {
 
 type nativeWindowRecord struct {
 	window     *mygo.Window
+	page       *mygo.Page
 	role       nativeWindowRole
 	navigation *nativeDocumentNavigation
 }
@@ -169,6 +170,19 @@ func sameRendererDocumentPath(first, second string) bool {
 		left.Host == right.Host && left.EscapedPath() == right.EscapedPath()
 }
 
+func (b *Bridge) nativePage(record nativeWindowRecord) *mygo.Page {
+	if record.page != nil {
+		return record.page
+	}
+	b.mu.RLock()
+	registered := b.windows[record.window.ID()]
+	b.mu.RUnlock()
+	if registered.page != nil {
+		return registered.page
+	}
+	return record.window.Page()
+}
+
 func (b *Bridge) describeNativeWindow(record nativeWindowRecord) (nativeWindowState, error) {
 	if record.window == nil || record.window.ID() <= 0 || record.window.IsDestroyed() {
 		return nativeWindowState{}, errors.New("native window is not live")
@@ -182,7 +196,7 @@ func (b *Bridge) describeNativeWindow(record nativeWindowRecord) (nativeWindowSt
 	b.mu.RLock()
 	state.Sequence = b.windowSequences[state.WindowID]
 	b.mu.RUnlock()
-	if page := record.window.Page(); page != nil {
+	if page := b.nativePage(record); page != nil {
 		state.DocumentURL = page.URL()
 	}
 	return state, nil
@@ -289,7 +303,11 @@ func (b *Bridge) dispatchWindowNotifications() {
 }
 
 func (b *Bridge) registerWindow(window *mygo.Window, role nativeWindowRole) {
-	if window == nil || window.ID() <= 0 ||
+	b.registerWindowPage(window, role, window.Page())
+}
+
+func (b *Bridge) registerWindowPage(window *mygo.Window, role nativeWindowRole, page *mygo.Page) {
+	if window == nil || window.ID() <= 0 || page == nil || page.Window() != window ||
 		(role != nativeWindowMain && role != nativeWindowSettings && role != nativeWindowSplash) {
 		panic("cannot register an invalid native window")
 	}
@@ -301,7 +319,7 @@ func (b *Bridge) registerWindow(window *mygo.Window, role nativeWindowRole) {
 		b.mu.Unlock()
 		panic("native window ID is already registered")
 	}
-	record := nativeWindowRecord{window: window, role: role, navigation: &nativeDocumentNavigation{}}
+	record := nativeWindowRecord{window: window, page: page, role: role, navigation: &nativeDocumentNavigation{}}
 	b.windows[window.ID()] = record
 	if role == nativeWindowMain {
 		if b.primary == nil || b.primary.IsDestroyed() {
@@ -322,7 +340,7 @@ func (b *Bridge) registerWindow(window *mygo.Window, role nativeWindowRole) {
 	}
 	b.mu.Unlock()
 
-	window.Page().SetPermissionHandler(func(request mygo.PermissionRequest) bool {
+	page.SetPermissionHandler(func(request mygo.PermissionRequest) bool {
 		return isNativePermissionOriginAllowed(request.Origin)
 	})
 	window.OnClosed(func() {
@@ -343,8 +361,8 @@ func (b *Bridge) registerWindow(window *mygo.Window, role nativeWindowRole) {
 		b.mu.Unlock()
 		b.notifyWindow(record, nativeWindowClosed)
 	})
-	window.Page().OnDidNavigate(record.navigation.commit)
-	window.Page().OnDidFinishLoad(func() { b.notifyWindow(record, nativeWindowReady) })
+	page.OnDidNavigate(record.navigation.commit)
+	page.OnDidFinishLoad(func() { b.notifyWindow(record, nativeWindowReady) })
 	window.OnFocus(func() { b.notifyWindow(record, nativeWindowFocused) })
 	window.OnBlur(func() { b.notifyWindow(record, nativeWindowFocused) })
 	if window.IsDestroyed() {
@@ -359,6 +377,14 @@ func (b *Bridge) primaryWindow() *mygo.Window {
 		return nil
 	}
 	return b.primary
+}
+
+func (b *Bridge) primaryPage() *mygo.Page {
+	window := b.primaryWindow()
+	if window == nil {
+		return nil
+	}
+	return b.nativePage(nativeWindowRecord{window: window})
 }
 
 func (b *Bridge) settingsWindow() *mygo.Window {
@@ -494,7 +520,7 @@ func (b *Bridge) handleNativeWindowCommand(
 		if !isRendererDocument(role, input.DocumentURL) {
 			return nil, errors.New("native window document is not allowed for its role")
 		}
-		if window.Page() == nil {
+		if b.nativePage(nativeWindowRecord{window: window}) == nil {
 			return nil, errors.New("native window has no page")
 		}
 		b.mu.RLock()
@@ -520,8 +546,8 @@ func (b *Bridge) handleNativeWindowCommand(
 		b.mu.RUnlock()
 		if command.Host {
 			documentURL := "<unavailable>"
-			if window.Page() != nil {
-				documentURL = window.Page().URL()
+			if page := b.nativePage(nativeWindowRecord{window: window}); page != nil {
+				documentURL = page.URL()
 			}
 			if !isHostActionDocument(role, documentURL, input.Action) {
 				return nil, fmt.Errorf(
@@ -572,7 +598,7 @@ func (b *Bridge) commandCaller(source sidecar.RequestSource) error {
 	if err != nil {
 		return err
 	}
-	page := window.Page()
+	page := b.nativePage(nativeWindowRecord{window: window})
 	if page == nil {
 		return errors.New("native window command caller has no page")
 	}
@@ -645,7 +671,10 @@ func (b *Bridge) loadNativeDocument(
 	finish := func(err error) {
 		once.Do(func() { loaded <- err })
 	}
-	page := window.Page()
+	page := b.nativePage(nativeWindowRecord{window: window})
+	if page == nil {
+		return errors.New("native window has no page")
+	}
 	beforeURL := page.URL()
 	fragmentOnly := isSameDocumentFragmentNavigation(rawURL, beforeURL)
 	offFinish := page.OnDidFinishLoad(func() {

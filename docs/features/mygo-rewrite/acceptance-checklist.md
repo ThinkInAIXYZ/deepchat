@@ -46,7 +46,7 @@
 | 启动 readiness 与 route 错误 | 部分实现（D2c2b3 已验证锁定期等待） | 早期普通请求等待真实 dispatcher，缺 route/缺 dispatcher 返回错误；60 秒 deadline 仅约束 `sidecar.process.ready` 的 IPC transport，manual unlock 不再被误杀，完整 `sidecar.app.started` 仍独占主 renderer 加载与恢复成功。业务初始化卡死与大输入资源上限仍未覆盖 |
 | 超时、取消、背压、损坏响应 | 部分实现（D2c1 已验证单请求边界） | 共享 Process 支持请求 deadline、取消后的合法迟到响应丢弃、非法输出/异常 id 失败；4 MiB 阻塞写入与并发 Close 有界，残帧终止本代，不在通用状态锁中做管道 I/O。超大读取、全局内存/背压和长期资源治理仍待 D2c2 |
 | sidecar 崩溃恢复和进程树关闭 | 部分实现（D2c1 单项 macOS 已验证） | 在途请求收到确定错误；超时强杀覆盖进程组并等待回收；真实退出复用 Main shutdown coordinator；意外退出按代次有界恢复并重载 renderer，不自动重放 mutation。尚缺更多流/后台任务异常和多平台重复验收 |
-| 多窗口身份 | 部分实现（D2c2b1 已验证 settings 创建、关闭和重开） | Go 将真实 caller window/page 和 document URL 加入请求；`WindowPresenter` 先绑定平台提供的真实 ID、后登记 map，业务 webContents ID 可不同。主窗口和 settings 可同时存活，关闭后不会复用已销毁 sender；settings 代次恢复见 D2c2b2，普通聊天多窗口及 nested view 映射仍未实现 |
+| 多窗口身份 | 部分实现（D2c2b1 settings、D2c2e primary Content 已验证） | Go 将真实 caller window/page 和 document URL 加入请求；主窗口已是 native Content + primary WebView，record 显式保存 primary Page，settings 可同时存活并使用独立真实 ID。普通聊天多窗口、独立 nested pageId 及 tab attach/bounds 仍未实现 |
 | 启动 splash 与数据库解锁 | 已验证本切片（仅 macOS 临时副本） | 原生 splash-first、manual 错误/正确密码、锁定期 sidecar 替换、orphan recovery-cancel 与 data 回退均有真实 DOM/截图；普通聊天多窗口、其他恢复类型、真实用户迁移和其他平台仍未覆盖 |
 | 单实例、deep link 和生命周期事件 | 部分实现（D2b1 已验证） | 第二次启动实测退出且不再启动业务进程；deep link、原生命运周期事件和 relaunch 尚未完整桥接 |
 
@@ -59,9 +59,9 @@
 | 通知 | 部分 spike | 仅打包 `.app` 的简单通知实测；业务点击目标和回调未验收 |
 | Clipboard/nativeImage | 未实现 | sidecar 仍丢弃文本/图片写入，图片对象和截图可能是空输出 |
 | workspace 预览/长图 | 部分实现（D2c2c HTML preview 已验证） | 真实 workspace-preview iframe、脚本和大文件流已验收；`CapturePage`/`Eval` 能力存在不等于 tab capture、组合图片、滚动导出已成功 |
-| workspace/MCP Apps 协议隔离 | 部分实现（D2c2c workspace、D2c2d MCP runtime 已在 macOS 验证） | workspace-preview 的 origin、脚本隔离、owner、取消和 sidecar replacement 有证据；真实 MCP App 实例、AppBridge 工具闭环和 frame 隔离已验收，但声明权限 consent 仍直接拒绝，session partition、nested Page 与 Windows/Linux 尚未验收 |
+| workspace/MCP Apps 协议隔离 | 部分实现（D2c2c workspace、D2c2d MCP runtime、D2c2e Content 复验均在 macOS 完成） | workspace-preview 的 origin、脚本隔离、owner、取消和 sidecar replacement 有证据；真实 MCP App 实例、AppBridge 工具闭环和 frame 隔离已在 primary WebView 再次通过，但声明权限 consent 仍直接拒绝，session partition、独立 nested Page 与 Windows/Linux 尚未验收 |
 | preload/context isolation | 未实现对等验证 | mygo v0.7.4 macOS 使用未指定 content world 的 `WKUserScript`；需要上游隔离能力或经评审的等价 least-privilege 设计，spike `Eval` 与任意外链转发禁止进入正式绑定 |
-| renderer sender 与文档来源 | 部分实现（D2c2b3 已验证主窗口、settings 与 splash） | Go source 隔离于 renderer input，Node 绑定平台返回的真实原生 ID 并复核精确 role/path。主窗口、settings 与 splash 使用不同文档白名单，未知窗口、origin、带凭据或 preview URL 均拒绝；splash 的四条 channel、早期只读语言、受限 data 回退和锁定期替换已实测。nested view 与 content-world 对等证明仍未完成 |
+| renderer sender 与文档来源 | 部分实现（D2c2b3 顶层窗口、D2c2e primary WebView 已验证） | Go source 隔离于 renderer input，Node 绑定平台返回的真实原生 ID 并复核精确 role/path。主 Content 的业务调用必须匹配已注册 primary Page 指针，真实同 URL secondary WebView 已被拒绝；独立 nested registry 与 content-world 对等证明仍未完成 |
 | OAuth | 部分受阻 | 系统浏览器迁移未完成；GitHub 回调页需配合回到 deep chat deep link，其他 OAuth 仍需逐项源审 |
 | 代理/权限/网络状态 | 部分实现（native Page fail-closed；Linux 全部权限暂拒） | macOS/Windows 不再让 registered custom scheme 继承设备权限；Linux 因 mygo 把 nested 请求归因到顶层 URI，连第一方设备权限也暂时拒绝。MCP 异步 consent 仍未实现，shim 的 proxy、webRequest 和 `net.isOnline()` 等也并非真实系统状态 |
 
@@ -120,6 +120,17 @@ D2c2d 真实 MCP App 运行时与权限边界：
 - 源码根因是 `McpAppSandboxRegistry.configureDefaultSessionPermissions` 面向 Electron `session.defaultSession` 注册异步 request/check handler，而 Node shim 的 default session 是 `noopSurface`；mygo v0.7.4 的 `Page.SetPermissionHandler` 只在主线程同步返回 bool，不能等待现有异步 consent UI。另一个独立安全边界是 mygo `Window.isTrusted` 默认信任所有 `Protocol.IsHandled` custom scheme，macOS camera/microphone、Windows 和 Linux 的部分设备请求会经过该决策，不能继续无 handler 运行。
 - `shell/deepchat/native_window.go` 为每个注册的 Page 安装真实同步 handler：非 Linux 严格接受第一方 `mygo://localhost`、file 和 loopback development origin，拒绝 `mcp-app`、workspace/deepcdn、公网、userinfo、带 path/query/fragment、opaque 或 malformed origin。首次提交后的独立复核指出 mygo Linux backend 使用顶层 WebView URI 归因 nested 权限，会让 iframe 冒充第一方；跟进修复因此在 Linux 暂时拒绝全部浏览器权限，而不是信任无法区分的 origin。19 个非 Linux origin case 和 4 个 Linux deny-all case 覆盖空 query/fragment、opaque file、custom scheme 与第一方输入。真实 macOS 修复版再次完成 MCP App 工具与隔离闭环，但 Linux 未实机执行。该修改是 fail-closed 安全修复，不是异步 consent 实现，也没有通过直接放行、预授权全部权限或阻塞主线程制造通过结果。真实 camera/microphone、clipboard、Linux requesting-frame 归因和完整权限矩阵仍需上游/运行时验证。
 - 当前切片的 typecheck、lint、i18n、14 个 main 与 1 个 renderer MCP App 定向测试、Go 全包 race/vet、正常/e2e build 和真实 fragment-navigation e2e 均通过；没有把这些定向检查写成完整 main/renderer 全绿。Windows/Linux 未执行，Node 24.18.0 与 engines >=24.22.1 的既有 warning 仍存在。
+
+D2c2e native Content primary renderer Page：
+
+- 主窗口从 page-only 改为无额外 UI 的 native Content 宿主，现有 Vue renderer 是全尺寸 primary WebView；`nativeWindowRecord.page` 显式保存业务 Page，导航、descriptor、host action、command/protocol caller、权限和 replacement 都通过同一所有权。`requestSource` 同时要求真实 CallerWindow、注册窗口和 primary Page 指针，业务事件改为 `EmitPage`，settings/splash 通过同一 record 复用顶层 Page。没有把 Content 的 `window.Page() == nil` 当成无主回退，也没有开始复制 windowId 作为 nested pageId。
+- 真实 macOS 启动后 primary DOM、`window.deepchat` 和 `config.getLanguage` 正常；`window.toggleMaximizeCurrent` 使原生 content bounds 从 1280×788 变为 1920×928，随后恢复非最大化状态。语言事件实际显示“新会话/工作区/插件”，不是只检查 route 返回值。点击现有设置入口后出现独立原生 settings `id=5`，`#/overview` DOM 和 `config.getLanguage` RPC 正常，关闭后只剩主 Content 窗口。
+- 在同一 primary WebView 中重新执行 D2c2c workspace fixture：真实 `workspace.register`/`readFilePreview` 返回 `workspace-preview://…/preview.html`，`Date` metadata 保留，生产 sandbox iframe 的脚本读回 **1201 bytes**；frame 内父正文、父 `deepchat`、父 `mygo`、父 URL 全部为 `blocked:SecurityError`，自身 `mygo=undefined`。`/tmp/deepchat-content-workspace-full.png` 在完整文本显示后生成并人工查看。D2c2d 的 MCP App 也再次完成真实工具闭环和相同隔离断言，`/tmp/deepchat-content-primary.png` 已人工查看。
+- sidecar 恢复在同一 Go 进程 **3157** 中从 **3181** 替换为 **3412**；日志出现 replacement-ready 后，primary 重载、旧 `__contentBeforeReplacement` 标记为 `undefined`，新 `deepchat` 可用。聊天选择没有自动恢复，明确重新执行 `sessions.activate` 后 MCP iframe 和工具/隔离再次通过；不把这写成会话自动恢复或 mutation 重放。
+- splash 使用新的应用生成临时 base，先通过真实 `databaseSecurity.enable` 加密，再复制副本并省略合成 `sidecar-secret-key` 以强制 manual unlock。错误密码显示 `Wrong password. Try again.` 且输入清空，正确密码解锁后 splash 关闭，唯一剩余窗口为 Content 主窗并通过真实语言 route；`/tmp/deepchat-content-splash-unlocked.png` 已人工查看。随机测试口令只存在于临时 orchestration 内存，未写入日志、结果文件或提交。
+- 新增真实 `TestNativePrimaryPageRejectsSecondaryWebView`：同一 Content 中两个 WebView 使用完全相同的 `mygo://localhost/` 文档，primary 到达预期 `sidecar is not available` 业务边界，secondary 在 `registered primary application page` source 校验处拒绝。e2e TestMain 仅在测试期间保留 last-window-closed 生命周期，避免前一个用例关闭窗口后销毁后一个用例；fragment-navigation 与该用例在 race 下共同通过。
+- mygo v0.7.4 的 automation 对 Content 不支持 Eval，且 `Window.captureContent()` 只绘制 native UI、WebView 洞为黑色。新增仅限 `e2e` 的 primary socket提供真实 `eval` 和 `WebView.CapturePage`，权限为 0600，正常构建的同名配置为空且二进制不包含 `DEEPCHAT_AUTOMATION_EVAL`。上述页面截图来自真实 primary WebView，不是黑色 native-only capture；macOS `screencapture` 返回 `could not create image from rect`，所以系统级原生合成截图仍未独立验证，不能把 primary 截图写成该能力已通过。
+- Go 全包 race/vet、普通/e2e vet、正常/e2e build、fragment/primary-secondary e2e，以及项目 typecheck、lint、i18n 均通过。`mygo/ui` 的既有传递依赖由 `go mod tidy` 固定。没有执行完整 main/renderer 套件、Windows/Linux、正式打包或系统级合成截图；独立 nested pageId、tab attach/detach/bounds、`WebContentsView`、MCP 异步权限和长图导出仍是后续差距。
 
 D2c2b3 真实 splash/数据库解锁窗口：
 
@@ -212,4 +223,4 @@ D1 直接验证：
 
 ## 6. 下一项最高优先级工作
 
-D2c2d 的真实 MCP App 实例、AppBridge 工具闭环、source 防篡改、frame 内隔离和 Go fail-closed origin handler 已按上述范围验证，但声明权限 consent 仍未接通，本项保持未完成。精确 Electron pending-request 行为需要 mygo 提供异步 permission decision，Linux 还需要真实 requesting-frame origin；deny-first/retry 只能作为明确降级的适配，不能冒充对等。下一项可独立推进的工作是 **独立 Page registry/native nested identity**，随后处理原生焦点、大帧限额、全局背压、后台生命周期和 preload content-world；权限上游能力与真实 camera/microphone/clipboard 矩阵继续保留为安全阻塞项。`TabPresenter` 是另一条未迁移路径；mygo `NewWebView` 要求 native `Content` 宿主，后续独立 Page registry 必须自行分配 pageId、用 EmitPage 定向事件，不能用主窗 ID、Content fixture 或通用 Eval 冒充现有 tab/workspace/MCP Apps 已迁移。D3–D7、Windows/Linux、真实迁移与发行仍是验收中不能删除的差距。
+D2c2e 已在真实主窗口建立 native Content + primary WebView、精确 primary Page sender、`EmitPage`、恢复和 e2e 边界；这只是宿主迁移，不是 tab 完成。下一项是 **D2c2f：独立 nested pageId 与真实 `WebContentsView` 生命周期**，必须实现 host-only 创建/销毁、pending load、attach/detach、非零 bounds、独立 sender/`EmitPage`、sidecar replacement 和关闭清理，再用现有 `TabPresenter` 验证可见 UI，不能用 Content fixture 或通用 Eval 冒充迁移。MCP 精确 pending-request consent 仍受 mygo 异步 permission API 与 Linux requesting-frame origin 阻塞；系统级原生合成截图、原生焦点、大帧限额、全局背压、后台生命周期、preload content-world、Windows/Linux、D3–D7、真实迁移与发行仍是验收中不能删除的差距。

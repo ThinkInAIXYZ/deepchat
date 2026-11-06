@@ -11,6 +11,7 @@ import (
 
 	"github.com/ThinkInAIXYZ/deepchat/shell/internal/sidecar"
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/ui"
 )
 
 func main() {
@@ -78,19 +79,34 @@ func main() {
 				log.Fatalf("configure frontend probe: %v", err)
 			}
 		}
-		// Register the real window before Node can emit any events. Load the
-		// application only after the real dispatcher, not just Node, is ready.
+		// The native Content host gives the current renderer a real Page and lets
+		// later nested views share the same window without inventing webContents IDs.
+		var rendererView *mygo.WebView
 		window := mygo.NewWindow(mygo.WindowOptions{
 			Title:  "DeepChat",
-			URL:    "about:blank",
 			Hidden: true,
 			Width:  1280,
 			Height: 820,
+			Content: ui.View(func(c *ui.Context) {
+				if rendererView != nil {
+					ui.WebView(c, rendererView).Fill()
+				}
+			}),
+		})
+		rendererView, err = window.NewWebView(mygo.WebViewOptions{
+			URL: "about:blank",
 			Page: mygo.PageOptions{
 				PreloadScript: sidecar.PreloadScript(string(preload)),
 			},
 		})
-		bridge.registerWindow(window, nativeWindowMain)
+		if err != nil {
+			log.Fatalf("create primary renderer view: %v", err)
+		}
+		bridge.registerWindowPage(window, nativeWindowMain, rendererView.Page())
+		if err := configurePrimaryAutomation(bridge.primaryPage); err != nil {
+			log.Fatalf("configure primary renderer automation: %v", err)
+		}
+		window.Invalidate()
 		// A fast startup can announce readiness before StartManager returns.
 		// Publish the manager before the first page can issue an IPC request.
 		managerAssigned := make(chan struct{})
@@ -127,16 +143,16 @@ func main() {
 			},
 			OnReady: func() {
 				<-managerAssigned
-				window := bridge.primaryWindow()
-				if window == nil {
+				page := bridge.primaryPage()
+				if page == nil {
 					return
 				}
 				if rendererLoadStarted.Swap(true) {
 					log.Print("sidecar replacement ready; rebuilding renderer subscriptions")
-					window.Page().Reload()
+					page.Reload()
 					return
 				}
-				if err := window.Page().LoadURL("/"); err != nil {
+				if err := page.LoadURL("/"); err != nil {
 					log.Printf("load renderer after sidecar startup: %v", err)
 					go mygo.App.Quit()
 				}

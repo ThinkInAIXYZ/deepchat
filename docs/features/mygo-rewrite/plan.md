@@ -297,6 +297,15 @@ M2 Node sidecar 化、M3 Go 壳与桥、M4 周边能力、M5 打包与更新、M
 
 结果：真实 macOS Go 壳、现有 Vue renderer、Node sidecar 与本地 stdio server 已走通资源读取、sandbox 实例、AppBridge 初始化、tool input/result 和 app→server→app 工具闭环；`mcp.apps.listTools` 返回绑定工具，篡改 `toolInput` 被 source 校验拒绝。frame 内读取父正文、父 `deepchat`、父 `mygo` 和父 URL 均为 `SecurityError`，自身 `mygo` 为 `undefined`，最终截图确认工具响应已回到 inner app。声明 `geolocation` 后，真实请求仍立即返回 `PERMISSION_DENIED (code=1)` 且没有 consent UI；根因是 Node Electron shim 的 `session.defaultSession` 没有安装现有 handler，而 mygo v0.7.4 仅提供主线程同步决策。另修复 mygo 默认信任全部 registered custom scheme 的边界：每个 Go Page 现在安装 origin handler，非 Linux 只允许第一方 `mygo`/file/loopback renderer，`mcp-app`、preview 和未知 origin 均拒绝；Linux 因 nested 请求被归因到顶层 URI，暂时连第一方设备权限也全部拒绝。当前 macOS frame 的 camera API 为 `unsupported`，不能把单元验证扩展为真实设备路径通过；声明权限 consent、clipboard 能力、完整权限矩阵、Windows/Linux 与其余 MCP 生命周期仍未完成，证据见 `acceptance-checklist.md`。
 
+#### [x] D2c2e 建立 native Content primary renderer Page
+
+1. 按 `spec.md` §4.8 将 primary Page 所有权集中到 native window record，先覆盖现有顶层 main/settings/splash 的导航、来源、事件和恢复，不允许 `window.Page()` 为空时退回无主 sender。
+2. 把主窗口改为无额外 UI 的 Content 宿主，以真实 primary WebView 加载现有 renderer；保留隐藏启动、preload、协议、权限、committed navigation 和 sidecar replacement 语义，业务事件统一 `EmitPage`。
+3. 为 `e2e` 构建提供真实 primary WebView 的 automation 适配，正常构建不包含；重新验证启动/RPC、DOM/截图、原生窗口、目标事件、workspace/MCP iframe 和 sidecar 恢复，并回归 settings/splash。
+4. 完成 Go 普通/race/vet、相关 Node/renderer 回归、正常/e2e build、真实场景验收和独立 diff 审查后提交推送。此片不包含 nested pageId、tab attach/bounds 或 `WebContentsView` 完成声明。
+
+结果：主窗口已改为无额外 UI 的 native Content 宿主，现有 renderer 是全尺寸 primary WebView；native window record 显式保存 primary Page，业务 sender 要求 CallerPage 指针一致，事件统一 `EmitPage`，导航、权限、ready 与 replacement 均使用该 Page。真实 macOS 启动/RPC、最大化/恢复、中文目标事件、独立 settings 窗口、workspace 1201-byte preview 与四项 `SecurityError`、MCP App 工具与隔离均通过。sidecar 3181→3412 后同一 Go 进程和 primary Page 重载，旧标记消失，重新激活合成会话后 MCP 再次通过。加密临时副本完成错误密码反馈、正确密码解锁和 Content 主窗就绪。真实 e2e 还证明同 URL 的 secondary WebView 被 source 校验拒绝。正常/e2e build、Go 全包 race/vet、真实 fragment/primary-secondary e2e、typecheck、lint 和 i18n 通过。此片不包含 nested pageId、tab attach/bounds 或 `WebContentsView` 完成声明；系统级合成截图、Windows/Linux、MCP 异步权限和完整发行仍未完成，证据与限制见 `acceptance-checklist.md`。
+
 ### [ ] D3 完成窗口与原生能力
 
 实现多窗口/tab、主菜单、托盘、快捷键、deep link、真实对话框、剪贴板、通知、外观和屏幕状态。将 shell-owned shim 的静默成功逐项替换为真实桥接或明确 unsupported；完成 workspace 预览、长图导出和 MCP Apps 独立安全评审。
