@@ -16,6 +16,12 @@ const isDescendantOf = (candidate: string, parent: string): boolean => {
 }
 
 function mergeEvent(previous: WatcherEvent, next: WatcherEvent): WatcherEvent | null {
+  // Overflow and root-deleted share the root path with ordinary root events and ask consumers to
+  // rescan everything, so a later event on the root must not replace them.
+  if (previous.type === 'overflow' || previous.type === 'root-deleted') {
+    return previous
+  }
+
   if (previous.type === 'create' && next.type === 'delete') {
     return null
   }
