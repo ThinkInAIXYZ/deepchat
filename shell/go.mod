@@ -1,4 +1,4 @@
-module github.com/ThinkInAIXYZ/deepchat/shell/spike
+module github.com/ThinkInAIXYZ/deepchat/shell
 
 go 1.27.3
 

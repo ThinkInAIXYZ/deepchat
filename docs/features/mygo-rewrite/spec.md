@@ -64,6 +64,14 @@ Renderer
 7. 多窗口调用使用真实窗口和 webContents 身份；不能总是选择“最后一个窗口”。
 8. 正式应用启动不自动使用真实用户目录做 smoke；recovery 测试使用临时 profile。
 
+### 4.1 D2b1 已确定的代码组织
+
+Go module 位于 `shell/`。正式应用在 `shell/deepchat`，探测应用在 `shell/spike`，两者使用同一个 `shell/internal/sidecar` 进程合同。spike 保留 probe 和截图能力，不包含产品生命周期实现；正式 Bridge 不暴露 probe Eval。资源目录分为显式 `DEEPCHAT_APP_PATH` 开发仓库和正式 `PathResources` 两种，后者的 Node 使用包内绝对路径且禁止 PATH 回退。
+
+sidecar stdout 有且只有协议 writer 可以写入。`@shared/logger` 在早期绑定的 console 以及业务代码的直接 stdout 写入都重定向到 stderr；非空、非 JSON 行、未知响应 id 和不完整消息必须是协议错误。请求取消后的迟到响应按原 id 消费并丢弃，使后续请求能继续使用同一进程。超时取消不自动重试 mutation。
+
+D2b1 是单窗口、可监督的第一根产品脊柱。真实 Main shutdown coordinator、自动重连、跨窗口身份、deep link 和产品级隔离等价仍未完成，记录于 D2c，而不是借本切片的进程启动成功宣称整个生命周期通过。
+
 ## 5. 后台进程与 worker 合同
 
 现有 file watcher、cron scheduler、background exec 和 code-mode host 共享一种窄的 parent-port 合同：`postMessage`、`message` 监听和可选 `start`。Electron 使用 `process.parentPort`，Node 使用 `process.send` 与 `process.on('message')` 适配，同一 utility host 主体不得复制两份。

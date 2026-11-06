@@ -42,12 +42,12 @@
 
 | 能力 | 状态 | 差距 |
 | --- | --- | --- |
-| 正式应用入口 | 未实现 | 仍是 `shell/spike/main.go` + `go run` + 调试 flags + smoke 脚本 |
+| 正式应用入口 | 部分实现（D2b1 已实测） | `shell/deepchat` 可构建并直接启动、获得单实例锁并回收 sidecar，不是正式打包发行版；spike 与正式入口共享 `internal/sidecar` |
 | 启动 readiness 与 route 错误 | 部分实现（D2a 已验证） | 早期请求现在等待真实 dispatcher 注册，ready 后才发布 started，缺 route/缺 dispatcher 返回错误；启动超时和启动失败终态仍未覆盖 |
-| 超时、取消、背压、损坏响应 | 未实现完整合同 | stdin/stdout JSON 只有基础 id 关联，没有完整请求生命周期治理 |
-| sidecar 崩溃恢复和进程树关闭 | 未实现 | 未取消所有在途请求，未形成受控重启和子进程清理闭环 |
-| 多窗口身份 | 未实现 | shim 窗口 id 固定为 1，IPC sender 使用最后一个存活窗口，真实多窗口不可接受 |
-| 单实例、deep link 和生命周期事件 | 部分 spike/未产品化 | shim 中 `requestSingleInstanceLock()` 恒 true，生命周期 listener 没有真实壳事件入口，relaunch 仅记录日志 |
+| 超时、取消、背压、损坏响应 | 部分实现（D2b1 已验证） | 共享 Process 支持请求 deadline、取消后的合法迟到响应丢弃、非法输出/异常 id 失败；超大阻塞输入和长期资源治理仍待 D2c |
+| sidecar 崩溃恢复和进程树关闭 | 部分实现（D2b1 已验证） | 在途请求收到确定错误、意外退出可终止壳、超时强杀覆盖进程组并等待回收；自动重连、renderer 重建和真实 Main shutdown coordinator 尚未完成 |
+| 多窗口身份 | 部分实现（仅单窗口） | 正式 Bridge 使用 `mygo.CallerWindow` 校验当前真实主窗口；shim 内部多窗口身份仍固定/选择最后窗口，目标事件和关闭通知未对等 |
+| 单实例、deep link 和生命周期事件 | 部分实现（D2b1 已验证） | 第二次启动实测退出且不再启动业务进程；deep link、原生命运周期事件和 relaunch 尚未完整桥接 |
 
 ### 3.3 原生能力与安全边界（阶段 D3）
 
@@ -98,6 +98,15 @@
 
 ## 4. 当前验证与已知失败
 
+D2b1 生命周期与正式壳验证：
+
+- `go test ./...`、`go test -race ./internal/sidecar ./deepchat` 与 `go vet ./...` 通过。临时 Node helper 实测响应/事件、非法输出、超时与取消后迟到响应、异常退出和强制关闭；不会因客户端取消误杀后续请求。独立审查发现的 URL parse nil 解引用、短 deadline 回收问题已修复并有回归证据。
+- Windows/amd64 与 Linux/amd64 Go 构建通过，仅表示可编译，未表示对应平台已运行。
+- `go build -o /tmp/deepchat-mygo ./deepchat` 后以临时 profile 启动完整业务。第二次启动立即退出，SIGTERM 后检查不到测试 Go/Node sidecar；启动日志直接出现 `[SkillService] File watcher started` 与 SkillSync 扫描完成。
+- 原始输出分流实证：sidecar stdout 只有 JSON envelope，绑定 console 与 `process.stdout.write` 产生的业务日志均进入 stderr；严格 Go supervisor 不再被 `DatabaseInitializer` 文本日志触发错误停止。
+- 相关 lint、typecheck、i18n 和 12 个 readiness/Node parent-port/shutdown coordinator 定向测试通过。
+- `local-chat-ui.mjs` 在共享监管层下再次得到 `messages=2`、`pageEvents=8`、`listed/hasReply/chatPage/userMessageVisible/assistantReplyVisible=true`、`onboardingVisible=false`。`/tmp/deepchat-shared-supervised-ui.png` 已人工核对。
+
 D1 直接验证：
 
 - `pnpm run typecheck:node` 通过；`pnpm run sidecar:app:build` 成功生成 4 个 utility host、SkillSync worker 和 sidecar 主入口。
@@ -105,7 +114,7 @@ D1 直接验证：
 - sidecar 自身 file-watcher entry 的真实 Node IPC 返回预期 RPC 错误合同，证明进程未在 parent-port 检查处退出。
 - SkillSync 实体 worker 返回结构化成功结果；`local-chat-check` 再次完成 streaming + persistence，此前 watcher 和 worker Startup 错误消失。
 - Go UI 最终复验得到 `messages=2`、`pageEvents=8`、`listed/hasReply/chatPage/userMessageVisible/assistantReplyVisible=true`、`onboardingVisible=false`，`/tmp/deepchat-chat-runtime-slice.png` 已人工核对。若使用全量 Electron 构建，需按 `run.sh` 顺序重新生成 `out/preload/bridge.js`，旧产物被清理后再截图不能证明 bridge 回归。
-- `format`、`i18n`、`lint`、`typecheck`、Electron build、sidecar build 均通过。完整 `test:renderer` 为 281 个文件、2704 测试通过；完整 `test:main` 为 9790 通过、2 失败、6 跳过。
+- `format`、`i18n`、`lint`、`typecheck`、Electron build、sidecar build 均通过。完整 `test:renderer` 为 281 个文件、2704 测试通过。D2b1 后再次执行完整 `test:main`，为 9791 通过、2 失败、6 跳过。
 
 已知失败仍是 `test/main/sync/tunnel.test.ts` 两项 `sync.tunnel.error.tunnelFailed`，此前单文件重跑也可复现；本切片未修改 sync/tunnel。这两个失败使“完整 main 全绿”仍为未完成项，不能从最终验收中略去。
 
@@ -120,4 +129,4 @@ D1 直接验证：
 
 ## 6. 下一项最高优先级工作
 
-D1 与 D2a 已提交后进入 **D2b：正式 Go 壳与可靠 sidecar 生命周期**。D2a 使请求等待真实 dispatcher readiness，单元与完整聊天复验通过；下一目标是正式入口、请求超时/取消、单实例、真实窗口身份、sidecar 崩溃恢复和有序关闭。D3–D7 仍为必须完成的后续范围，不因 readiness 或后台进程切片通过而关闭 goal。
+D1、D2a 已提交，D2b1 已完成共享监管和正式单窗口入口后进入 **D2c：完整真实生命周期**。下一优先级是把退出接入 Main shutdown coordinator 并实现有界重连和 renderer 状态重建；然后补多窗口身份、deep link 与真实原生能力。D2c 尚未完成，D3–D7 也不能从验收中删除。

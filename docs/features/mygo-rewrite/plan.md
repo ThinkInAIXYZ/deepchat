@@ -210,12 +210,21 @@ M2 Node sidecar 化、M3 Go 壳与桥、M4 周边能力、M5 打包与更新、M
 
 结果：`platform/node/electron` 新增 handler waiter，`sidecar/app` 在启动前安装监听并在每个请求中等待 appReady。定向 readiness/Node parent-port 2 测试、Node typecheck、sidecar build 和完整 mock 聊天通过。启动超时、崩溃恢复和正式壳仍未完成，见 D2b。
 
-### [ ] D2b 建立正式 Go 壳与可靠传输
+### [x] D2b1 建立共享监管层和正式单窗口入口
 
-1. 将 spike 的 probe 代码与正式应用入口分离，固定资源布局、构建命令和临时 profile 开发流程。
-2. 增加启动 readiness、未知路由/未就绪错误、请求超时与取消、损坏输出诊断和在途请求收尾。
-3. 建立单实例、sidecar 异常退出处理、受控重启和完整进程树关闭。
-4. 建立真实 window/webContents 身份映射，移除“选择最后一个窗口”的临时行为。
+1. 将 Go module 上移到 `shell`，由正式 `shell/deepchat` 与 `shell/spike` 复用 `internal/sidecar`，不复制两套传输实现。
+2. 进程调用支持默认/调用方 deadline、取消后的迟到响应处理、非法输出和异常 EOF 失败；关闭先通知输入 EOF，超时强制清理进程组并等待回收。
+3. 正式入口先验证资源并获取单实例锁，再启动 sidecar；binder 校验真实 mygo 调用窗口，不提供通用 Eval，外链沿用 allowlist。
+4. stdout 仅供 JSON envelope；缓存 console 和直接写流等普通日志统一进入 stderr。
+
+结果：`go test ./...`、`go test -race ./internal/sidecar ./deepchat`、`go vet ./...`、正式二进制构建以及 Windows/Linux 交叉编译通过。Go 生命周期测试覆盖响应/事件、非法输出、超时、迟到响应、异常退出、短 deadline 关闭和超时强杀。独立审查发现的 URL parse nil 解引用及关闭回收问题已修复并回归。构建后的应用真实启动完整主进程并显示 file watcher 与 SkillSync 正常运行，第二次启动立即退出，SIGTERM 后无测试 sidecar 残留。资源路径、外链 allowlist 和 preload 注入均有定向测试。正式切片仍是一个主窗口，未完成自动重连、Main shutdown coordinator、多窗口与完整原生能力，见 D2c。
+
+### [ ] D2c 完成正式壳与可靠生命周期
+
+1. 将真实退出接入 Main shutdown coordinator，而不是只关闭 sidecar stdin；验证子进程、stream 和写操作按序停止。
+2. 完善大输入阻塞、启动失败终态、超时取消和 malformed/EOF 诊断，测量并拒绝资源耗尽路径。
+3. sidecar 非预期退出后有界退避重连并重建 renderer 订阅，禁止自动重放 mutation；覆盖进程组清理和重复失败。
+4. 建立真实多 window/webContents 身份映射、目标事件和 native close/destroy 通知，移除“选择最后一个窗口”的临时行为。
 5. 将 spike 的通用 Eval 与任意外链绑定排除在正式入口之外，保持 app-document 和外链 allowlist 校验，并解决或明确评审 mygo preload content-world 差距。
 
 完成标准：正式构建可从干净临时目录启动；sidecar 未就绪、崩溃、重启和退出均有确定性行为与测试证据；不能把仅提前注入脚本宣称已具备 Electron context isolation。

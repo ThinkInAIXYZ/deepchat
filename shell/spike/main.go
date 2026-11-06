@@ -142,14 +142,14 @@ func (b *Bridge) Eval(script string) (string, error) {
 // Invoke answers the routes the shell owns and forwards the rest to the Node
 // sidecar. Window control belongs to the shell: it owns the native window, and
 // routing it through Node would only add a hop.
-func (b *Bridge) Invoke(route string, inputJSON string) (string, error) {
+func (b *Bridge) Invoke(ctx context.Context, route string, inputJSON string) (string, error) {
 	if answer, ok, err := b.shellRoute(route); ok {
 		return answer, err
 	}
 	if b.sidecar == nil {
 		return "{}", errors.New("sidecar not started")
 	}
-	return b.sidecar.call(route, inputJSON)
+	return b.sidecar.Call(ctx, route, inputJSON)
 }
 
 // shellRoute serves the window and app routes the Go shell implements itself.
@@ -237,6 +237,11 @@ func (b *Bridge) CopyImage(dataURL string) {
 	b.report("clipboard.imageWritten", err == nil)
 }
 
+// ReadClipboardText returns the system clipboard text used by renderer paste.
+func (b *Bridge) ReadClipboardText() string {
+	return mygo.Clipboard.ReadText()
+}
+
 // Report records a result the page measured, so the spike prints it as well.
 func (b *Bridge) Report(name string, ok bool, detail string) {
 	b.report("page."+name, fmt.Sprintf("%t %s", ok, detail))
@@ -302,9 +307,16 @@ func main() {
 			report("sidecar.error", startErr.Error())
 		} else {
 			bridge.sidecar = process
-			process.onEvent = func(name string, payload json.RawMessage) {
+			setSidecarEventHandler(process, func(name string, payload json.RawMessage) {
 				_ = deepchatEvent.Broadcast(DeepchatEvent{Name: name, Payload: payload})
-			}
+			})
+			defer func() {
+				ctx, cancel := context.WithTimeout(context.Background(), 7*time.Second)
+				defer cancel()
+				if err := process.Close(ctx); err != nil {
+					report("sidecar.closeError", err.Error())
+				}
+			}()
 			report("sidecar.started", true)
 		}
 	}
@@ -317,15 +329,10 @@ func main() {
 			bridge, err := os.ReadFile(*bridgeScript)
 			if err != nil {
 				report("bridge.missing", err.Error())
-				preload = deepchatBridgeSidecar // renders with the stub, so the window still opens
+				preload = deepchatBridgeStub
 			} else {
-				// Not Sprintf: the bundle contains percent signs that would be read as verbs.
-				preload = strings.Replace(
-					deepchatBridgeSidecar,
-					"/*__DEEPCHAT_BRIDGE__*/",
-					string(bridge),
-					1,
-				)
+				// The shared composer is not Sprintf: bundles contain percent signs.
+				preload = sidecarPreload(string(bridge))
 				report("bridge.injected", len(bridge))
 				if *dumpPreload != "" {
 					_ = os.WriteFile(*dumpPreload, []byte(preload), 0o644)

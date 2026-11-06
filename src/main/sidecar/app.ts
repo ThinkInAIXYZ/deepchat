@@ -18,8 +18,15 @@ import {
 } from '@/platform/node/electron'
 import { startApp } from '@/appMain'
 
+// Keep one private path for protocol envelopes. Everything else reaches stderr,
+// including shared/logger's pre-bound console and direct process.stdout writes.
+const protocolStdoutWrite = process.stdout.write.bind(process.stdout)
+process.stdout.write = ((...args: unknown[]) => {
+  return Reflect.apply(process.stderr.write, process.stderr, args) as boolean
+}) as typeof process.stdout.write
+
 const write = (payload: unknown): void => {
-  process.stdout.write(`${JSON.stringify(payload)}\n`)
+  protocolStdoutWrite(`${JSON.stringify(payload)}\n`)
 }
 
 installElectronShimHooks({
