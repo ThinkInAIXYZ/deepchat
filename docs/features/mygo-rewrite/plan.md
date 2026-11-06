@@ -288,6 +288,15 @@ M2 Node sidecar 化、M3 Go 壳与桥、M4 周边能力、M5 打包与更新、M
 
 结果：Node callback registry、Go 固定 scheme 转发和 begin/read/cancel 流式链路已接通，development/packaged 注册、HEAD、owner、实时 Page source、header、pending begin 取消和分块由 Go/Node 合同测试覆盖。真实 macOS 临时 profile 中，`workspace.register`/`readFilePreview` 生成的 HTML iframe 成功执行脚本，frame 内 `fetch()` 读回 401,443 bytes；父正文、`deepchat`、`mygo`、父 URL 的访问均为 `SecurityError`，截图已核对。杀死测试 sidecar 后，同一 Go 壳完成 replacement 和 renderer 重载，旧 iframe 消失，新代次拒绝未注册路径并再次通过完整 preview/隔离验收。另修复 JSON `Date` 类型保留、marker-shaped 普通 JSON 的可逆转义与真实 `CodeFileAdapter` 的 `.html/.htm/.xhtml` 分类回退；Electron structured-clone 不执行 native JSON reviver，native `chat.stream.updated` 浅校验前同样恢复一次 transport 类型。MCP 实例/权限、legacy TabPresenter、Windows/Linux、正式发行及完整结构化克隆仍未由本切片证明，证据与限制见 `acceptance-checklist.md`。
 
+#### [ ] D2c2d 验证真实 MCP App 运行时与权限边界
+
+1. 用本地 stdio MCP server、应用生成的临时 profile 副本和合成持久化 tool result，经真实 `mcp.addServer`、server binding、`McpAppView` 与 `mcp-app` handler 创建实例；不得添加测试专用生产后门。
+2. 验证 `ui/initialize`、tool input/result、app 发起的 `tools/call` 及响应、live instance 工具列表、source 防篡改和 frame 内隔离，并在目标内容完成后检查 DOM 与截图。
+3. 保持 `mcp-app` origin 默认拒绝，验证声明权限进入现有异步 consent；mygo 同步主线程 permission callback 不得等待 Node 或以直接放行代替授权。权限未闭环前本项保持未完成。
+4. 随后完成独立 Page registry/native nested identity、其余 MCP 生命周期和跨平台验收，不把单一 macOS fixture 扩展为完整 MCP Apps 对等结论。
+
+结果：真实 macOS Go 壳、现有 Vue renderer、Node sidecar 与本地 stdio server 已走通资源读取、sandbox 实例、AppBridge 初始化、tool input/result 和 app→server→app 工具闭环；`mcp.apps.listTools` 返回绑定工具，篡改 `toolInput` 被 source 校验拒绝。frame 内读取父正文、父 `deepchat`、父 `mygo` 和父 URL 均为 `SecurityError`，自身 `mygo` 为 `undefined`，最终截图确认工具响应已回到 inner app。声明 `geolocation` 后，真实请求仍立即返回 `PERMISSION_DENIED (code=1)` 且没有 consent UI；根因是 Node Electron shim 的 `session.defaultSession` 没有安装现有 handler，而 mygo v0.7.4 仅提供主线程同步决策。另修复 mygo 默认信任全部 registered custom scheme 的边界：每个 Go Page 现在安装 origin handler，只允许第一方 `mygo`/file/loopback renderer，`mcp-app`、preview 和未知 origin 均拒绝。当前 macOS frame 的 camera API 为 `unsupported`，不能把单元验证扩展为真实设备路径通过；声明权限 consent、clipboard 能力、完整权限矩阵、Windows/Linux 与其余 MCP 生命周期仍未完成，证据见 `acceptance-checklist.md`。
+
 ### [ ] D3 完成窗口与原生能力
 
 实现多窗口/tab、主菜单、托盘、快捷键、deep link、真实对话框、剪贴板、通知、外观和屏幕状态。将 shell-owned shim 的静默成功逐项替换为真实桥接或明确 unsupported；完成 workspace 预览、长图导出和 MCP Apps 独立安全评审。

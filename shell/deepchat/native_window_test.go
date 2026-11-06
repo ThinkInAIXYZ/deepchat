@@ -84,6 +84,38 @@ func TestIsRendererDocumentRolePathWhitelist(t *testing.T) {
 	}
 }
 
+func TestNativePermissionOriginAllowed(t *testing.T) {
+	tests := []struct {
+		name   string
+		origin string
+		want   bool
+	}{
+		{name: "packaged renderer", origin: "mygo://localhost", want: true},
+		{name: "packaged renderer root", origin: "mygo://localhost/", want: true},
+		{name: "file renderer", origin: "file://", want: true},
+		{name: "development localhost", origin: "http://localhost:5173", want: true},
+		{name: "development loopback", origin: "https://127.0.0.1:5173", want: true},
+		{name: "development IPv6 loopback", origin: "http://[::1]:5173", want: true},
+		{name: "MCP App custom protocol", origin: "mcp-app://instance-id"},
+		{name: "workspace custom protocol", origin: "workspace-preview://workspace-id"},
+		{name: "image custom protocol", origin: "deepcdn://image-id"},
+		{name: "external origin", origin: "https://example.com"},
+		{name: "custom protocol user info", origin: "mcp-app://user@instance-id"},
+		{name: "renderer user info", origin: "mygo://user@localhost"},
+		{name: "permission URL with path", origin: "mcp-app://instance-id/sandbox.html"},
+		{name: "permission URL with query", origin: "mygo://localhost/?allowed=true"},
+		{name: "malformed origin", origin: "://bad-url"},
+		{name: "empty origin", origin: ""},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := isNativePermissionOriginAllowed(test.origin); got != test.want {
+				t.Fatalf("isNativePermissionOriginAllowed(%q) = %t, want %t", test.origin, got, test.want)
+			}
+		})
+	}
+}
+
 func TestSameRendererDocumentPathIgnoresQueryAndFragment(t *testing.T) {
 	tests := []struct {
 		name          string

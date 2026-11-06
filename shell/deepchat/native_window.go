@@ -108,6 +108,30 @@ func isRendererDocument(role nativeWindowRole, rawURL string) bool {
 	}
 }
 
+// mygo trusts every registered custom protocol by default. DeepChat uses custom
+// protocols for untrusted nested documents, so they must not inherit device access.
+func isNativePermissionOriginAllowed(rawOrigin string) bool {
+	parsed, err := url.Parse(rawOrigin)
+	if err != nil || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return false
+	}
+	if parsed.EscapedPath() != "" && parsed.EscapedPath() != "/" {
+		return false
+	}
+	switch strings.ToLower(parsed.Scheme) {
+	case "mygo":
+		return parsed.Host == "localhost"
+	case "file":
+		return parsed.Host == ""
+	case "http", "https":
+		switch strings.ToLower(parsed.Hostname()) {
+		case "localhost", "127.0.0.1", "::1":
+			return true
+		}
+	}
+	return false
+}
+
 func nativeActionDocumentForError(rawURL string) string {
 	if rawURL == "about:blank" {
 		return rawURL
@@ -288,6 +312,9 @@ func (b *Bridge) registerWindow(window *mygo.Window, role nativeWindowRole) {
 	}
 	b.mu.Unlock()
 
+	window.Page().SetPermissionHandler(func(request mygo.PermissionRequest) bool {
+		return isNativePermissionOriginAllowed(request.Origin)
+	})
 	window.OnClosed(func() {
 		b.mu.Lock()
 		if current := b.windows[window.ID()]; current.window == window {
