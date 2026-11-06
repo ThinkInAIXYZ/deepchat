@@ -31,6 +31,15 @@ go run . -seconds 12 -renderer ../../out/renderer -shot /tmp/renderer.png
 - `main.go` 里的 `deepchatBridgeStub` 是 `window.deepchat` / `window.api` 的最小桩，只保证渲染层能启动；
   真实实现应当把这些调用转给 Node sidecar。
 
+## 最快跑起来
+
+```bash
+./shell/spike/run.sh          # 窗口保持 120 秒
+./shell/spike/run.sh 30       # 或者自定义秒数
+```
+
+脚本会依次构建渲染层、preload 桥、sidecar，然后用一个**临时 profile 目录**启动，不会碰到你的真实 DeepChat 数据。
+
 ## 构建顺序
 
 `-sidecar` 模式需要先构建两样东西：
