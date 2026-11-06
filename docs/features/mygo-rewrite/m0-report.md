@@ -357,6 +357,36 @@ mcp.listResources -> {"resources":[]}
 
 覆盖率因此从 111/119 提升到 **120/122（98.4%）**。
 
+## 18. 完整主进程跑在 Node 里（已验证）
+
+前面几节是「逐条接路由」。这一节换了做法：给 Electron API 做一层 shim，让**整个主进程原样跑在 sidecar 里**，也就是 524 条契约路由全部可用，而不是 37 条。
+
+实现：
+
+- `src/main/platform/node/electron/index.ts`：BrowserWindow / app / ipcMain / webContents / session / protocol / Menu / Tray / Notification / dialog / shell / screen / nativeImage / clipboard / net / safeStorage / nativeTheme / globalShortcut / utilityProcess / WebContentsView
+- `src/main/sidecar/app.ts`：`startApp()` + 把 stdin 请求接到 `ipcMain` 的 `deepchat:route:invoke` 处理器
+- `vite.sidecar-app.config.ts`：`electron` 别名到 shim；`@electron-toolkit/utils` 与 `electron-updater` 也各有一个 Node 版；处理 electron-vite 的 `?modulePath`，并补 `__dirname`
+
+实测（临时 profile，全新数据库）：
+
+```
+config.getLanguage      -> {"requestedLanguage":"system","locale":"en-US","direction":"auto"}
+providers.listSummaries -> 完整 provider 目录
+sessions.listLightweight-> {"items":[],"nextCursor":null,"hasMore":false}
+sessions.create         -> "No provider or model configured. Please set a default model in settings."
+```
+
+最后一条是**正确行为**：全新档案没有配置模型。它证明真实的会话服务、provider 校验、错误提示都跑在 sidecar 里。
+
+启动链路完整走通：数据库建表与迁移、协议注册、限流预置、知识库、MCP、插件、托盘、窗口创建、启动工作负载（`startup.workload.changed`）。
+
+已知缺口，都通过 `noopSurface` 记录到日志而不是静默：
+
+- `session.setPermissionCheckHandler`、`BrowserWindow.setHiddenInMissionControl` 之类由壳负责的成员
+- `nativeImage` 返回空图（截图应由壳的 `Window.CapturePage` 提供）
+- 文件监视 utility process 起不来（`File watcher utility process exited`）
+- SkillSync worker 无法解析（`?modulePath` 只保证编译通过）
+
 ## 下一步
 
 1. 接入真实桥接：用 `window.api` 的 mygo 实现替换 spike 里的 stub，验证 55 次启动调用能否返回真实数据（对应 M2/M3）。

@@ -170,6 +170,14 @@ renderer（未改动的 DeepChat 前端）
 | `1cbf7a452` | MCP 运行时接入 |
 | `78030b9f8` | 评审说明刷新 |
 
+## 六之二、完整主进程模式（已验证）
+
+`pnpm run sidecar:app:build` 产出 `out/sidecar/app.mjs`：整个 Electron 主进程跑在 Node 里，靠 `platform/node/electron/` 的 shim 提供 Electron API。**524 条契约路由全部可用**，不再是逐条迁移的 37 条。
+
+实测：`config.getLanguage`、`providers.listSummaries`、`sessions.listLightweight` 返回真实数据；`sessions.create` 在没有配置模型时返回项目的原始错误提示，说明服务与校验都在跑。
+
+`./shell/spike/run.sh` 默认使用这个模式；`DEEPCHAT_ROUTES_ONLY=1` 可切回逐条路由版。
+
 ## 七之四、提交前自审
 
 对 `dev...HEAD` 的 diff 做过一次扫描，结果：

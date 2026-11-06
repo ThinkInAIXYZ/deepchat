@@ -8,6 +8,10 @@
 # Usage: ./run.sh [seconds]
 #   seconds  how long the window stays open (default 120)
 #
+# The sidecar runs the app's real main process behind an Electron-compatible
+# shim, so sessions, settings, providers and MCP behave as they do in the desktop
+# app. Set DEEPCHAT_ROUTES_ONLY=1 to use the older route-only sidecar instead.
+#
 # The profile directory defaults to a throwaway path so the run never touches
 # your real DeepChat data. Point DEEPCHAT_PROFILE at one to reuse it.
 #
@@ -27,8 +31,15 @@ echo "==> building the renderer and preload bridge"
 pnpm exec electron-vite build >/dev/null
 pnpm run preload:build >/dev/null
 
-echo "==> building the sidecar"
-pnpm run sidecar:build >/dev/null
+SIDECAR_ENTRY=../../out/sidecar/app.mjs
+if [ "${DEEPCHAT_ROUTES_ONLY:-}" = "1" ]; then
+  echo "==> building the route-only sidecar"
+  pnpm run sidecar:build >/dev/null
+  SIDECAR_ENTRY=../../out/sidecar/entry.mjs
+else
+  echo "==> building the sidecar (full main process)"
+  pnpm run sidecar:app:build >/dev/null
+fi
 
 echo "==> profile: $PROFILE"
 echo "==> launching (window closes after ${SECONDS_OPEN}s)"
@@ -36,5 +47,5 @@ cd shell/spike
 exec go run . \
   -seconds "$SECONDS_OPEN" \
   -renderer ../../out/renderer \
-  -sidecar ../../out/sidecar/entry.mjs \
+  -sidecar "$SIDECAR_ENTRY" \
   -bridge ../../out/preload/bridge.js
