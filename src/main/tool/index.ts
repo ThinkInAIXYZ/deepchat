@@ -139,6 +139,7 @@ import {
   isCodexToolFrontend,
   normalizeCodexToolName
 } from './codeMode/toolModeTools'
+import { HTML_RENDER_SECTION_TOOL_NAME, HTML_RENDER_TOOL_NAME } from '@shared/agentHtmlRenderTool'
 import {
   CODE_MODE_TOOL_SERVER_NAME,
   RUN_CODE_DEFAULT_TIMEOUT_MS,
@@ -173,6 +174,8 @@ const UNSAFE_CODE_MODE_TOOL_NAMES = new Set(['__proto__', 'constructor', 'protot
 const RESERVED_AGENT_TOOL_NAMES = new Set<string>([
   ...YO_BROWSER_TOOL_NAMES,
   IMAGE_GENERATE_TOOL_NAME,
+  HTML_RENDER_TOOL_NAME,
+  HTML_RENDER_SECTION_TOOL_NAME,
   CRON_JOB_AGENT_TOOL_NAME,
   LIVE_DELEGATION_AGENT_TOOL_NAME,
   SUBAGENT_ORCHESTRATOR_TOOL_NAME,

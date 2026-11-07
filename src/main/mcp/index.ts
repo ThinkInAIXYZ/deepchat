@@ -184,6 +184,11 @@ export class McpService implements McpServicePort {
         blockId: string
         toolInput: Record<string, unknown>
       }): boolean
+      readHtmlRenderSource(input: {
+        conversationId: string
+        messageId: string
+        blockId: string
+      }): { title: string; html: string } | null
       persistModelContext(
         messageId: string,
         blockId: string,
@@ -268,6 +273,7 @@ export class McpService implements McpServicePort {
           },
           getPermissionMode: mcpApps.getPermissionMode,
           validateSource: mcpApps.validateSource,
+          readHtmlRenderSource: mcpApps.readHtmlRenderSource,
           persistModelContext: mcpApps.persistModelContext
         })
       : null

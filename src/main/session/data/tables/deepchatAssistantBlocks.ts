@@ -3,6 +3,7 @@ import { isDeepStrictEqual } from 'node:util'
 import { BaseTable } from '@/data/baseTable'
 import type { AssistantMessageBlock } from '@shared/types/agent-interface'
 import type { McpAppDescriptor } from '@shared/types/mcp'
+import { HTML_RENDER_SECTION_TOOL_NAME, HTML_RENDER_TOOL_NAME } from '@shared/agentHtmlRenderTool'
 import { toAssistantBlockRowInput, type PersistedBlockExtra } from '../messageContent'
 
 export interface DeepChatAssistantBlockRow {
@@ -258,6 +259,74 @@ export class DeepChatAssistantBlocksTable extends BaseTable {
       }
     }
     return false
+  }
+
+  readHtmlRenderSource(messageId: string, blockId: string): { title: string; html: string } | null {
+    for (const row of this.listByMessageId(messageId)) {
+      if (
+        row.block_type !== 'tool_call' ||
+        row.tool_name !== HTML_RENDER_TOOL_NAME ||
+        row.status !== 'success'
+      ) {
+        continue
+      }
+      try {
+        const extra = row.extra_json ? (JSON.parse(row.extra_json) as PersistedBlockExtra) : {}
+        const descriptor = extra.toolCallExtra?.htmlRender
+        if ((extra.id ?? row.tool_call_id) !== blockId || !descriptor) {
+          continue
+        }
+        const params = row.tool_params ? JSON.parse(row.tool_params) : null
+        return typeof params?.html === 'string'
+          ? { title: descriptor.title, html: params.html }
+          : null
+      } catch {
+        return null
+      }
+    }
+    return null
+  }
+
+  measureHtmlRenderPanel(
+    sessionId: string,
+    panelId: string,
+    excludeSectionId: string
+  ): number | null {
+    const rows = this.db
+      .prepare(
+        `SELECT b.tool_name, b.tool_params, b.extra_json
+         FROM deepchat_assistant_blocks b
+         JOIN deepchat_messages m ON m.id = b.message_id
+         WHERE m.session_id = ? AND b.block_type = 'tool_call' AND b.status = 'success'
+           AND b.tool_name IN (?, ?)
+         ORDER BY m.order_seq, b.block_index`
+      )
+      .all(sessionId, HTML_RENDER_TOOL_NAME, HTML_RENDER_SECTION_TOOL_NAME) as Array<{
+      tool_name: string
+      tool_params: string | null
+      extra_json: string | null
+    }>
+    let shellBytes: number | null = null
+    const sectionBytes = new Map<string, number>()
+    for (const row of rows) {
+      try {
+        const params = row.tool_params ? JSON.parse(row.tool_params) : null
+        if (typeof params?.html !== 'string') continue
+        const bytes = Buffer.byteLength(params.html, 'utf8')
+        if (row.tool_name === HTML_RENDER_TOOL_NAME) {
+          const extra = row.extra_json ? (JSON.parse(row.extra_json) as PersistedBlockExtra) : {}
+          if (extra.toolCallExtra?.htmlRender?.panelId === panelId) shellBytes = bytes
+        } else if (params.panelId === panelId && params.sectionId !== excludeSectionId) {
+          sectionBytes.set(params.sectionId, bytes)
+        }
+      } catch {
+        continue
+      }
+    }
+    if (shellBytes === null) return null
+    let total = shellBytes
+    for (const bytes of sectionBytes.values()) total += bytes
+    return total
   }
 
   updateMcpAppModelContext(

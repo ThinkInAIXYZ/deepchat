@@ -153,6 +153,7 @@ type StagedToolResult = {
   searchPayload: ExtractedSearchPayload
   imagePreviews?: ToolCallImagePreview[]
   mcpResult?: MCPToolResponse['mcpResult']
+  htmlRender?: MCPToolResponse['htmlRender']
   skillDraftPrompt?: SkillDraftPromptPayload
   postHookKind: 'success' | 'failure'
   skippedReason?: 'max_tokens'
@@ -822,7 +823,8 @@ function updateToolCallBlock(
   isError: boolean,
   imagePreviews?: ToolCallImagePreview[],
   toolSource?: 'agent' | 'mcp',
-  mcpResult?: MCPToolResponse['mcpResult']
+  mcpResult?: MCPToolResponse['mcpResult'],
+  htmlRender?: MCPToolResponse['htmlRender']
 ): void {
   const block = blocks.find((b) => b.type === 'tool_call' && b.tool_call?.id === toolCallId)
   if (block?.tool_call) {
@@ -840,6 +842,9 @@ function updateToolCallBlock(
     }
     if (mcpResult) {
       block.tool_call.mcpResult = mcpResult
+    }
+    if (htmlRender && !isError) {
+      block.tool_call.htmlRender = htmlRender
     }
     block.status = isError ? 'error' : 'success'
   }
@@ -1097,6 +1102,7 @@ function buildReturnedToolResultOutcome(
       ),
       imagePreviews: rawData.imagePreviews,
       mcpResult: rawData.mcpResult,
+      htmlRender: rawData.htmlRender,
       postHookKind: isError ? 'failure' : 'success',
       operation
     },
@@ -1253,7 +1259,8 @@ function applyFinalizedToolResults(params: {
       fittedResult.isError,
       imagePresentation.toolBlockImagePreviews,
       stagedResult.toolSource,
-      stagedResult.mcpResult
+      stagedResult.mcpResult,
+      stagedResult.htmlRender
     )
     if (stagedResult.skippedReason) {
       markToolCallSkipped(batchToolCallBlocks, stagedResult.toolCallId, stagedResult.skippedReason)
@@ -2421,6 +2428,7 @@ async function runToolCall(params: {
       searchPayload,
       imagePreviews,
       mcpResult: toolRawData.mcpResult,
+      htmlRender: toolRawData.htmlRender,
       skillDraftPrompt: extractSkillDraftPromptPayload(toolRawData),
       postHookKind: stagedIsError ? 'failure' : 'success',
       operation: dispatchedOperation,

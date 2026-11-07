@@ -1614,6 +1614,15 @@ export async function createMainProcessControl(dependencies: {
           )
         )
       },
+      readHtmlRenderSource: (input) => {
+        const message = sessionData.database.deepchatMessagesTable.get(input.messageId)
+        return message?.session_id === input.conversationId
+          ? sessionData.database.deepchatAssistantBlocksTable.readHtmlRenderSource(
+              input.messageId,
+              input.blockId
+            )
+          : null
+      },
       persistModelContext: (messageId, blockId, descriptor, toolInput, context) =>
         sessionData.database.deepchatAssistantBlocksTable.updateMcpAppModelContext(
           messageId,
@@ -1770,6 +1779,14 @@ export async function createMainProcessControl(dependencies: {
   const agentToolDependencies: AgentToolDependencies = {
     readSession: (callerSessionId, input) =>
       sessionData.sessionReferences.read(callerSessionId, input),
+    htmlRenderPanels: {
+      measurePanel: (conversationId, panelId, excludeSectionId) =>
+        sessionData.database.deepchatAssistantBlocksTable.measureHtmlRenderPanel(
+          conversationId,
+          panelId,
+          excludeSectionId
+        )
+    },
     agentInvocationAdmission,
     sessions: {
       resolveConversationWorkdir: async (conversationId) => {

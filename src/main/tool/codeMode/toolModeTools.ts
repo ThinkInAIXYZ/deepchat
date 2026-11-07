@@ -11,6 +11,7 @@ import {
 } from '@shared/codeModeProtocol'
 import { LIVE_DELEGATION_AGENT_TOOL_NAME } from '@shared/agentTools'
 import { QUESTION_TOOL_NAME } from '@shared/contracts/questionTool'
+import { HTML_RENDER_SECTION_TOOL_NAME, HTML_RENDER_TOOL_NAME } from '@shared/agentHtmlRenderTool'
 
 export const RUN_CODE_TOOL_NAME = 'run_code'
 export const CODE_MODE_EXEC_TOOL_NAME = 'exec'
@@ -18,7 +19,14 @@ export const CODE_MODE_WAIT_TOOL_NAME = 'wait'
 export const APPLY_PATCH_TOOL_NAME = 'apply_patch'
 export const STR_REPLACE_EDITOR_TOOL_NAME = 'str_replace_editor'
 
-const CODE_MODE_DIRECT_TOOL_NAMES = new Set([QUESTION_TOOL_NAME, LIVE_DELEGATION_AGENT_TOOL_NAME])
+// html_render tools must stay top-level: nested Code Mode calls drop rawData, which carries the
+// view, and section html is read from the tool block's own params.
+const CODE_MODE_DIRECT_TOOL_NAMES = new Set([
+  QUESTION_TOOL_NAME,
+  LIVE_DELEGATION_AGENT_TOOL_NAME,
+  HTML_RENDER_TOOL_NAME,
+  HTML_RENDER_SECTION_TOOL_NAME
+])
 
 export function isCodeModeDirectToolName(name: string): boolean {
   return CODE_MODE_DIRECT_TOOL_NAMES.has(name)

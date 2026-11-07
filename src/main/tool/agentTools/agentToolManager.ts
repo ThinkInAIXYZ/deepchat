@@ -16,7 +16,7 @@ import { app, nativeImage } from 'electron'
 import logger from '@shared/logger'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import type { ChatMessage } from '@shared/types/core/chat-message'
-import type { ToolCallImagePreview } from '@shared/types/core/mcp'
+import type { HtmlRenderDescriptor, ToolCallImagePreview } from '@shared/types/core/mcp'
 import {
   SKILL_EXECUTION_PACKAGE_MAX_PATH_BYTES,
   SKILL_NAME_MAX_LENGTH,
@@ -78,6 +78,8 @@ import {
   IMAGE_GENERATE_TOOL_NAME,
   IMAGE_GENERATION_TOOL_SERVER_NAME
 } from './agentImageGenerationTool'
+import { AgentHtmlRenderTool } from './agentHtmlRenderTool'
+import { HTML_RENDER_SECTION_TOOL_NAME, HTML_RENDER_TOOL_NAME } from '@shared/agentHtmlRenderTool'
 import { AgentTapeToolHandler } from './agentTapeTools'
 import { AGENT_MEMORY_TOOL_SERVER_NAME, AgentMemoryToolHandler } from './agentMemoryTools'
 import {
@@ -161,6 +163,7 @@ export interface AgentToolCallResult {
     outputOffloadPath?: string
     fffSearch?: FffSearchMetadata
     imagePreviews?: ToolCallImagePreview[]
+    htmlRender?: HtmlRenderDescriptor
     requiresPermission?: boolean
     permissionRequest?: {
       toolName: string
@@ -266,6 +269,7 @@ export class AgentToolManager {
   private chatSettingsHandler: ChatSettingsToolHandler | null = null
   private readonly liveDelegationTool: LiveDelegationAgentTool | null
   private readonly imageGenerationTool: AgentImageGenerationTool
+  private readonly htmlRenderTool = new AgentHtmlRenderTool()
   private readonly tapeToolHandler: AgentTapeToolHandler
   private readonly memoryToolHandler: AgentMemoryToolHandler
   private readonly cronJobToolHandler: CronJobToolHandler
@@ -744,6 +748,10 @@ export class AgentToolManager {
       }
     }
 
+    if (isAgentMode) {
+      appendDefinitions(this.htmlRenderTool.getToolDefinitions(), 'user-configurable')
+    }
+
     // 2.3. Scheduled task tool (disabled by default in DeepChat agent settings)
     if (isAgentMode) {
       appendDefinitions([this.cronJobToolHandler.getToolDefinition()], 'user-configurable')
@@ -942,6 +950,18 @@ export class AgentToolManager {
           options
         )
       })
+    }
+
+    if (toolName === HTML_RENDER_TOOL_NAME) {
+      return this.htmlRenderTool.call(args)
+    }
+
+    if (toolName === HTML_RENDER_SECTION_TOOL_NAME) {
+      return this.htmlRenderTool.callSection(
+        args,
+        conversationId,
+        this.dependencies.htmlRenderPanels
+      )
     }
 
     if (toolName === IMAGE_GENERATE_TOOL_NAME) {

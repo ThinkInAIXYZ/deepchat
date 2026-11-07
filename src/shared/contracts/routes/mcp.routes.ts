@@ -1305,6 +1305,18 @@ export const mcpAppsPrepareHostViewRoute = defineRouteContract({
   })
 })
 
+export const mcpAppsPrepareHtmlRenderRoute = defineRouteContract({
+  name: 'mcp.apps.prepareHtmlRender',
+  input: z.object({
+    conversationId: z.string().min(1).max(256),
+    messageId: z.string().min(1).max(256),
+    blockId: z.string().min(1).max(256)
+  }),
+  output: z.object({
+    view: McpHostPreparedViewSchema
+  })
+})
+
 export const mcpAppsReleaseViewRoute = defineRouteContract({
   name: 'mcp.apps.releaseView',
   input: z.object({

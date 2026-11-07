@@ -30,6 +30,11 @@ import type {
 import { MCP_APP_SCHEME } from './sandboxRegistry'
 import { getHostView } from './hostViews'
 import { assertBoundedMcpJson } from '../schemaValidation'
+import {
+  HTML_RENDER_CSP,
+  HTML_RENDER_LIBRARIES,
+  buildHtmlRenderDocument
+} from '@/htmlRender/document'
 import { resolvePluginToolPolicy } from '@/plugin/toolPolicyStore'
 import type { HostViewKind } from '@shared/hostViews'
 
@@ -206,6 +211,11 @@ export class McpAppHost implements McpAppHostPort {
         blockId: string
         toolInput: Record<string, unknown>
       }): boolean
+      readHtmlRenderSource(input: {
+        conversationId: string
+        messageId: string
+        blockId: string
+      }): { title: string; html: string } | null
       persistModelContext(
         messageId: string,
         blockId: string,
@@ -308,6 +318,37 @@ export class McpAppHost implements McpAppHostPort {
       csp: view.csp,
       libraries: view.libraries,
       validateLive: () => true
+    })
+    return {
+      instanceId: instance.instanceId,
+      sandboxUrl: `${MCP_APP_SCHEME}://${instance.instanceId}/sandbox.html`,
+      html: instance.html,
+      sandbox: 'allow-scripts allow-same-origin',
+      csp: instance.csp,
+      expiresAt: instance.expiresAt
+    }
+  }
+
+  async prepareHtmlRenderView(
+    input: { conversationId: string; messageId: string; blockId: string },
+    context: McpAppRouteContext
+  ): Promise<McpHostPreparedView> {
+    const source = this.deps.readHtmlRenderSource(input)
+    if (!source) {
+      throw new Error('The rendered page is no longer available')
+    }
+    const instance = this.deps.registry.create({
+      context,
+      conversationId: input.conversationId,
+      messageId: input.messageId,
+      blockId: input.blockId,
+      descriptor: null,
+      title: source.title,
+      toolInput: {},
+      html: buildHtmlRenderDocument(source.html),
+      csp: HTML_RENDER_CSP,
+      libraries: HTML_RENDER_LIBRARIES,
+      validateLive: () => this.deps.readHtmlRenderSource(input) !== null
     })
     return {
       instanceId: instance.instanceId,
@@ -559,22 +600,31 @@ export class McpAppHost implements McpAppHostPort {
   }
 
   async openLink(instanceId: string, url: string, context: McpAppRouteContext): Promise<boolean> {
-    const instance = this.assertLiveInstance(instanceId, context)
-    await this.assertDescriptorCurrent(instance.descriptor)
+    const instance = await this.assertLinkSourceCurrent(instanceId, context)
     const normalizedUrl = normalizeExternalUrl(url)
     const approved = await this.deps.registry.requestConsent(instance, {
       kind: 'open-link',
-      title: instance.descriptor.toolName,
+      title: instance.title,
       detail: normalizedUrl,
       url: normalizedUrl
     })
     if (!approved) {
       return false
     }
-    this.assertLiveInstance(instanceId, context)
-    await this.assertDescriptorCurrent(instance.descriptor)
+    await this.assertLinkSourceCurrent(instanceId, context)
     await shell.openExternal(normalizedUrl)
     return true
+  }
+
+  private async assertLinkSourceCurrent(
+    instanceId: string,
+    context: McpAppRouteContext
+  ): Promise<McpAppSandboxInstance> {
+    const instance = this.deps.registry.assertOwned(instanceId, context)
+    if (instance.descriptor) {
+      await this.assertDescriptorCurrent(this.assertLiveInstance(instanceId, context).descriptor)
+    }
+    return instance
   }
 
   async authorizeMessage(
