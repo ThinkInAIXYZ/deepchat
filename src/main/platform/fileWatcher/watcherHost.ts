@@ -141,7 +141,18 @@ export class FileWatcherHost {
           }
           return
         }
-        this.enqueueEvents(activeWatch, toWatcherEvents(events))
+        const watcherEvents = toWatcherEvents(events)
+        this.enqueueEvents(activeWatch, watcherEvents)
+        // Every native backend stops a subscription silently after reporting its root as deleted.
+        // A Git directory can come back at the same path, so keep watching it by polling.
+        if (
+          activeWatch.request.fallbackMode === 'git-metadata-polling' &&
+          watcherEvents.some(
+            (event) => event.type === 'delete' && event.path === activeWatch.request.rootPath
+          )
+        ) {
+          void this.handleNativeError(activeWatch, new Error('Watch root was deleted.'))
+        }
       },
       {
         ignore: activeWatch.request.excludes
@@ -227,10 +238,12 @@ export class FileWatcherHost {
   }
 
   // Git metadata is a handful of known paths, so stat them directly instead of diffing a snapshot
-  // of the whole watch root.
+  // of the whole watch root. A missing root keeps being polled: the Git directory can be moved away
+  // and restored, and the workspace reuses this watch while the metadata paths are unchanged.
   private startGitMetadataPolling(activeWatch: ActiveWatch, message?: string): void {
     const metadataPaths = activeWatch.request.includes ?? []
     let previous = readPathSignatures(metadataPaths)
+    let rootMissing = false
     this.sendStatus(activeWatch, {
       health: 'degraded',
       mode: activeWatch.mode,
@@ -243,8 +256,13 @@ export class FileWatcherHost {
       if (activeWatch.disposed) {
         return
       }
+      activeWatch.pollTimer = setTimeout(poll, SNAPSHOT_POLL_INTERVAL_MS)
 
       if (!fs.existsSync(activeWatch.request.rootPath)) {
+        if (rootMissing) {
+          return
+        }
+        rootMissing = true
         this.enqueueEvents(activeWatch, [
           {
             path: activeWatch.request.rootPath,
@@ -260,6 +278,23 @@ export class FileWatcherHost {
       }
 
       const next = readPathSignatures(metadataPaths)
+      if (rootMissing) {
+        rootMissing = false
+        previous = next
+        this.enqueueEvents(activeWatch, [
+          {
+            path: activeWatch.request.rootPath,
+            type: 'overflow'
+          }
+        ])
+        this.sendStatus(activeWatch, {
+          health: 'degraded',
+          mode: activeWatch.mode,
+          reason: 'fallback-started'
+        })
+        return
+      }
+
       const events: WatcherEvent[] = []
       for (const targetPath of new Set([...previous.keys(), ...next.keys()])) {
         if (previous.get(targetPath) === next.get(targetPath)) {
@@ -272,7 +307,6 @@ export class FileWatcherHost {
       }
       previous = next
       this.enqueueEvents(activeWatch, events)
-      activeWatch.pollTimer = setTimeout(poll, SNAPSHOT_POLL_INTERVAL_MS)
     }
 
     activeWatch.pollTimer = setTimeout(poll, SNAPSHOT_POLL_INTERVAL_MS)
