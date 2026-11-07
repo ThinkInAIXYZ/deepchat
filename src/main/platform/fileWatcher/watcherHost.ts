@@ -34,6 +34,7 @@ type ActiveWatch = {
   chunkTimer: NodeJS.Timeout | null
   pollTimer: NodeJS.Timeout | null
   snapshotPath: string | null
+  generation: number
   disposed: boolean
 }
 
@@ -42,6 +43,30 @@ const serializeErrorMessage = (error: unknown): string => {
     return error.message
   }
   return String(error)
+}
+
+// Directories are walked because a ref update renames `<ref>.lock` into place, which changes the
+// mtime of the directory holding the ref but not of `refs` itself.
+const readPathSignatures = (targetPaths: string[]): Map<string, string> => {
+  const signatures = new Map<string, string>()
+  const visit = (targetPath: string) => {
+    try {
+      const stat = fs.statSync(targetPath)
+      signatures.set(targetPath, `${stat.mtimeMs}:${stat.size}`)
+      if (!stat.isDirectory()) {
+        return
+      }
+      for (const entry of fs.readdirSync(targetPath, { withFileTypes: true })) {
+        if (entry.isDirectory()) {
+          visit(path.join(targetPath, entry.name))
+        }
+      }
+    } catch {
+      // A missing path is recorded as absent.
+    }
+  }
+  targetPaths.forEach(visit)
+  return signatures
 }
 
 const toWatcherEvents = (events: parcelWatcher.Event[]): WatcherEvent[] =>
@@ -67,37 +92,14 @@ export class FileWatcherHost {
       chunkTimer: null,
       pollTimer: null,
       snapshotPath: null,
+      generation: 0,
       disposed: false
     }
 
     this.watches.set(request.id, activeWatch)
 
     try {
-      const subscription = await parcelWatcher.subscribe(
-        request.rootPath,
-        (error, events) => {
-          if (error) {
-            void this.handleNativeError(activeWatch, error)
-            return
-          }
-          this.enqueueEvents(activeWatch, toWatcherEvents(events))
-        },
-        {
-          ignore: request.excludes
-        }
-      )
-
-      if (activeWatch.disposed) {
-        await subscription.unsubscribe()
-        return
-      }
-
-      activeWatch.subscription = subscription
-      this.sendStatus(activeWatch, {
-        health: 'healthy',
-        mode: 'native',
-        reason: 'ready'
-      })
+      await this.subscribeNative(activeWatch)
     } catch (error) {
       await this.handleNativeError(activeWatch, error)
     }
@@ -117,6 +119,86 @@ export class FileWatcherHost {
     const activeWatches = Array.from(this.watches.values())
     this.watches.clear()
     await Promise.all(activeWatches.map((activeWatch) => this.disposeActiveWatch(activeWatch)))
+  }
+
+  // Each subscription gets a generation so callbacks from a retired subscription are ignored. The
+  // native wrapper registers the callback before subscribe() resolves, and a fatal error can clear
+  // it in that window; such an error fails this attempt instead of reporting a dead watch healthy.
+  private async subscribeNative(activeWatch: ActiveWatch): Promise<void> {
+    const generation = ++activeWatch.generation
+    const setup: { ready: boolean; error: unknown } = { ready: false, error: null }
+    const subscription = await parcelWatcher.subscribe(
+      activeWatch.request.rootPath,
+      (error, events) => {
+        if (generation !== activeWatch.generation) {
+          return
+        }
+        if (error) {
+          if (setup.ready) {
+            void this.recoverNative(activeWatch)
+          } else {
+            setup.error = error
+          }
+          return
+        }
+        const watcherEvents = toWatcherEvents(events)
+        this.enqueueEvents(activeWatch, watcherEvents)
+        // Every native backend stops a subscription silently after reporting its root as deleted.
+        // A Git directory can come back at the same path, so keep watching it by polling.
+        if (
+          activeWatch.request.fallbackMode === 'git-metadata-polling' &&
+          watcherEvents.some(
+            (event) => event.type === 'delete' && event.path === activeWatch.request.rootPath
+          )
+        ) {
+          void this.handleNativeError(activeWatch, new Error('Watch root was deleted.'))
+        }
+      },
+      {
+        ignore: activeWatch.request.excludes
+      }
+    )
+    setup.ready = true
+
+    if (activeWatch.disposed || setup.error) {
+      await subscription.unsubscribe().catch(() => undefined)
+      if (setup.error) {
+        throw setup.error
+      }
+      return
+    }
+
+    activeWatch.subscription = subscription
+    this.sendStatus(activeWatch, {
+      health: 'healthy',
+      mode: 'native',
+      reason: 'ready'
+    })
+  }
+
+  // Errors delivered through the subscription callback mean events were lost. FSEvents keeps the
+  // stream running after dropping events, while a Windows buffer overflow or an inotify failure
+  // tears the subscription down. Resubscribing and requesting a full rescan covers both cases;
+  // only a failed resubscribe falls back to snapshot polling.
+  private async recoverNative(activeWatch: ActiveWatch): Promise<void> {
+    if (activeWatch.disposed || activeWatch.mode !== 'native') {
+      return
+    }
+
+    // Retire the failing subscription first so its later callbacks cannot start another recovery.
+    activeWatch.generation += 1
+    try {
+      await this.unsubscribeNative(activeWatch).catch(() => undefined)
+      await this.subscribeNative(activeWatch)
+      this.enqueueEvents(activeWatch, [
+        {
+          path: activeWatch.request.rootPath,
+          type: 'overflow'
+        }
+      ])
+    } catch (error) {
+      await this.handleNativeError(activeWatch, error)
+    }
   }
 
   private async handleNativeError(activeWatch: ActiveWatch, error: unknown): Promise<void> {
@@ -146,11 +228,86 @@ export class FileWatcherHost {
     await this.unsubscribeNative(activeWatch)
 
     if (activeWatch.mode === 'git-metadata-polling') {
-      this.startSnapshotPolling(activeWatch, message)
+      this.startGitMetadataPolling(activeWatch, message)
       return
     }
 
     this.startSnapshotPolling(activeWatch, message)
+  }
+
+  // Git metadata is a handful of known paths, so stat them directly instead of diffing a snapshot
+  // of the whole watch root. A missing root keeps being polled: the Git directory can be moved away
+  // and restored, and the workspace reuses this watch while the metadata paths are unchanged.
+  private startGitMetadataPolling(activeWatch: ActiveWatch, message?: string): void {
+    const metadataPaths = activeWatch.request.includes ?? []
+    let previous = readPathSignatures(metadataPaths)
+    let rootMissing = false
+    this.sendStatus(activeWatch, {
+      health: 'degraded',
+      mode: activeWatch.mode,
+      reason: 'fallback-started',
+      message
+    })
+
+    const poll = () => {
+      activeWatch.pollTimer = null
+      if (activeWatch.disposed) {
+        return
+      }
+      activeWatch.pollTimer = setTimeout(poll, SNAPSHOT_POLL_INTERVAL_MS)
+
+      if (!fs.existsSync(activeWatch.request.rootPath)) {
+        if (rootMissing) {
+          return
+        }
+        rootMissing = true
+        this.enqueueEvents(activeWatch, [
+          {
+            path: activeWatch.request.rootPath,
+            type: 'root-deleted'
+          }
+        ])
+        this.sendStatus(activeWatch, {
+          health: 'failed',
+          mode: activeWatch.mode,
+          reason: 'root-deleted'
+        })
+        return
+      }
+
+      const next = readPathSignatures(metadataPaths)
+      if (rootMissing) {
+        rootMissing = false
+        previous = next
+        this.enqueueEvents(activeWatch, [
+          {
+            path: activeWatch.request.rootPath,
+            type: 'overflow'
+          }
+        ])
+        this.sendStatus(activeWatch, {
+          health: 'degraded',
+          mode: activeWatch.mode,
+          reason: 'fallback-started'
+        })
+        return
+      }
+
+      const events: WatcherEvent[] = []
+      for (const targetPath of new Set([...previous.keys(), ...next.keys()])) {
+        if (previous.get(targetPath) === next.get(targetPath)) {
+          continue
+        }
+        events.push({
+          path: targetPath,
+          type: !next.has(targetPath) ? 'delete' : previous.has(targetPath) ? 'update' : 'create'
+        })
+      }
+      previous = next
+      this.enqueueEvents(activeWatch, events)
+    }
+
+    activeWatch.pollTimer = setTimeout(poll, SNAPSHOT_POLL_INTERVAL_MS)
   }
 
   private startSnapshotPolling(activeWatch: ActiveWatch, message?: string): void {
