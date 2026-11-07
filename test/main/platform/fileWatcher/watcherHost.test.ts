@@ -31,8 +31,6 @@ vi.mock('path', async () => {
 
 type NativeCallback = (error: Error | null, events: unknown[]) => void
 
-type NativeCallback = (error: Error | null, events: unknown[]) => void
-
 describe('FileWatcherHost', () => {
   let rootPath: string
   let messages: FileWatcherHostEvent[]
