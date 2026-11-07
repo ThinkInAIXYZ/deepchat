@@ -2500,9 +2500,10 @@ describe('MemoryService management', () => {
     })
 
     const internalIds = ['persona-active', 'persona-draft', 'persona-superseded', 'working']
-    expect(presenter.pageMemories('a', null, 100).rows.map((row) => row.id)).not.toEqual(
-      expect.arrayContaining(internalIds)
-    )
+    const visibleIds = presenter.pageMemories('a', null, 100).rows.map((row) => row.id)
+    for (const id of internalIds) {
+      expect(visibleIds).not.toContain(id)
+    }
     expect(presenter.getByIds('a', internalIds).map((row) => row.id)).toEqual(internalIds)
     await expect(presenter.forgetMemory('a', 'persona-active')).resolves.toEqual({
       action: 'rejected',
