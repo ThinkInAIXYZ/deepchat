@@ -10,12 +10,18 @@ import {
   clearKaTeXWorker,
   clearMermaidWorker,
   setKaTeXWorker,
+  setInfographicLoader,
   setMermaidWorker,
   setStreamDiffsWorkerPool,
   terminateStreamDiffsWorkerPool,
   terminateWorker,
   type StreamDiffsWorkerPoolLike
 } from 'markstream-vue'
+
+// markstream has no default Infographic loader; without one, infographic blocks
+// fall back to source. Registered at import time so it is set before any block
+// mounts; the dynamic import keeps @antv/infographic out of the startup bundle.
+setInfographicLoader(() => import('@antv/infographic'))
 
 // Dynamic worker imports - only loaded when needed
 let KatexWorkerConstructor: (new () => Worker) | null = null
