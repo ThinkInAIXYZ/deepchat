@@ -34,7 +34,7 @@ type ActiveWatch = {
   chunkTimer: NodeJS.Timeout | null
   pollTimer: NodeJS.Timeout | null
   snapshotPath: string | null
-  recovering: boolean
+  generation: number
   disposed: boolean
 }
 
@@ -68,7 +68,7 @@ export class FileWatcherHost {
       chunkTimer: null,
       pollTimer: null,
       snapshotPath: null,
-      recovering: false,
+      generation: 0,
       disposed: false
     }
 
@@ -97,12 +97,24 @@ export class FileWatcherHost {
     await Promise.all(activeWatches.map((activeWatch) => this.disposeActiveWatch(activeWatch)))
   }
 
+  // Each subscription gets a generation so callbacks from a retired subscription are ignored. The
+  // native wrapper registers the callback before subscribe() resolves, and a fatal error can clear
+  // it in that window; such an error fails this attempt instead of reporting a dead watch healthy.
   private async subscribeNative(activeWatch: ActiveWatch): Promise<void> {
+    const generation = ++activeWatch.generation
+    const setup: { ready: boolean; error: unknown } = { ready: false, error: null }
     const subscription = await parcelWatcher.subscribe(
       activeWatch.request.rootPath,
       (error, events) => {
+        if (generation !== activeWatch.generation) {
+          return
+        }
         if (error) {
-          void this.recoverNative(activeWatch)
+          if (setup.ready) {
+            void this.recoverNative(activeWatch)
+          } else {
+            setup.error = error
+          }
           return
         }
         this.enqueueEvents(activeWatch, toWatcherEvents(events))
@@ -111,9 +123,13 @@ export class FileWatcherHost {
         ignore: activeWatch.request.excludes
       }
     )
+    setup.ready = true
 
-    if (activeWatch.disposed) {
-      await subscription.unsubscribe()
+    if (activeWatch.disposed || setup.error) {
+      await subscription.unsubscribe().catch(() => undefined)
+      if (setup.error) {
+        throw setup.error
+      }
       return
     }
 
@@ -130,11 +146,12 @@ export class FileWatcherHost {
   // tears the subscription down. Resubscribing and requesting a full rescan covers both cases;
   // only a failed resubscribe falls back to snapshot polling.
   private async recoverNative(activeWatch: ActiveWatch): Promise<void> {
-    if (activeWatch.disposed || activeWatch.recovering) {
+    if (activeWatch.disposed || activeWatch.mode !== 'native') {
       return
     }
 
-    activeWatch.recovering = true
+    // Retire the failing subscription first so its later callbacks cannot start another recovery.
+    activeWatch.generation += 1
     try {
       await this.unsubscribeNative(activeWatch).catch(() => undefined)
       await this.subscribeNative(activeWatch)
@@ -146,8 +163,6 @@ export class FileWatcherHost {
       ])
     } catch (error) {
       await this.handleNativeError(activeWatch, error)
-    } finally {
-      activeWatch.recovering = false
     }
   }
 
