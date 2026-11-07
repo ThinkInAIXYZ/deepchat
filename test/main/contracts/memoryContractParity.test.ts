@@ -10,7 +10,7 @@ import {
   MemoryAuditEventSchema,
   MemoryHealthRecentFailureSchema,
   memoryListAuditEventsRoute,
-  memoryListRoute
+  memoryPageRoute
 } from '@shared/contracts/routes/memory.routes'
 import {
   AGENT_MEMORY_AUDIT_ACTOR_TYPES,
@@ -91,7 +91,7 @@ describe('memory contract single sources of truth', () => {
     for (const [value, expected] of cases) {
       expect(isSharedSafeAgentId(value)).toBe(expected)
       expect(isPresenterSafeAgentId(value)).toBe(expected)
-      expect(memoryListRoute.input.safeParse({ agentId: value }).success).toBe(expected)
+      expect(memoryPageRoute.input.safeParse({ agentId: value }).success).toBe(expected)
     }
   })
 

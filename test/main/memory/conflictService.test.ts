@@ -357,7 +357,9 @@ describe('MemoryService decision ring (T-A1..T-A5)', () => {
     const challenger = repo.getById(result.createdIds[0])
     expect(challenger?.status).toBe('conflicted')
     expect(challenger?.conflict_with).toBe(neighborId)
-    expect(presenter.listMemories('a').map((row) => row.id)).not.toContain(challenger?.id)
+    expect(presenter.pageMemories('a', null, 100).rows.map((row) => row.id)).not.toContain(
+      challenger?.id
+    )
     expect(presenter.listConflicts('a')[0]).toMatchObject({
       challenger: expect.objectContaining({ id: challenger?.id }),
       target: expect.objectContaining({ id: neighborId })

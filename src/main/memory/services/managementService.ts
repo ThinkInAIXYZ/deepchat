@@ -340,15 +340,6 @@ export class ManagementService {
     return this.archiveMemory(agentId, derivedMemoryId, 'user', undefined, expectedRevision)
   }
 
-  /** @deprecated Use pageMemories for bounded management reads. */
-  listMemories(agentId: string): AgentMemoryRow[] {
-    this.ctx.assertSafeAgentId(agentId)
-    if (!this.ctx.canManageClaimMemory(agentId)) return []
-    return this.ports.repository
-      .listByAgent(agentId, { includeArchived: true })
-      .filter((row) => !isInternalMemoryKind(row))
-  }
-
   pageMemories(
     agentId: string,
     cursor: MemoryManagementPageCursor | null,

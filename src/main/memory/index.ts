@@ -770,11 +770,6 @@ export class MemoryService implements MemoryRuntimePort {
     return this.persona.rollbackPersona(agentId, versionId)
   }
 
-  /** @deprecated Use pageMemories for bounded management reads. */
-  listMemories(agentId: string): AgentMemoryRow[] {
-    return this.management.listMemories(agentId)
-  }
-
   pageMemories(agentId: string, cursor: { createdAt: number; id: string } | null, limit: number) {
     return this.management.pageMemories(agentId, cursor, limit)
   }
