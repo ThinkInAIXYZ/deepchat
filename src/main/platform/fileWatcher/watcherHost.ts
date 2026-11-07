@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
@@ -16,7 +17,7 @@ const FILE_CHANGES_HANDLER_DELAY_MS = 75
 const MAX_BUFFERED_EVENTS = 30000
 const MAX_EVENT_CHUNK_SIZE = 500
 const EVENT_CHUNK_DELAY_MS = 200
-const SNAPSHOT_POLL_INTERVAL_MS = 5007
+export const SNAPSHOT_POLL_INTERVAL_MS = 5007
 
 type ParcelSubscription = Awaited<ReturnType<typeof parcelWatcher.subscribe>>
 
@@ -119,7 +120,9 @@ export class FileWatcherHost {
   }
 
   private async handleNativeError(activeWatch: ActiveWatch, error: unknown): Promise<void> {
-    if (activeWatch.disposed) {
+    // Several error callbacks can arrive before the native unsubscribe finishes. Only the first
+    // one may start a fallback, or each would run its own poll loop on the same snapshot.
+    if (activeWatch.disposed || activeWatch.mode !== 'native') {
       return
     }
 
@@ -139,8 +142,8 @@ export class FileWatcherHost {
       return
     }
 
-    await this.unsubscribeNative(activeWatch)
     activeWatch.mode = activeWatch.request.fallbackMode ?? 'snapshot-polling'
+    await this.unsubscribeNative(activeWatch)
 
     if (activeWatch.mode === 'git-metadata-polling') {
       this.startSnapshotPolling(activeWatch, message)
@@ -151,15 +154,30 @@ export class FileWatcherHost {
   }
 
   private startSnapshotPolling(activeWatch: ActiveWatch, message?: string): void {
+    // The random suffix keeps a file left by a crashed process with a reused pid from being taken
+    // as this watch's baseline, which would replay events from long ago.
     const snapshotPath = path.join(
       os.tmpdir(),
-      `deepchat-watcher-${process.pid}-${activeWatch.request.id}.snapshot`
+      `deepchat-watcher-${process.pid}-${activeWatch.request.id}-${randomUUID()}.snapshot`
     )
     activeWatch.snapshotPath = snapshotPath
 
-    const poll = async () => {
+    // The native write can still be running when dispose removes the snapshot, and would recreate
+    // it afterwards. Deleting again once the write settles converges whichever side finishes first.
+    const writeSnapshot = async (): Promise<boolean> => {
+      await parcelWatcher.writeSnapshot(activeWatch.request.rootPath, snapshotPath, {
+        ignore: activeWatch.request.excludes
+      })
       if (activeWatch.disposed) {
-        return
+        fs.rmSync(snapshotPath, { force: true })
+        return false
+      }
+      return true
+    }
+
+    const poll = async (): Promise<boolean> => {
+      if (activeWatch.disposed) {
+        return false
       }
 
       try {
@@ -175,24 +193,20 @@ export class FileWatcherHost {
             mode: activeWatch.mode,
             reason: 'root-deleted'
           })
-          if (activeWatch.pollTimer) {
-            clearInterval(activeWatch.pollTimer)
-            activeWatch.pollTimer = null
-          }
-          return
+          return false
         }
 
         if (!fs.existsSync(snapshotPath)) {
-          await parcelWatcher.writeSnapshot(activeWatch.request.rootPath, snapshotPath, {
-            ignore: activeWatch.request.excludes
-          })
+          if (!(await writeSnapshot())) {
+            return false
+          }
           this.sendStatus(activeWatch, {
             health: 'degraded',
             mode: activeWatch.mode,
             reason: 'fallback-started',
             message
           })
-          return
+          return true
         }
 
         const events = await parcelWatcher.getEventsSince(
@@ -202,9 +216,9 @@ export class FileWatcherHost {
             ignore: activeWatch.request.excludes
           }
         )
-        await parcelWatcher.writeSnapshot(activeWatch.request.rootPath, snapshotPath, {
-          ignore: activeWatch.request.excludes
-        })
+        if (activeWatch.disposed || !(await writeSnapshot())) {
+          return false
+        }
         this.enqueueEvents(activeWatch, toWatcherEvents(events))
       } catch (error) {
         this.sendStatus(activeWatch, {
@@ -214,12 +228,18 @@ export class FileWatcherHost {
           message: serializeErrorMessage(error)
         })
       }
+      return true
     }
 
-    activeWatch.pollTimer = setInterval(() => {
-      void poll()
-    }, SNAPSHOT_POLL_INTERVAL_MS)
-    void poll()
+    // Each poll is scheduled only after the previous one settles. Overlapping polls would queue
+    // behind the native backend lock and keep replaying events from the same stale snapshot.
+    const runPoll = async () => {
+      activeWatch.pollTimer = null
+      if ((await poll()) && !activeWatch.disposed) {
+        activeWatch.pollTimer = setTimeout(() => void runPoll(), SNAPSHOT_POLL_INTERVAL_MS)
+      }
+    }
+    void runPoll()
   }
 
   private enqueueEvents(activeWatch: ActiveWatch, events: WatcherEvent[]): void {
@@ -227,8 +247,10 @@ export class FileWatcherHost {
       return
     }
 
-    activeWatch.buffer.push(...events)
-    if (activeWatch.buffer.length > MAX_BUFFERED_EVENTS) {
+    // Check before spreading: spreading a very large batch into push() throws a RangeError.
+    if (activeWatch.buffer.length + events.length <= MAX_BUFFERED_EVENTS) {
+      activeWatch.buffer.push(...events)
+    } else {
       activeWatch.buffer = [
         {
           path: activeWatch.request.rootPath,
@@ -335,7 +357,7 @@ export class FileWatcherHost {
     }
 
     if (activeWatch.pollTimer) {
-      clearInterval(activeWatch.pollTimer)
+      clearTimeout(activeWatch.pollTimer)
       activeWatch.pollTimer = null
     }
 
