@@ -2500,7 +2500,7 @@ describe('MemoryService management', () => {
     })
 
     const internalIds = ['persona-active', 'persona-draft', 'persona-superseded', 'working']
-    expect(presenter.listMemories('a').map((row) => row.id)).not.toEqual(
+    expect(presenter.pageMemories('a', null, 100).rows.map((row) => row.id)).not.toEqual(
       expect.arrayContaining(internalIds)
     )
     expect(presenter.getByIds('a', internalIds).map((row) => row.id)).toEqual(internalIds)
@@ -2644,7 +2644,7 @@ describe('MemoryService agentId safety guards', () => {
 
   it('management methods reject malformed agentId', async () => {
     const { presenter } = makePresenter(enabledConfig)
-    expect(() => presenter.listMemories('../escape')).toThrow(/invalid agentId/)
+    expect(() => presenter.pageMemories('../escape', null, 100)).toThrow(/invalid agentId/)
     expect(() => presenter.getStatus('bad/id')).toThrow(/invalid agentId/)
     expect(() => presenter.getHealth('bad/id')).toThrow(/invalid agentId/)
     expect(() => presenter.listPersonaVersions('bad.id')).toThrow(/invalid agentId/)
@@ -2672,7 +2672,7 @@ describe('MemoryService agentId safety guards', () => {
     presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis' }], { agentId: 'real' })
 
     // Well-formed but not a real agent: reads come back empty and mutations are no-ops.
-    expect(presenter.listMemories('ghost')).toEqual([])
+    expect(presenter.pageMemories('ghost', null, 100)).toEqual({ rows: [], nextCursor: null })
     expect(presenter.getStatus('ghost')).toEqual({
       total: 0,
       pendingEmbedding: 0,
@@ -2693,7 +2693,7 @@ describe('MemoryService agentId safety guards', () => {
     })
 
     // A real agent works normally.
-    expect(presenter.listMemories('real')).toHaveLength(1)
+    expect(presenter.pageMemories('real', null, 100).rows).toHaveLength(1)
     expect(repo.countByAgent('real')).toBe(1)
   })
 })

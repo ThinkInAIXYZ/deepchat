@@ -1145,24 +1145,6 @@ describe('renderer api clients', () => {
                   scanTruncated: false
                 }
               }
-            case 'memory.list':
-              return {
-                memories: [
-                  {
-                    id: 'mem-added',
-                    agentId: payload?.agentId ?? 'agent-1',
-                    kind: 'semantic',
-                    category: typeof addedMemoryCategory === 'string' ? addedMemoryCategory : null,
-                    content: 'repo uses pnpm',
-                    importance: 0.6,
-                    status: 'embedded',
-                    sourceSession: null,
-                    sourceEntryIds: null,
-                    supersededBy: null,
-                    createdAt: 1000
-                  }
-                ]
-              }
             case 'memory.page':
               return {
                 items: [
@@ -1170,7 +1152,7 @@ describe('renderer api clients', () => {
                     id: 'mem-page',
                     agentId: payload?.agentId ?? 'agent-1',
                     kind: 'semantic',
-                    category: null,
+                    category: typeof addedMemoryCategory === 'string' ? addedMemoryCategory : null,
                     content: 'paged memory',
                     importance: 0.6,
                     status: 'embedded',
@@ -1619,7 +1601,7 @@ describe('renderer api clients', () => {
     const bridge = createBridge()
     const memoryClient = createMemoryClient(bridge)
 
-    await memoryClient.list('agent-1')
+    await memoryClient.page('agent-1')
     await memoryClient.getStatus('agent-1')
     await memoryClient.remove('agent-1', 'mem-1')
     await memoryClient.clear('agent-1')
@@ -1635,7 +1617,7 @@ describe('renderer api clients', () => {
       category: 'project_fact',
       sessionId: 'session-1'
     })
-    const categorizedMemories = await memoryClient.list('agent-1')
+    const categorizedMemories = await memoryClient.page('agent-1')
     await memoryClient.add('agent-1', { content: 'plain note' })
     const selectedMemories = await memoryClient.getByIds('agent-1', ['mem-archived', 'mem-added'])
     const archived = await memoryClient.archive('agent-1', 'mem-added')
@@ -1647,7 +1629,11 @@ describe('renderer api clients', () => {
     const page = await memoryClient.page('agent-1', { cursor: 'opaque', limit: 25 })
     const off = memoryClient.onUpdated(vi.fn())
 
-    expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'memory.list', { agentId: 'agent-1' })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'memory.page', {
+      agentId: 'agent-1',
+      cursor: undefined,
+      limit: undefined
+    })
     expect(bridge.invoke).toHaveBeenNthCalledWith(2, 'memory.getStatus', { agentId: 'agent-1' })
     expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'memory.delete', {
       agentId: 'agent-1',
@@ -1689,8 +1675,12 @@ describe('renderer api clients', () => {
       sessionId: 'session-1'
     })
     expect(bridge.invoke.mock.calls[11][1]).not.toHaveProperty('kind')
-    expect(bridge.invoke).toHaveBeenNthCalledWith(13, 'memory.list', { agentId: 'agent-1' })
-    expect(categorizedMemories[0].category).toBe('project_fact')
+    expect(bridge.invoke).toHaveBeenNthCalledWith(13, 'memory.page', {
+      agentId: 'agent-1',
+      cursor: undefined,
+      limit: undefined
+    })
+    expect(categorizedMemories.items[0].category).toBe('project_fact')
     expect(bridge.invoke).toHaveBeenNthCalledWith(14, 'memory.add', {
       agentId: 'agent-1',
       content: 'plain note',
