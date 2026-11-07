@@ -319,6 +319,7 @@
     "title": "MCP App",
     "interactiveContent": "Nội dung tương tác từ máy chủ MCP",
     "loadError": "Không thể tải MCP App này.",
+    "pageLoadError": "Không thể hiển thị trang này.",
     "retry": "Thử lại",
     "fullscreen": "Mở toàn màn hình",
     "pictureInPicture": "Mở chế độ hình trong hình",

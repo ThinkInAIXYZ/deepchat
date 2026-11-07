@@ -319,6 +319,7 @@
     "title": "MCP App",
     "interactiveContent": "Bir MCP sunucusundan etkileşimli içerik",
     "loadError": "Bu MCP App yüklenemedi.",
+    "pageLoadError": "Bu sayfa görüntülenemiyor.",
     "retry": "Tekrar dene",
     "fullscreen": "Tam ekran aç",
     "pictureInPicture": "Resim içinde resim olarak aç",

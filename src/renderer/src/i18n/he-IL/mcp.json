@@ -319,6 +319,7 @@
     "title": "אפליקציית MCP",
     "interactiveContent": "תוכן אינטראקטיבי משרת MCP",
     "loadError": "לא ניתן לטעון את אפליקציית MCP הזו.",
+    "pageLoadError": "לא ניתן להציג את הדף הזה.",
     "retry": "ניסיון חוזר",
     "fullscreen": "פתיחה במסך מלא",
     "pictureInPicture": "פתיחה בתמונה בתוך תמונה",

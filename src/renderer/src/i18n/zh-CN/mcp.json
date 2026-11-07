@@ -319,6 +319,7 @@
     "title": "MCP App",
     "interactiveContent": "来自 MCP 服务器的交互内容",
     "loadError": "无法加载此 MCP App。",
+    "pageLoadError": "无法显示此页面。",
     "retry": "重试",
     "fullscreen": "全屏打开",
     "pictureInPicture": "画中画打开",

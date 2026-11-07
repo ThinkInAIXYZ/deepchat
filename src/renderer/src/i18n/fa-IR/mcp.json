@@ -319,6 +319,7 @@
     "title": "برنامهٔ MCP",
     "interactiveContent": "محتوای تعاملی از یک سرور MCP",
     "loadError": "بارگذاری این برنامهٔ MCP ممکن نیست.",
+    "pageLoadError": "نمایش این صفحه ممکن نیست.",
     "retry": "تلاش مجدد",
     "fullscreen": "باز کردن در تمام‌صفحه",
     "pictureInPicture": "باز کردن تصویر در تصویر",

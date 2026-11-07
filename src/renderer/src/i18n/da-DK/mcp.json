@@ -319,6 +319,7 @@
     "title": "MCP-app",
     "interactiveContent": "Interaktivt indhold fra en MCP-server",
     "loadError": "Denne MCP-app kunne ikke indlæses.",
+    "pageLoadError": "Denne side kan ikke vises.",
     "retry": "Prøv igen",
     "fullscreen": "Åbn i fuld skærm",
     "pictureInPicture": "Åbn billede-i-billede",

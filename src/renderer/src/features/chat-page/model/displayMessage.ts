@@ -4,7 +4,11 @@ import type {
   UserMessageInlineItem
 } from '@shared/types/agent-interface'
 import type { LegacyAgentPlanMetadata } from '@shared/types/legacy-agent-plan'
-import type { PersistedMcpToolResult, ToolCallImagePreview } from '@shared/types/core/mcp'
+import type {
+  HtmlRenderDescriptor,
+  PersistedMcpToolResult,
+  ToolCallImagePreview
+} from '@shared/types/core/mcp'
 
 export type UserMessageEdit = {
   messageId: string
@@ -193,6 +197,7 @@ export type DisplayAssistantMessageBlock = {
     server_icons?: string
     server_description?: string
     mcpResult?: PersistedMcpToolResult
+    htmlRender?: HtmlRenderDescriptor
   }
   action_type?:
     | 'tool_call_permission'

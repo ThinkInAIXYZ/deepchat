@@ -29,6 +29,7 @@ import {
   mcpAppsOpenLinkRoute,
   mcpAppsPrepareViewRoute,
   mcpAppsPrepareHostViewRoute,
+  mcpAppsPrepareHtmlRenderRoute,
   mcpAppsReadResourceRoute,
   mcpAppsReleaseViewRoute,
   mcpAppsRetryToolAccessRoute,
@@ -326,6 +327,15 @@ export function createMcpClient(bridge: DeepchatBridge = getDeepchatBridge()) {
     return result.view
   }
 
+  async function prepareHtmlRenderView(input: {
+    conversationId: string
+    messageId: string
+    blockId: string
+  }) {
+    const result = await bridge.invoke(mcpAppsPrepareHtmlRenderRoute.name, input)
+    return result.view
+  }
+
   async function releaseAppView(instanceId: string) {
     await bridge.invoke(mcpAppsReleaseViewRoute.name, { instanceId })
   }
@@ -576,6 +586,7 @@ export function createMcpClient(bridge: DeepchatBridge = getDeepchatBridge()) {
     cancelElicitationRequest,
     prepareAppView,
     prepareHostView,
+    prepareHtmlRenderView,
     releaseAppView,
     callAppTool,
     listAppTools,

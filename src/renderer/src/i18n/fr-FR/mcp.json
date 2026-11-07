@@ -319,6 +319,7 @@
     "title": "Application MCP",
     "interactiveContent": "Contenu interactif provenant d’un serveur MCP",
     "loadError": "Impossible de charger cette application MCP.",
+    "pageLoadError": "Impossible d’afficher cette page.",
     "retry": "Réessayer",
     "fullscreen": "Ouvrir en plein écran",
     "pictureInPicture": "Ouvrir en image dans l’image",

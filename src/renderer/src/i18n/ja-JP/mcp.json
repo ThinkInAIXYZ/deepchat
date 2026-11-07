@@ -319,6 +319,7 @@
     "title": "MCP App",
     "interactiveContent": "MCP サーバーからのインタラクティブコンテンツ",
     "loadError": "この MCP App を読み込めません。",
+    "pageLoadError": "このページを表示できません。",
     "retry": "再試行",
     "fullscreen": "全画面で開く",
     "pictureInPicture": "ピクチャ・イン・ピクチャで開く",

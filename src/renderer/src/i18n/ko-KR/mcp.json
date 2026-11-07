@@ -319,6 +319,7 @@
     "title": "MCP App",
     "interactiveContent": "MCP 서버의 대화형 콘텐츠",
     "loadError": "이 MCP App을 불러올 수 없습니다.",
+    "pageLoadError": "이 페이지를 표시할 수 없습니다.",
     "retry": "다시 시도",
     "fullscreen": "전체 화면으로 열기",
     "pictureInPicture": "PIP로 열기",
