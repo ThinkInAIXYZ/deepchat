@@ -134,6 +134,25 @@ describe('DEFAULT_PROVIDERS', () => {
     )
   })
 
+  it('includes TrustedRouter as a disabled built-in OpenAI-compatible provider', () => {
+    expect(DEFAULT_PROVIDERS).toContainEqual(
+      expect.objectContaining({
+        id: 'trustedrouter',
+        name: 'TrustedRouter',
+        apiType: 'openai-completions',
+        baseUrl: 'https://api.trustedrouter.com/v1',
+        enable: false,
+        websites: expect.objectContaining({
+          official: 'https://trustedrouter.com/',
+          apiKey: 'https://trustedrouter.com/keys',
+          docs: 'https://trustedrouter.com/docs',
+          models: 'https://trustedrouter.com/models',
+          defaultBaseUrl: 'https://api.trustedrouter.com/v1'
+        })
+      })
+    )
+  })
+
   it('includes Runcrate as a disabled built-in OpenAI-compatible provider', () => {
     expect(DEFAULT_PROVIDERS).toContainEqual(
       expect.objectContaining({
