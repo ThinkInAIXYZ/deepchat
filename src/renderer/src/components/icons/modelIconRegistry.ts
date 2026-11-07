@@ -57,6 +57,7 @@ import aistupidlevelIcon from '@/assets/llm-icons/aistupidlevel.svg?url'
 import runcrateIcon from '@/assets/llm-icons/runcrate.svg?url'
 import cloudgpuIcon from '@/assets/llm-icons/cloudgpu.svg?url'
 import wallyColorIcon from '@/assets/llm-icons/wally-color.svg?url'
+import uberllmColorIcon from '@/assets/llm-icons/uberllm-color.svg?url'
 import cheapaimodelIcon from '@/assets/llm-icons/cheapaimodel.svg?url'
 import obscurifyIcon from '@/assets/llm-icons/obscurify.svg?url'
 import demonrouteColorIcon from '@/assets/llm-icons/demonroute.svg?url'
@@ -212,6 +213,7 @@ export const modelIcons = {
   runcrate: runcrateIcon,
   cloudgpu: cloudgpuIcon,
   wally: wallyColorIcon,
+  uberllm: uberllmColorIcon,
   cheapaimodel: cheapaimodelIcon,
   obscurify: obscurifyIcon,
   demonroute: demonrouteColorIcon,
