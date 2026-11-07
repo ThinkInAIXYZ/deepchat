@@ -128,6 +128,20 @@ Embeddings are disabled for this profile.
 
 Upstream reference: [API docs](https://obscurify.ai/api-docs).
 
+## OpenLLM
+
+`openllm` uses the OpenAI-compatible transport and defaults to the local daemon at
+`http://127.0.0.1:8787/v1`. The API key is optional: the daemon reads only `Authorization: Bearer`,
+and an empty or placeholder token runs as the signed-in OpenLLM account. A key can be set, together
+with `https://www.openllm.sh/v1` as the base URL, to use the cloud origin instead. Live model
+discovery reads `/v1/models` (authenticated by the daemon's saved login), keeps entries whose
+`capabilities` include `chat`, and takes the context window, output limit, vision, tools and
+reasoning flags from the card. Model ids are kept verbatim. The connection check lists models, so it
+fails with a 401 `auth_error` when the daemon has no saved login and with a connection error when
+the daemon is not running. Embeddings are disabled for this profile.
+
+Upstream reference: [OpenLLM documentation](https://docs.openllm.sh).
+
 ## OpenAI Codex
 
 `openai-codex` is separate from standard `openai`: distinct provider ID, runtime kind, credential store,

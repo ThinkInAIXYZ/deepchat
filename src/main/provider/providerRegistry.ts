@@ -29,6 +29,7 @@ export type AiSdkModelSourceStrategy =
   | 'openrouter'
   | 'requesty'
   | 'litellm'
+  | 'openllm'
   | 'demonroute'
   | 'ppio'
   | 'groq'
@@ -761,6 +762,15 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
       ...OPENAI_BASE,
       modelSource: 'litellm',
       keyStatusStrategy: 'litellm'
+    })
+  ],
+  [
+    'openllm',
+    // Local daemon at 127.0.0.1: the key is optional and the daemon uses the saved login.
+    createDefinition({
+      ...OPENAI_BASE,
+      modelSource: 'openllm',
+      embeddingStrategy: 'none'
     })
   ],
   [

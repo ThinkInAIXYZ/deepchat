@@ -460,6 +460,10 @@ DeepChatはメッセージアプリからリモート操作できるため、デ
       <img src="./src/renderer/src/assets/llm-icons/uberllm-color.svg" width="50" height="50" alt="UberLLM Icon"><br/>
       <a href="https://uberllm.dev/">UberLLM</a>
     </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/openllm.svg" width="50" height="50" alt="OpenLLM Icon"><br/>
+      <a href="https://www.openllm.sh/">OpenLLM</a>
+    </td>
   </tr>
 
 </table>

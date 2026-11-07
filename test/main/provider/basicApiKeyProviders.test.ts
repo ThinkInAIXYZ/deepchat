@@ -2001,6 +2001,89 @@ describe('basic API-key provider registrations', () => {
     })
   })
 
+  it('checks OpenLLM by listing models without requiring an API key', async () => {
+    const defaults = DEFAULT_PROVIDERS.find(({ id }) => id === 'openllm')!
+    expect(defaults).toBeDefined()
+    expect(defaults.apiKey).toBe('')
+    expect(resolveAiSdkProviderDefinition(defaults)).toMatchObject({
+      runtimeKind: 'openai-compatible',
+      modelSource: 'openllm',
+      checkStrategy: 'fetch-models',
+      embeddingStrategy: 'none'
+    })
+    expect(resolveAiSdkProviderDefinition(defaults)?.credentialStrategy).toBeUndefined()
+    const fetchMock = vi.fn().mockResolvedValue(Response.json({ object: 'list', data: [] }))
+    global.fetch = fetchMock
+    const provider = new AiSdkProvider(defaults, createProviderSettings())
+
+    await expect(provider.check()).resolves.toEqual({ isOk: true, errorMsg: null })
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://127.0.0.1:8787/v1/models',
+      expect.objectContaining({ method: 'GET' })
+    )
+    expect(mockRunAiSdkGenerateText).not.toHaveBeenCalled()
+  })
+
+  it('lists OpenLLM chat models with limits and capabilities from the catalog', async () => {
+    const defaults = DEFAULT_PROVIDERS.find(({ id }) => id === 'openllm')!
+    const fetchMock = vi.fn().mockResolvedValue(
+      Response.json({
+        object: 'list',
+        data: [
+          {
+            id: 'plus',
+            owned_by: 'fallback-chain',
+            display_name: 'plus',
+            capabilities: ['chat', 'vision', 'tools', 'streaming', 'reasoning'],
+            context_window: 1000000,
+            max_output_tokens: 128000
+          },
+          {
+            id: 'custom:local/small-model',
+            capabilities: ['chat'],
+            max_input_tokens: 32768
+          },
+          { id: 'gpt-image-2', capabilities: ['image_generation'] },
+          { id: 'whisper-1', capabilities: ['transcription'] },
+          { id: 'no-capabilities' },
+          { id: '  ', capabilities: ['chat'] },
+          { id: 7, capabilities: ['chat'] }
+        ]
+      })
+    )
+    global.fetch = fetchMock
+    const provider = new AiSdkProvider(defaults, createProviderSettings())
+
+    expect(await provider.fetchModels({ suppressErrors: false })).toEqual([
+      {
+        id: 'plus',
+        name: 'plus',
+        group: 'default',
+        providerId: 'openllm',
+        isCustom: false,
+        type: 'chat',
+        contextLength: 1000000,
+        maxTokens: 128000,
+        vision: true,
+        functionCall: true,
+        reasoning: true,
+        ownedBy: 'fallback-chain'
+      },
+      {
+        id: 'custom:local/small-model',
+        name: 'custom:local/small-model',
+        group: 'default',
+        providerId: 'openllm',
+        isCustom: false,
+        type: 'chat',
+        contextLength: 32768,
+        vision: false,
+        functionCall: false,
+        reasoning: false
+      }
+    ])
+  })
+
   it('lists every CloudGPU catalog id except non-chat models', async () => {
     const defaults = DEFAULT_PROVIDERS.find(({ id }) => id === 'cloudgpu')!
     const fetchMock = vi.fn().mockResolvedValue(
