@@ -45,6 +45,30 @@ const serializeErrorMessage = (error: unknown): string => {
   return String(error)
 }
 
+// Directories are walked because a ref update renames `<ref>.lock` into place, which changes the
+// mtime of the directory holding the ref but not of `refs` itself.
+const readPathSignatures = (targetPaths: string[]): Map<string, string> => {
+  const signatures = new Map<string, string>()
+  const visit = (targetPath: string) => {
+    try {
+      const stat = fs.statSync(targetPath)
+      signatures.set(targetPath, `${stat.mtimeMs}:${stat.size}`)
+      if (!stat.isDirectory()) {
+        return
+      }
+      for (const entry of fs.readdirSync(targetPath, { withFileTypes: true })) {
+        if (entry.isDirectory()) {
+          visit(path.join(targetPath, entry.name))
+        }
+      }
+    } catch {
+      // A missing path is recorded as absent.
+    }
+  }
+  targetPaths.forEach(visit)
+  return signatures
+}
+
 const toWatcherEvents = (events: parcelWatcher.Event[]): WatcherEvent[] =>
   events.map((event) => ({
     path: event.path,
@@ -117,7 +141,18 @@ export class FileWatcherHost {
           }
           return
         }
-        this.enqueueEvents(activeWatch, toWatcherEvents(events))
+        const watcherEvents = toWatcherEvents(events)
+        this.enqueueEvents(activeWatch, watcherEvents)
+        // Every native backend stops a subscription silently after reporting its root as deleted.
+        // A Git directory can come back at the same path, so keep watching it by polling.
+        if (
+          activeWatch.request.fallbackMode === 'git-metadata-polling' &&
+          watcherEvents.some(
+            (event) => event.type === 'delete' && event.path === activeWatch.request.rootPath
+          )
+        ) {
+          void this.handleNativeError(activeWatch, new Error('Watch root was deleted.'))
+        }
       },
       {
         ignore: activeWatch.request.excludes
@@ -192,14 +227,98 @@ export class FileWatcherHost {
     }
 
     activeWatch.mode = activeWatch.request.fallbackMode ?? 'snapshot-polling'
-    await this.unsubscribeNative(activeWatch)
+    // inotify can reject removing a watch the kernel already dropped after a root deletion.
+    await this.unsubscribeNative(activeWatch).catch(() => undefined)
 
     if (activeWatch.mode === 'git-metadata-polling') {
-      this.startSnapshotPolling(activeWatch, message)
+      this.startGitMetadataPolling(activeWatch, message)
       return
     }
 
     this.startSnapshotPolling(activeWatch, message)
+  }
+
+  // Git metadata is a handful of known paths, so stat them directly instead of diffing a snapshot
+  // of the whole watch root. A missing root keeps being polled: the Git directory can be moved away
+  // and restored, and the workspace reuses this watch while the metadata paths are unchanged.
+  private startGitMetadataPolling(activeWatch: ActiveWatch, message?: string): void {
+    const metadataPaths = activeWatch.request.includes ?? []
+    let previous = readPathSignatures(metadataPaths)
+    let rootMissing = false
+    // Changes made before this baseline, including a Git directory restored while the native watch
+    // was shutting down, are not in any later diff.
+    this.enqueueEvents(activeWatch, [
+      {
+        path: activeWatch.request.rootPath,
+        type: 'overflow'
+      }
+    ])
+    this.sendStatus(activeWatch, {
+      health: 'degraded',
+      mode: activeWatch.mode,
+      reason: 'fallback-started',
+      message
+    })
+
+    const poll = () => {
+      activeWatch.pollTimer = null
+      if (activeWatch.disposed) {
+        return
+      }
+      activeWatch.pollTimer = setTimeout(poll, SNAPSHOT_POLL_INTERVAL_MS)
+
+      if (!fs.existsSync(activeWatch.request.rootPath)) {
+        if (rootMissing) {
+          return
+        }
+        rootMissing = true
+        this.enqueueEvents(activeWatch, [
+          {
+            path: activeWatch.request.rootPath,
+            type: 'root-deleted'
+          }
+        ])
+        this.sendStatus(activeWatch, {
+          health: 'failed',
+          mode: activeWatch.mode,
+          reason: 'root-deleted'
+        })
+        return
+      }
+
+      const next = readPathSignatures(metadataPaths)
+      if (rootMissing) {
+        rootMissing = false
+        previous = next
+        this.enqueueEvents(activeWatch, [
+          {
+            path: activeWatch.request.rootPath,
+            type: 'overflow'
+          }
+        ])
+        this.sendStatus(activeWatch, {
+          health: 'degraded',
+          mode: activeWatch.mode,
+          reason: 'fallback-started'
+        })
+        return
+      }
+
+      const events: WatcherEvent[] = []
+      for (const targetPath of new Set([...previous.keys(), ...next.keys()])) {
+        if (previous.get(targetPath) === next.get(targetPath)) {
+          continue
+        }
+        events.push({
+          path: targetPath,
+          type: !next.has(targetPath) ? 'delete' : previous.has(targetPath) ? 'update' : 'create'
+        })
+      }
+      previous = next
+      this.enqueueEvents(activeWatch, events)
+    }
+
+    activeWatch.pollTimer = setTimeout(poll, SNAPSHOT_POLL_INTERVAL_MS)
   }
 
   private startSnapshotPolling(activeWatch: ActiveWatch, message?: string): void {

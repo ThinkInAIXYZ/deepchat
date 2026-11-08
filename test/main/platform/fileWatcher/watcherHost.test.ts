@@ -223,4 +223,107 @@ describe('FileWatcherHost', () => {
     expect(statuses.at(-1)?.mode).toBe('snapshot-polling')
     expect(parcel.writeSnapshot).toHaveBeenCalledTimes(1)
   })
+
+  it('polls git metadata paths without snapshots when git subscribe fails', async () => {
+    const gitDir = path.join(rootPath, '.git')
+    const headsDir = path.join(gitDir, 'refs', 'heads')
+    fs.mkdirSync(headsDir, { recursive: true })
+    fs.writeFileSync(path.join(gitDir, 'HEAD'), 'ref: refs/heads/main\n')
+    parcel.subscribe.mockRejectedValue(new Error('subscribe failed'))
+
+    await host.watch({
+      ...request,
+      rootPath: gitDir,
+      hostKind: 'git',
+      purpose: 'workspace-git',
+      includes: [path.join(gitDir, 'HEAD'), path.join(gitDir, 'refs')],
+      fallbackMode: 'git-metadata-polling'
+    })
+    await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS + 100)
+    expect(eventBatches()).toEqual([[{ path: gitDir, type: 'overflow' }]])
+
+    fs.writeFileSync(path.join(headsDir, 'main'), 'abc\n')
+    // Adding an entry leaves the directory size unchanged, and coarse timestamps can leave its mtime
+    // equal to the baseline.
+    const future = new Date(Date.now() + 60_000)
+    fs.utimesSync(headsDir, future, future)
+    await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS + 100)
+
+    expect(eventBatches().at(-1)).toEqual([{ path: headsDir, type: 'update' }])
+    expect(parcel.writeSnapshot).not.toHaveBeenCalled()
+    expect(parcel.getEventsSince).not.toHaveBeenCalled()
+  })
+
+  it('keeps polling git metadata while the git directory is moved away and restored', async () => {
+    const gitDir = path.join(rootPath, '.git')
+    const movedDir = path.join(rootPath, '.git-moved')
+    const headPath = path.join(gitDir, 'HEAD')
+    fs.mkdirSync(gitDir)
+    fs.writeFileSync(headPath, 'ref: refs/heads/main\n')
+    parcel.subscribe.mockRejectedValue(new Error('subscribe failed'))
+
+    await host.watch({
+      ...request,
+      rootPath: gitDir,
+      hostKind: 'git',
+      purpose: 'workspace-git',
+      includes: [headPath],
+      fallbackMode: 'git-metadata-polling'
+    })
+    fs.renameSync(gitDir, movedDir)
+    await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS * 2 + 100)
+    fs.renameSync(movedDir, gitDir)
+    await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS)
+    fs.writeFileSync(headPath, 'ref: refs/heads/feature\n')
+    await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS)
+
+    expect(eventBatches()).toEqual([
+      [{ path: gitDir, type: 'overflow' }],
+      [{ path: gitDir, type: 'root-deleted' }],
+      [{ path: gitDir, type: 'overflow' }],
+      [{ path: headPath, type: 'update' }]
+    ])
+  })
+
+  it('requests a full refresh when a deleted git root is back before polling starts', async () => {
+    const gitDir = path.join(rootPath, '.git')
+    const movedDir = path.join(rootPath, '.git-moved')
+    const headPath = path.join(gitDir, 'HEAD')
+    fs.mkdirSync(gitDir)
+    fs.writeFileSync(headPath, 'ref: refs/heads/main\n')
+    let emit: NativeCallback = () => {}
+    let finishUnsubscribe: () => void = () => {}
+    parcel.subscribe.mockImplementation(async (_root: string, callback: NativeCallback) => {
+      emit = callback
+      return {
+        unsubscribe: () => new Promise<void>((resolve) => (finishUnsubscribe = resolve))
+      }
+    })
+
+    await host.watch({
+      ...request,
+      rootPath: gitDir,
+      hostKind: 'git',
+      purpose: 'workspace-git',
+      includes: [headPath],
+      fallbackMode: 'git-metadata-polling'
+    })
+    fs.renameSync(gitDir, movedDir)
+    emit(null, [{ path: gitDir, type: 'delete' }])
+    await vi.advanceTimersByTimeAsync(0)
+    fs.renameSync(movedDir, gitDir)
+    fs.writeFileSync(headPath, 'ref: refs/heads/feature\n')
+    finishUnsubscribe()
+    await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS + 100)
+    fs.writeFileSync(headPath, 'ref: refs/heads/main\n')
+    await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS)
+
+    expect(eventBatches()).toEqual([
+      [
+        { path: gitDir, type: 'delete' },
+        { path: gitDir, type: 'overflow' }
+      ],
+      [{ path: headPath, type: 'update' }]
+    ])
+  })
 })
