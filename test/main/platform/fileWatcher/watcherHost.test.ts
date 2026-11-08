@@ -243,6 +243,10 @@ describe('FileWatcherHost', () => {
     expect(eventBatches()).toEqual([[{ path: gitDir, type: 'overflow' }]])
 
     fs.writeFileSync(path.join(headsDir, 'main'), 'abc\n')
+    // Adding an entry leaves the directory size unchanged, and coarse timestamps can leave its mtime
+    // equal to the baseline.
+    const future = new Date(Date.now() + 60_000)
+    fs.utimesSync(headsDir, future, future)
     await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS + 100)
 
     expect(eventBatches().at(-1)).toEqual([{ path: headsDir, type: 'update' }])
