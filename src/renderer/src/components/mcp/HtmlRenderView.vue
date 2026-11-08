@@ -107,7 +107,7 @@ const prepareView = () =>
   })
 
 const sendSections = () => {
-  if (!ready.value || sections.value.length === 0) return
+  if (!ready.value || !props.panelId) return
   void frame.value
     ?.notify(HTML_RENDER_SECTIONS_METHOD, {
       sections: sections.value.map(({ id, html }) => ({ id, html }))

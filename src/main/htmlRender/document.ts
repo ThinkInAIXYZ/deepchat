@@ -98,6 +98,13 @@ const BOOTSTRAP_SCRIPT = `<script>
       sectionHtml.set(section.id, section.html)
       await runScripts(slot)
     }
+    const ids = new Set(sections.map((section) => section && section.id))
+    for (const [id, slot] of sectionSlots) {
+      if (ids.has(id)) continue
+      slot.remove()
+      sectionSlots.delete(id)
+      sectionHtml.delete(id)
+    }
   }
   addEventListener('message', (event) => {
     if (event.source !== parent) return
