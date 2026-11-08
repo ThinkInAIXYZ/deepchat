@@ -56,6 +56,11 @@ describe('FileWatcherHost', () => {
     })
   })
 
+  const eventBatches = () =>
+    messages.flatMap((message) =>
+      message.type === 'file-watcher:event-batch' ? [message.batch.events] : []
+    )
+
   afterEach(async () => {
     await host.shutdown()
     vi.useRealTimers()
@@ -81,21 +86,23 @@ describe('FileWatcherHost', () => {
     expect(parcel.getEventsSince).toHaveBeenCalledTimes(2)
   })
 
-  it('starts one fallback poll loop for repeated native errors', async () => {
+  it('recovers once for repeated errors from the same subscription', async () => {
     let emit: NativeCallback = () => {}
+    const unsubscribe = vi.fn()
     parcel.subscribe.mockImplementation(async (_root: string, callback: NativeCallback) => {
       emit = callback
-      return { unsubscribe: () => new Promise((resolve) => setTimeout(resolve, 10)) }
+      return { unsubscribe }
     })
-    parcel.getEventsSince.mockResolvedValue([])
 
     await host.watch(request)
-    emit(new Error('Events were dropped by the FSEvents client.'), [])
-    emit(new Error('Events were dropped by the FSEvents client.'), [])
-    await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS + 50)
+    const failing = emit
+    failing(new Error('Events were dropped by the FSEvents client.'), [])
+    failing(new Error('Events were dropped by the FSEvents client.'), [])
+    await vi.advanceTimersByTimeAsync(100)
 
-    expect(parcel.writeSnapshot).toHaveBeenCalledTimes(2)
-    expect(parcel.getEventsSince).toHaveBeenCalledTimes(1)
+    expect(parcel.subscribe).toHaveBeenCalledTimes(2)
+    expect(unsubscribe).toHaveBeenCalledTimes(1)
+    expect(eventBatches()).toEqual([[{ path: rootPath, type: 'overflow' }]])
   })
 
   it('removes a snapshot that finishes writing after the watch is disposed', async () => {
@@ -137,10 +144,83 @@ describe('FileWatcherHost', () => {
     expect(() => emit(null, events)).not.toThrow()
     await vi.advanceTimersByTimeAsync(100)
 
-    const batches = messages.flatMap((message) =>
-      message.type === 'file-watcher:event-batch' ? [message.batch] : []
+    expect(eventBatches()).toEqual([[{ path: rootPath, type: 'overflow' }]])
+  })
+
+  it('resubscribes and requests a rescan after a native callback error', async () => {
+    const callbacks: NativeCallback[] = []
+    const unsubscribe = vi.fn()
+    parcel.subscribe.mockImplementation(async (_root: string, callback: NativeCallback) => {
+      callbacks.push(callback)
+      return { unsubscribe }
+    })
+
+    await host.watch(request)
+    callbacks[0](new Error('Events were dropped by the FSEvents client.'), [])
+    await vi.advanceTimersByTimeAsync(100)
+
+    expect(unsubscribe).toHaveBeenCalledTimes(1)
+    expect(parcel.subscribe).toHaveBeenCalledTimes(2)
+    expect(parcel.writeSnapshot).not.toHaveBeenCalled()
+    expect(eventBatches()).toEqual([[{ path: rootPath, type: 'overflow' }]])
+  })
+
+  it('falls back to snapshot polling when resubscribing fails', async () => {
+    let emit: NativeCallback = () => {}
+    parcel.subscribe
+      .mockImplementationOnce(async (_root: string, callback: NativeCallback) => {
+        emit = callback
+        return { unsubscribe: vi.fn() }
+      })
+      .mockRejectedValueOnce(new Error('subscribe failed'))
+
+    await host.watch(request)
+    emit(new Error('Buffer overflow. Some events may have been lost.'), [])
+    await vi.advanceTimersByTimeAsync(100)
+
+    expect(parcel.writeSnapshot).toHaveBeenCalledTimes(1)
+    expect(eventBatches()).toEqual([[{ path: rootPath, type: 'overflow' }]])
+    expect(
+      messages.some(
+        (message) =>
+          message.type === 'file-watcher:status' &&
+          message.status.reason === 'native-error' &&
+          message.status.mode === 'snapshot-polling'
+      )
+    ).toBe(true)
+  })
+
+  it('falls back once when the replacement subscription fails before subscribe resolves', async () => {
+    let emit: NativeCallback = () => {}
+    let emitReplacement: NativeCallback = () => {}
+    let finishUnsubscribe: () => void = () => {}
+    parcel.subscribe
+      .mockImplementationOnce(async (_root: string, callback: NativeCallback) => {
+        emit = callback
+        return { unsubscribe: vi.fn() }
+      })
+      .mockImplementationOnce(async (_root: string, callback: NativeCallback) => {
+        emitReplacement = callback
+        callback(new Error('Buffer overflow. Some events may have been lost.'), [])
+        return {
+          unsubscribe: () => new Promise<void>((resolve) => (finishUnsubscribe = resolve))
+        }
+      })
+
+    await host.watch(request)
+    messages.length = 0
+    emit(new Error('Events were dropped by the FSEvents client.'), [])
+    await vi.advanceTimersByTimeAsync(0)
+    emitReplacement(new Error('Buffer overflow. Some events may have been lost.'), [])
+    finishUnsubscribe()
+    await vi.advanceTimersByTimeAsync(0)
+
+    const statuses = messages.flatMap((message) =>
+      message.type === 'file-watcher:status' ? [message.status] : []
     )
-    expect(batches).toHaveLength(1)
-    expect(batches[0].events).toEqual([{ path: rootPath, type: 'overflow' }])
+    expect(parcel.subscribe).toHaveBeenCalledTimes(2)
+    expect(statuses.some((status) => status.health === 'healthy')).toBe(false)
+    expect(statuses.at(-1)?.mode).toBe('snapshot-polling')
+    expect(parcel.writeSnapshot).toHaveBeenCalledTimes(1)
   })
 })
