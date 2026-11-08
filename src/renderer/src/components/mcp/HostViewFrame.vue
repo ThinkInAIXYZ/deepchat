@@ -45,6 +45,8 @@ const bridge = shallowRef<AppBridge | null>(null)
 const height = ref<number | null>(null)
 const frameKey = ref(0)
 let disposed = false
+let preparing = false
+let loadSeq = 0
 let initialized = false
 let initializeTimer: number | undefined
 let sizeHistory: Array<{ at: number; height: number }> = []
@@ -120,7 +122,7 @@ const release = async () => {
 const connectBridge = async () => {
   const frameWindow = iframe.value?.contentWindow
   const view = prepared.value
-  if (!frameWindow || !view || bridge.value) {
+  if (!frameWindow || !view || bridge.value || preparing) {
     return
   }
   const nextBridge = new AppBridge(
@@ -156,43 +158,52 @@ const notify = async (method: string, params: Record<string, unknown>) => {
   await bridge.value.notification({ method, params })
 }
 
-// A moved iframe reloads, and a page that bakes colors in needs a reload on theme change; both
-// reuse the prepared instance with a fresh bridge.
-const reload = () => {
-  if (!prepared.value) return
-  const currentBridge = bridge.value
-  bridge.value = null
-  if (currentBridge) void closeBridge(currentBridge)
-  frameKey.value += 1
-  void nextTick(() => {
-    if (!disposed) void connectBridge()
-  })
-}
-
-onMounted(async () => {
+const load = async () => {
+  window.clearTimeout(initializeTimer)
+  initialized = false
+  preparing = true
+  const seq = ++loadSeq
   try {
     const view = await props.prepare()
-    if (disposed) {
+    if (disposed || seq !== loadSeq) {
       await mcpClient.releaseAppView(view.instanceId).catch(() => undefined)
       return
     }
+    const previous = prepared.value
     prepared.value = view
+    frameKey.value += 1
     initializeTimer = window.setTimeout(() => {
       if (disposed || initialized) return
       void release()
       emit('error')
     }, INITIALIZE_TIMEOUT_MS)
     await nextTick()
+    preparing = false
+    if (previous) void mcpClient.releaseAppView(previous.instanceId).catch(() => undefined)
     await connectBridge()
   } catch (error) {
-    if (disposed) return
+    if (disposed || seq !== loadSeq) return
+    preparing = false
     console.warn('[HostViewFrame] Failed to prepare view', {
       title: props.title,
       error: error instanceof Error ? error.message : String(error)
     })
     emit('error')
   }
-})
+}
+
+// A moved iframe reloads, and a page that bakes colors in needs a reload on theme change. Sandbox
+// instances expire after 30 minutes, so each reload prepares a fresh one; until it is ready, the old
+// frame must not reconnect when the move reloads it.
+const reload = () => {
+  if (disposed || !prepared.value) return
+  const currentBridge = bridge.value
+  bridge.value = null
+  if (currentBridge) void closeBridge(currentBridge)
+  void load()
+}
+
+onMounted(load)
 
 onBeforeUnmount(() => {
   disposed = true

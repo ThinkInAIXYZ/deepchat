@@ -169,8 +169,26 @@ test('html_render pages run outside the app origin and cannot leave the sandbox 
     const surface = app.page.getByTestId('html-render-surface').locator('iframe')
     await expect.poll(async () => (await surface.boundingBox())?.height).toBe(HOST_VIEW_MAX_HEIGHT)
 
+    // Entering and leaving fullscreen each reload the page on a freshly prepared sandbox instance.
+    const instanceOf = async () => (await probeFrame())?.parentFrame()?.url() ?? null
+    const seen = [await instanceOf()]
+    await app.page.getByTestId('html-render-surface').hover()
+    await app.page.getByTestId('html-render-surface').getByRole('button').click()
+    for (const toggle of [null, 'Escape']) {
+      if (toggle) await app.page.keyboard.press(toggle)
+      await expect
+        .poll(async () => {
+          const instance = await instanceOf()
+          return instance !== null && !seen.includes(instance)
+        })
+        .toBe(true)
+      seen.push(await instanceOf())
+    }
+    const current = (await probeFrame())!
+    expect(await current.evaluate(() => document.documentElement.dataset.xss)).toBe('page')
+
     // CSP replaces the frame with an error page instead of loading the target, so this runs last.
-    await frame
+    await current
       .evaluate((target) => {
         const link = document.createElement('a')
         link.href = target
