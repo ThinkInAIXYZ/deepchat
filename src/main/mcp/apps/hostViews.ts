@@ -1,5 +1,7 @@
 import type { McpAppCsp } from '@shared/types/mcp'
 import {
+  INFOGRAPHIC_EXPORTED_METHOD,
+  INFOGRAPHIC_EXPORT_METHOD,
   INFOGRAPHIC_RENDER_METHOD,
   INFOGRAPHIC_STATUS_METHOD,
   type HostViewKind
@@ -89,6 +91,15 @@ html,body{margin:0;background:transparent;color-scheme:light dark}
     if (message.method === '${INFOGRAPHIC_RENDER_METHOD}') {
       const params = message.params || {}
       if (typeof params.source === 'string') render(params.source, params.theme === 'dark' ? 'dark' : 'light')
+      return
+    }
+    if (message.method === '${INFOGRAPHIC_EXPORT_METHOD}') {
+      const svg = root.querySelector('svg')
+      send({
+        jsonrpc: '2.0',
+        method: '${INFOGRAPHIC_EXPORTED_METHOD}',
+        params: { svg: svg ? new XMLSerializer().serializeToString(svg) : null }
+      })
       return
     }
     if (message.method === undefined && pending.has(message.id)) {
