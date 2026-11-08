@@ -15,6 +15,7 @@ import HostViewFrame from '@/components/mcp/HostViewFrame.vue'
 import { downloadBlob } from '@/lib/download'
 
 const PLACEHOLDER_HEIGHT = 240
+const MAX_EXPORT_SIDE = 8192
 
 const props = defineProps({
   node: { type: Object as PropType<InfographicBlockNodeProps['node']>, required: true },
@@ -79,14 +80,43 @@ const handleNotification = (method: string, params: Record<string, unknown>) => 
     return
   }
   if (method === INFOGRAPHIC_EXPORTED_METHOD && exportRequested.value) {
-    exportRequested.value = false
-    if (typeof params.svg === 'string') {
-      downloadBlob(
-        new Blob([params.svg], { type: 'image/svg+xml;charset=utf-8' }),
-        `infographic-${Date.now()}.svg`
-      )
+    if (typeof params.svg !== 'string') {
+      exportRequested.value = false
+      return
     }
+    rasterize(params.svg)
+      .then((png) => downloadBlob(png, `infographic-${Date.now()}.png`))
+      .catch(() => {})
+      .finally(() => {
+        exportRequested.value = false
+      })
   }
+}
+
+// The SVG comes from the sandbox and may carry handlers. Decoded as an image it cannot run script or
+// fetch anything, and re-encoding it to PNG leaves none of its markup in the downloaded file.
+const rasterize = async (svg: string): Promise<Blob> => {
+  const image = new Image()
+  // Loaded from a blob: URL, AntV output taints the canvas in the packaged app and toBlob throws.
+  image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
+  await image.decode()
+  const { naturalWidth: width, naturalHeight: height } = image
+  if (!width || !height) throw new Error('Empty infographic')
+  const scale = Math.min(
+    window.devicePixelRatio || 1,
+    MAX_EXPORT_SIDE / width,
+    MAX_EXPORT_SIDE / height
+  )
+  const canvas = document.createElement('canvas')
+  canvas.width = Math.round(width * scale)
+  canvas.height = Math.round(height * scale)
+  canvas.getContext('2d')!.drawImage(image, 0, 0, canvas.width, canvas.height)
+  return await new Promise((resolve, reject) =>
+    canvas.toBlob(
+      (blob) => (blob ? resolve(blob) : reject(new Error('Export failed'))),
+      'image/png'
+    )
+  )
 }
 
 const handleReady = () => {

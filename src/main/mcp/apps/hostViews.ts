@@ -95,11 +95,16 @@ html,body{margin:0;background:transparent;color-scheme:light dark}
     }
     if (message.method === '${INFOGRAPHIC_EXPORT_METHOD}') {
       const svg = root.querySelector('svg')
-      send({
-        jsonrpc: '2.0',
-        method: '${INFOGRAPHIC_EXPORTED_METHOD}',
-        params: { svg: svg ? new XMLSerializer().serializeToString(svg) : null }
-      })
+      let markup = null
+      if (svg) {
+        // The live SVG is sized by CSS; the host rasterizes it as an image, which needs its own size.
+        const { width, height } = svg.getBoundingClientRect()
+        const clone = svg.cloneNode(true)
+        clone.setAttribute('width', String(Math.ceil(width)))
+        clone.setAttribute('height', String(Math.ceil(height)))
+        markup = new XMLSerializer().serializeToString(clone)
+      }
+      send({ jsonrpc: '2.0', method: '${INFOGRAPHIC_EXPORTED_METHOD}', params: { svg: markup } })
       return
     }
     if (message.method === undefined && pending.has(message.id)) {

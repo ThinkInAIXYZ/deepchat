@@ -131,6 +131,34 @@ test('infographic blocks render AntV output outside the app origin @smoke', asyn
       .toEqual({ xss: '1', svg: expect.any(Number) })
     expect(await app.page.evaluate(() => document.documentElement.dataset.xss ?? null)).toBeNull()
 
+    // Playwright sees no download event in Electron, so the test reads the file from the blob the
+    // block hands to its download link.
+    await app.page.evaluate(() => {
+      const blobs = new Map<string, Blob>()
+      const createObjectURL = URL.createObjectURL.bind(URL)
+      URL.createObjectURL = (blob: Blob) => {
+        const url = createObjectURL(blob)
+        blobs.set(url, blob)
+        return url
+      }
+      HTMLAnchorElement.prototype.click = async function () {
+        const blob = blobs.get(this.href)
+        const bytes = blob ? Array.from(new Uint8Array(await blob.arrayBuffer()).slice(0, 8)) : []
+        Object.assign(window, { exported: { name: this.download, type: blob?.type, bytes } })
+      }
+    })
+    await app.page
+      .locator('.infographic-block', { has: app.page.locator('iframe') })
+      .getByRole('button', { name: /^(Export|导出)$/ })
+      .click()
+    await expect
+      .poll(() => app.page.evaluate(() => (window as { exported?: unknown }).exported ?? null))
+      .toEqual({
+        name: expect.stringMatching(/^infographic-\d+\.png$/),
+        type: 'image/png',
+        bytes: [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
+      })
+
     const sandbox = (await sandboxMarker())!.frame
     await sandbox.evaluate(() =>
       parent.postMessage(
