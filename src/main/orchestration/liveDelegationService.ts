@@ -131,6 +131,7 @@ export interface LiveDelegationServiceSessionPort
     sessionId: string,
     messageId?: string
   ): Promise<LiveDelegationAssistantResult | null>
+  getAssistantStopReason(sessionId: string, messageId: string): Promise<string | null>
 }
 
 export interface LiveDelegationServiceOptions {
@@ -1405,7 +1406,11 @@ export class LiveDelegationService {
       let error = outcome.error?.trim() || null
       if (status === 'completed' && !answer) {
         status = 'failed'
-        error = 'Child session completed without a final answer.'
+        const stopReason = await this.resolveChildStopReason(active)
+        error =
+          stopReason && stopReason !== 'complete'
+            ? `Child session stopped (${stopReason}) without a final answer. Use follow_up to continue this child.`
+            : 'Child session completed without a final answer.'
         failureCategory =
           persistedResultResolution.status === 'lookup_failed' ? 'persistence' : 'protocol'
       }
@@ -1525,6 +1530,23 @@ export class LiveDelegationService {
       active.completion.resolve()
     }
     return terminalSettlement
+  }
+
+  private async resolveChildStopReason(active: ActiveTurn): Promise<string | null> {
+    if (!active.childSessionId || !active.childMessageId) return null
+    try {
+      return await this.options.sessions.getAssistantStopReason(
+        active.childSessionId,
+        active.childMessageId
+      )
+    } catch (error) {
+      console.warn('[LiveDelegationService] Failed to resolve child stop reason:', {
+        delegationId: active.delegationId,
+        turnId: active.turnId,
+        error
+      })
+      return null
+    }
   }
 
   private async resolvePersistedResult(active: ActiveTurn): Promise<PersistedResultResolution> {

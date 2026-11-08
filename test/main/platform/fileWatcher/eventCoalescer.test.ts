@@ -21,6 +21,15 @@ describe('coalesceWatcherEvents', () => {
     ).toEqual([{ type: 'update', path: '/tmp/work/a.ts' }])
   })
 
+  it('keeps overflow when a later event targets the root path', () => {
+    expect(
+      coalesceWatcherEvents([
+        { type: 'overflow', path: '/tmp/work' },
+        { type: 'delete', path: '/tmp/work' }
+      ])
+    ).toEqual([{ type: 'overflow', path: '/tmp/work' }])
+  })
+
   it('keeps parent deletes and drops duplicate child deletes', () => {
     const root = path.join('/tmp', 'work')
     expect(

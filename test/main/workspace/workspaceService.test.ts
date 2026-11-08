@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import { createRequire } from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -262,6 +263,32 @@ describe('WorkspaceService watchers', () => {
     ])
   })
 
+  it('ignores git internals and build output but keeps the .git directory event', async () => {
+    await presenter.registerWorkspace(workspacePath)
+    await presenter.watchWorkspace(workspacePath)
+
+    const [contentWatcher] = fakeWatcherService.watchers
+    const parcelRequire = createRequire(createRequire(import.meta.url).resolve('@parcel/watcher'))
+    const picomatch = parcelRequire('picomatch')
+    // Same matcher and options @parcel/watcher uses; it matches paths relative to the watch root.
+    const matchers: RegExp[] = (contentWatcher.request.excludes ?? []).map((glob) =>
+      picomatch.makeRe(glob, { dot: true, windows: process.platform === 'win32' })
+    )
+    const isIgnored = (relativePath: string) =>
+      matchers.some((matcher) => matcher.test(relativePath))
+
+    const ignored = [
+      '.git/HEAD',
+      'node_modules/a.js',
+      'pkg/node_modules/a.js',
+      'dist/out.js',
+      'clones/repo/.git/objects/ab'
+    ]
+    const kept = ['.git', 'src/a.ts', 'clones/repo/.git']
+    expect(ignored.filter((relativePath) => !isIgnored(relativePath))).toEqual([])
+    expect(kept.filter(isIgnored)).toEqual([])
+  })
+
   it('emits git invalidations from git metadata watcher changes', async () => {
     await presenter.registerWorkspace(workspacePath)
     await presenter.watchWorkspace(workspacePath)
@@ -280,6 +307,41 @@ describe('WorkspaceService watchers', () => {
         version: expect.any(Number)
       }
     })
+  })
+
+  it('watches the git directory that holds linked worktree metadata', async () => {
+    const mainGitDir = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-main-')), '.git')
+    const worktreeGitDir = path.join(mainGitDir, 'worktrees', 'feature')
+    const gitPaths: Record<string, string> = {
+      HEAD: path.join(worktreeGitDir, 'HEAD'),
+      index: path.join(worktreeGitDir, 'index'),
+      'packed-refs': path.join(mainGitDir, 'packed-refs'),
+      refs: path.join(mainGitDir, 'refs')
+    }
+    execFileMock.mockImplementation(
+      (
+        _command: string,
+        args: string[],
+        _options: unknown,
+        callback: (error: Error | null, result?: { stdout: string; stderr: string }) => void
+      ) => {
+        const stdout =
+          args[1] === '--show-toplevel'
+            ? workspacePath
+            : args[1] === '--git-path'
+              ? gitPaths[args[2]]
+              : ''
+        callback(null, { stdout: `${stdout}\n`, stderr: '' })
+      }
+    )
+
+    await presenter.registerWorkspace(workspacePath)
+    await presenter.watchWorkspace(workspacePath)
+
+    const [, gitWatcher] = fakeWatcherService.watchers
+    expect(gitWatcher.request.rootPath).toBe(mainGitDir)
+    expect(gitWatcher.request.includes).toContain(gitPaths.HEAD)
+    fs.rmSync(path.dirname(mainGitDir), { recursive: true, force: true })
   })
 
   it('emits watcher status updates for the active workspace', async () => {

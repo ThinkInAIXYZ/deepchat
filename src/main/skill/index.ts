@@ -5915,14 +5915,13 @@ export class SkillService implements SkillServicePort {
     logger.info('[SkillService] File watcher stopped')
   }
 
+  // @parcel/watcher matches globs against paths relative to the watch root.
   private createSkillWatchExcludes(): string[] {
-    const root = this.skillsDir.split(path.sep).join('/')
     return [
-      `${root}/${SKILL_CONFIG.SIDECAR_DIR}/**`,
-      `${root}/**/${SKILL_CONFIG.SIDECAR_DIR}/**`,
-      `${root}/.agent-scopes/**`,
-      `${root}/${SKILL_INSTALL_STAGING_PREFIX}*/**`,
-      `${root}/${SHARED_SKILL_MIGRATION_DIR}/**`
+      `**/${SKILL_CONFIG.SIDECAR_DIR}/**`,
+      '.agent-scopes/**',
+      `${SKILL_INSTALL_STAGING_PREFIX}*/**`,
+      `${SHARED_SKILL_MIGRATION_DIR}/**`
     ]
   }
 

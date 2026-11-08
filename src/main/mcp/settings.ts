@@ -317,7 +317,7 @@ const DEFAULT_MCP_SERVERS = {
       args: [],
       env: {},
       descriptions:
-        'Bowmark MCP: typed functions for live data on 100+ websites (LinkedIn, X, Instagram, Reddit, YouTube and more), returned as JSON and tested on a schedule. Requires a Bowmark API key from https://bowmark.ai (starts with a free $10), set as an Authorization: Bearer header. Docs: https://bowmark.ai/docs.',
+        'Bowmark MCP: live structured data from websites such as LinkedIn, X, Instagram, Reddit and YouTube, through a library of functions tested on a schedule. Results come back as JSON. Requires a Bowmark API key from https://bowmark.ai, set as an Authorization: Bearer header. Docs: https://bowmark.ai/docs.',
       icons: '🏹',
       disable: false,
       type: 'http' as MCPServerType,
@@ -383,6 +383,20 @@ const DEFAULT_MCP_SERVERS = {
       disable: false,
       type: 'http' as MCPServerType,
       baseUrl: 'https://deed.page/mcp'
+    },
+    'sofya-search': {
+      command: '',
+      args: [],
+      env: {},
+      descriptions:
+        'Sofya web search MCP: search the web, read pages as markdown, pull specific answers out of a page, and run multi-source research with cited sources. Requires a Sofya API key from https://sofya.co/dashboard. Set the Authorization header to Bearer YOUR_SOFYA_API_KEY. Docs: https://sofya.co/docs.',
+      icons: '🧭',
+      disable: false,
+      type: 'http' as MCPServerType,
+      baseUrl: 'https://mcp.sofya.co/mcp',
+      customHeaders: {
+        Authorization: 'Bearer YOUR_SOFYA_API_KEY'
+      }
     }
   } satisfies Record<string, Omit<MCPServerConfig, 'enabled'>>,
   mcpEnabled: false // MCP functionality is disabled by default

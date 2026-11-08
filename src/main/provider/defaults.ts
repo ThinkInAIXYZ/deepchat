@@ -679,6 +679,20 @@ const PROVIDER_DEFAULTS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'trustedrouter',
+    name: 'TrustedRouter',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://api.trustedrouter.com/v1',
+    enable: false,
+    websites: {
+      official: 'https://trustedrouter.com/',
+      apiKey: 'https://trustedrouter.com/keys',
+      docs: 'https://trustedrouter.com/docs',
+      models: 'https://trustedrouter.com/models'
+    }
+  },
+  {
     id: 'runcrate',
     name: 'Runcrate',
     apiType: 'openai-completions',

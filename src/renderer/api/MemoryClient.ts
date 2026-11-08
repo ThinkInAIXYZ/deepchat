@@ -23,7 +23,6 @@ import {
   memoryListPersonaDraftsRoute,
   memoryListPersonaVersionsRoute,
   memoryPageRoute,
-  memoryListRoute,
   memoryListViewManifestsRoute,
   memoryRejectDirectiveRoute,
   memoryRejectPersonaDraftRoute,
@@ -95,12 +94,6 @@ type MemoryUpdateInput = {
 }
 
 export function createMemoryClient(bridge: DeepchatBridge = getDeepchatBridge()) {
-  /** @deprecated Use page for bounded management reads. */
-  async function list(agentId: string): Promise<MemoryItem[]> {
-    const result = await bridge.invoke(memoryListRoute.name, { agentId })
-    return result.memories
-  }
-
   async function page(
     agentId: string,
     options: { cursor?: string; limit?: number } = {}
@@ -388,7 +381,6 @@ export function createMemoryClient(bridge: DeepchatBridge = getDeepchatBridge())
 
   return {
     page,
-    list,
     getStatus,
     getHealth,
     getLifecycle,

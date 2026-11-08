@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import type { DeepChatOutputPort } from './output'
 import type { AssistantMessageBlock } from '@shared/types/agent-interface'
 import type { SessionTranscriptPort } from '@/session/data/contracts'
@@ -24,8 +25,13 @@ export class MessageProjectionService {
   constructor(private readonly deps: MessageProjectionServiceDependencies) {}
 
   refresh(sessionId: string, messageId: string): void {
+    const streamRequestId = resolveStreamRequestId(this.deps.registry, sessionId, messageId)
     this.deps.output.streamCompleted({
-      requestId: resolveStreamRequestId(this.deps.registry, sessionId, messageId),
+      // The renderer ignores a requestId it has already settled. Outside an active run the
+      // fallback id is the messageId, so a second refresh of the same message (e.g. after a
+      // question is answered) would be dropped; give each out-of-run refresh its own id.
+      requestId:
+        streamRequestId === messageId ? `${messageId}:refresh:${randomUUID()}` : streamRequestId,
       sessionId,
       messageId,
       completedAt: Date.now()

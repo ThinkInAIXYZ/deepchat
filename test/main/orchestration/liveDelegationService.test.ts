@@ -2166,6 +2166,25 @@ describeIfSqlite('LiveDelegationService', () => {
     })
   })
 
+  it('reports the child stop reason when a turn ends without a final answer', async () => {
+    const spawned = await service.spawn('parent', {
+      slotId: 'reviewer',
+      title: 'Truncated child',
+      prompt: 'Return a canonical conclusion.'
+    })
+    await vi.waitFor(() => expect(harness.sessions.sendConversationMessage).toHaveBeenCalledOnce())
+    const childId = repository.require(spawned.delegation.id).childSessionId!
+    harness.sessions.getAssistantStopReason.mockResolvedValueOnce('max_tokens')
+    harness.publish({ sessionId: childId, kind: 'blocks', updatedAt: 190, messageId: 'child-msg' })
+    harness.publish({ sessionId: childId, kind: 'status', updatedAt: 200, status: 'idle' })
+
+    await vi.waitFor(() => expect(repository.require(spawned.delegation.id).status).toBe('failed'))
+    expect(harness.sessions.getAssistantStopReason).toHaveBeenCalledWith(childId, 'child-msg')
+    expect(repository.requireTurn(spawned.turns[0]!.id).error).toBe(
+      'Child session stopped (max_tokens) without a final answer. Use follow_up to continue this child.'
+    )
+  })
+
   it('fails a completed child turn that has no final answer', async () => {
     const spawned = await service.spawn('parent', {
       slotId: 'reviewer',
@@ -2965,7 +2984,10 @@ function createSessionHarness(db: InstanceType<typeof DatabaseCtor>) {
       if (!results) return null
       if (messageId) return results.get(messageId) ?? null
       return [...results.values()].at(-1) ?? null
-    })
+    }),
+    getAssistantStopReason: vi.fn(
+      async (_sessionId: string, _messageId: string): Promise<string | null> => null
+    )
   }
 
   const safety = {

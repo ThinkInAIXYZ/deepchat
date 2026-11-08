@@ -20,7 +20,6 @@ import {
   memoryGetHealthRoute,
   memoryGetLifecycleRoute,
   memoryGetStatusRoute,
-  memoryListRoute,
   memoryListDirectivesRoute,
   memoryPageRoute,
   memoryRejectDirectiveRoute,
@@ -169,14 +168,14 @@ describe('toMemoryItemDto sourceEntryIds passthrough', () => {
     expect(toMemoryItemDto(makeRow({ source_entry_ids: '["x",-1,1.5]' })).sourceEntryIds).toBeNull()
   })
 
-  it('produces output that passes the memory.list contract schema', () => {
-    const memories = [
+  it('produces output that passes the memory.page contract schema', () => {
+    const items = [
       toMemoryItemDto(makeRow({ source_session: 'sess-1', source_entry_ids: '[1,2]' })),
       toMemoryItemDto(makeRow({ id: 'm2', source_session: null, source_entry_ids: null }))
     ]
-    const parsed = memoryListRoute.output.parse({ memories })
-    expect(parsed.memories[0].sourceEntryIds).toEqual([1, 2])
-    expect(parsed.memories[1].sourceEntryIds).toBeNull()
+    const parsed = memoryPageRoute.output.parse({ items, nextCursor: null })
+    expect(parsed.items[0].sourceEntryIds).toEqual([1, 2])
+    expect(parsed.items[1].sourceEntryIds).toBeNull()
   })
 
   it('enforces temporal persistence invariants on management and search DTOs', () => {
@@ -191,7 +190,9 @@ describe('toMemoryItemDto sourceEntryIds passthrough', () => {
       temporalTimeZone: 'UTC'
     }
 
-    expect(memoryListRoute.output.safeParse({ memories: [temporal] }).success).toBe(true)
+    expect(memoryPageRoute.output.safeParse({ items: [temporal], nextCursor: null }).success).toBe(
+      true
+    )
     expect(
       memorySearchRoute.output.safeParse({ results: [{ ...temporal, score: 0.8 }] }).success
     ).toBe(true)
@@ -207,7 +208,9 @@ describe('toMemoryItemDto sourceEntryIds passthrough', () => {
       { ...temporal, validFrom: 300, validUntil: 200 }
     ]
     for (const memory of malformed) {
-      expect(memoryListRoute.output.safeParse({ memories: [memory] }).success).toBe(false)
+      expect(memoryPageRoute.output.safeParse({ items: [memory], nextCursor: null }).success).toBe(
+        false
+      )
       expect(
         memorySearchRoute.output.safeParse({ results: [{ ...memory, score: 0.8 }] }).success
       ).toBe(false)
@@ -244,10 +247,10 @@ describe('toMemoryItemDto sourceEntryIds passthrough', () => {
         conflict_state: null
       })
     )
-    const parsed = memoryListRoute.output.parse({ memories: [dto] })
-    expect(parsed.memories[0].status).toBe('conflicted')
-    expect(parsed.memories[0].conflictWith).toBe('m-target')
-    expect('conflict_with' in parsed.memories[0]).toBe(false)
+    const parsed = memoryPageRoute.output.parse({ items: [dto], nextCursor: null })
+    expect(parsed.items[0].status).toBe('conflicted')
+    expect(parsed.items[0].conflictWith).toBe('m-target')
+    expect('conflict_with' in parsed.items[0]).toBe(false)
   })
 
   it('projects canonical state even when a storage shadow is stale', () => {
@@ -257,17 +260,18 @@ describe('toMemoryItemDto sourceEntryIds passthrough', () => {
 
   it('normalizes invalid persona_state values to null', () => {
     const dto = toMemoryItemDto(makeRow({ persona_state: 'unknown' as any }))
-    const parsed = memoryListRoute.output.parse({ memories: [dto] })
-    expect(parsed.memories[0].personaState).toBeNull()
+    const parsed = memoryPageRoute.output.parse({ items: [dto], nextCursor: null })
+    expect(parsed.items[0].personaState).toBeNull()
   })
 
   it('passes valid categories through and normalizes invalid values to null', () => {
     expect(toMemoryItemDto(makeRow({ category: 'project_fact' })).category).toBe('project_fact')
     expect(toMemoryItemDto(makeRow({ category: 'unknown' })).category).toBeNull()
-    const parsed = memoryListRoute.output.parse({
-      memories: [toMemoryItemDto(makeRow({ category: null }))]
+    const parsed = memoryPageRoute.output.parse({
+      items: [toMemoryItemDto(makeRow({ category: null }))],
+      nextCursor: null
     })
-    expect(parsed.memories[0].category).toBeNull()
+    expect(parsed.items[0].category).toBeNull()
   })
 })
 

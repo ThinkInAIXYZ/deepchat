@@ -26,7 +26,6 @@ import {
   memoryListDirectivesRoute,
   memoryListPersonaDraftsRoute,
   memoryListPersonaVersionsRoute,
-  memoryListRoute,
   memoryListViewManifestsRoute,
   memoryPageRoute,
   memoryRejectDirectiveRoute,
@@ -360,22 +359,6 @@ export function createMemoryRoutes(deps: {
   }
 
   return createRouteMap([
-    [
-      memoryListRoute.name,
-      async (rawInput) => {
-        const input = memoryListRoute.input.parse(rawInput)
-        const rows: AgentMemoryRow[] = []
-        let cursor: { createdAt: number; id: string } | null = null
-        do {
-          const page = memoryService.pageMemories(input.agentId, cursor, 200)
-          rows.push(...page.rows)
-          cursor = page.nextCursor
-        } while (cursor)
-        return memoryListRoute.output.parse({
-          memories: rows.map(toMemoryItemDto)
-        })
-      }
-    ],
     [
       memoryPageRoute.name,
       async (rawInput) => {

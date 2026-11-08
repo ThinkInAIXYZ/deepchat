@@ -51,6 +51,7 @@ import type { ToolchainKind } from '@shared/types/toolchains'
 import type { WorkspaceServicePort } from '@shared/types/workspace'
 import type { AssistantMessageBlock } from '@shared/types/agent-interface'
 import { projectFinalAssistantAnswer } from '@shared/lib/assistantDeliverySegments'
+import { readRunStopReason } from '@shared/lib/runStopReason'
 import type { SkillMetadataSnapshotPort, SkillServicePort } from '@shared/types/skill'
 import type { SkillSyncServicePort } from '@shared/types/skillSync'
 import type { IConversationExporter } from '../exporter/interface'
@@ -2558,6 +2559,17 @@ export async function createMainProcessControl(dependencies: {
           return matches[0]
             ? await agentToolDependencies.sessions.resolveConversationSessionInfo(matches[0].id)
             : null
+        },
+        getAssistantStopReason: async (sessionId, messageId) => {
+          const [row] = sessionData.database.deepchatMessagesTable.getBySessionAndIds(sessionId, [
+            messageId
+          ])
+          if (row?.role !== 'assistant') return null
+          try {
+            return readRunStopReason(JSON.parse(row.metadata)) ?? null
+          } catch {
+            return null
+          }
         },
         getAssistantResult: async (sessionId, messageId) => {
           const messages = sessionData.database.deepchatMessagesTable

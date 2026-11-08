@@ -862,13 +862,6 @@ const MemoryPageCursorSchema = z
     { message: 'invalid memory page cursor' }
   )
 
-/** @deprecated Use memoryPageRoute for bounded management reads. */
-export const memoryListRoute = defineRouteContract({
-  name: 'memory.list',
-  input: z.object({ agentId: AgentIdSchema }),
-  output: z.object({ memories: z.array(MemoryItemSchema) })
-})
-
 export const memoryPageRoute = defineRouteContract({
   name: 'memory.page',
   input: z.object({
