@@ -62,6 +62,7 @@ import type { PromptCacheIntent } from '../promptCacheStrategy'
 import type { ResolvedModelCapabilitySnapshot } from '@shared/types/model-capabilities'
 import { normalizeReasoningEffortValue } from '@shared/types/model-db'
 import { createDeepSeekResponsesAdapter } from '../deepseekResponsesAdapter'
+import { createGeminiToolSchemaAdapter } from './geminiToolSchemaAdapter'
 import { fetchWithProviderHeaders } from '../providerHeaders'
 
 type ImageGenerationProviderPayload = Record<string, JSONValue>
@@ -1200,7 +1201,9 @@ async function buildPromptRuntime(
     defaultHeaders: context.defaultHeaders,
     modelId,
     cleanHeaders: context.cleanHeaders,
-    fetchAdapter: providerAdapter?.wrapFetch
+    fetchAdapter:
+      providerAdapter?.wrapFetch ??
+      createGeminiToolSchemaAdapter(context.providerKind, supportsNativeTools ? tools : [])
   })
   const mappedMessages = mapMessagesToModelMessages(
     providerAdapter?.prepareMessages(messages) ?? messages,
