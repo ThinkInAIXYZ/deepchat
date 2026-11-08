@@ -12,9 +12,12 @@ import {
   INFOGRAPHIC_STATUS_METHOD
 } from '@shared/hostViews'
 import HostViewFrame from '@/components/mcp/HostViewFrame.vue'
+import { createMcpClient } from '@api/McpClient'
 import { downloadBlob } from '@/lib/download'
 
 const PLACEHOLDER_HEIGHT = 240
+const mcpClient = createMcpClient()
+const prepareView = () => mcpClient.prepareHostView('infographic')
 const MAX_EXPORT_SIDE = 8192
 
 const props = defineProps({
@@ -197,7 +200,7 @@ watch(() => [props.node.code, props.isDark], render)
         <HostViewFrame
           v-else
           ref="frame"
-          kind="infographic"
+          :prepare="prepareView"
           title="Infographic"
           :placeholder-height="PLACEHOLDER_HEIGHT"
           @ready="handleReady"
