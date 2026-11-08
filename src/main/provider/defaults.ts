@@ -693,6 +693,20 @@ const PROVIDER_DEFAULTS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'standardcompute',
+    name: 'Standard Compute',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://api.stdcmpt.com/v1',
+    enable: false,
+    websites: {
+      official: 'https://standardcompute.com/',
+      apiKey: 'https://standardcompute.com/dashboard/api-keys',
+      docs: 'https://docs.standardcompute.com/',
+      models: 'https://standardcompute.com/models'
+    }
+  },
+  {
     id: 'runcrate',
     name: 'Runcrate',
     apiType: 'openai-completions',
