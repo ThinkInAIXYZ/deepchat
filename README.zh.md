@@ -455,6 +455,12 @@ DeepChat 可以通过聊天软件远程控制，让你离开桌面后也能继�
       <a href="https://standardcompute.com/">Standard Compute</a>
     </td>
   </tr>
+  <tr align="center">
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/uberllm-color.svg" width="50" height="50" alt="UberLLM Icon"><br/>
+      <a href="https://uberllm.dev/">UberLLM</a>
+    </td>
+  </tr>
 
 </table>
 

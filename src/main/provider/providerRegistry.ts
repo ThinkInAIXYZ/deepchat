@@ -47,6 +47,7 @@ export type AiSdkKeyStatusStrategy =
   | '302ai'
   | 'cherryin'
   | 'modelscope'
+  | 'uberllm'
 
 export type AiSdkCheckStrategy = 'fetch-models' | 'key-status' | 'generate-text'
 
@@ -704,6 +705,16 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
       checkPrompt: 'Hello',
       checkTemperature: 0.2,
       checkMaxTokens: 16
+    })
+  ],
+  [
+    'uberllm',
+    createDefinition({
+      ...OPENAI_BASE,
+      checkStrategy: 'key-status',
+      credentialStrategy: 'api-key',
+      keyStatusStrategy: 'uberllm',
+      embeddingStrategy: 'none'
     })
   ],
   [

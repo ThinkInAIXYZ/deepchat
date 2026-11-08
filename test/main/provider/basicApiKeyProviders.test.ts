@@ -1955,6 +1955,52 @@ describe('basic API-key provider registrations', () => {
     )
   })
 
+  it('accepts a zero-balance UberLLM key without calling a model', async () => {
+    const defaults = DEFAULT_PROVIDERS.find(({ id }) => id === 'uberllm')!
+    const provider = new AiSdkProvider(
+      { ...defaults, apiKey: 'ull_byok_test', baseUrl: `${defaults.baseUrl}/` },
+      createProviderSettings()
+    )
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(Response.json({ balance_usd: 0, held_usd: 0, available_usd: 0 }))
+    global.fetch = fetchMock
+
+    await expect(provider.check()).resolves.toEqual({ isOk: true, errorMsg: null })
+    expect(fetchMock).toHaveBeenCalledExactlyOnceWith(
+      'https://api.uberllm.dev/v1/balance',
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({ Authorization: 'Bearer ull_byok_test' })
+      })
+    )
+    expect(mockRunAiSdkGenerateText).not.toHaveBeenCalled()
+  })
+
+  it('rejects a missing or invalid UberLLM key', async () => {
+    const defaults = DEFAULT_PROVIDERS.find(({ id }) => id === 'uberllm')!
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(Response.json({ error: { message: 'Invalid API key' } }, { status: 401 }))
+    global.fetch = fetchMock
+
+    const missingKey = new AiSdkProvider(defaults, createProviderSettings())
+    await expect(missingKey.check()).resolves.toEqual({
+      isOk: false,
+      errorMsg: 'Missing API key'
+    })
+    expect(fetchMock).not.toHaveBeenCalled()
+
+    const invalidKey = new AiSdkProvider(
+      { ...defaults, apiKey: 'ull_invalid_test' },
+      createProviderSettings()
+    )
+    await expect(invalidKey.check()).resolves.toEqual({
+      isOk: false,
+      errorMsg: expect.stringContaining('Invalid API key')
+    })
+  })
+
   it('lists every CloudGPU catalog id except non-chat models', async () => {
     const defaults = DEFAULT_PROVIDERS.find(({ id }) => id === 'cloudgpu')!
     const fetchMock = vi.fn().mockResolvedValue(

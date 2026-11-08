@@ -749,6 +749,20 @@ const PROVIDER_DEFAULTS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'uberllm',
+    name: 'UberLLM',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://api.uberllm.dev/v1',
+    enable: false,
+    websites: {
+      official: 'https://uberllm.dev/',
+      apiKey: 'https://uberllm.dev/dashboard/keys',
+      docs: 'https://uberllm.dev/docs/quickstart',
+      models: 'https://uberllm.dev/models'
+    }
+  },
+  {
     id: 'cheapaimodel',
     name: 'cheapaimodel',
     apiType: 'openai-completions',
