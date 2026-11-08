@@ -122,12 +122,25 @@ test('infographic blocks render AntV output outside the app origin @smoke', asyn
             svg: document.querySelectorAll('#root svg').length
           }))
           .catch(() => null)
-        if (state?.svg) return state
+        if (state?.svg) return { frame, state }
       }
       return null
     }
-    await expect.poll(sandboxMarker).toEqual({ xss: '1', svg: expect.any(Number) })
+    await expect
+      .poll(async () => (await sandboxMarker())?.state)
+      .toEqual({ xss: '1', svg: expect.any(Number) })
     expect(await app.page.evaluate(() => document.documentElement.dataset.xss ?? null)).toBeNull()
+
+    const sandbox = (await sandboxMarker())!.frame
+    await sandbox.evaluate(() =>
+      parent.postMessage(
+        { jsonrpc: '2.0', method: 'ui/notifications/size-changed', params: { height: 10_000_000 } },
+        '*'
+      )
+    )
+    await expect
+      .poll(async () => (await app.page.locator('iframe[src^="mcp-app://"]').boundingBox())?.height)
+      .toBe(1600)
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()))
   }

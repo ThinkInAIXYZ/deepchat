@@ -17,6 +17,10 @@ const props = defineProps<{
   placeholderHeight: number
 }>()
 
+// The sandboxed page controls the reported height, so cap it to keep a hostile view from pushing the
+// rest of the chat out of reach. Taller content scrolls inside the frame.
+const MAX_HEIGHT = 1600
+
 const emit = defineEmits<{
   ready: []
   error: []
@@ -78,7 +82,7 @@ const connectBridge = async () => {
   }
   nextBridge.oninitialized = () => emit('ready')
   nextBridge.onsizechange = ({ height: next }) => {
-    if (Number.isFinite(next)) height.value = Math.ceil(Number(next))
+    if (Number.isFinite(next)) height.value = Math.min(MAX_HEIGHT, Math.ceil(Number(next)))
   }
   nextBridge.fallbackNotificationHandler = async ({ method, params }) => {
     emit('notification', method, (params ?? {}) as Record<string, unknown>)
