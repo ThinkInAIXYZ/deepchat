@@ -7,6 +7,7 @@ import { DcButton } from '@dc-ui/components/button'
 import {
   HTML_RENDER_DEFAULT_HEIGHT,
   HTML_RENDER_HOST_STYLE_SLOT,
+  HTML_RENDER_SCRIPT_ERROR_METHOD,
   HTML_RENDER_SECTIONS_METHOD
 } from '@shared/agentHtmlRenderTool'
 import { createMcpClient } from '@api/McpClient'
@@ -53,6 +54,7 @@ const frame = ref<InstanceType<typeof HostViewFrame> | null>(null)
 const visible = ref(false)
 const ready = ref(false)
 const failed = ref(false)
+const scriptError = ref(false)
 const fullscreen = ref(false)
 const attempt = ref(0)
 const panelSections = inject(HTML_RENDER_SECTIONS_KEY, null)
@@ -115,6 +117,10 @@ const sendSections = () => {
     .catch(() => undefined)
 }
 
+const handleNotification = (method: string) => {
+  if (method === HTML_RENDER_SCRIPT_ERROR_METHOD) scriptError.value = true
+}
+
 const handleReady = () => {
   ready.value = true
   sendSections()
@@ -138,6 +144,7 @@ const handleError = () => {
 }
 
 const retry = () => {
+  scriptError.value = false
   failed.value = false
   attempt.value += 1
 }
@@ -251,9 +258,17 @@ onBeforeUnmount(() => {
             :decorate-html="decorateHtml"
             @ready="handleReady"
             @error="handleError"
+            @notification="handleNotification"
           />
         </div>
       </section>
     </Teleport>
+    <p
+      v-if="scriptError"
+      class="px-2 text-xs text-muted-foreground"
+      data-testid="html-render-script-error"
+    >
+      {{ t('mcp.apps.pageScriptError') }}
+    </p>
   </div>
 </template>

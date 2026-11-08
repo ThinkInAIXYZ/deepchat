@@ -320,6 +320,7 @@
     "interactiveContent": "Bir MCP sunucusundan etkileşimli içerik",
     "loadError": "Bu MCP App yüklenemedi.",
     "pageLoadError": "Bu sayfa görüntülenemiyor.",
+    "pageScriptError": "Bu sayfanın bir kısmı çalıştırılamadı.",
     "retry": "Tekrar dene",
     "fullscreen": "Tam ekran aç",
     "pictureInPicture": "Resim içinde resim olarak aç",

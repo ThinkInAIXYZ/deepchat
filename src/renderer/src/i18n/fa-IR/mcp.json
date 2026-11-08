@@ -320,6 +320,7 @@
     "interactiveContent": "محتوای تعاملی از یک سرور MCP",
     "loadError": "بارگذاری این برنامهٔ MCP ممکن نیست.",
     "pageLoadError": "نمایش این صفحه ممکن نیست.",
+    "pageScriptError": "بخشی از این صفحه اجرا نشد.",
     "retry": "تلاش مجدد",
     "fullscreen": "باز کردن در تمام‌صفحه",
     "pictureInPicture": "باز کردن تصویر در تصویر",

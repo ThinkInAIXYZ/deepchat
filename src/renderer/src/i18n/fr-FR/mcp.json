@@ -320,6 +320,7 @@
     "interactiveContent": "Contenu interactif provenant d’un serveur MCP",
     "loadError": "Impossible de charger cette application MCP.",
     "pageLoadError": "Impossible d’afficher cette page.",
+    "pageScriptError": "Une partie de cette page n’a pas pu s’exécuter.",
     "retry": "Réessayer",
     "fullscreen": "Ouvrir en plein écran",
     "pictureInPicture": "Ouvrir en image dans l’image",

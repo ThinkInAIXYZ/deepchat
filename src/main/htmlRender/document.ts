@@ -1,6 +1,7 @@
 import type { McpAppCsp } from '@shared/types/mcp'
 import {
   HTML_RENDER_HOST_STYLE_SLOT,
+  HTML_RENDER_SCRIPT_ERROR_METHOD,
   HTML_RENDER_SECTIONS_METHOD
 } from '@shared/agentHtmlRenderTool'
 
@@ -138,6 +139,12 @@ const BOOTSTRAP_SCRIPT = `<script>
     if (/^https?:/i.test(anchor.href)) {
       request('ui/open-link', { url: anchor.href }).catch(() => {})
     }
+  })
+  let scriptErrorSent = false
+  addEventListener('error', () => {
+    if (scriptErrorSent) return
+    scriptErrorSent = true
+    send({ jsonrpc: '2.0', method: '${HTML_RENDER_SCRIPT_ERROR_METHOD}', params: {} })
   })
   new ResizeObserver(report).observe(root)
   addEventListener('load', report)

@@ -320,6 +320,7 @@
     "interactiveContent": "Kandungan interaktif daripada pelayan MCP",
     "loadError": "MCP App ini tidak dapat dimuatkan.",
     "pageLoadError": "Tidak dapat memaparkan halaman ini.",
+    "pageScriptError": "Sebahagian halaman ini gagal dijalankan.",
     "retry": "Cuba lagi",
     "fullscreen": "Buka skrin penuh",
     "pictureInPicture": "Buka gambar dalam gambar",

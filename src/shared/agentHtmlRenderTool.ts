@@ -8,3 +8,4 @@ export const HTML_RENDER_SECTION_TOOL_NAME = 'html_render_section'
 export const HTML_RENDER_MAX_PANEL_BYTES = 2 * 1024 * 1024
 export const HTML_RENDER_SECTION_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/
 export const HTML_RENDER_SECTIONS_METHOD = 'dc/html-render/sections'
+export const HTML_RENDER_SCRIPT_ERROR_METHOD = 'dc/html-render/script-error'

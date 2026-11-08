@@ -320,6 +320,7 @@
     "interactiveContent": "תוכן אינטראקטיבי משרת MCP",
     "loadError": "לא ניתן לטעון את אפליקציית MCP הזו.",
     "pageLoadError": "לא ניתן להציג את הדף הזה.",
+    "pageScriptError": "חלק מהדף הזה לא הצליח לפעול.",
     "retry": "ניסיון חוזר",
     "fullscreen": "פתיחה במסך מלא",
     "pictureInPicture": "פתיחה בתמונה בתוך תמונה",
