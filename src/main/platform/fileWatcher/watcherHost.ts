@@ -227,7 +227,8 @@ export class FileWatcherHost {
     }
 
     activeWatch.mode = activeWatch.request.fallbackMode ?? 'snapshot-polling'
-    await this.unsubscribeNative(activeWatch)
+    // inotify can reject removing a watch the kernel already dropped after a root deletion.
+    await this.unsubscribeNative(activeWatch).catch(() => undefined)
 
     if (activeWatch.mode === 'git-metadata-polling') {
       this.startGitMetadataPolling(activeWatch, message)
