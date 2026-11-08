@@ -244,6 +244,14 @@ export class FileWatcherHost {
     const metadataPaths = activeWatch.request.includes ?? []
     let previous = readPathSignatures(metadataPaths)
     let rootMissing = false
+    // Changes made before this baseline, including a Git directory restored while the native watch
+    // was shutting down, are not in any later diff.
+    this.enqueueEvents(activeWatch, [
+      {
+        path: activeWatch.request.rootPath,
+        type: 'overflow'
+      }
+    ])
     this.sendStatus(activeWatch, {
       health: 'degraded',
       mode: activeWatch.mode,

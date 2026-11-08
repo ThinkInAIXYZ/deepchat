@@ -240,12 +240,12 @@ describe('FileWatcherHost', () => {
       fallbackMode: 'git-metadata-polling'
     })
     await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS + 100)
-    expect(eventBatches()).toEqual([])
+    expect(eventBatches()).toEqual([[{ path: gitDir, type: 'overflow' }]])
 
     fs.writeFileSync(path.join(headsDir, 'main'), 'abc\n')
     await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS + 100)
 
-    expect(eventBatches()).toEqual([[{ path: headsDir, type: 'update' }]])
+    expect(eventBatches().at(-1)).toEqual([{ path: headsDir, type: 'update' }])
     expect(parcel.writeSnapshot).not.toHaveBeenCalled()
     expect(parcel.getEventsSince).not.toHaveBeenCalled()
   })
@@ -274,22 +274,26 @@ describe('FileWatcherHost', () => {
     await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS)
 
     expect(eventBatches()).toEqual([
+      [{ path: gitDir, type: 'overflow' }],
       [{ path: gitDir, type: 'root-deleted' }],
       [{ path: gitDir, type: 'overflow' }],
       [{ path: headPath, type: 'update' }]
     ])
   })
 
-  it('polls a git watch after the native subscription reports its root deleted', async () => {
+  it('requests a full refresh when a deleted git root is back before polling starts', async () => {
     const gitDir = path.join(rootPath, '.git')
+    const movedDir = path.join(rootPath, '.git-moved')
     const headPath = path.join(gitDir, 'HEAD')
     fs.mkdirSync(gitDir)
     fs.writeFileSync(headPath, 'ref: refs/heads/main\n')
-    const unsubscribe = vi.fn()
     let emit: NativeCallback = () => {}
+    let finishUnsubscribe: () => void = () => {}
     parcel.subscribe.mockImplementation(async (_root: string, callback: NativeCallback) => {
       emit = callback
-      return { unsubscribe }
+      return {
+        unsubscribe: () => new Promise<void>((resolve) => (finishUnsubscribe = resolve))
+      }
     })
 
     await host.watch({
@@ -300,15 +304,21 @@ describe('FileWatcherHost', () => {
       includes: [headPath],
       fallbackMode: 'git-metadata-polling'
     })
+    fs.renameSync(gitDir, movedDir)
     emit(null, [{ path: gitDir, type: 'delete' }])
     await vi.advanceTimersByTimeAsync(0)
-    expect(unsubscribe).toHaveBeenCalledTimes(1)
-
+    fs.renameSync(movedDir, gitDir)
     fs.writeFileSync(headPath, 'ref: refs/heads/feature\n')
+    finishUnsubscribe()
     await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS + 100)
+    fs.writeFileSync(headPath, 'ref: refs/heads/main\n')
+    await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS)
 
     expect(eventBatches()).toEqual([
-      [{ path: gitDir, type: 'delete' }],
+      [
+        { path: gitDir, type: 'delete' },
+        { path: gitDir, type: 'overflow' }
+      ],
       [{ path: headPath, type: 'update' }]
     ])
   })
