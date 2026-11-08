@@ -126,6 +126,8 @@ export class FileWatcherHost {
     setup.ready = true
 
     if (activeWatch.disposed || setup.error) {
+      // Retire it before awaiting, or another error it delivers meanwhile starts a second recovery.
+      activeWatch.generation += 1
       await subscription.unsubscribe().catch(() => undefined)
       if (setup.error) {
         throw setup.error
