@@ -289,9 +289,8 @@ export class DeepChatAssistantBlocksTable extends BaseTable {
 
   measureHtmlRenderPanel(
     sessionId: string,
-    panelId: string,
-    excludeSectionId: string
-  ): number | null {
+    panelId: string
+  ): { shellBytes: number; sectionBytes: Map<string, number> } | null {
     const rows = this.db
       .prepare(
         `SELECT b.tool_name, b.tool_params, b.extra_json
@@ -316,17 +315,14 @@ export class DeepChatAssistantBlocksTable extends BaseTable {
         if (row.tool_name === HTML_RENDER_TOOL_NAME) {
           const extra = row.extra_json ? (JSON.parse(row.extra_json) as PersistedBlockExtra) : {}
           if (extra.toolCallExtra?.htmlRender?.panelId === panelId) shellBytes = bytes
-        } else if (params.panelId === panelId && params.sectionId !== excludeSectionId) {
+        } else if (params.panelId === panelId && typeof params.sectionId === 'string') {
           sectionBytes.set(params.sectionId, bytes)
         }
       } catch {
         continue
       }
     }
-    if (shellBytes === null) return null
-    let total = shellBytes
-    for (const bytes of sectionBytes.values()) total += bytes
-    return total
+    return shellBytes === null ? null : { shellBytes, sectionBytes }
   }
 
   updateMcpAppModelContext(

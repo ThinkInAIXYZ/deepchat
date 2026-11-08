@@ -125,6 +125,10 @@ const successResult = (toolName: string, content: string, extra?: object) => ({
 })
 
 export class AgentHtmlRenderTool {
+  // Section results are persisted only after the whole tool batch, so the database misses sections
+  // accepted earlier in the same batch.
+  private readonly acceptedSections = new Map<string, Map<string, number>>()
+
   getToolDefinitions(): MCPToolDefinition[] {
     return [
       {
@@ -191,15 +195,24 @@ export class AgentHtmlRenderTool {
     if (!conversationId || !panels) {
       throw new Error(`${HTML_RENDER_SECTION_TOOL_NAME} requires a conversation.`)
     }
-    const storedBytes = panels.measurePanel(conversationId, panelId, sectionId)
-    if (storedBytes === null) {
+    const stored = panels.measurePanel(conversationId, panelId)
+    if (stored === null) {
       throw new Error(
         `No panel ${panelId} in this conversation. Create one with html_render and use its panelId.`
       )
     }
-    if (storedBytes + Buffer.byteLength(html, 'utf8') > HTML_RENDER_MAX_PANEL_BYTES) {
+    const bytes = Buffer.byteLength(html, 'utf8')
+    const key = `${conversationId}\n${panelId}`
+    const accepted = this.acceptedSections.get(key) ?? new Map<string, number>()
+    const sections = new Map([...stored.sectionBytes, ...accepted])
+    sections.set(sectionId, bytes)
+    let total = stored.shellBytes
+    for (const size of sections.values()) total += size
+    if (total > HTML_RENDER_MAX_PANEL_BYTES) {
       throw new Error('The panel would exceed 2 MB. Start a new panel with html_render.')
     }
+    accepted.set(sectionId, bytes)
+    this.acceptedSections.set(key, accepted)
     return successResult(
       HTML_RENDER_SECTION_TOOL_NAME,
       `Section "${sectionId}" is in panel ${panelId}.`

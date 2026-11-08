@@ -12,24 +12,46 @@ describe('AgentHtmlRenderTool', () => {
     expect(result.content).toContain(`panelId: ${panelId}`)
 
     const measurePanel = vi.fn((_conversationId: string, id: string) =>
-      id === panelId ? 100 : null
+      id === panelId ? { shellBytes: 100, sectionBytes: new Map() } : null
     )
     const section = { panelId, sectionId: 'kpi', html: '<div class="card">1</div>' }
     expect(() => tool.callSection(section, 'session-1', { measurePanel })).not.toThrow()
-    expect(measurePanel).toHaveBeenCalledWith('session-1', panelId, 'kpi')
+    expect(measurePanel).toHaveBeenCalledWith('session-1', panelId)
     expect(() =>
       tool.callSection({ ...section, panelId: 'missing' }, 'session-1', { measurePanel })
     ).toThrow(/No panel missing/)
   })
 
   it('rejects document markup, remote scripts and an overfull panel', () => {
-    const panels = { measurePanel: () => HTML_RENDER_MAX_PANEL_BYTES - 4 }
+    const panels = {
+      measurePanel: () => ({ shellBytes: HTML_RENDER_MAX_PANEL_BYTES - 4, sectionBytes: new Map() })
+    }
     const call = (html: string) =>
-      tool.callSection({ panelId: 'p', sectionId: 's', html }, 'session-1', panels)
+      new AgentHtmlRenderTool().callSection(
+        { panelId: 'p', sectionId: 's', html },
+        'session-1',
+        panels
+      )
 
     expect(() => call('<html><body>x</body></html>')).toThrow(/fragment/)
     expect(() => call('<script src="https://unpkg.com/d3"></script>')).toThrow(/remote/)
     expect(() => call('<div>12345</div>')).toThrow(/2 MB/)
     expect(() => call('<b>')).not.toThrow()
+  })
+
+  it('counts sections accepted earlier in the same batch before they are persisted', () => {
+    const panels = { measurePanel: () => ({ shellBytes: 10, sectionBytes: new Map() }) }
+    const batchTool = new AgentHtmlRenderTool()
+    const call = (sectionId: string) =>
+      batchTool.callSection(
+        { panelId: 'p', sectionId, html: 'x'.repeat(500_000) },
+        'session-1',
+        panels
+      )
+
+    for (const sectionId of ['a', 'b', 'c', 'd', 'a']) {
+      expect(() => call(sectionId)).not.toThrow()
+    }
+    expect(() => call('e')).toThrow(/2 MB/)
   })
 })

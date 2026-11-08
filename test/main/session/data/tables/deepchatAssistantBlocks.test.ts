@@ -303,9 +303,14 @@ describeIfSqlite('DeepChatAssistantBlocksTable html_render panels', () => {
     table.replaceForMessage('message-2', [sectionBlock(2, 'b', 'bb'), sectionBlock(3, 'a', 'a')])
     table.replaceForMessage('message-other', [sectionBlock(4, 'c', 'cccccccc')])
 
-    expect(table.measureHtmlRenderPanel('session-1', 'panel-1', '')).toBe(18 + 1 + 2)
-    expect(table.measureHtmlRenderPanel('session-1', 'panel-1', 'a')).toBe(18 + 2)
-    expect(table.measureHtmlRenderPanel('session-2', 'panel-1', '')).toBeNull()
+    expect(table.measureHtmlRenderPanel('session-1', 'panel-1')).toEqual({
+      shellBytes: 18,
+      sectionBytes: new Map([
+        ['a', 1],
+        ['b', 2]
+      ])
+    })
+    expect(table.measureHtmlRenderPanel('session-2', 'panel-1')).toBeNull()
 
     db.close()
   })

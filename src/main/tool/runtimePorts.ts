@@ -264,8 +264,11 @@ export interface AgentToolPermissionPort {
 }
 
 export interface AgentHtmlRenderPanelPort {
-  /** Stored bytes of the panel without `excludeSectionId`; null when the session has no such panel. */
-  measurePanel(conversationId: string, panelId: string, excludeSectionId: string): number | null
+  /** Persisted bytes of the shell and the latest version of each section; null when the session has no such panel. */
+  measurePanel(
+    conversationId: string,
+    panelId: string
+  ): { shellBytes: number; sectionBytes: ReadonlyMap<string, number> } | null
 }
 
 export interface AgentToolDependencies {

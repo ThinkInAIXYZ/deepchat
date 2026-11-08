@@ -1780,11 +1780,10 @@ export async function createMainProcessControl(dependencies: {
     readSession: (callerSessionId, input) =>
       sessionData.sessionReferences.read(callerSessionId, input),
     htmlRenderPanels: {
-      measurePanel: (conversationId, panelId, excludeSectionId) =>
+      measurePanel: (conversationId, panelId) =>
         sessionData.database.deepchatAssistantBlocksTable.measureHtmlRenderPanel(
           conversationId,
-          panelId,
-          excludeSectionId
+          panelId
         )
     },
     agentInvocationAdmission,
