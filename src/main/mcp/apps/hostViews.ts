@@ -53,8 +53,11 @@ html,body{margin:0;background:transparent;color-scheme:light dark}
       send({ jsonrpc: '2.0', method: 'ui/notifications/size-changed', params: { height } })
     }
   }
+  let errored = false
+  let rendered = false
   const render = (source, nextTheme) => {
-    let ok = true
+    errored = false
+    rendered = false
     try {
       if (!instance || theme !== nextTheme) {
         instance?.destroy()
@@ -66,11 +69,16 @@ html,body{margin:0;background:transparent;color-scheme:light dark}
           theme: nextTheme,
           editable: false
         })
+        instance.on('error', () => { errored = true })
+        instance.on('rendered', () => { rendered = true })
       }
+      // AntV reports an invalid or incomplete DSL through the error event and skips rendering
+      // instead of throwing.
       instance.render(source)
     } catch {
-      ok = false
+      errored = true
     }
+    const ok = rendered && !errored
     send({ jsonrpc: '2.0', method: '${INFOGRAPHIC_STATUS_METHOD}', params: { ok } })
     report()
   }

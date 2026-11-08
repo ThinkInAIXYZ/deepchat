@@ -5,7 +5,12 @@ import { waitForAppReady, waitForGenerationDone } from '../helpers/wait'
 
 // The icon is an inline SVG resource that AntV parses and inserts without sanitizing; its error
 // handler marks whichever document it runs in.
+const invalidSource = 'not a valid infographic definition'
 const markdown = [
+  '```infographic',
+  invalidSource,
+  '```',
+  '',
   '```infographic',
   'infographic list-row-horizontal-icon-arrow',
   'data',
@@ -106,6 +111,7 @@ test('infographic blocks render AntV output outside the app origin @smoke', asyn
     await sendMessage(app.page, 'Render the infographic fixture.')
     await waitForGenerationDone(app.page)
 
+    await expect(app.page.locator('pre', { hasText: invalidSource })).toBeVisible()
     await expect(app.page.locator('iframe[src^="mcp-app://"]')).toHaveCount(1)
     const sandboxMarker = async () => {
       for (const frame of app.page.frames()) {
