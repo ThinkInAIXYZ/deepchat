@@ -10,12 +10,20 @@ import {
   clearKaTeXWorker,
   clearMermaidWorker,
   setKaTeXWorker,
+  setCustomComponents,
   setMermaidWorker,
   setStreamDiffsWorkerPool,
   terminateStreamDiffsWorkerPool,
   terminateWorker,
   type StreamDiffsWorkerPoolLike
 } from 'markstream-vue'
+
+import InfographicBlock from '@/components/markdown/InfographicBlock.vue'
+
+// AntV inserts SVG from the DSL into the live DOM unsanitized, so infographic blocks render in a
+// sandboxed host view instead of markstream's built-in node. Registered at import time so it is
+// set before any block mounts.
+setCustomComponents({ infographic: InfographicBlock })
 
 // Dynamic worker imports - only loaded when needed
 let KatexWorkerConstructor: (new () => Worker) | null = null

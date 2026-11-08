@@ -10,6 +10,7 @@ import {
   mcpAppsListToolsRoute,
   mcpAppsOpenLinkRoute,
   mcpAppsPrepareViewRoute,
+  mcpAppsPrepareHostViewRoute,
   mcpAppsReadResourceRoute,
   mcpAppsReleaseViewRoute,
   mcpAppsRetryToolAccessRoute,
@@ -516,6 +517,16 @@ export function createMcpRoutes(deps: {
         const input = mcpAppsPrepareViewRoute.input.parse(rawInput)
         return mcpAppsPrepareViewRoute.output.parse({
           view: await deps.mcpAppHost.prepareView(input, appContext(context))
+        })
+      }
+    ],
+    [
+      mcpAppsPrepareHostViewRoute.name,
+      async (rawInput, context) => {
+        assertAppRouteInput(rawInput)
+        const input = mcpAppsPrepareHostViewRoute.input.parse(rawInput)
+        return mcpAppsPrepareHostViewRoute.output.parse({
+          view: await deps.mcpAppHost.prepareHostView(input, appContext(context))
         })
       }
     ],
