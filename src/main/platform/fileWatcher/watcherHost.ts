@@ -249,6 +249,14 @@ export class FileWatcherHost {
           if (!(await writeSnapshot())) {
             return false
           }
+          // Changes made before this baseline, including events the native watcher lost, are not
+          // in any later diff.
+          this.enqueueEvents(activeWatch, [
+            {
+              path: activeWatch.request.rootPath,
+              type: 'overflow'
+            }
+          ])
           this.sendStatus(activeWatch, {
             health: 'degraded',
             mode: activeWatch.mode,

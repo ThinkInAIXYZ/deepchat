@@ -176,9 +176,10 @@ describe('FileWatcherHost', () => {
 
     await host.watch(request)
     emit(new Error('Buffer overflow. Some events may have been lost.'), [])
-    await vi.advanceTimersByTimeAsync(0)
+    await vi.advanceTimersByTimeAsync(100)
 
     expect(parcel.writeSnapshot).toHaveBeenCalledTimes(1)
+    expect(eventBatches()).toEqual([[{ path: rootPath, type: 'overflow' }]])
     expect(
       messages.some(
         (message) =>
