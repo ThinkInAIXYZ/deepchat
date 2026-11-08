@@ -53,16 +53,23 @@ const { stop } = useIntersectionObserver(
 const render = () => {
   if (!ready.value || !frame.value) return
   pendingRenders.value += 1
-  frame.value.notify(INFOGRAPHIC_RENDER_METHOD, {
-    source: props.node.code,
-    theme: props.isDark ? 'dark' : 'light'
-  })
+  frame.value
+    .notify(INFOGRAPHIC_RENDER_METHOD, {
+      source: props.node.code,
+      theme: props.isDark ? 'dark' : 'light'
+    })
+    .catch(() => {
+      pendingRenders.value = Math.max(0, pendingRenders.value - 1)
+      failed.value = true
+    })
 }
 
 const requestExport = () => {
   if (!canExport.value || !frame.value) return
   exportRequested.value = true
-  frame.value.notify(INFOGRAPHIC_EXPORT_METHOD, {})
+  frame.value.notify(INFOGRAPHIC_EXPORT_METHOD, {}).catch(() => {
+    exportRequested.value = false
+  })
 }
 
 const handleNotification = (method: string, params: Record<string, unknown>) => {

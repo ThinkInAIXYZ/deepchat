@@ -90,8 +90,9 @@ const connectBridge = async () => {
   await nextBridge.connect(new PostMessageTransport(frameWindow, frameWindow))
 }
 
-const notify = (method: string, params: Record<string, unknown>) => {
-  void bridge.value?.notification({ method, params }).catch(() => undefined)
+const notify = async (method: string, params: Record<string, unknown>) => {
+  if (!bridge.value) throw new Error('Host view is not connected')
+  await bridge.value.notification({ method, params })
 }
 
 onMounted(async () => {
