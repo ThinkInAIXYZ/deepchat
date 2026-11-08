@@ -1847,6 +1847,60 @@ describe('basic API-key provider registrations', () => {
     )
   })
 
+  it('checks TrustedRouter with a chat request instead of its public model list', async () => {
+    const defaults = DEFAULT_PROVIDERS.find((provider) => provider.id === 'trustedrouter')!
+    expect(defaults).toBeDefined()
+    const config = { ...defaults, apiKey: 'test-key' }
+    expect(resolveAiSdkProviderDefinition(config)).toMatchObject({
+      runtimeKind: 'openai-compatible',
+      modelSource: 'openai',
+      checkStrategy: 'generate-text',
+      credentialStrategy: 'api-key',
+      routeStrategy: 'none',
+      embeddingStrategy: 'none',
+      checkModelId: 'trustedrouter/auto'
+    })
+    const fetchMock = vi.fn().mockImplementation(async () =>
+      Response.json({
+        data: [
+          { id: 'trustedrouter/auto', name: 'TrustedRouter Auto' },
+          { id: 'anthropic/claude-sonnet-4.5', name: 'Claude Sonnet 4.5' }
+        ]
+      })
+    )
+    global.fetch = fetchMock as unknown as typeof fetch
+    const provider = new AiSdkProvider(config, createProviderSettings())
+
+    // Route and upstream ids are fully prefixed and must survive discovery unchanged.
+    await expect(provider.fetchModels({ suppressErrors: false })).resolves.toEqual([
+      expect.objectContaining({ id: 'trustedrouter/auto', providerId: 'trustedrouter' }),
+      expect.objectContaining({ id: 'anthropic/claude-sonnet-4.5', providerId: 'trustedrouter' })
+    ])
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.trustedrouter.com/v1/models',
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({ Authorization: 'Bearer test-key' })
+      })
+    )
+    await expect(provider.check()).resolves.toEqual({ isOk: true, errorMsg: null })
+    expect(mockRunAiSdkGenerateText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerKind: 'openai-compatible',
+        provider: expect.objectContaining({
+          id: 'trustedrouter',
+          apiKey: 'test-key',
+          baseUrl: 'https://api.trustedrouter.com/v1'
+        })
+      }),
+      [{ role: 'user', content: 'Hello' }],
+      'trustedrouter/auto',
+      expect.any(Object),
+      0.2,
+      16
+    )
+  })
+
   it('lists every CloudGPU catalog id except non-chat models', async () => {
     const defaults = DEFAULT_PROVIDERS.find(({ id }) => id === 'cloudgpu')!
     const fetchMock = vi.fn().mockResolvedValue(
