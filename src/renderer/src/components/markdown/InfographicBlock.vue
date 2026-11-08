@@ -18,7 +18,10 @@ const frame = ref<InstanceType<typeof HostViewFrame> | null>(null)
 const visible = ref(false)
 const ready = ref(false)
 const failed = ref(false)
-const showSource = computed(() => failed.value && !props.loading)
+// The last chunk's status can arrive after loading ends; falling back before it would drop a valid
+// final render.
+const pendingRenders = ref(0)
+const showSource = computed(() => failed.value && !props.loading && pendingRenders.value === 0)
 
 // Each frame is its own renderer process, so offscreen blocks wait until they near the viewport.
 const { stop } = useIntersectionObserver(
@@ -32,8 +35,9 @@ const { stop } = useIntersectionObserver(
 )
 
 const render = () => {
-  if (!ready.value) return
-  frame.value?.notify(INFOGRAPHIC_RENDER_METHOD, {
+  if (!ready.value || !frame.value) return
+  pendingRenders.value += 1
+  frame.value.notify(INFOGRAPHIC_RENDER_METHOD, {
     source: props.node.code,
     theme: props.isDark ? 'dark' : 'light'
   })
@@ -41,6 +45,7 @@ const render = () => {
 
 const handleNotification = (method: string, params: Record<string, unknown>) => {
   if (method === INFOGRAPHIC_STATUS_METHOD) {
+    pendingRenders.value = Math.max(0, pendingRenders.value - 1)
     failed.value = params.ok !== true
   }
 }
