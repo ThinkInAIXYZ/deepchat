@@ -1901,6 +1901,60 @@ describe('basic API-key provider registrations', () => {
     )
   })
 
+  it('checks Standard Compute with a chat request instead of its public model list', async () => {
+    const defaults = DEFAULT_PROVIDERS.find((provider) => provider.id === 'standardcompute')!
+    expect(defaults).toBeDefined()
+    const config = { ...defaults, apiKey: 'test-key' }
+    expect(resolveAiSdkProviderDefinition(config)).toMatchObject({
+      runtimeKind: 'openai-compatible',
+      modelSource: 'openai',
+      checkStrategy: 'generate-text',
+      credentialStrategy: 'api-key',
+      routeStrategy: 'none',
+      embeddingStrategy: 'none',
+      checkModelId: 'StandardCompute'
+    })
+    const fetchMock = vi.fn().mockImplementation(async () =>
+      Response.json({
+        data: [
+          { id: 'StandardCompute', owned_by: 'StandardCompute' },
+          { id: 'deepseek/deepseek-v4-flash', display_name: 'DeepSeek V4 Flash' }
+        ]
+      })
+    )
+    global.fetch = fetchMock as unknown as typeof fetch
+    const provider = new AiSdkProvider(config, createProviderSettings())
+
+    // The routed id and the prefixed pinned ids must survive discovery unchanged.
+    await expect(provider.fetchModels({ suppressErrors: false })).resolves.toEqual([
+      expect.objectContaining({ id: 'StandardCompute', providerId: 'standardcompute' }),
+      expect.objectContaining({ id: 'deepseek/deepseek-v4-flash', providerId: 'standardcompute' })
+    ])
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.stdcmpt.com/v1/models',
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({ Authorization: 'Bearer test-key' })
+      })
+    )
+    await expect(provider.check()).resolves.toEqual({ isOk: true, errorMsg: null })
+    expect(mockRunAiSdkGenerateText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerKind: 'openai-compatible',
+        provider: expect.objectContaining({
+          id: 'standardcompute',
+          apiKey: 'test-key',
+          baseUrl: 'https://api.stdcmpt.com/v1'
+        })
+      }),
+      [{ role: 'user', content: 'Hello' }],
+      'StandardCompute',
+      expect.any(Object),
+      0.2,
+      16
+    )
+  })
+
   it('lists every CloudGPU catalog id except non-chat models', async () => {
     const defaults = DEFAULT_PROVIDERS.find(({ id }) => id === 'cloudgpu')!
     const fetchMock = vi.fn().mockResolvedValue(
