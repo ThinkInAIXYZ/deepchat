@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import type { HostViewKind } from '../hostViews'
 import type { FileItem } from './file'
 import type {
   McpServerLifecycleStatus,
@@ -320,6 +321,15 @@ export interface McpAppPreparedView {
   expiresAt: number
 }
 
+export interface McpHostPreparedView {
+  instanceId: string
+  sandboxUrl: string
+  html: string
+  sandbox: string
+  csp?: McpAppCsp
+  expiresAt: number
+}
+
 export type McpAppConsentKind =
   | 'tool-call'
   | 'open-link'
@@ -416,6 +426,10 @@ export interface McpAppHostPort {
     },
     context: { webContentsId: number; windowId: number | null }
   ): Promise<McpAppPreparedView>
+  prepareHostView(
+    input: { kind: HostViewKind },
+    context: { webContentsId: number; windowId: number | null }
+  ): Promise<McpHostPreparedView>
   releaseView(
     instanceId: string,
     context: { webContentsId: number; windowId: number | null }
