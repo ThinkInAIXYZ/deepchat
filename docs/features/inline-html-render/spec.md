@@ -187,6 +187,8 @@ back to the model.
 - The section tool checks the panel through `AgentHtmlRenderPanelPort.measurePanel`
   (`deepchatAssistantBlocks.measureHtmlRenderPanel`). Blocks reach the DB within 600 ms, and a
   section call can only start in the model round after the shell result, so the shell is stored.
+  Section results are stored only after the whole tool batch, so the tool also counts the sections
+  it accepted earlier in the process for the 2 MB cap, with the newest size per section winning.
 
 ## Persistence
 
@@ -231,7 +233,8 @@ AppBridge returns hostContext (theme, displayMode, locale, platform)
 dc/html-render/sections (all sections) ──────────────────────────────▶ insert after DOMContentLoaded
                                   ◀──── ui/notifications/size-changed ──
 frame height = content height
-section block succeeds ─▶ dc/html-render/sections (all sections) ───▶ insert or replace changed ones
+section list changes ──▶ dc/html-render/sections (all sections) ───▶ insert, replace or remove
+                                  ◀──── dc/html-render/script-error ───  first uncaught page error
 ```
 
 ### Main
@@ -286,7 +289,10 @@ work unchanged:
   `DOMContentLoaded` so libraries in the shell `<head>` are defined, then for each new or changed
   section fills a `<div data-dc-section style="display:contents">` slot inside
   `[data-dc-sections]` (else `body`) and re-creates its `<script>` elements in order, because
-  scripts parsed through `innerHTML` never run;
+  scripts parsed through `innerHTML` never run; slots whose id is no longer in the list are
+  removed, so a deleted or regenerated message drops its sections;
+- reports the first uncaught script error once with `dc/html-render/script-error`; the view keeps
+  the page and shows a one-line notice under it, since the rest of the page may still be useful;
 - base style: transparent `html`/`body`, `margin: 0`, an 8px `html` padding for focus rings and
   shadows, `color: var(--foreground)`, `font-family: var(--font-sans)`.
 
@@ -305,7 +311,9 @@ The frame itself is `HostViewFrame`, the host-view frame infographic blocks use 
 `prepare` function, so infographic calls `mcp.apps.prepareHostView` and html_render calls
 `mcp.apps.prepareHtmlRender`, and owns what both need: the `AppBridge` with only `openLinks` and no
 server handlers, the unmount → teardown (500 ms cap) → `releaseView` sequence, sizing, the
-initialization timeout, and `reload()` for a fresh bridge on the same instance. html_render adds
+initialization timeout, and `reload()`. Sandbox instances expire 30 minutes after they are
+prepared, so `reload()` prepares a fresh instance, restarts the initialization timeout, and releases
+the old instance; the old frame does not reconnect while the new one is being prepared. html_render adds
 two props: `decorateHtml` writes the theme variables into the bootstrap's style slot, and
 `displayMode` switches to fullscreen. `HtmlRenderView` keeps only the html_render parts: visibility
 gating, sections, fullscreen chrome and the load error.
