@@ -8,6 +8,7 @@ import type {
   McpAppCallToolResult,
   McpAppDescriptor,
   McpAppPreparedView,
+  McpHostPreparedView,
   McpAppServerPromptListResult,
   McpAppServerResourceListResult,
   McpAppServerResourceTemplateListResult,
@@ -29,6 +30,7 @@ import type {
   Tool
 } from '@shared/types/mcp'
 import { defineRouteContract, JsonValueSchema } from '../common'
+import { HOST_VIEW_KINDS } from '../../hostViews'
 
 const McpAuthorizationConfigSchema = z
   .object({
@@ -699,6 +701,14 @@ const McpAppPreparedViewSchema: z.ZodType<McpAppPreparedView> = z.object({
   advisoryDomain: z.string().max(253).optional(),
   expiresAt: z.number().int().positive()
 })
+const McpHostPreparedViewSchema: z.ZodType<McpHostPreparedView> = z.object({
+  instanceId: z.string().min(16).max(128),
+  sandboxUrl: z.string().startsWith('mcp-app://').max(512),
+  html: z.string().max(2 * 1024 * 1024),
+  sandbox: z.literal('allow-scripts allow-same-origin'),
+  csp: McpAppCspSchema.optional(),
+  expiresAt: z.number().int().positive()
+})
 const McpAppServerResourceSchema = z.object({
   uri: z.string().min(1).max(4096),
   name: z.string().min(1).max(512),
@@ -1282,6 +1292,16 @@ export const mcpAppsPrepareViewRoute = defineRouteContract({
   }),
   output: z.object({
     view: McpAppPreparedViewSchema
+  })
+})
+
+export const mcpAppsPrepareHostViewRoute = defineRouteContract({
+  name: 'mcp.apps.prepareHostView',
+  input: z.object({
+    kind: z.enum(HOST_VIEW_KINDS)
+  }),
+  output: z.object({
+    view: McpHostPreparedViewSchema
   })
 })
 

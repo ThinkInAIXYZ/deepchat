@@ -146,6 +146,17 @@ const findDeepCdnResourcesDir = async (candidates: string[]): Promise<string> =>
   return candidates[0]
 }
 
+const resolveCdnDir = async (): Promise<string> => {
+  const candidates = is.dev
+    ? [path.join(app.getAppPath(), 'resources')]
+    : [
+        path.join(process.resourcesPath, 'app.asar.unpacked', 'resources'),
+        path.join(process.resourcesPath, 'resources'),
+        process.resourcesPath
+      ]
+  return path.join(await findDeepCdnResourcesDir(candidates), 'cdn')
+}
+
 export async function registerProtocols(
   mcpAppSandboxRegistry: McpAppSandboxRegistry
 ): Promise<void> {
@@ -155,16 +166,7 @@ export async function registerProtocols(
   protocol.handle('deepcdn', async (request) => {
     try {
       const filePath = request.url.slice('deepcdn://'.length)
-      // Determine resource path based on dev/production environment
-      const candidates = is.dev
-        ? [path.join(app.getAppPath(), 'resources')]
-        : [
-            path.join(process.resourcesPath, 'app.asar.unpacked', 'resources'),
-            path.join(process.resourcesPath, 'resources'),
-            process.resourcesPath
-          ]
-      const baseResourcesDir = await findDeepCdnResourcesDir(candidates)
-      const fullPath = resolvePathInsideRoot(path.join(baseResourcesDir, 'cdn'), filePath)
+      const fullPath = resolvePathInsideRoot(await resolveCdnDir(), filePath)
       if (!fullPath) {
         return new Response('Forbidden', {
           status: 403,
@@ -298,7 +300,9 @@ export async function registerProtocols(
     }
   })
 
-  registerMcpAppProtocol(mcpAppSandboxRegistry)
+  registerMcpAppProtocol(mcpAppSandboxRegistry, async (fileName) =>
+    path.join(await resolveCdnDir(), fileName)
+  )
 
   logger.info('registerProtocols: Application protocols registered successfully')
 }

@@ -153,6 +153,25 @@ describe('DEFAULT_PROVIDERS', () => {
     )
   })
 
+  it('includes Standard Compute as a disabled built-in OpenAI-compatible provider', () => {
+    expect(DEFAULT_PROVIDERS).toContainEqual(
+      expect.objectContaining({
+        id: 'standardcompute',
+        name: 'Standard Compute',
+        apiType: 'openai-completions',
+        baseUrl: 'https://api.stdcmpt.com/v1',
+        enable: false,
+        websites: expect.objectContaining({
+          official: 'https://standardcompute.com/',
+          apiKey: 'https://standardcompute.com/dashboard/api-keys',
+          docs: 'https://docs.standardcompute.com/',
+          models: 'https://standardcompute.com/models',
+          defaultBaseUrl: 'https://api.stdcmpt.com/v1'
+        })
+      })
+    )
+  })
+
   it('includes Runcrate as a disabled built-in OpenAI-compatible provider', () => {
     expect(DEFAULT_PROVIDERS).toContainEqual(
       expect.objectContaining({

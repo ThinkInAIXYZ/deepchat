@@ -451,6 +451,12 @@ DeepChatはメッセージアプリからリモート操作できるため、デ
       <a href="https://trustedrouter.com/">TrustedRouter</a>
     </td>
     <td>
+      <img src="./src/renderer/src/assets/llm-icons/standardcompute.svg" width="50" height="50" alt="Standard Compute Icon"><br/>
+      <a href="https://standardcompute.com/">Standard Compute</a>
+    </td>
+  </tr>
+  <tr align="center">
+    <td>
       <img src="./src/renderer/src/assets/llm-icons/uberllm-color.svg" width="50" height="50" alt="UberLLM Icon"><br/>
       <a href="https://uberllm.dev/">UberLLM</a>
     </td>

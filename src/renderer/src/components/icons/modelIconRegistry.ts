@@ -54,6 +54,7 @@ import requestyColorIcon from '@/assets/llm-icons/requesty.png?url'
 import litellmColorIcon from '@/assets/llm-icons/litellm.svg?url'
 import opperColorIcon from '@/assets/llm-icons/opper.svg?url'
 import trustedrouterIcon from '@/assets/llm-icons/trustedrouter.svg?url'
+import standardcomputeIcon from '@/assets/llm-icons/standardcompute.svg?url'
 import aistupidlevelIcon from '@/assets/llm-icons/aistupidlevel.svg?url'
 import runcrateIcon from '@/assets/llm-icons/runcrate.svg?url'
 import cloudgpuIcon from '@/assets/llm-icons/cloudgpu.svg?url'
@@ -211,6 +212,7 @@ export const modelIcons = {
   litellm: litellmColorIcon,
   opper: opperColorIcon,
   trustedrouter: trustedrouterIcon,
+  standardcompute: standardcomputeIcon,
   aistupidlevel: aistupidlevelIcon,
   runcrate: runcrateIcon,
   cloudgpu: cloudgpuIcon,
@@ -300,6 +302,7 @@ const monoIconUrls = new Set<string>([
   atlascloudIcon,
   opperColorIcon,
   trustedrouterIcon,
+  standardcomputeIcon,
   aistupidlevelIcon,
   runcrateIcon,
   cloudgpuIcon,
