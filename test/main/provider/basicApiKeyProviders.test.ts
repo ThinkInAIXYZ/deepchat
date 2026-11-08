@@ -1901,38 +1901,50 @@ describe('basic API-key provider registrations', () => {
     )
   })
 
-  it('checks UberLLM with a chat model instead of its public model list', async () => {
-    const defaults = DEFAULT_PROVIDERS.find((provider) => provider.id === 'uberllm')!
-    expect(defaults).toBeDefined()
-    const config = { ...defaults, apiKey: 'test-key' }
-    // UberLLM's /v1/models answers without a key, so listing models cannot validate one.
-    expect(resolveAiSdkProviderDefinition(config)).toMatchObject({
-      runtimeKind: 'openai-compatible',
-      modelSource: 'openai',
-      checkStrategy: 'generate-text',
-      credentialStrategy: 'api-key',
-      embeddingStrategy: 'none',
-      checkModelId: 'deepseek/deepseek-v4.1-flash'
-    })
-    const provider = new AiSdkProvider(config, createProviderSettings())
-    ;(provider as any).isInitialized = true
+  it('accepts a zero-balance UberLLM key without calling a model', async () => {
+    const defaults = DEFAULT_PROVIDERS.find(({ id }) => id === 'uberllm')!
+    const provider = new AiSdkProvider(
+      { ...defaults, apiKey: 'ull_byok_test', baseUrl: `${defaults.baseUrl}/` },
+      createProviderSettings()
+    )
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(Response.json({ balance_usd: 0, held_usd: 0, available_usd: 0 }))
+    global.fetch = fetchMock
 
     await expect(provider.check()).resolves.toEqual({ isOk: true, errorMsg: null })
-    expect(mockRunAiSdkGenerateText).toHaveBeenCalledWith(
+    expect(fetchMock).toHaveBeenCalledExactlyOnceWith(
+      'https://api.uberllm.dev/v1/balance',
       expect.objectContaining({
-        providerKind: 'openai-compatible',
-        provider: expect.objectContaining({
-          id: 'uberllm',
-          apiKey: 'test-key',
-          baseUrl: 'https://api.uberllm.dev/v1'
-        })
-      }),
-      [{ role: 'user', content: 'Hello' }],
-      'deepseek/deepseek-v4.1-flash',
-      expect.any(Object),
-      0.2,
-      16
+        method: 'GET',
+        headers: expect.objectContaining({ Authorization: 'Bearer ull_byok_test' })
+      })
     )
+    expect(mockRunAiSdkGenerateText).not.toHaveBeenCalled()
+  })
+
+  it('rejects a missing or invalid UberLLM key', async () => {
+    const defaults = DEFAULT_PROVIDERS.find(({ id }) => id === 'uberllm')!
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(Response.json({ error: { message: 'Invalid API key' } }, { status: 401 }))
+    global.fetch = fetchMock
+
+    const missingKey = new AiSdkProvider(defaults, createProviderSettings())
+    await expect(missingKey.check()).resolves.toEqual({
+      isOk: false,
+      errorMsg: 'Missing API key'
+    })
+    expect(fetchMock).not.toHaveBeenCalled()
+
+    const invalidKey = new AiSdkProvider(
+      { ...defaults, apiKey: 'ull_invalid_test' },
+      createProviderSettings()
+    )
+    await expect(invalidKey.check()).resolves.toEqual({
+      isOk: false,
+      errorMsg: expect.stringContaining('Invalid API key')
+    })
   })
 
   it('lists every CloudGPU catalog id except non-chat models', async () => {

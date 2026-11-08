@@ -2659,6 +2659,22 @@ export class AiSdkProvider extends BaseLLMProvider {
           usage: `$${usageUsd.toFixed(2)}`
         }
       }
+      case 'uberllm': {
+        const credentialError = this.validateCredentials('api-key')
+        if (credentialError) throw new Error(credentialError)
+
+        const baseUrl = this.provider.baseUrl.replace(/\/+$/, '')
+        const balance = await this.requestProviderJson<{ available_usd: number } | null>(
+          `${baseUrl}/balance`,
+          { method: 'GET' },
+          this.getModelFetchTimeout()
+        )
+        if (!balance || !Number.isFinite(balance.available_usd)) {
+          throw new Error('Invalid UberLLM balance response')
+        }
+        // Prepaid credit is not required for requests routed through a BYOK provider.
+        return { limit_remaining: `$${balance.available_usd}` }
+      }
       case 'modelscope': {
         const response = await this.fetchOpenAIModelRecords({ timeout: 10000 })
         return {
