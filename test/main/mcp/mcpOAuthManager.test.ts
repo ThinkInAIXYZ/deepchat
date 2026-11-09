@@ -26,6 +26,7 @@ import { McpOAuthManager } from '@/mcp/mcpOAuthManager'
 import { McpEnterpriseIdentityManager } from '@/mcp/enterpriseIdentityManager'
 import type { McpOAuthCredentialStore } from '@/mcp/oauthCredentialStore'
 import type { McpSettings } from '@/mcp/settings'
+import type { MCPServerConfig } from '@shared/types/mcp'
 
 const createStore = (entry: unknown): McpOAuthCredentialStore =>
   ({
@@ -55,6 +56,42 @@ describe('McpOAuthManager', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
+  })
+
+  it('refreshes interactive authorization before exporting a volatile native transport token', async () => {
+    const store = createStore(null)
+    const manager = new McpOAuthManager(store, publishDeepchatEventMock)
+    let accessToken = 'expired'
+    const provider = {
+      tokens: async () => ({ access_token: accessToken, token_type: 'Bearer' })
+    } as Awaited<ReturnType<McpOAuthManager['createRuntimeProvider']>>
+    vi.spyOn(manager, 'createRuntimeProvider').mockResolvedValue(provider)
+    authMock.mockImplementationOnce(async () => {
+      accessToken = 'fresh-native-token'
+      return 'AUTHORIZED'
+    })
+    const config: MCPServerConfig = {
+      command: '',
+      args: [],
+      env: {},
+      descriptions: '',
+      icons: '',
+      enabled: true,
+      type: 'http',
+      baseUrl: 'https://mcp.example/mcp',
+      authorization: { mode: 'interactive', scopes: ['read'] },
+      ...serverIdentity
+    }
+    await expect(manager.nativeAuthorization('native', config)).resolves.toBe(
+      'Bearer fresh-native-token'
+    )
+    expect(authMock).toHaveBeenCalledWith(provider, {
+      serverUrl: config.baseUrl,
+      scope: 'read'
+    })
+    expect(store.saveEntry).not.toHaveBeenCalled()
+    authMock.mockResolvedValueOnce('REDIRECT')
+    await expect(manager.nativeAuthorization('native', config)).rejects.toThrow('requires sign-in')
   })
 
   it('keeps authenticated credentials ahead of stale non-pending errors', async () => {

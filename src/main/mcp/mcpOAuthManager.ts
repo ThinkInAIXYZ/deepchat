@@ -407,6 +407,27 @@ export class McpOAuthManager {
     return provider
   }
 
+  /** A volatile token for the injected native MCP transport; account and refresh ownership stay here. */
+  async nativeAuthorization(
+    serverName: string,
+    config: MCPServerConfig
+  ): Promise<string | undefined> {
+    const provider = await this.createRuntimeProvider(serverName, config)
+    if (!provider) return undefined
+    if (getAuthorizationMode(config) === 'interactive') {
+      // Non-interactive provider: this can refresh a saved credential, never open a login UI.
+      const result = await auth(provider, {
+        serverUrl: config.baseUrl!,
+        scope: config.authorization?.scopes?.join(' ')
+      })
+      if (result !== 'AUTHORIZED') throw new Error('MCP authorization requires sign-in')
+    }
+    const tokens = await provider.tokens()
+    if (!tokens?.access_token || /[\r\n]/.test(tokens.access_token))
+      throw new Error('MCP authorization did not produce a usable access token')
+    return `Bearer ${tokens.access_token}`
+  }
+
   handleConnectionError(
     serverName: string,
     config: Partial<MCPServerConfig>,

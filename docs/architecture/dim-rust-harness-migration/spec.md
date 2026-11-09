@@ -137,7 +137,7 @@ TS 插件通过 App Server 的 `--session-rows`、`--node`、`--js-runtime` 接�
 - DeepChat UI 的权限、问题交互、队列操作与 session 控制。插件调用 dim 对应 owner，ACP client 继续走 DeepChat 原路径。
 - 必要的产品配置导入、工作区授权和凭据绑定。模型请求不得从这个插件回调旧 AI SDK。
 
-`deepchat-host` 在 `apply` 中通过 `ctx.use` 获取 dim 的 named services；使用 `partRegistry` 注册 Session/branch parts，使用 `toolRegistry` 注入产品工具，使用 `managementMethods` / `sessionMethods` 暴露桌面调用面，经 `dispatcher.consume` 订阅结果。会话、队列、审批、context、模型由对应 dim owner 执行。
+`deepchat-host` 的 JS parts 在 `apply` 中通过 `ctx.use` 获取 dim 的 named services，注册 Session/branch parts 与桌面方法，并订阅结果。原生装配中的 `DeepChatProductTools` Session 插件使用 Rust `ToolRegistry.register_source` / `ToolProvider` 发布产品目录，使用 `SessionMethods` 暴露刷新接口；`ToolHandler` 只访问私有产品能力网关。目录接受后还要等待 dim 公共 `PromptSnapshot` 确认 ToolBinding 已采用，才允许桌面提交。无效目录撤回，原生工具同名注册被拒绝，调用继续由 dim 执行和取消。会话、队列、审批、context、模型由对应 dim owner 执行。
 
 第一实施阶段固定以下 typed 产品接口（为拟实现插件接口，不宣称这些名称已存在于 dim）：
 
@@ -165,6 +165,8 @@ dim 已有 `mcp.catalog/configuration/save/update/remove/inspect`、OAuth 和 Se
 3. 通用 stdio/HTTP/SSE server 的连接、重连、认证、工具发现、取消归 dim。每个 server identity 只有一个运行 owner。
 4. DeepChat in-memory MCP、企业身份和尚不兼容的 MCP Apps 等作为明确的桥接能力保留。能迁入 dim 原生 MCP 后移除 adapter；不通过两个 manager 同时连同一 server。
 5. 原有插件的 Skills/Hooks 接入 dim 的对应 owner；保持撤销、更新期间冻结、context 来源、调用次数与预算语义。禁用插件必须撤销新调用和过期授权。
+
+当前已实现 `DimMcp`：通过 `session.mcp_temporary.attach/renew/detach` 将所选配置挂到原生 Session，目录和调用由 dim MCP 持有。DeepChat 只续期桌面授权，更新/撤销先卸载旧绑定；30 秒原生租约在桌面失联时到期。配置与凭据不写入 dim 设置或 Timeline。配置导出保留 DeepChat 的 OAuth/企业身份 owner，通过临时 token 交给原生 transport；in-memory 与产品管理的进程列为兼容桥候选。主 composition、stdio 的桌面环境/运行时打包映射，以及产品服务目录仍待接入，尚未宣布消除旧 MCP 运行图。
 
 ### 5.3 deepchat-storage
 

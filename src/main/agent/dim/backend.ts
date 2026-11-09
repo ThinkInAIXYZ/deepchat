@@ -43,7 +43,7 @@ export interface DimBackendOptions {
   ): Promise<DimPreparedInput>
   // Configuration adoption and on-demand conversion complete before native admission.
   prepareNative(sessionId: string, context?: StartContext): Promise<void>
-  closed(sessionId: string): void
+  closed(sessionId: string): void | Promise<void>
 }
 
 /** The built-in backend is a product facade. dim owns every accepted turn and queued input. */
@@ -94,7 +94,7 @@ export function createDimSessionBackend(options: DimBackendOptions): DeepChatAge
       if (database.dimSessionBindingsTable.get(sessionId)) await runtime.cancel(sessionId)
     } finally {
       await runtime.close(sessionId)
-      options.closed(sessionId)
+      await options.closed(sessionId)
     }
   }
   const port: DeepChatAgentBackendPort = {

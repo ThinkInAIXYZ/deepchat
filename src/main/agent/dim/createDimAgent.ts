@@ -21,6 +21,7 @@ import { DimScopeTransitions } from './scopeTransitions'
 import { DimInteractions } from './interactions'
 import { DimQueue } from './queue'
 import { DimTranscriptMutations } from './transcriptMutations'
+import { DimMcp, type DimMcpServer } from './mcp'
 import { createDimSessionBackend, type DimBackendOptions } from './backend'
 
 interface DimAgentOptions {
@@ -38,6 +39,7 @@ interface DimAgentOptions {
   committed(sessionId: string, event: DimEvent): void
   failed(sessionId: string, error: unknown): void
   refreshTools(binding: DimSessionBinding): Promise<void>
+  mcpServers(binding: DimSessionBinding): Promise<Record<string, DimMcpServer>>
   closed(sessionId: string): void
   invalidateHistory(sessionId: string, fromOrderSeq: number): void | Promise<void>
   beginDestroy(sessionId: string): void | Promise<void>
@@ -53,6 +55,19 @@ export function createDimAgent(options: DimAgentOptions) {
   const controls = new DimSessionControls(host)
   const content = new DimContent(host)
   const profiles = new DimAgentProfiles(host)
+  const mcp = new DimMcp({
+    host,
+    isCurrent: (binding) => {
+      const current = database.dimSessionBindingsTable.get(binding.sessionId)
+      return (
+        current?.dimSessionId === binding.dimSessionId &&
+        current.branchId === binding.branchId &&
+        current.generation === binding.generation
+      )
+    },
+    resolve: options.mcpServers,
+    failed: options.failed
+  })
   const settings = new DimSessionSettings({
     database,
     state,
@@ -103,6 +118,7 @@ export function createDimAgent(options: DimAgentOptions) {
     const binding = await transitions.ensureCreation(sessionId, await settings.creation(sessionId))
     // This is the inference admission check. History-only model registration above cannot skip it.
     await settings.prepare(binding)
+    await mcp.refresh(binding)
     await options.refreshTools(binding)
     await runtime.open(sessionId)
   }
@@ -131,13 +147,15 @@ export function createDimAgent(options: DimAgentOptions) {
     projectDir: (id) => database.newSessionsTable.get(id)?.project_dir ?? null,
     invalidate: options.invalidateHistory
   })
-  const forget = (sessionId: string) => {
+  const forget = async (sessionId: string) => {
+    await mcp.close(sessionId)
     views.forget(sessionId)
     context.forget(sessionId)
     options.closed(sessionId)
   }
   const destroy = async (sessionId: string): Promise<void> => {
     await options.beginDestroy(sessionId)
+    await mcp.close(sessionId)
     await runtime.close(sessionId)
     const pending = database.dimScopeChangesTable.get(sessionId)
     const binding = database.dimSessionBindingsTable.get(sessionId)
@@ -165,7 +183,7 @@ export function createDimAgent(options: DimAgentOptions) {
       options.deleteLegacyMetadata(sessionId)
       database.deepchatSessionsTable.delete(sessionId)
     })()
-    forget(sessionId)
+    await forget(sessionId)
     options.finishDestroy(sessionId)
   }
   const backend = createDimSessionBackend({
@@ -203,5 +221,5 @@ export function createDimAgent(options: DimAgentOptions) {
       compactSession: context.compactSession
     }
   })
-  return { backend, runtime, settings, mutations, transitions, prepareNative, prepareHistory }
+  return { backend, runtime, settings, mutations, transitions, mcp, prepareNative, prepareHistory }
 }

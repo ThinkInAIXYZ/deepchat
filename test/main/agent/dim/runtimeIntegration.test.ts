@@ -272,10 +272,55 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
     let holdQueue = false
     let heldQueueResponse: ServerResponse | null = null
     let nextTools: Array<{ id: string; name: string; arguments: object }> | null = null
+    let mcpEnabled = false
+    let mcpToken = 'native-mcp-first'
+    let nextMcpCall = false
+    const mcpCalls: string[] = []
     const fixture = createServer(async (req, res) => {
       let payload = ''
       for await (const data of req) payload += data
       const body = payload ? JSON.parse(payload) : {}
+      if (req.url === '/native-mcp') {
+        if (req.method !== 'POST') {
+          res.writeHead(405)
+          res.end()
+          return
+        }
+        if (req.headers.authorization !== `Bearer ${mcpToken}`) {
+          res.writeHead(401)
+          res.end()
+          return
+        }
+        if (body.id === undefined) {
+          res.writeHead(202)
+          res.end()
+          return
+        }
+        let result: object = {}
+        if (body.method === 'initialize')
+          result = {
+            protocolVersion: '2025-03-26',
+            capabilities: { tools: {} },
+            serverInfo: { name: 'native-mcp-fixture', version: '1' }
+          }
+        if (body.method === 'tools/list')
+          result = {
+            tools: [
+              {
+                name: 'native_echo',
+                description: 'Native MCP migration fixture',
+                inputSchema: { type: 'object', properties: {}, additionalProperties: false }
+              }
+            ]
+          }
+        if (body.method === 'tools/call') {
+          mcpCalls.push(req.headers.authorization!)
+          result = { content: [{ type: 'text', text: 'native MCP result' }] }
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ jsonrpc: '2.0', id: body.id, result }))
+        return
+      }
       requests.push({ authorization: req.headers.authorization, body })
       const titleRequest = JSON.stringify(body.messages ?? []).includes(
         'Write a short title for this conversation:'
@@ -302,6 +347,14 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
       }
       if (body.stream) {
         res.writeHead(200, { 'Content-Type': 'text/event-stream' })
+        if (nextMcpCall && !titleRequest) {
+          const tool = body.tools?.find((item: { function?: { description?: string } }) =>
+            item.function?.description?.includes('Native MCP migration fixture')
+          )
+          if (!tool) throw new Error('The native MCP catalog is missing from the model request')
+          nextMcpCall = false
+          nextTools = [{ id: randomUUID(), name: tool.function.name, arguments: {} }]
+        }
         if (nextTools && !titleRequest) {
           const tools = nextTools
           nextTools = null
@@ -358,6 +411,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
     let admittedProvider = ''
     let credentialValue = 'fixture-secret-only'
     let providerEnabled = true
+    let productCatalogVersion = 'facade-only'
     const productToolCalls: DimProductToolCall[] = []
     const gateway = new DimProductGateway({
       resolve: async (nativeId) => {
@@ -365,7 +419,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
           grants.data.dimSessionBindingsTable.getByNative(nativeId)?.sessionId === 'facade-product'
         )
           return {
-            version: 'facade-only',
+            version: productCatalogVersion,
             tools: [
               {
                 name: 'deepchat_facade_echo',
@@ -1571,6 +1625,16 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
           completed: () => {},
           committed: () => {},
           failed: (_id, error) => importFailures.push(error),
+          mcpServers: async () =>
+            mcpEnabled
+              ? {
+                  fixture: {
+                    type: 'http',
+                    url: `http://127.0.0.1:${(fixture.address() as { port: number }).port}/native-mcp`,
+                    headers: { Authorization: `Bearer ${mcpToken}` }
+                  }
+                }
+              : {},
           refreshTools: async (binding) => {
             await (
               await host.start()
@@ -1697,6 +1761,28 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
           'after cancelled retry'
         )
         expect(grants.data.deepchatMessagesTable.getBySession(facadeId)).toHaveLength(5)
+        await facade.backend.setPermissionMode(facadeId, 'full_access')
+        mcpEnabled = true
+        productCatalogVersion = 'facade-mcp-coexist'
+        nextMcpCall = true
+        await facade.backend.send(facadeId, { content: { text: 'use native MCP' } })
+        await facade.runtime.waitIdle(facadeId)
+        expect(mcpCalls).toEqual(['Bearer native-mcp-first'])
+        await facade.runtime.close(facadeId)
+        await host.stop()
+        await facade.runtime.open(facadeId)
+        mcpToken = 'native-mcp-rotated'
+        nextMcpCall = true
+        await facade.backend.send(facadeId, { content: { text: 'use rotated native MCP' } })
+        await facade.runtime.waitIdle(facadeId)
+        expect(mcpCalls).toEqual(['Bearer native-mcp-first', 'Bearer native-mcp-rotated'])
+        mcpEnabled = false
+        await facade.backend.send(facadeId, { content: { text: 'native MCP was disabled' } })
+        await facade.runtime.waitIdle(facadeId)
+        expect(JSON.stringify(conversationRequests().at(-1)!.body.tools)).not.toContain(
+          'Native MCP migration fixture'
+        )
+        expect(productToolCalls).toHaveLength(1)
         const facadeScopes = grants.data.dimSessionScopesTable.list(facadeId)
         expect(facadeScopes).toHaveLength(4)
         await facade.backend.destroySession(facadeId)
@@ -1735,6 +1821,55 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
   'executes product tools inside dim and reloads their scoped catalog with cancellation',
   async () => {
     const profile = await mkdtemp(path.join(os.tmpdir(), 'dc-dim-tools-'))
+    const fixture = createServer(async (request, response) => {
+      let payload = ''
+      for await (const chunk of request) payload += chunk
+      const body = JSON.parse(payload)
+      const last = body.messages?.at(-1)
+      const title = JSON.stringify(body.messages).includes(
+        'Write a short title for this conversation:'
+      )
+      const text =
+        typeof last?.content === 'string'
+          ? last.content
+          : Array.isArray(last?.content)
+            ? last.content
+                .filter((part: { type: string }) => part.type === 'text')
+                .map((part: { text: string }) => part.text)
+                .join('\n')
+            : ''
+      const tool = !title && last?.role === 'user' ? text.match(/^tool:(\w+) (.*)$/s) : null
+      const message = tool
+        ? {
+            role: 'assistant',
+            tool_calls: [
+              {
+                id: randomUUID(),
+                type: 'function',
+                function: { name: tool[1], arguments: tool[2] }
+              }
+            ]
+          }
+        : { role: 'assistant', content: 'Native tool fixture response' }
+      const finishReason = tool ? 'tool_calls' : 'stop'
+      const result = {
+        id: randomUUID(),
+        object: 'chat.completion',
+        model: 'fixture',
+        created: 0,
+        choices: [{ index: 0, message, finish_reason: finishReason }]
+      }
+      if (body.stream) {
+        response.writeHead(200, { 'Content-Type': 'text/event-stream' })
+        response.end(
+          `data: ${JSON.stringify({ ...result, object: 'chat.completion.chunk', choices: [{ index: 0, delta: { ...message, ...(tool ? { tool_calls: message.tool_calls!.map((call, index) => ({ ...call, index })) } : {}) }, finish_reason: finishReason }] })}\n\ndata: [DONE]\n\n`
+        )
+      } else {
+        response.writeHead(200, { 'Content-Type': 'application/json' })
+        response.end(JSON.stringify(result))
+      }
+    })
+    await new Promise<void>((resolve) => fixture.listen(0, '127.0.0.1', resolve))
     let version = 'one'
     let names = ['deepchat_echo', 'deepchat_hold']
     const calls: DimProductToolCall[] = []
@@ -1776,17 +1911,43 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
         'runtime/node',
         ...(process.platform === 'win32' ? ['node.exe'] : ['bin', 'node'])
       ),
-      profile: 'mock',
+      nativePlugins: true,
       gatewayAddress: await gateway.start()
     })
     try {
       const client = await host.start()
+      const model = await new DimModelBridge(host).configure({
+        key: 'native-tools-fixture',
+        displayName: 'Native tools fixture',
+        connection: {
+          driverKind: 'openai-compatible',
+          baseUrl: `http://127.0.0.1:${(fixture.address() as { port: number }).port}/v1`,
+          auth: { type: 'anonymous' }
+        },
+        model: {
+          modelId: 'fixture',
+          displayName: 'Native tools fixture',
+          status: 'active',
+          capabilities: {
+            modalities: ['text'],
+            structuredOutput: false,
+            vision: false,
+            audio: false,
+            reasoning: false,
+            contextWindow: 65536,
+            maxOutputTokens: 4096,
+            toolCalling: true,
+            streaming: true
+          }
+        }
+      })
       const { agentId } = await client.call<{ agentId: string }>('agent.create', {
         profile: { name: 'DeepChat tools fixture', description: '', systemPrompt: '' }
       })
       const { sessionId } = await client.call<{ sessionId: string }>('deepchat.host.launch', {
         cwd: profile,
         agent: agentId,
+        model: { ...model },
         policy: { preset: 'full-access' }
       })
       const ref = { sessionId, branchId: 'main' }
@@ -1847,6 +2008,11 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
           })
         })
       )
+      version = 'refused-native-shadow'
+      names = ['read']
+      await expect(client.call('session.deepchat_tools.refresh', ref)).rejects.toThrow(
+        'Native tool registry rejected the product catalog'
+      )
       version = 'two'
       names = ['deepchat_changed', 'deepchat_hold']
       expect(await client.call('session.deepchat_tools.refresh', ref)).toEqual({
@@ -1863,6 +2029,8 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
       await expect.poll(() => cancelled).toBe(true)
       await host.stop()
       const restored = await host.start()
+      await restored.call('deepchat.storage.history', { ...ref, limit: 1 })
+      await restored.call('session.deepchat_tools.refresh', ref)
       await restored.call('deepchat.host.input', {
         ...ref,
         mode: 'queue',
@@ -1878,6 +2046,8 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
     } finally {
       await host.stop()
       await gateway.stop()
+      fixture.closeAllConnections()
+      await new Promise<void>((resolve) => fixture.close(() => resolve()))
       await rm(profile, { recursive: true, force: true })
     }
   },

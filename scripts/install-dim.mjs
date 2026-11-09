@@ -185,6 +185,7 @@ export async function installDimPlugins(target = path.join(root, 'runtime/dim/pl
     ],
     { stdio: 'inherit' }
   )
+  await rm(path.join(target, 'modules'), { recursive: true, force: true })
   await cp(path.join(root, 'plugins/dim'), path.join(target, 'modules'), { recursive: true })
   await cp(dimLockPath, path.join(target, 'runtime-lock.json'))
   await cp(
