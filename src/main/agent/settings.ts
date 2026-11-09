@@ -130,11 +130,15 @@ const withDeepChatAgentDefaults = (config: DeepChatAgentConfig): DeepChatAgentCo
     : [...DEFAULT_DISABLED_AGENT_TOOLS]
 })
 
-const mergeDisabledAgentTools = (
-  disabledAgentTools: DeepChatAgentConfig['disabledAgentTools'],
-  tools: readonly string[]
+const mergeDefaultDisabledAgentTools = (
+  disabledAgentTools: DeepChatAgentConfig['disabledAgentTools']
 ): string[] =>
-  Array.from(new Set([...(Array.isArray(disabledAgentTools) ? disabledAgentTools : []), ...tools]))
+  Array.from(
+    new Set([
+      ...(Array.isArray(disabledAgentTools) ? disabledAgentTools : []),
+      ...DEFAULT_DISABLED_AGENT_TOOLS
+    ])
+  )
 
 const hasMemoryMaintenanceTriggerConfigUpdate = (
   updates: Partial<DeepChatAgentConfig> | null | undefined
@@ -215,6 +219,7 @@ export class AgentSettings implements AgentSettingsPort {
         logger.warn('[AgentSettings] Failed to materialize independent Agent configs.', { error })
       }
     }
+    this.seedHtmlRenderToolsDisabled()
     this.provider.setAcpProviderEnabled(this.acpCatalog.getGlobalEnabled())
     const previousAgents = this.registry.listAgents()
     void this.registry
@@ -481,6 +486,7 @@ export class AgentSettings implements AgentSettingsPort {
       ...input,
       config: {
         ...config,
+        disabledAgentTools: config.disabledAgentTools ?? [...DEFAULT_DISABLED_AGENT_TOOLS],
         autoCompactionEnabled:
           config.autoCompactionEnabled ??
           this.settings.get<boolean>('autoCompactionEnabled') ??
@@ -726,32 +732,38 @@ export class AgentSettings implements AgentSettingsPort {
     }
 
     if (migratedVersion < 2) {
-      this.seedDisabledAgentTools(DEFAULT_DISABLED_AGENT_TOOLS)
+      for (const agent of this.repository.listAgents({ agentType: 'deepchat' })) {
+        const config = this.repository.getDeepChatAgentConfig(agent.id) ?? {}
+        if (agent.id !== BUILTIN_DEEPCHAT_AGENT_ID && !Array.isArray(config.disabledAgentTools)) {
+          continue
+        }
+        const disabledAgentTools = mergeDefaultDisabledAgentTools(config.disabledAgentTools)
+        if (
+          !Array.isArray(config.disabledAgentTools) ||
+          disabledAgentTools.length !== config.disabledAgentTools.length ||
+          disabledAgentTools.some((tool) => !config.disabledAgentTools?.includes(tool))
+        ) {
+          this.repository.updateDeepChatAgent(agent.id, { config: { disabledAgentTools } })
+        }
+      }
       migratedVersion = 2
       this.settings.set('unifiedAgentsMigrationVersion', migratedVersion)
-    }
-    if (!this.settings.get<boolean>(HTML_RENDER_TOOLS_SEEDED_KEY)) {
-      this.seedDisabledAgentTools(HTML_RENDER_AGENT_TOOL_NAMES)
-      this.settings.set(HTML_RENDER_TOOLS_SEEDED_KEY, true)
     }
     if (!registryAgentsSynced) this.syncRegistryAgentsToRepository()
   }
 
-  // Opt-in tools start disabled in existing agents too; sessions keep the tool list they started with.
-  private seedDisabledAgentTools(tools: readonly string[]): void {
+  // Runs after Agent configs are independent, where a missing list means every tool is enabled.
+  // Sessions keep the tool list they started with.
+  private seedHtmlRenderToolsDisabled(): void {
+    if (this.settings.get<boolean>(HTML_RENDER_TOOLS_SEEDED_KEY)) return
     for (const agent of this.repository.listAgents({ agentType: 'deepchat' })) {
-      const config = this.repository.getDeepChatAgentConfig(agent.id) ?? {}
-      if (agent.id !== BUILTIN_DEEPCHAT_AGENT_ID && !Array.isArray(config.disabledAgentTools)) {
-        continue
-      }
-      const disabledAgentTools = mergeDisabledAgentTools(config.disabledAgentTools, tools)
-      if (
-        !Array.isArray(config.disabledAgentTools) ||
-        disabledAgentTools.length !== config.disabledAgentTools.length
-      ) {
+      const current = this.repository.getDeepChatAgentConfig(agent.id)?.disabledAgentTools ?? []
+      const disabledAgentTools = Array.from(new Set([...current, ...HTML_RENDER_AGENT_TOOL_NAMES]))
+      if (disabledAgentTools.length !== current.length) {
         this.repository.updateDeepChatAgent(agent.id, { config: { disabledAgentTools } })
       }
     }
+    this.settings.set(HTML_RENDER_TOOLS_SEEDED_KEY, true)
   }
 
   private materializeIndependentDeepChatAgentConfigs(): void {

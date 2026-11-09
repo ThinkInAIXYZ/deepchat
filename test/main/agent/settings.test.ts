@@ -355,28 +355,27 @@ describe('AgentSettings migrations', () => {
     expect(store.set).toHaveBeenCalledWith('unifiedAgentsMigrationVersion', 2)
   })
 
-  it('disables html_render in migrated agents without re-disabling tools users enabled', () => {
+  it('disables html_render in every agent once without re-disabling tools users enabled', () => {
     const repository = {
-      ensureBuiltinDeepChatAgent: vi.fn(),
-      listAgents: vi.fn(() => [{ id: BUILTIN_DEEPCHAT_AGENT_ID }]),
-      getDeepChatAgentConfig: vi.fn(() => ({ disabledAgentTools: ['tool-a'] })),
+      listAgents: vi.fn(() => [{ id: BUILTIN_DEEPCHAT_AGENT_ID }, { id: 'deepchat-no-list' }]),
+      getDeepChatAgentConfig: vi.fn((agentId: string) =>
+        agentId === BUILTIN_DEEPCHAT_AGENT_ID ? { disabledAgentTools: ['tool-a'] } : {}
+      ),
       updateDeepChatAgent: vi.fn()
     }
-    const store = {
-      get: vi.fn((key: string) => (key === 'unifiedAgentsMigrationVersion' ? 3 : undefined)),
-      set: vi.fn()
-    }
+    const store = { get: vi.fn(() => undefined), set: vi.fn() }
     const settings = Object.assign(Object.create(AgentSettings.prototype), {
       repository,
-      settings: store,
-      syncRegistryAgentsToRepository: vi.fn()
+      settings: store
     }) as AgentSettings
 
-    ;(settings as any).initializeUnifiedAgents()
+    ;(settings as any).seedHtmlRenderToolsDisabled()
 
-    expect(repository.updateDeepChatAgent).toHaveBeenCalledOnce()
     expect(repository.updateDeepChatAgent).toHaveBeenCalledWith(BUILTIN_DEEPCHAT_AGENT_ID, {
       config: { disabledAgentTools: ['tool-a', 'html_render', 'html_render_section'] }
+    })
+    expect(repository.updateDeepChatAgent).toHaveBeenCalledWith('deepchat-no-list', {
+      config: { disabledAgentTools: ['html_render', 'html_render_section'] }
     })
     expect(store.set).toHaveBeenCalledWith('htmlRenderToolsSeeded', true)
   })
@@ -441,7 +440,7 @@ describe('AgentSettings app defaults', () => {
 })
 
 describe('AgentSettings DeepChat mutations', () => {
-  it('snapshots app auto-compaction defaults when creating an Agent', async () => {
+  it('snapshots app defaults when creating an Agent', async () => {
     const createDeepChatAgent = vi.fn((input: CreateDeepChatAgentInput) => ({
       id: 'writer',
       type: 'deepchat',
@@ -470,6 +469,7 @@ describe('AgentSettings DeepChat mutations', () => {
       name: 'Explicit',
       config: {
         systemPrompt: 'Concise.',
+        disabledAgentTools: [],
         autoCompactionEnabled: true,
         autoCompactionTriggerThreshold: 73,
         autoCompactionRetainRecentPairs: 7.4
@@ -479,6 +479,7 @@ describe('AgentSettings DeepChat mutations', () => {
     expect(createDeepChatAgent).toHaveBeenNthCalledWith(1, {
       name: 'Defaulted',
       config: {
+        disabledAgentTools: [...DEFAULT_DISABLED_AGENT_TOOLS],
         autoCompactionEnabled: false,
         autoCompactionTriggerThreshold: 65,
         autoCompactionRetainRecentPairs: 4
@@ -488,6 +489,7 @@ describe('AgentSettings DeepChat mutations', () => {
       name: 'Explicit',
       config: {
         systemPrompt: 'Concise.',
+        disabledAgentTools: [],
         autoCompactionEnabled: true,
         autoCompactionTriggerThreshold: 75,
         autoCompactionRetainRecentPairs: 7
