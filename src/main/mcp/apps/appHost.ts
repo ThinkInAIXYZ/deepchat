@@ -600,31 +600,22 @@ export class McpAppHost implements McpAppHostPort {
   }
 
   async openLink(instanceId: string, url: string, context: McpAppRouteContext): Promise<boolean> {
-    const instance = await this.assertLinkSourceCurrent(instanceId, context)
+    const instance = this.assertLiveInstance(instanceId, context)
+    await this.assertDescriptorCurrent(instance.descriptor)
     const normalizedUrl = normalizeExternalUrl(url)
     const approved = await this.deps.registry.requestConsent(instance, {
       kind: 'open-link',
-      title: instance.title,
+      title: instance.descriptor.toolName,
       detail: normalizedUrl,
       url: normalizedUrl
     })
     if (!approved) {
       return false
     }
-    await this.assertLinkSourceCurrent(instanceId, context)
+    this.assertLiveInstance(instanceId, context)
+    await this.assertDescriptorCurrent(instance.descriptor)
     await shell.openExternal(normalizedUrl)
     return true
-  }
-
-  private async assertLinkSourceCurrent(
-    instanceId: string,
-    context: McpAppRouteContext
-  ): Promise<McpAppSandboxInstance> {
-    const instance = this.deps.registry.assertOwned(instanceId, context)
-    if (instance.descriptor) {
-      await this.assertDescriptorCurrent(this.assertLiveInstance(instanceId, context).descriptor)
-    }
-    return instance
   }
 
   async authorizeMessage(

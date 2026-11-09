@@ -159,7 +159,7 @@ describe('MCP App host', () => {
     await expect(host.prepareHtmlRenderView(input, context)).rejects.toThrow()
   })
 
-  it('denies MCP server actions to an html_render page', async () => {
+  it('denies MCP server actions and links to an html_render page', async () => {
     const { client, host, registry } = createHarness()
     registry.assertOwned.mockReturnValue({
       ...registry.assertOwned(),
@@ -170,7 +170,7 @@ describe('MCP App host', () => {
     await expect(host.callTool('instance-id', 'render_chart', {}, context)).rejects.toThrow()
     await expect(host.listTools('instance-id', undefined, context)).rejects.toThrow()
     expect(client.callTool).not.toHaveBeenCalled()
-    await expect(host.openLink('instance-id', 'https://example.com/', context)).resolves.toBe(true)
+    await expect(host.openLink('instance-id', 'https://example.com/', context)).rejects.toThrow()
   })
 
   it('hydrates an exact saved App binding and finds metadata on later resource pages', async () => {

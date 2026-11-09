@@ -133,12 +133,8 @@ const BOOTSTRAP_SCRIPT = `<script>
   document.addEventListener('click', (event) => {
     const anchor = event.target instanceof Element ? event.target.closest('a[href]') : null
     if (!anchor || event.defaultPrevented) return
-    const href = anchor.getAttribute('href') || ''
-    if (href.startsWith('#')) return
+    if ((anchor.getAttribute('href') || '').startsWith('#')) return
     event.preventDefault()
-    if (/^https?:/i.test(anchor.href)) {
-      request('ui/open-link', { url: anchor.href }).catch(() => {})
-    }
   })
   let scriptErrorSent = false
   addEventListener('error', () => {

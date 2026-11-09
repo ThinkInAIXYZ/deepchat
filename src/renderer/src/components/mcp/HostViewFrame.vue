@@ -128,7 +128,7 @@ const connectBridge = async () => {
   const nextBridge = new AppBridge(
     null,
     { name: 'DeepChat', version: 'host-view' },
-    { openLinks: {}, sandbox: { csp: view.csp } },
+    { sandbox: { csp: view.csp } },
     { hostContext: buildHostContext() }
   )
   bridge.value = nextBridge
@@ -145,8 +145,6 @@ const connectBridge = async () => {
     emit('ready')
   }
   nextBridge.onsizechange = ({ height: next }) => handleSizeChange(next)
-  nextBridge.onopenlink = async ({ url }) =>
-    (await mcpClient.openAppLink(view.instanceId, url)) ? {} : { isError: true }
   nextBridge.fallbackNotificationHandler = async ({ method, params }) => {
     emit('notification', method, (params ?? {}) as Record<string, unknown>)
   }
