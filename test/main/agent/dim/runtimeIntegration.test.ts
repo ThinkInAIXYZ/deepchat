@@ -27,6 +27,8 @@ import type { ModelConfig } from '@shared/types/provider'
 import { DimSessionControls } from '@/agent/dim/sessionControls'
 import { DimQueue } from '@/agent/dim/queue'
 import { DimInteractions } from '@/agent/dim/interactions'
+import { DimContext } from '@/agent/dim/context'
+import { DimContent } from '@/agent/dim/content'
 import type { AssistantMessageBlock } from '@shared/types/agent-interface'
 import type { ServerResponse } from 'node:http'
 import { createServer } from 'node:http'
@@ -937,6 +939,39 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
         await desktop.cancel('product-ui')
         await desktop.waitIdle('product-ui')
         expect(pendingAction()).toBeUndefined()
+        const context = new DimContext({
+          database: grants.data,
+          controls: new DimSessionControls(host),
+          content: new DimContent(host),
+          output: createDeepChatOutputProjection({
+            publishEvent: () => {},
+            publishSessionUpdate: () => {}
+          }),
+          prepareNative: async () => {}
+        })
+        expect(await context.getSessionContextOccupancy('legacy-unopened')).toMatchObject({
+          freshness: 'unavailable'
+        })
+        expect(await context.getSessionContextOccupancy('product-ui')).toMatchObject({
+          freshness: 'current',
+          source: 'estimated',
+          contextWindowTokens: 64000,
+          occupiedTokens: expect.any(Number),
+          manifestEntryId: null,
+          requestSeq: null,
+          timeline: { sessionId, branchId: 'main', sequence: expect.stringMatching(/^\d+$/) }
+        })
+        const compacted = await context.compactSession('product-ui')
+        expect(compacted).toMatchObject({ compacted: true, state: { status: 'compacted' } })
+        expect(await context.getSessionCompactionSnapshot('product-ui')).toMatchObject({
+          latestAnchorEntryId: null,
+          timeline: {
+            sessionId,
+            branchId: 'main',
+            sequence: expect.stringMatching(/^\d+$/),
+            eventId: expect.any(String)
+          }
+        })
         await desktop.close('product-ui')
         await host.stop()
         const restored = await host.start()

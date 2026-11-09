@@ -1,7 +1,8 @@
 import type {
   AssistantMessageBlock,
   DeepChatSessionState,
-  SessionCompactionState
+  SessionCompactionState,
+  DimTimelinePosition
 } from '@shared/types/agent-interface'
 import type { DeepChatInternalSessionUpdate } from './sessionUpdates'
 
@@ -36,6 +37,7 @@ export interface DeepChatOutputPort {
       sessionId: string
       emitSeq: number
       latestAnchorEntryId: number | null
+      timeline?: DimTimelinePosition
     }
   ): void
   sessionUpdate(update: DeepChatInternalSessionUpdate): void

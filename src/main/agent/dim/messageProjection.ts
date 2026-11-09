@@ -9,6 +9,7 @@ import { dimSequence, type DimEvent } from './sessionConnection'
 import { dimQuestions } from '@shared/dimQuestions'
 
 export interface DimProjection {
+  event?: DimEvent
   binding: DimSessionBinding
   messages: ChatMessageRecord[]
   retractions?: string[]
@@ -27,7 +28,7 @@ export function projectDimEvent(
   if (dimSequence(event.sequence) <= dimSequence(binding.cursor)) return { binding, messages: [] }
   const next = { ...binding, cursor: String(event.sequence) }
   const messages: ChatMessageRecord[] = []
-  const result: DimProjection = { binding: next, messages }
+  const result: DimProjection = { binding: next, messages, event }
   const key = `${event.type}/${event.name}`
   const now = event.create_at
   const source = event.data.source

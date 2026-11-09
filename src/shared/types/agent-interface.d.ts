@@ -42,6 +42,14 @@ export interface SessionCompactionSnapshot {
   state: SessionCompactionState
   emitSeq: number
   latestAnchorEntryId: number | null
+  timeline?: DimTimelinePosition
+}
+
+export interface DimTimelinePosition {
+  sessionId: string
+  branchId: string
+  sequence: string
+  eventId?: string
 }
 
 export type SessionContextOccupancyFreshness = 'current' | 'stale' | 'unavailable'
@@ -53,10 +61,11 @@ export type SessionContextOccupancySnapshot =
       source: SessionContextOccupancySource
       occupiedTokens: number
       contextWindowTokens: number
-      requestSeq: number
-      manifestEntryId: number
+      requestSeq: number | null
+      manifestEntryId: number | null
       providerAttemptEntryId: number | null
       measuredAt: number
+      timeline?: DimTimelinePosition
     }
   | {
       freshness: 'unavailable'

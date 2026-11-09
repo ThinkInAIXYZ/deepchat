@@ -134,19 +134,27 @@ export const SessionCompactionStateSchema = z.object({
   summaryUpdatedAt: TimestampMsSchema.nullable(),
   boundaryReason: SessionCompactionBoundaryReasonSchema.nullable().default(null)
 })
+export const DimTimelinePositionSchema = z.object({
+  sessionId: z.string().min(1),
+  branchId: z.string().min(1),
+  sequence: z.string().regex(/^\d+$/),
+  eventId: z.string().min(1).optional()
+})
 export const SessionCompactionSnapshotSchema = z.object({
   state: SessionCompactionStateSchema,
   emitSeq: z.number().int().nonnegative(),
-  latestAnchorEntryId: z.number().int().positive().nullable()
+  latestAnchorEntryId: z.number().int().positive().nullable(),
+  timeline: DimTimelinePositionSchema.optional()
 })
 const SessionContextOccupancyEvidenceSchema = z.object({
   source: z.enum(['provider', 'estimated']),
   occupiedTokens: z.number().int().nonnegative(),
   contextWindowTokens: z.number().int().positive(),
-  requestSeq: z.number().int().positive(),
-  manifestEntryId: z.number().int().positive(),
+  requestSeq: z.number().int().positive().nullable(),
+  manifestEntryId: z.number().int().positive().nullable(),
   providerAttemptEntryId: z.number().int().positive().nullable(),
-  measuredAt: TimestampMsSchema
+  measuredAt: TimestampMsSchema,
+  timeline: DimTimelinePositionSchema.optional()
 })
 export const SessionContextOccupancySnapshotSchema = z.discriminatedUnion('freshness', [
   SessionContextOccupancyEvidenceSchema.extend({

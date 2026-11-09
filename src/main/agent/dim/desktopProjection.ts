@@ -12,12 +12,14 @@ import type {
   SessionStatus
 } from '@shared/types/agent-interface'
 import type { DimProjection } from './messageProjection'
+import type { DimEvent } from './sessionConnection'
 
 interface ProjectionOptions {
   output: DeepChatOutputPort
   publishEvent: SessionEventPublisher
   publishStatus: SessionStatusPublisherPorts['publishStatus']
   completed(sessionId: string): void
+  committed?(sessionId: string, event: DimEvent): void
 }
 
 /** Publishes desktop views of committed native facts. It cannot advance execution. */
@@ -29,6 +31,7 @@ export class DimDesktopProjection {
   apply(projection: DimProjection): void {
     const { binding, messages, completed } = projection
     const sessionId = binding.sessionId
+    if (projection.event) this.options.committed?.(sessionId, projection.event)
     const previous = this.observedStatus.get(sessionId)
     this.observedStatus.set(sessionId, binding.status)
     if (previous !== binding.status)
