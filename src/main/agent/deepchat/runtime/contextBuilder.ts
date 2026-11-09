@@ -36,6 +36,7 @@ import {
   isPdfAttachment
 } from '@shared/utils/attachmentRepresentation'
 import { isRetiredWorkflowResultMessageMetadata } from '@shared/orchestration/retiredWorkflowData'
+import { compactHtmlRenderToolArguments } from '@shared/agentHtmlRenderTool'
 import { segmentAssistantBlocksByProviderReplay } from './providerReplaySegments'
 import { inheritProviderProjectionIdentities } from '@/agent/deepchat/loop/providerProjectionIdentity'
 import { hashJsonData } from '@/tape/domain/canonicalJson'
@@ -1135,7 +1136,10 @@ function recordToChatMessagesWithoutProviderReplay(
     toolCalls.push({
       id: toolCall.id,
       type: 'function',
-      function: { name: toolCall.name, arguments: toolCall.params || '{}' },
+      function: {
+        name: toolCall.name,
+        arguments: compactHtmlRenderToolArguments(toolCall.name, toolCall.params || '{}')
+      },
       ...(getBlockProviderOptions(block)
         ? { provider_options: getBlockProviderOptions(block) }
         : {})

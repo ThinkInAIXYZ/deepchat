@@ -201,6 +201,17 @@ back to the model.
 The HTML already lives in the tool block's `tool_params` (stored in full in
 `deepchat_assistant_blocks`). No new file, table, or cleanup path is needed.
 
+Model context does not replay it. When the assistant history (`contextBuilder`) or the running
+turn's conversation (`dispatch`) carries an `html_render` or `html_render_section` call, the `html`
+argument is replaced by `[omitted from context: <n> characters; send the full HTML again to change it]`
+(`compactHtmlRenderToolArguments`). The model keeps the title, panel and section ids; without this,
+every later request would resend up to 2 MB per panel.
+
+There is no tool to read a page back. Whatever it returned would enter the context and stay in
+every later request, and the model cannot see the render, so reading back would not verify
+anything. To fix a page the model sends the whole section (or a new shell) again, which the tools
+already require.
+
 Add one non-executable descriptor next to `imagePreviews` and `mcpResult`:
 
 ```ts

@@ -15,6 +15,7 @@ import type { DeepChatExecutionContract } from '@shared/types/execution-contract
 import type { EffectiveSkillContentResolution } from '@shared/types/skill'
 import { isSkillSourceType } from '@shared/types/skillManagement'
 import { TOOL_SEARCH_AGENT_TOOL_NAME } from '@shared/agentTools'
+import { compactHtmlRenderToolArguments } from '@shared/agentHtmlRenderTool'
 import { buildExecutionContractBinding } from '@/tape/domain/executionContract'
 import {
   parseQuestionToolArgs,
@@ -631,7 +632,10 @@ function mapToolCallToChatMessage(
   return {
     id: toolCall.id,
     type: 'function',
-    function: { name: toolCall.name, arguments: toolCall.arguments },
+    function: {
+      name: toolCall.name,
+      arguments: compactHtmlRenderToolArguments(toolCall.name, toolCall.arguments)
+    },
     ...(toolCall.providerOptions ? { provider_options: toolCall.providerOptions } : {})
   }
 }
