@@ -1,9 +1,11 @@
-import {
-  createStaleDeepChatInstanceError,
-  type SessionScopeRegistry
-} from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
-import type { SessionIdentityService } from '@/agent/deepchat/runtime/sessionIdentityService'
+import type { SessionKind } from '@shared/types/agent-interface'
+import type {
+  MemoryAuditInput,
+  MemoryAuditReceipt,
+  MemorySessionReader,
+  MemorySourceRange
+} from '@/memory/runtimeContracts'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
 import {
   buildMemoryContextWithManifest,
@@ -22,7 +24,7 @@ import { buildEffectiveTapeView } from '@/tape/domain/effectiveView'
 import type { MemoryIngestionMessage, MemoryIngestionProjection } from '@/memory/ports'
 export type { MemoryIngestionProjection } from '@/memory/ports'
 import type { DeepChatTapeEntryRow } from '@/tape/domain/entry'
-import type { TapeAnchorWriter, TapeNonContextEntryReader } from '@/tape/ports/capabilities'
+import type { TapeNonContextEntryReader } from '@/tape/ports/capabilities'
 import {
   MEMORY_EXTRACTION_CHUNKS_PER_QUEUE_TASK,
   buildMemoryExtractionChunks,
@@ -67,16 +69,24 @@ interface MemoryAdmissionWindow {
 
 export interface MemoryRuntimeCoordinatorDependencies {
   memoryPort: MemoryRuntimePort
-  registry: SessionScopeRegistry
-  identity: Pick<SessionIdentityService, 'getAgentId' | 'getSessionKind'>
+  getSession: MemorySessionReader
+  identity: {
+    getAgentId(sessionId: string): string | undefined
+    getSessionKind(sessionId: string): SessionKind | null
+  }
   getNextMessageOrderSeq(sessionId: string): number
   getMessagesUpToOrderSeq(sessionId: string, orderSeq: number): ChatMessageRecord[]
   getMemoryCursorOrderSeq(sessionId: string): number | null
   updateMemoryCursorOrderSeq(sessionId: string, orderSeq: number): void
   rewindMemoryCursorOrderSeq(sessionId: string, orderSeq: number): void
-  tapeReader: TapeNonContextEntryReader
-  tapeAnchorWriter: TapeAnchorWriter
-  getIngestionProjection(): MemoryIngestionProjection | undefined
+  audit(input: MemoryAuditInput): Promise<MemoryAuditReceipt>
+  readIngestionRange?(
+    sessionId: string,
+    fromOrderSeqExclusive: number,
+    toOrderSeqInclusive: number
+  ): Promise<MemorySourceRange>
+  tapeReader?: TapeNonContextEntryReader
+  getIngestionProjection?(): MemoryIngestionProjection | undefined
 }
 
 export class MemoryRuntimeCoordinator implements MemoryPromptContributor, MemoryIngestionObserver {
@@ -85,6 +95,10 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
   private readonly extractionQueue = new Map<number, { sessionId: string; queuedAt: number }>()
   private nextExtractionQueueId = 0
   private readonly extractionEpochs = new Map<string, number>()
+  private readonly extractionCancellation = new Map<
+    string,
+    { epoch: number; controller: AbortController }
+  >()
   private readonly agentReassignmentDepthBySession = new Map<string, number>()
   private readonly ingestionProjectionRetryAfter = new Map<string, number>()
   private readonly injectionAccessByTurn = new Map<string, MemoryInjectionAccessTurnEntry>()
@@ -96,13 +110,12 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
   }
 
   private runtimeState(sessionId: string): { providerId: string; modelId: string } | undefined {
-    return this.deps.registry.getHydratedScope(toAppSessionId(sessionId))?.state()
+    return this.deps.getSession(toAppSessionId(sessionId))
   }
 
   private assertCurrentSessionHandle(handle: MemorySessionHandle): void {
-    const instance = this.deps.registry.getHydratedScope(handle.sessionId)?.instance
-    if (instance?.getMemorySessionHandle() !== handle) {
-      throw createStaleDeepChatInstanceError(handle.sessionId)
+    if (this.deps.getSession(handle.sessionId)?.handle !== handle) {
+      throw new Error(`Memory session scope was replaced: ${handle.sessionId}`)
     }
   }
 
@@ -176,8 +189,10 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
     readonly session: MemorySessionHandle
     readonly query: string
     readonly messageId?: string | null
+    readonly signal?: AbortSignal
   }): Promise<MemoryPromptContribution> {
     try {
+      input.signal?.throwIfAborted()
       this.assertCurrentSessionHandle(input.session)
       const sessionId = input.session.sessionId
       const agentId = this.resolveSessionAgentId(sessionId)
@@ -189,8 +204,10 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
       const injection = await this.fetchMemoryInjection({
         agentId,
         sessionId,
-        query: input.query
+        query: input.query,
+        signal: input.signal
       })
+      input.signal?.throwIfAborted()
       if (!this.canContinueExecution(sessionId, executionToken)) {
         return EMPTY_MEMORY_PROMPT_CONTRIBUTION
       }
@@ -199,7 +216,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
         sessionId,
         totalTokenBudget
       })
-      const memory = this.buildMemoryPromptContribution({
+      const memory = await this.buildMemoryPromptContribution({
         agentId,
         sessionId,
         executionToken,
@@ -211,7 +228,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
       if (!this.canContinueExecution(sessionId, executionToken)) {
         return EMPTY_MEMORY_PROMPT_CONTRIBUTION
       }
-      const directives = this.anchorDirectivePromptContribution({
+      const directives = await this.anchorDirectivePromptContribution({
         contribution: directiveDraft,
         sessionId,
         executionToken,
@@ -231,12 +248,15 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
     agentId: string
     sessionId: string
     query: string
+    signal?: AbortSignal
   }): Promise<MemoryInjectionResult | null> {
     try {
       const injectionAbort = new AbortController()
       const deadlineResult = await withSoftDeadline(
         this.memoryPort.buildInjection(input.agentId, input.query, {
-          signal: injectionAbort.signal,
+          signal: input.signal
+            ? AbortSignal.any([input.signal, injectionAbort.signal])
+            : injectionAbort.signal,
           scopeContext: { sessionId: input.sessionId }
         }),
         MEMORY_INJECTION_TIMEOUT_MS
@@ -255,7 +275,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
     }
   }
 
-  private buildMemoryPromptContribution(input: {
+  private async buildMemoryPromptContribution(input: {
     agentId: string
     sessionId: string
     executionToken: MemoryExecutionToken
@@ -263,7 +283,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
     directiveContent: string | null
     messageId?: string | null
     totalTokenBudget: number
-  }): MemoryContextContribution {
+  }): Promise<MemoryContextContribution> {
     try {
       const assembled = buildMemoryContextWithManifest(input.injection, {
         totalTokenBudget: input.totalTokenBudget,
@@ -278,7 +298,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
         )
         return EMPTY_MEMORY_CONTEXT_CONTRIBUTION
       }
-      let anchorEntryId: number | null = null
+      let audit: MemoryAuditReceipt = { entryId: null }
       if (assembled.manifest) {
         if (assembled.manifest.degradations?.length) {
           console.info(
@@ -295,13 +315,12 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
         }
         if (this.canContinueExecution(input.sessionId, input.executionToken)) {
           try {
-            const anchor = this.deps.tapeAnchorWriter.appendAnchor({
+            audit = await this.deps.audit({
               sessionId: input.sessionId,
               name: 'memory/view_assembled',
               state: assembled.manifest as unknown as Record<string, unknown>,
               meta: input.messageId ? { messageId: input.messageId } : undefined
             })
-            anchorEntryId = anchor.entry_id
           } catch (error) {
             console.warn(`[DeepChatAgent] memory view anchor skipped: ${String(error)}`)
           }
@@ -310,7 +329,8 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
       return {
         content: assembled.content,
         manifest: assembled.manifest,
-        anchorEntryId
+        anchorEntryId: audit.entryId,
+        ...(audit.timeline ? { timeline: audit.timeline } : {})
       }
     } catch (error) {
       console.warn(`[DeepChatAgent] memory injection skipped: ${String(error)}`)
@@ -349,24 +369,28 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
     }
   }
 
-  private anchorDirectivePromptContribution(input: {
+  private async anchorDirectivePromptContribution(input: {
     contribution: DirectiveContextContribution
     sessionId: string
     executionToken: MemoryExecutionToken
     messageId?: string | null
-  }): DirectiveContextContribution {
+  }): Promise<DirectiveContextContribution> {
     if (!input.contribution.manifest) return input.contribution
     if (!this.canContinueExecution(input.sessionId, input.executionToken)) {
       return EMPTY_DIRECTIVE_CONTEXT_CONTRIBUTION
     }
     try {
-      const anchor = this.deps.tapeAnchorWriter.appendAnchor({
+      const audit = await this.deps.audit({
         sessionId: input.sessionId,
         name: 'memory/directive_view_assembled',
         state: input.contribution.manifest as unknown as Record<string, unknown>,
         meta: input.messageId ? { messageId: input.messageId } : undefined
       })
-      return { ...input.contribution, anchorEntryId: anchor.entry_id }
+      return {
+        ...input.contribution,
+        anchorEntryId: audit.entryId,
+        ...(audit.timeline ? { timeline: audit.timeline } : {})
+      }
     } catch (error) {
       console.warn(`[DeepChatAgent] directive view anchor skipped: ${String(error)}`)
       return input.contribution
@@ -440,7 +464,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
       this.enqueueSessionExtraction(sessionId, async (epoch, executionToken) => {
         if (!this.isSessionEpochCurrent(sessionId, epoch)) return
         const cursor = this.deps.getMemoryCursorOrderSeq(sessionId) ?? 0
-        const window = this.buildExtractionWindow(sessionId, cursor, toOrderSeq)
+        const window = await this.extractionWindow(sessionId, cursor, toOrderSeq)
         if (!window || window.visibleTextChars <= 0) return
         await this.runExtractionChunks(
           sessionId,
@@ -516,6 +540,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
     void next.finally(() => {
       if (this.extractionChains.get(sessionId) === next) {
         this.extractionChains.delete(sessionId)
+        this.extractionCancellation.delete(sessionId)
         if (!this.runtimeState(sessionId)) {
           this.extractionEpochs.delete(sessionId)
         }
@@ -554,7 +579,13 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
         const cursor = this.deps.getMemoryCursorOrderSeq(sessionId) ?? 0
         if (chunk.coveredThroughOrderSeq <= cursor) continue
 
+        let cancellation = this.extractionCancellation.get(sessionId)
+        if (!cancellation || cancellation.epoch !== epoch) {
+          cancellation = { epoch, controller: new AbortController() }
+          this.extractionCancellation.set(sessionId, cancellation)
+        }
         const result = await this.memoryPort.extractAndStore({
+          signal: cancellation.controller.signal,
           agentId,
           spanText: chunk.text,
           model: { providerId: state.providerId, modelId: state.modelId },
@@ -569,7 +600,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
           this.deps.updateMemoryCursorOrderSeq(sessionId, chunk.cursorCommitOrderSeq)
         }
         if (result.createdIds.length > 0) {
-          this.deps.tapeAnchorWriter.appendAnchor({
+          await this.deps.audit({
             sessionId,
             name: 'memory/extract',
             state: {
@@ -623,6 +654,21 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
     )
     if (!ingestionRange || ingestionRange.rows.length === 0) return null
 
+    return this.buildSourceWindow(ingestionRange)
+  }
+
+  private async extractionWindow(
+    sessionId: string,
+    from: number,
+    to: number
+  ): Promise<MemoryAdmissionWindow | null> {
+    if (!this.deps.readIngestionRange) return this.buildExtractionWindow(sessionId, from, to)
+    if (to <= from) return null
+    const range = await this.deps.readIngestionRange(sessionId, from, to)
+    return range.rows.length ? this.buildSourceWindow(range) : null
+  }
+
+  private buildSourceWindow(ingestionRange: MemorySourceRange): MemoryAdmissionWindow {
     const selected = ingestionRange.rows.map((row) => ({
       orderSeq: row.orderSeq,
       entryId: row.entryId,
@@ -675,6 +721,10 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
   }
 
   bumpSessionEpoch(sessionId: string): void {
+    this.extractionCancellation
+      .get(sessionId)
+      ?.controller.abort(new Error('Memory session scope changed'))
+    this.extractionCancellation.delete(sessionId)
     this.extractionEpochs.set(sessionId, (this.extractionEpochs.get(sessionId) ?? 0) + 1)
   }
 
@@ -712,7 +762,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
       const tailOrderSeq = this.deps.getNextMessageOrderSeq(sessionId) - 1
       const cursor = this.deps.getMemoryCursorOrderSeq(sessionId) ?? 0
       if (tailOrderSeq <= cursor) return
-      const window = this.buildExtractionWindow(sessionId, cursor, tailOrderSeq)
+      const window = await this.extractionWindow(sessionId, cursor, tailOrderSeq)
       if (!window || window.visibleTextChars <= 0) return
       const delta = tailOrderSeq - cursor
       const admit =
@@ -785,12 +835,17 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
     }
   }
 
+  private requireLegacyReader(): TapeNonContextEntryReader {
+    if (!this.deps.tapeReader) throw new Error('Legacy memory source is unavailable')
+    return this.deps.tapeReader
+  }
+
   private listIngestionRange(
     sessionId: string,
     fromOrderSeqExclusive: number,
     toOrderSeqInclusive: number
   ): { rows: MemoryIngestionMessage[]; cursorCommitAllowed: boolean } | null {
-    const projection = this.deps.getIngestionProjection()
+    const projection = this.deps.getIngestionProjection?.()
     if (
       !projection ||
       typeof projection.readCurrentRange !== 'function' ||
@@ -847,7 +902,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
     maxEntryId: number,
     projection: MemoryIngestionProjection
   ): { rows: MemoryIngestionMessage[]; cursorCommitAllowed: boolean } {
-    const view = buildEffectiveTapeView(this.deps.tapeReader.getBySession(sessionId))
+    const view = buildEffectiveTapeView(this.requireLegacyReader().getBySession(sessionId))
     const projectionRows = this.projectionRowsFromEffectiveView(sessionId, view)
     try {
       projection.replaceSession(sessionId, projectionRows, maxEntryId)
@@ -901,7 +956,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
     cursorCommitAllowed: boolean
   ): { rows: MemoryIngestionMessage[]; cursorCommitAllowed: boolean } | null {
     try {
-      const view = buildEffectiveTapeView(this.deps.tapeReader.getBySession(sessionId))
+      const view = buildEffectiveTapeView(this.requireLegacyReader().getBySession(sessionId))
       const rows = this.projectionRowsFromEffectiveView(sessionId, view)
       return {
         rows: this.filterIngestionRange(rows, fromOrderSeqExclusive, toOrderSeqInclusive),

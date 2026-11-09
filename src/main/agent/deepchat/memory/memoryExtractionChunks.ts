@@ -1,3 +1,4 @@
+import type { AgentMemorySource } from '@shared/types/agent-memory'
 import { estimateTokens, estimateTokenWeight } from '@/memory/core/injectionPort'
 import { renderExtractionEvidence } from '@/memory/core/extraction'
 import type { MemoryExtractionEvidence } from '@/memory/domain/types'
@@ -9,21 +10,21 @@ export const MEMORY_EXTRACTION_CHUNKS_PER_QUEUE_TASK = 4
 
 export interface MemoryExtractionMessage {
   orderSeq: number
-  entryId: number
+  entryId: AgentMemorySource
   role: 'user' | 'assistant'
   text: string
 }
 
 export interface MemoryExtractionFragment {
   orderSeq: number
-  entryId: number
+  entryId: AgentMemorySource
   fragmentIndex: number
   isFinalFragment: boolean
 }
 
 export interface MemoryExtractionChunk {
   text: string
-  sourceEntryIds: number[]
+  sourceEntryIds: AgentMemorySource[]
   evidence: MemoryExtractionEvidence[]
   cursorCommitOrderSeq: number | null
   coveredThroughOrderSeq: number

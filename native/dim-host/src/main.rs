@@ -3,6 +3,7 @@ mod facts;
 mod gateway;
 mod inputs;
 mod media;
+mod memory;
 mod migration;
 mod models;
 mod permissions;
@@ -36,6 +37,7 @@ fn install(builder: &mut dim_agent_runtime::AgentBuilder) {
     migration::install(builder);
     queue::install(builder);
     storage::install(builder);
+    memory::install(builder);
 }
 
 fn main() {

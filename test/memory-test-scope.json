@@ -3,6 +3,7 @@
     "test/main/contracts/memoryContractParity.test.ts",
     "test/main/agent/deepchat/memory/memoryExtractionChunks.test.ts",
     "test/main/agent/deepchat/memory/memoryRuntimeCoordinator.test.ts",
+    "test/main/agent/dim/memoryEvidence.test.ts",
     "test/main/memory/agentMemoryLineage.test.ts",
     "test/main/memory/conflictService.test.ts",
     "test/main/memory/contributionBudget.test.ts",
@@ -98,6 +99,10 @@
     {
       "path": "test/main/session/runtimeIntegration.test.ts",
       "reason": "Cross-domain Session lifecycle and multi-turn regression suite remains in the full main gate; Memory projection mapping is covered by deepchatMemoryIngestionProjection.test.ts and coordinator behavior by memoryRuntimeCoordinator.test.ts."
+    },
+    {
+      "path": "test/main/agent/dim/runtimeIntegration.test.ts",
+      "reason": "Cross-domain dim lifecycle and plugin integration is exercised by smoke:dim, including canonical Memory sources, audits and closed-generation evidence; portable Memory behavior is classified separately."
     }
   ]
 }

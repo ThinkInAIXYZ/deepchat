@@ -57,3 +57,11 @@ validates that prefix and owns budgeting/compaction. The plugin registers its
 context marker in the native prompt guide. Receipts enter ModelCall metadata,
 with no Tape audit write. A native cancellation closes the callback socket and
 cancels desktop context work before inference. This port does not invoke models.
+
+Memory audit writes use `session.deepchat_memory.audit`, serialized with input
+retirement and acknowledged after publication. These are non-context extension
+facts, with native event ids and u64 positions. Memory reads settled, immutable
+views through the storage plugin, including closed generations; product memory
+policies and its own claim store remain in DeepChat. The existing JSON lineage
+column accepts explicit dim view references alongside read-only numeric Tape
+references, without inventing new Tape ids or changing dim's store schema.

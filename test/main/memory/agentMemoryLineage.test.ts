@@ -21,3 +21,21 @@ describe('agent memory lineage codec', () => {
     expect(serializeAgentMemorySourceEntryIds([])).toBeNull()
   })
 })
+
+it('round-trips immutable native evidence views with full u64 precision alongside legacy references', () => {
+  const source = {
+    kind: 'dim',
+    sessionId: 'native',
+    branchId: 'main',
+    through: '18446744073709551615',
+    messageId: 'message'
+  }
+  const payload = serializeAgentMemorySourceEntryIds([
+    7,
+    source,
+    { ...source },
+    { ...source, through: '18446744073709551616' },
+    { ...source, through: '01' }
+  ])
+  expect(parseAgentMemorySourceEntryIds(payload)).toEqual([7, source])
+})

@@ -1,3 +1,4 @@
+import type { MemoryAuditPosition } from '@/memory/runtimeContracts'
 import type { AppSessionId } from '@/agent/shared/agentSessionIds'
 import type { DirectiveContributionManifest, MemoryInjectionManifest } from '@/memory/injection'
 
@@ -9,12 +10,14 @@ export interface MemoryContextContribution {
   readonly content: string | null
   readonly manifest: MemoryInjectionManifest | null
   readonly anchorEntryId: number | null
+  readonly timeline?: MemoryAuditPosition
 }
 
 export interface DirectiveContextContribution {
   readonly content: string | null
   readonly manifest: DirectiveContributionManifest | null
   readonly anchorEntryId: number | null
+  readonly timeline?: MemoryAuditPosition
 }
 
 export interface MemoryPromptContribution {
@@ -44,5 +47,6 @@ export interface MemoryPromptContributor {
     readonly session: MemorySessionHandle
     readonly query: string
     readonly messageId?: string | null
+    readonly signal?: AbortSignal
   }): Promise<MemoryPromptContribution>
 }

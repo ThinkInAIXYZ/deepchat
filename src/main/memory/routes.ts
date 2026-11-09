@@ -1,3 +1,4 @@
+import type { DimMemorySource } from '@shared/types/agent-memory'
 import { isAgentMemoryCategory } from '@shared/types/agent-memory'
 import { parseAgentMemorySourceEntryIds } from '@shared/lib/agentMemoryLineage'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
@@ -338,16 +339,31 @@ export function createMemoryRoutes(deps: {
   getAgentType(agentId: string): Promise<string | null>
   getTapeInspection(): TapeInspectionReader
   getAuditEntries(): MemoryAuditEntries
+  readDimSources?(
+    sessionId: string,
+    sources: DimMemorySource[]
+  ): Promise<
+    Array<{
+      timeline: DimMemorySource
+      record: ChatMessageRecord
+    }>
+  >
 }): DeepchatRouteMap {
   const { memoryService } = deps
-  const getSourceSpan = (agentId: string, memoryId: string) => {
+  const getSourceSpan = async (agentId: string, memoryId: string) => {
     const [row] = memoryService.getManagementVisibleByIds(agentId, [memoryId])
     if (!row || row.agent_id !== agentId || !row.source_session) return null
     const sourceEntryIds = parseAgentMemorySourceEntryIds(row.source_entry_ids)
     if (!sourceEntryIds?.length) return null
-    const entries = deps
-      .getTapeInspection()
-      .getEffectiveMessageSourceSpan(row.source_session, sourceEntryIds)
+    const legacy = sourceEntryIds.filter((source): source is number => typeof source === 'number')
+    const native = sourceEntryIds.filter(
+      (source): source is DimMemorySource => typeof source !== 'number'
+    )
+    const entries = (
+      legacy.length
+        ? deps.getTapeInspection().getEffectiveMessageSourceSpan(row.source_session, legacy)
+        : []
+    )
       .map((entry) => ({
         entryId: entry.entryId,
         role: entry.record.role,
@@ -355,7 +371,23 @@ export function createMemoryRoutes(deps: {
         orderSeq: entry.record.orderSeq
       }))
       .filter((entry) => entry.content.length > 0)
-    return entries.length > 0 ? { sessionId: row.source_session, entries } : null
+    if (native.length && !deps.readDimSources)
+      throw new Error('Native memory evidence reader is unavailable')
+    const combined = [
+      ...entries,
+      ...(native.length
+        ? (await deps.readDimSources!(row.source_session, native))
+            .map(({ timeline, record }) => ({
+              entryId: null,
+              timeline,
+              role: record.role,
+              content: formatMemorySourceRecordContent(record),
+              orderSeq: record.orderSeq
+            }))
+            .filter((entry) => entry.content.length > 0)
+        : [])
+    ].sort((left, right) => left.orderSeq - right.orderSeq)
+    return combined.length ? { sessionId: row.source_session, entries: combined } : null
   }
 
   return createRouteMap([
@@ -608,7 +640,7 @@ export function createMemoryRoutes(deps: {
       async (rawInput) => {
         const input = memoryGetSourceSpanRoute.input.parse(rawInput)
         return memoryGetSourceSpanRoute.output.parse({
-          span: getSourceSpan(input.agentId, input.memoryId)
+          span: await getSourceSpan(input.agentId, input.memoryId)
         })
       }
     ],

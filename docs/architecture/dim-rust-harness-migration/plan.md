@@ -158,6 +158,8 @@
 
 ## 模块进度
 
+- 模块 28：Memory coordinator 改用会话读端口、异步来源和审计端口，不依赖旧 harness registry；保留原注入/提取/分块/失效/排空策略。新增 Native memory 组合和 settled Timeline 来源，读取固定已结束回合，不把活跃回合提前提取；旧代证据通过 dim storage owner 读取。来源 JSON/DTO 同时支持旧数字 Tape 引用与 dim 的不可变视图（u64 字符串、messageId），现有来源界面保留展示。原生 memory audit 走 retirement 共用 lane，持久回执有独立 timeline 地址，不写 Tape、不进模型上下文，桥升为 0.5.0。作用域销毁/失效会取消提取的模型端口并拒绝迟到写入。真实 Rust 验证 settled 来源、关闭代次证据和审计隔离；9 项 native、982 项 Memory 行为、375 项旧入口回归、78 项 Memory 类型门禁通过，分页的 50k 数据夹具在 30s 预算下通过，format/i18n/lint/双端 typecheck 通过。删除要求重新激活 Code Mode 的过时旧用例。Native memory 组合和来源读取仍待主入口接线，Native 子会话/分支的产品能力继承与 Inspector 继续实施。
+
 - 模块 27：Rust 产品上下文插件实现 dim 公开 PrepareContext，在原生请求边界获取新上下文；只追加文本，不改变固定历史前缀，预算/压缩仍由 dim 负责，回执进入原生 ModelCall metadata。Native cancel 关闭回调并终止产品准备，不发起推理。新增显式 per-Session host factory 装配扩展，从原生 SessionIdentity 获取身份而不依赖可复制的模型 metadata；独立源码 hash 纳入 extensionPatches，桥升为 0.4.0。产品侧通过 storage 插件查询 step/model-start，校验请求、分支、u64 cutoff 与 generation，前后重验产品授权，拒绝旧作用域注入。9 项原生 smoke、补充实际 owner 查询/取消/更代组合回归和 808 项 main 回归通过；format/i18n/lint/双端 typecheck 通过。具体 memory/skill/hook 内容与主 composition 接线继续进行。
 
 - 模块 26：自定义 HTTP Header 改为不可变不透明引用，调用时通过 ProviderSecretHost 临时读取；Header 轮换/删除撤销旧连接，匿名 provider 的 Header 也有独立准入，原生配置和 Timeline 不存明文。薄桥 0.3.0 在 Provider 装配的两个精确 seam 启用引用解析，loop/驱动不变。新增产品附件准备 facade，保留 OCR/PDF 选择、图片、引用、展示数据和 retry 的历史 representation，阻塞/取消不提交；音频等待 native media 接线，不能静默降级。组合工厂的真实 HTTP 测试改用该输入端口。9 项原生 smoke、额外组合回归与 1092 项 main 回归通过；脚本回归以 umask 022、30s 架构扫描预算通过，format/i18n/lint/双端 typecheck 通过。主 composition 仍待切换。

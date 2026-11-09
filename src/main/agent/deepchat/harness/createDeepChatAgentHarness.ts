@@ -201,7 +201,13 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
   })
   const memory = new MemoryRuntimeCoordinator({
     memoryPort: deps.memoryPort,
-    registry: runtime,
+    getSession: (sessionId) => {
+      const scope = runtime.getHydratedScope(sessionId)
+      const state = scope?.state()
+      return scope && state
+        ? { ...state, handle: scope.instance.getMemorySessionHandle() }
+        : undefined
+    },
     identity,
     getNextMessageOrderSeq: (sessionId) => messageStore.getNextOrderSeq(sessionId),
     getMessagesUpToOrderSeq: (sessionId, orderSeq) =>
@@ -212,7 +218,7 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     rewindMemoryCursorOrderSeq: (sessionId, orderSeq) =>
       sessionStore.rewindMemoryCursorOrderSeq(sessionId, orderSeq),
     tapeReader: tapeService,
-    tapeAnchorWriter: tapeService,
+    audit: async (input) => ({ entryId: tapeService.appendAnchor(input).entry_id }),
     getIngestionProjection: deps.getMemoryIngestionProjection
   })
   const sessionSettings = new SessionSettingsCoordinator({

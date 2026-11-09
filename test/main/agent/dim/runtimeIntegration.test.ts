@@ -35,6 +35,9 @@ import { DimSessionControls } from '@/agent/dim/sessionControls'
 import { DimQueue } from '@/agent/dim/queue'
 import { DimInteractions } from '@/agent/dim/interactions'
 import { DimContext } from '@/agent/dim/context'
+import { DimMemorySource } from '@/agent/dim/memorySource'
+import { DimMemoryEvidence } from '@/agent/dim/memoryEvidence'
+import type { DimMemorySource as MemorySourceReference } from '@shared/types/agent-memory'
 import { DimContent } from '@/agent/dim/content'
 import { DimScopeTransitions } from '@/agent/dim/scopeTransitions'
 import { DimTranscriptMutations } from '@/agent/dim/transcriptMutations'
@@ -1766,6 +1769,36 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
           name: 'deepchat_facade_echo',
           arguments: { text: 'scope-only' }
         })
+        const memorySource = new DimMemorySource({
+          database: grants.data,
+          host,
+          content: new DimContent(host)
+        })
+        const memoryRange = await memorySource.readRange(facadeId, 0, 100)
+        expect(memoryRange.rows.map((row) => row.role)).toEqual(['user', 'assistant'])
+        expect(memoryRange.rows[1].hadToolUse).toBe(true)
+        const memoryReference = memoryRange.rows[0].entryId as MemorySourceReference
+        expect(memoryReference).toMatchObject({
+          kind: 'dim',
+          messageId: grants.data.deepchatMessagesTable.getBySession(facadeId)[0].id
+        })
+        const audit = await memorySource.audit({
+          sessionId: facadeId,
+          name: 'memory/view_assembled',
+          state: { selected: ['native-memory-audit-sentinel'] }
+        })
+        expect(audit).toMatchObject({
+          entryId: null,
+          timeline: { eventId: expect.any(String), sequence: expect.stringMatching(/^\d+$/) }
+        })
+        expect(
+          (
+            await new DimContent(host).latest(
+              { sessionId: memoryReference.sessionId, branchId: memoryReference.branchId },
+              ['deepchat/memory-audit']
+            )
+          ).event?.data.state
+        ).toEqual({ selected: ['native-memory-audit-sentinel'] })
         const facadeBinding = grants.data.dimSessionBindingsTable.get(facadeId)!
         const otherBinding = grants.data.dimSessionBindingsTable.get(scopeProduct)!
         expect(
@@ -1790,6 +1823,15 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
         expect(contextSessionIds.at(-1)).toBe(
           grants.data.dimSessionBindingsTable.get(facadeId)!.dimSessionId
         )
+        expect(JSON.stringify(conversationRequests().at(-1)!.body)).not.toContain(
+          'native-memory-audit-sentinel'
+        )
+        const evidence = await new DimMemoryEvidence({
+          database: grants.data,
+          content: new DimContent(host)
+        }).read(facadeId, [memoryReference])
+        expect(evidence[0].record.id).toBe(memoryReference.messageId)
+        expect(JSON.stringify(evidence[0].record.content)).toContain('facade original')
         const facadeUser = grants.data.deepchatMessagesTable.getBySession(facadeId)[2]
         const facadeRetry = await facade.mutations.prepareRetryMessage(facadeId, facadeUser.id)
         let boundaryCompleted = false

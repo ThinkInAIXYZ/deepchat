@@ -133,7 +133,13 @@ function createHarness() {
       getAgentId: vi.fn(() => 'agent-a'),
       getSessionKind: vi.fn<() => 'regular' | 'subagent' | null>(() => 'regular')
     },
-    registry,
+    getSession: (sessionId: ReturnType<typeof toAppSessionId>) => {
+      const scope = registry.getHydratedScope(sessionId)
+      const state = scope?.state()
+      return scope && state
+        ? { ...state, handle: scope.instance.getMemorySessionHandle() }
+        : undefined
+    },
     getNextMessageOrderSeq: vi.fn(() => Math.max(0, ...rows.map((row) => row.orderSeq)) + 1),
     getMessagesUpToOrderSeq: vi.fn((_sessionId: string, orderSeq: number) =>
       rows.filter((row) => row.orderSeq <= orderSeq)
@@ -152,7 +158,7 @@ function createHarness() {
       ),
       getMaxEntryId: vi.fn(() => tapeRows.at(-1)?.entry_id ?? 0)
     },
-    tapeAnchorWriter: { appendAnchor: appendTapeAnchor },
+    audit: async (input: TapeAnchorAppendInput) => ({ entryId: appendTapeAnchor(input).entry_id }),
     getTapeRows,
     appendTapeAnchor,
     getIngestionProjection: vi.fn(() =>
@@ -1536,4 +1542,70 @@ describe('MemoryRuntimeCoordinator', () => {
       })
     ).not.toThrow()
   })
+})
+
+it('uses async native evidence and aborts its extraction when the session scope is destroyed', async () => {
+  const { deps, port, memorySession } = createHarness()
+  const source = {
+    kind: 'dim' as const,
+    sessionId: 'native',
+    branchId: 'main',
+    through: '9007199254740993',
+    messageId: 'user'
+  }
+  let extractionSignal: AbortSignal | undefined
+  port.extractAndStore.mockImplementation(async (input) => {
+    extractionSignal = input.signal
+    await new Promise<void>((resolve) =>
+      input.signal.addEventListener('abort', () => resolve(), { once: true })
+    )
+    return { ok: false }
+  })
+  const readIngestionRange = vi.fn(async () => ({
+    cursorCommitAllowed: true,
+    rows: [
+      {
+        sessionId: 's1',
+        messageId: 'user',
+        orderSeq: 1,
+        entryId: source,
+        role: 'user' as const,
+        content: '{"text":"Remember Rust"}',
+        status: 'sent' as const,
+        hadToolUse: false
+      },
+      {
+        sessionId: 's1',
+        messageId: 'assistant',
+        orderSeq: 2,
+        entryId: { ...source, messageId: 'assistant' },
+        role: 'assistant' as const,
+        content: '[{"type":"content","content":"I will remember"}]',
+        status: 'sent' as const,
+        hadToolUse: false
+      }
+    ]
+  }))
+  const coordinator = new MemoryRuntimeCoordinator({
+    ...deps,
+    readIngestionRange,
+    tapeReader: undefined,
+    getIngestionProjection: undefined
+  })
+  coordinator.afterCompactionApplyReturned({
+    session: memorySession,
+    origin: 'initial',
+    targetCursorOrderSeq: 2
+  })
+  await vi.waitFor(() => expect(port.extractAndStore).toHaveBeenCalledTimes(1))
+  expect(port.extractAndStore.mock.calls[0][0].sourceEntryIds).toEqual([
+    source,
+    { ...source, messageId: 'assistant' }
+  ])
+  coordinator.beginSessionDestroy('s1')
+  await coordinator.waitForSession('s1')
+  expect(extractionSignal?.aborted).toBe(true)
+  expect(deps.updateMemoryCursorOrderSeq).not.toHaveBeenCalled()
+  expect(deps.getTapeRows).not.toHaveBeenCalled()
+  expect(deps.appendTapeAnchor).not.toHaveBeenCalled()
 })

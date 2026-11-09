@@ -1,3 +1,14 @@
+/** An immutable view in dim's canonical content owner. Positions remain lossless u64 strings. */
+export interface DimMemorySource {
+  kind: 'dim'
+  sessionId: string
+  branchId: string
+  through: string
+  messageId: string
+}
+/** Numbers identify read-only legacy Tape evidence; new evidence uses a dim view. */
+export type AgentMemorySource = number | DimMemorySource
+
 export const AGENT_MEMORY_CATEGORIES = [
   'user_preference',
   'project_fact',

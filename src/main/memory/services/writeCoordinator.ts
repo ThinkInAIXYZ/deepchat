@@ -353,7 +353,7 @@ export class WriteCoordinator {
     if (!span) return { ok: true, createdIds: [] }
     if (!this.ctx.canWriteAgentMemory(input.agentId)) return { ok: false }
     if (this.ctx.isDisposed) return { ok: false }
-    const operationFence = this.ctx.captureOperationFence(input.agentId)
+    const operationFence = this.ctx.captureOperationFence(input.agentId, input.signal)
     const model = this.ctx.resolveExtractionModel(input.agentId, input.model)
     const createdIds: string[] = []
     const outcomes: MemoryWriteOutcome[] = []
@@ -365,7 +365,8 @@ export class WriteCoordinator {
       let shouldExtract = true
       try {
         llmCalls += 1
-        const triage = await this.ports.textGeneration.generateText(
+        const triage = await this.generateFencedText(
+          operationFence,
           input.agentId,
           model.providerId,
           model.modelId,
@@ -388,7 +389,8 @@ export class WriteCoordinator {
       const now = this.ctx.now()
       const timeZone = this.ctx.timeZone()
       llmCalls += 1
-      const response = await this.ports.textGeneration.generateText(
+      const response = await this.generateFencedText(
+        operationFence,
         input.agentId,
         model.providerId,
         model.modelId,
@@ -759,6 +761,21 @@ export class WriteCoordinator {
     }
   }
 
+  private generateFencedText(
+    fence: MemoryOperationFence,
+    agentId: string,
+    providerId: string,
+    modelId: string,
+    prompt: string,
+    purpose: 'extraction' | 'decision'
+  ): Promise<string> {
+    return fence.signal
+      ? this.ports.textGeneration.generateText(agentId, providerId, modelId, prompt, purpose, {
+          signal: fence.signal
+        })
+      : this.ports.textGeneration.generateText(agentId, providerId, modelId, prompt, purpose)
+  }
+
   private async requestBatchDecisions(
     agentId: string,
     model: MemoryModelRef,
@@ -782,7 +799,8 @@ export class WriteCoordinator {
       if (!this.ctx.canContinueOperation(operationFence)) break
       try {
         calls += 1
-        const raw = await this.ports.textGeneration.generateText(
+        const raw = await this.generateFencedText(
+          operationFence,
           agentId,
           model.providerId,
           model.modelId,
