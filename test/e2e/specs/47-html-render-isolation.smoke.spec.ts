@@ -1,6 +1,13 @@
 import { createServer } from 'node:http'
+import type { Page } from '@playwright/test'
 import { test, expect } from '../fixtures/electronApp'
-import { selectAgent, selectModel, sendMessage } from '../helpers/chat'
+import {
+  createNewChat,
+  getActiveSessionId,
+  selectAgent,
+  selectModel,
+  sendMessage
+} from '../helpers/chat'
 import { waitForAppReady, waitForGenerationDone } from '../helpers/wait'
 
 const HOST_VIEW_MAX_HEIGHT = 1600
@@ -13,6 +20,7 @@ const probePage = (origin: string) => `<!doctype html>
 <script>
 document.documentElement.dataset.xss = 'page'
 try { top.document.documentElement.dataset.xss = 'top' } catch {}
+try { top.location.href = '${origin}/leak/top_location' } catch {}
 window.addEventListener('click', (event) => event.stopImmediatePropagation(), true)
 for (const target of ['_top', '_blank', '_parent']) {
   const link = document.createElement('a')
@@ -29,20 +37,21 @@ new Image().src = '${origin}/leak/image'
 
 const busyPage = `<!doctype html><html><head></head><body><script>while (true) {}</script></body></html>`
 
-const toolCall = (id: string, title: string, html: string) => ({
+const panelShell = `<!doctype html><html><head></head><body>
+<h1 id="panel">Panel</h1><main data-dc-sections></main>
+</body></html>`
+
+const toolCall = (id: string, name: string, args: object) => ({
   tool_calls: [
-    {
-      index: 0,
-      id,
-      type: 'function',
-      function: { name: 'html_render', arguments: JSON.stringify({ title, html }) }
-    }
+    { index: 0, id, type: 'function', function: { name, arguments: JSON.stringify(args) } }
   ]
 })
 
-test('html_render pages run outside the app origin and cannot leave the sandbox @smoke', async ({
-  app
-}) => {
+type FixtureReply = { delta: object; finishReason: string }
+type FixtureInput = { origin: string; toolResults: string[] }
+
+// Each streamed reply is picked by how many tool results the request already carries.
+const startFixture = async (replies: Array<(input: FixtureInput) => FixtureReply>) => {
   const leaks: string[] = []
   let origin = ''
   const server = createServer(async (request, response) => {
@@ -76,15 +85,13 @@ test('html_render pages run outside the app origin and cannot leave the sandbox 
       )
       return
     }
-    const toolResults = input.messages.filter(
-      (message: { role: string }) => message.role === 'tool'
-    ).length
-    const [delta, finishReason] =
-      toolResults === 0
-        ? [toolCall('probe-page', 'Isolation probe', probePage(origin)), 'tool_calls']
-        : toolResults === 1
-          ? [toolCall('busy-page', 'Busy page', busyPage), 'tool_calls']
-          : [{ content: 'Done.' }, 'stop']
+    const toolResults = (input.messages as Array<{ role: string; content: unknown }>)
+      .filter((message) => message.role === 'tool')
+      .map((message) => JSON.stringify(message.content))
+    const reply = replies[toolResults.length]?.({ origin, toolResults }) ?? {
+      delta: { content: 'Done.' },
+      finishReason: 'stop'
+    }
     const chunk = (value: object, finish: string | null) =>
       `data: ${JSON.stringify({
         id: 'fixture-stream',
@@ -94,62 +101,97 @@ test('html_render pages run outside the app origin and cannot leave the sandbox 
         choices: [{ index: 0, delta: value, finish_reason: finish }]
       })}\n\n`
     response.writeHead(200, { 'Content-Type': 'text/event-stream' })
-    response.write(chunk(delta, null))
-    response.end(`${chunk({}, finishReason)}data: [DONE]\n\n`)
+    response.write(chunk(reply.delta, null))
+    response.end(`${chunk({}, reply.finishReason)}data: [DONE]\n\n`)
   })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   const { port } = server.address() as { port: number }
   origin = `http://127.0.0.1:${port}`
-  try {
-    await waitForAppReady(app.page)
-    const providerId = await app.page.evaluate(async (baseUrl) => {
-      const id = `custom-${crypto.randomUUID()}`
-      await window.deepchat.invoke('providers.add', {
-        provider: {
-          id,
-          name: 'HTML render fixture',
-          apiType: 'openai-completions',
-          baseUrl,
-          apiKey: 'fixture-key',
-          enable: true,
-          custom: true
-        }
-      })
-      await window.deepchat.invoke('models.addCustom', {
-        providerId: id,
-        model: {
-          id: 'fixture-model',
-          name: 'Fixture',
-          enabled: true,
-          vision: false,
-          functionCall: true,
-          reasoning: false,
-          contextLength: 32000,
-          maxTokens: 8000
-        }
-      })
-      await window.deepchat.invoke('models.setStatus', {
-        providerId: id,
-        modelId: 'fixture-model',
-        enabled: true
-      })
-      return id
-    }, `${origin}/v1`)
-    await selectAgent(app.page)
-    await selectModel(app.page, 'fixture-model', providerId)
-    await sendMessage(app.page, 'Render the probe pages.')
-    await waitForGenerationDone(app.page)
+  return {
+    origin,
+    leaks,
+    close: () => new Promise<void>((resolve) => server.close(() => resolve()))
+  }
+}
 
-    const probeFrame = async () => {
-      for (const frame of app.page.frames()) {
-        if (!frame.url().startsWith('mcp-app://') && frame.url() !== 'about:blank') continue
-        const marked = await frame
-          .evaluate(() => document.getElementById('probe') !== null)
-          .catch(() => false)
-        if (marked) return frame
+// html_render is opt-in, so the chat runs on an agent with every agent tool enabled.
+const startChat = async (page: Page, origin: string, prompt: string) => {
+  await waitForAppReady(page)
+  const { providerId, agentId } = await page.evaluate(async (baseUrl) => {
+    const id = `custom-${crypto.randomUUID()}`
+    await window.deepchat.invoke('providers.add', {
+      provider: {
+        id,
+        name: 'HTML render fixture',
+        apiType: 'openai-completions',
+        baseUrl,
+        apiKey: 'fixture-key',
+        enable: true,
+        custom: true
       }
-      return null
-    }
+    })
+    await window.deepchat.invoke('models.addCustom', {
+      providerId: id,
+      model: {
+        id: 'fixture-model',
+        name: 'Fixture',
+        enabled: true,
+        vision: false,
+        functionCall: true,
+        reasoning: false,
+        contextLength: 32000,
+        maxTokens: 8000
+      }
+    })
+    await window.deepchat.invoke('models.setStatus', {
+      providerId: id,
+      modelId: 'fixture-model',
+      enabled: true
+    })
+    const { agent } = await window.deepchat.invoke('config.createDeepChatAgent', {
+      name: 'HTML render',
+      enabled: true,
+      config: { disabledAgentTools: [] }
+    })
+    return { providerId: id, agentId: agent.id }
+  }, `${origin}/v1`)
+  await selectAgent(page, agentId)
+  await selectModel(page, 'fixture-model', providerId)
+  await sendMessage(page, prompt)
+  await waitForGenerationDone(page)
+}
+
+const findFrame = async (page: Page, selector: string) => {
+  for (const frame of page.frames()) {
+    if (!frame.url().startsWith('mcp-app://') && frame.url() !== 'about:blank') continue
+    const found = await frame
+      .evaluate((value) => document.querySelector(value) !== null, selector)
+      .catch(() => false)
+    if (found) return frame
+  }
+  return null
+}
+
+test('html_render pages run outside the app origin and cannot leave the sandbox @smoke', async ({
+  app
+}) => {
+  const fixture = await startFixture([
+    ({ origin }) => ({
+      delta: toolCall('probe-page', 'html_render', {
+        title: 'Isolation probe',
+        html: probePage(origin)
+      }),
+      finishReason: 'tool_calls'
+    }),
+    () => ({
+      delta: toolCall('busy-page', 'html_render', { title: 'Busy page', html: busyPage }),
+      finishReason: 'tool_calls'
+    })
+  ])
+  try {
+    await startChat(app.page, fixture.origin, 'Render the probe pages.')
+
+    const probeFrame = () => findFrame(app.page, '#probe')
     await expect.poll(async () => (await probeFrame()) !== null).toBe(true)
     const frame = (await probeFrame())!
     expect(await frame.evaluate(() => document.documentElement.dataset.xss)).toBe('page')
@@ -169,9 +211,20 @@ test('html_render pages run outside the app origin and cannot leave the sandbox 
     const surface = app.page.getByTestId('html-render-surface').locator('iframe')
     await expect.poll(async () => (await surface.boundingBox())?.height).toBe(HOST_VIEW_MAX_HEIGHT)
 
-    // Entering and leaving fullscreen each reload the page on a freshly prepared sandbox instance.
+    // Navigating the frame itself is blocked by CSP, which replaces the page with an error page,
+    // so each attempt needs a fresh page: the fullscreen toggles below reload it.
     const instanceOf = async () => (await probeFrame())?.parentFrame()?.url() ?? null
     const seen = [await instanceOf()]
+    await frame
+      .evaluate((target) => {
+        const link = document.createElement('a')
+        link.href = target
+        document.body.appendChild(link)
+        link.click()
+      }, `${fixture.origin}/leak/link_self`)
+      .catch(() => undefined)
+
+    // Entering and leaving fullscreen each reload the page on a freshly prepared sandbox instance.
     await app.page.getByTestId('html-render-surface').hover()
     await app.page.getByTestId('html-render-surface').getByRole('button').click()
     for (const toggle of [null, 'Escape']) {
@@ -187,18 +240,66 @@ test('html_render pages run outside the app origin and cannot leave the sandbox 
     const current = (await probeFrame())!
     expect(await current.evaluate(() => document.documentElement.dataset.xss)).toBe('page')
 
-    // CSP replaces the frame with an error page instead of loading the target, so this runs last.
     await current
       .evaluate((target) => {
-        const link = document.createElement('a')
-        link.href = target
-        document.body.appendChild(link)
-        link.click()
-      }, `${origin}/leak/link_self`)
+        location.href = target
+      }, `${fixture.origin}/leak/location`)
       .catch(() => undefined)
     await app.page.waitForTimeout(1000)
-    expect(leaks).toEqual([])
+    expect(fixture.leaks).toEqual([])
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await fixture.close()
+  }
+})
+
+test('html_render sections replace by id and restore when the chat reopens @smoke', async ({
+  app
+}) => {
+  const panelIdOf = (toolResults: string[]) => /panelId: ([A-Za-z0-9_-]+)/.exec(toolResults[0])![1]
+  const section = (id: string, sectionId: string, html: string) => (input: FixtureInput) => ({
+    delta: toolCall(id, 'html_render_section', {
+      panelId: panelIdOf(input.toolResults),
+      sectionId,
+      html
+    }),
+    finishReason: 'tool_calls'
+  })
+  const fixture = await startFixture([
+    () => ({
+      delta: toolCall('panel-shell', 'html_render', { title: 'Panel', html: panelShell }),
+      finishReason: 'tool_calls'
+    }),
+    section('section-kpi', 'kpi', '<p>first</p>'),
+    section('section-notes', 'notes', '<p>notes</p>'),
+    section('section-kpi-retry', 'kpi', '<p>retried</p>')
+  ])
+  try {
+    await startChat(app.page, fixture.origin, 'Build the panel.')
+
+    const sections = async () => {
+      const frame = await findFrame(app.page, '#panel')
+      return frame
+        ? await frame
+            .evaluate(() =>
+              Array.from(
+                document.querySelectorAll<HTMLElement>('[data-dc-section]'),
+                (slot) => `${slot.dataset.dcSection}:${slot.textContent}`
+              ).join(',')
+            )
+            .catch(() => null)
+        : null
+    }
+    await expect.poll(sections).toBe('kpi:retried,notes:notes')
+
+    const sessionId = await getActiveSessionId(app.page)
+    await createNewChat(app.page)
+    await expect.poll(async () => (await findFrame(app.page, '#panel')) === null).toBe(true)
+    await app.page.evaluate(
+      (id) => window.deepchat.invoke('sessions.activate', { sessionId: id }),
+      sessionId
+    )
+    await expect.poll(sections).toBe('kpi:retried,notes:notes')
+  } finally {
+    await fixture.close()
   }
 })
