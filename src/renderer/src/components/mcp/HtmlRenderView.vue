@@ -107,7 +107,21 @@ const sourceRef = {
   blockId: props.blockId
 }
 
-const prepareView = () => mcpClient.prepareHtmlRenderView(sourceRef)
+// The stream shows a block as successful up to 600 ms before writing it to the database (its DB
+// flush interval), so a panel that mounts right away retries until its shell is stored.
+const PREPARE_RETRIES = 5
+const PREPARE_RETRY_DELAY_MS = 200
+
+const prepareView = async () => {
+  for (let retry = 0; ; retry += 1) {
+    try {
+      return await mcpClient.prepareHtmlRenderView(sourceRef)
+    } catch (error) {
+      if (retry === PREPARE_RETRIES) throw error
+      await new Promise((resolve) => setTimeout(resolve, PREPARE_RETRY_DELAY_MS))
+    }
+  }
+}
 
 const sendSections = async () => {
   if (!ready.value || !props.panelId) return
@@ -119,8 +133,7 @@ const sendSections = async () => {
   }
 }
 
-// A block shows as successful here up to 600 ms before it is written to the database (the stream's
-// DB flush interval), and sections are read from the database.
+// Sections are read from the database, which can trail the change signal by the same 600 ms.
 const syncSections = useDebounceFn(sendSections, 700)
 
 const handleNotification = (method: string) => {

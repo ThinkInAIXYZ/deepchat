@@ -347,7 +347,9 @@ gating, sections, fullscreen chrome and the load error.
 Each frame is its own renderer process (about 30 MB), so a page prepares its sandbox only when it
 comes within 160 px of the viewport, as infographic blocks do. Pages initialize before their own
 scripts run; a page that has not initialized 10 s after preparing (wiped by `document.open()`, or
-stuck in a loop) is released and shows the load error with a retry.
+stuck in a loop) is released and shows the load error with a retry. Prepare itself retries every
+200 ms for 1 s: the stream shows a block as successful up to 600 ms before writing it to the DB, so
+a panel that mounts at once can ask for a shell that is not stored yet.
 
 Sizing, in `HostViewFrame` for every host view:
 
