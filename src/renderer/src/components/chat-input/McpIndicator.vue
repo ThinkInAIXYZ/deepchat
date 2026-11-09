@@ -371,7 +371,14 @@ import { useDraftStore } from '@/stores/ui/draft'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useProjectStore } from '@/stores/ui/project'
 import { useModelCapabilities } from '@/composables/useModelCapabilities'
-import { ToolModeSchema, type ToolMode, type ToolModeOverride } from '@shared/toolMode'
+import {
+  AVAILABLE_TOOL_MODES,
+  normalizeToolModeOverride,
+  resolveToolMode,
+  ToolModeSchema,
+  type ToolMode,
+  type ToolModeOverride
+} from '@shared/toolMode'
 
 type ToolGroupItem = {
   id: string
@@ -400,7 +407,7 @@ const GROUP_ORDER = [
   'deepchat-settings',
   'yobrowser'
 ]
-const TOOL_MODE_OPTIONS: readonly ToolMode[] = ['agent', 'code', 'minimal']
+const TOOL_MODE_OPTIONS = AVAILABLE_TOOL_MODES
 const MINIMAL_AGENT_FILESYSTEM_TOOLS = new Set([
   'read',
   'write',
@@ -527,9 +534,11 @@ const modelCapabilities = useModelCapabilities({
   modelId: currentModelId
 })
 const persistedToolModeOverride = computed<ToolModeOverride>(() =>
-  sessionStore.hasActiveSession
-    ? (sessionStore.activeSession?.toolModeOverride ?? null)
-    : draftStore.toolModeOverride
+  normalizeToolModeOverride(
+    sessionStore.hasActiveSession
+      ? sessionStore.activeSession?.toolModeOverride
+      : draftStore.toolModeOverride
+  )
 )
 const toolModeOverride = computed<ToolModeOverride>(() =>
   optimisticToolModeOverride.value === undefined
@@ -537,10 +546,10 @@ const toolModeOverride = computed<ToolModeOverride>(() =>
     : optimisticToolModeOverride.value
 )
 const modelDefaultToolMode = computed<ToolMode>(
-  () => modelCapabilities.snapshot.value?.defaultToolMode ?? 'agent'
+  () => resolveToolMode(null, modelCapabilities.snapshot.value?.defaultToolMode).mode
 )
 const resolvedToolMode = computed<ToolMode>(
-  () => toolModeOverride.value ?? modelDefaultToolMode.value
+  () => resolveToolMode(toolModeOverride.value, modelDefaultToolMode.value).mode
 )
 const toolModeLocked = computed(
   () => sessionStore.hasActiveSession && sessionStore.activeSession?.status === 'working'
@@ -700,32 +709,6 @@ const visibleToolGroups = computed<ToolGroup[]>(() => {
     ]
   }
 
-  if (resolvedToolMode.value === 'code') {
-    const entries = currentProviderId.value === 'openai-codex' ? ['exec', 'wait'] : ['run_code']
-    const codeCallableLabel = t('chat.input.toolMode.codeCallable')
-    const codeEntryGroup = fixedToolGroup(
-      'tool-mode-code-entry',
-      t('chat.input.toolMode.codeEntry'),
-      entries
-    )
-    const directToolItems = groupedAgentTools.value
-      .flatMap((group) => group.items)
-      .filter((item) => item.toolName === 'deepchat_question')
-      .map((item) => ({ ...item, configurable: false }))
-    if (props.subagentsAvailable) directToolItems.push(createSubagentToolItem())
-    const codeCallableGroups = groupedAgentTools.value
-      .map((group) => ({
-        ...group,
-        items: group.items.filter((item) => !MODE_FIXED_AGENT_TOOLS.has(item.toolName)),
-        label: `${codeCallableLabel} · ${group.label}`
-      }))
-      .filter((group) => group.items.length > 0)
-    return [
-      { ...codeEntryGroup, items: [...codeEntryGroup.items, ...directToolItems] },
-      ...codeCallableGroups
-    ]
-  }
-
   return groupedAgentTools.value
 })
 
@@ -781,7 +764,12 @@ const persistToolModeOverride = async (override: ToolModeOverride) => {
 
 const setToolMode = (value: unknown) => {
   const parsed = ToolModeSchema.safeParse(value)
-  if (!parsed.success || parsed.data === toolModeOverride.value) return
+  if (
+    !parsed.success ||
+    !AVAILABLE_TOOL_MODES.includes(parsed.data) ||
+    parsed.data === toolModeOverride.value
+  )
+    return
   void persistToolModeOverride(parsed.data)
 }
 

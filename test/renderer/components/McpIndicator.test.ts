@@ -505,7 +505,7 @@ describe('McpIndicator', () => {
     })
   })
 
-  it('shows fixed Code tools as active read-only items', async () => {
+  it('falls back from legacy Code mode without offering the retired entrypoint', async () => {
     const { wrapper, agentSessionPresenter } = await setup({
       providerId: 'deepseek',
       defaultToolMode: 'code',
@@ -515,20 +515,11 @@ describe('McpIndicator', () => {
     expect(wrapper.text()).toContain('Model default')
     expect(
       wrapper.findAll('[role="radio"]').map((radio) => radio.element.parentElement?.textContent)
-    ).toEqual(['Agent', 'Code', 'Minimal'])
-    expect(wrapper.text()).toContain('run_code')
-    expect(wrapper.text()).toContain('Code callable · Agent Filesystem')
+    ).toEqual(['Agent', 'Minimal'])
+    expect(wrapper.text()).not.toContain('run_code')
+    expect(wrapper.text()).not.toContain('Code callable · Agent Filesystem')
     expect(wrapper.text()).toContain('deepchat_question')
-    expect(wrapper.text()).toContain('deepchat_subagents')
-    const fixedToolNames = ['run_code', 'deepchat_question', 'deepchat_subagents']
-    const fixedToolItems = wrapper
-      .findAll('span')
-      .filter((item) => fixedToolNames.includes(item.text()))
-    expect(fixedToolItems).toHaveLength(fixedToolNames.length)
-    expect(fixedToolItems.every((item) => item.attributes('variant') === 'default')).toBe(true)
-    await fixedToolItems[1].trigger('click')
-    await fixedToolItems[2].trigger('click')
-    await flushPromises()
+    expect(wrapper.text()).toContain('Direct tool calls')
     expect(agentSessionPresenter.updateSessionDisabledAgentTools).not.toHaveBeenCalled()
     expect(wrapper.text()).toContain('demo-server')
   })
@@ -539,7 +530,7 @@ describe('McpIndicator', () => {
       pluginEnabled: true,
       subagentsAvailable: true
     })
-    const minimalRadio = wrapper.findAll('[role="radio"]')[2]
+    const minimalRadio = wrapper.findAll('[role="radio"]')[1]
 
     await minimalRadio.trigger('click')
     await flushPromises()
@@ -586,7 +577,7 @@ describe('McpIndicator', () => {
     const { wrapper, sessionStore } = await setup({ sessionStatus: 'working' })
     const radios = wrapper.findAll('[role="radio"]')
 
-    expect(radios).toHaveLength(3)
+    expect(radios).toHaveLength(2)
     expect(radios.every((radio) => radio.attributes('disabled') !== undefined)).toBe(true)
     await radios[1].trigger('click')
     await flushPromises()

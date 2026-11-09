@@ -455,16 +455,6 @@
                   </template>
                 </DropdownMenuContent>
               </DropdownMenu>
-              <div v-if="showCodeModePermissionHint" class="flex gap-1 text-[11px] text-orange-500">
-                <Icon icon="lucide:triangle-alert" class="mt-0.5 h-3 w-3 shrink-0" />
-                <span>
-                  {{
-                    t('settings.deepchatAgents.defaultToolModeCodePermissionHint', {
-                      permission: t('settings.deepchatAgents.permissionFullAccess')
-                    })
-                  }}
-                </span>
-              </div>
             </div>
           </div>
         </section>
@@ -963,7 +953,7 @@ import {
 } from '@shared/orchestration/policy'
 import {
   normalizeToolModeOverride,
-  ToolModeSchema,
+  AVAILABLE_TOOL_MODES,
   type ToolMode,
   type ToolModeOverride
 } from '@shared/toolMode'
@@ -1253,7 +1243,7 @@ const toolModeOptions = computed<
     description: t('settings.deepchatAgents.defaultToolModeModelDefaultDesc'),
     icon: 'lucide:sparkles'
   },
-  ...ToolModeSchema.options.map((mode) => ({
+  ...AVAILABLE_TOOL_MODES.map((mode) => ({
     value: mode,
     label: t(`chat.input.toolMode.options.${mode}`),
     description: t(`chat.input.toolMode.descriptions.${mode}`),
@@ -1264,9 +1254,6 @@ const selectedToolModeOption = computed(
   () =>
     toolModeOptions.value.find((option) => option.value === form.defaultToolMode) ??
     toolModeOptions.value[0]
-)
-const showCodeModePermissionHint = computed(
-  () => form.defaultToolMode === 'code' && form.permissionMode !== 'full_access'
 )
 const pathLabel = (value: string) => value.split(/[/\\]/).pop() ?? value
 const directoryOptions = computed(() => {

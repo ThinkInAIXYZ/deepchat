@@ -908,7 +908,7 @@ describe('DeepChatAgentRepository', () => {
     expect(JSON.parse(rows.get('configless').config_json)).toMatchObject({
       systemPrompt: 'Legacy builtin prompt',
       permissionMode: 'default',
-      defaultToolMode: 'code',
+      defaultToolMode: null,
       disabledAgentTools: ['exec', 'write'],
       enabledSkillNames: ['skill-a'],
       enabledMcpServerIds: ['server-a'],

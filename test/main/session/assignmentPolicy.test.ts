@@ -72,7 +72,7 @@ describe('SessionAssignmentPolicy', () => {
       permissionMode: 'auto_approve',
       generationSettings: { systemPrompt: 'Agent prompt', temperature: 0.2 },
       disabledAgentTools: ['write'],
-      toolModeOverride: 'code'
+      toolModeOverride: null
     })
   })
 
@@ -87,7 +87,7 @@ describe('SessionAssignmentPolicy', () => {
         })
       ).toolModeOverride
 
-    await expect(resolveToolMode(undefined)).resolves.toBe('code')
+    await expect(resolveToolMode(undefined)).resolves.toBeNull()
     await expect(resolveToolMode(null)).resolves.toBeNull()
     await expect(resolveToolMode('minimal')).resolves.toBe('minimal')
   })
@@ -203,7 +203,7 @@ describe('SessionAssignmentPolicy', () => {
         generationSettings: { systemPrompt: 'parent prompt', temperature: 0.2 },
         disabledAgentTools: ['exec'],
         activeSkills: ['skill-a', 'skill-b'],
-        toolModeOverride: 'code'
+        toolModeOverride: null
       })
     ).resolves.toEqual({
       agentId: 'deepchat',
@@ -214,7 +214,7 @@ describe('SessionAssignmentPolicy', () => {
       generationSettings: { systemPrompt: 'parent prompt', temperature: 0.2 },
       disabledAgentTools: ['exec'],
       activeSkills: ['skill-a', 'skill-b'],
-      toolModeOverride: 'code'
+      toolModeOverride: null
     })
   })
 
