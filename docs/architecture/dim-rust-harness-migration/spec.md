@@ -10,14 +10,23 @@
 
 四项交付：
 
-1. 优先打包官方 dim Rust release，以独立 App Server 进程运行；Electron 不链接 Rust ABI，也不依赖终端 UI。
+1. 优先打包官方 dim Rust release，由 DeepChat 注入插件，在插件代码内直接使用 dim services 操作 agent。release 作为受监督宿主进程运行；跨进程通信只承载插件调用，不经过 ACP，也不依赖终端 UI。
 2. 单独交付 `deepchat-host` dim 插件，承接 dim 未覆盖的 DeepChat 系统能力、既有插件格式兼容和内置工具。原生 MCP、Skills 等功能优先归 dim。
 3. 新 session 停止写旧 Tape；复用 Inspector 的 UI 与交互，改为 Timeline Inspector。旧 Tape 仅保留历史读取和迁移用途。
 4. 单独交付 `deepchat-storage` dim 插件。DeepChat 管理 profile、数据目录、迁移、备份、同步、删除与凭据策略；dim 内容通过插件向 dim 查询。dim 原生存储是新 agent 内容的唯一事实源。
 
-这里“DeepChat 管理存储”指产品对数据的生命周期和存放位置有控制权；dim 仍是自己物理格式的唯一写入者。**不把 dim SQLite 搬回 DeepChat SQLite 后双写，不让 Electron 直读 dim 私有表。** 如果必须由 Electron 的数据库连接提交每一条 dim 事实，则需要 dim Rust 存储注入扩展，当前官方 release 不能直接实现；这不是本方案默认实现。
+这里“DeepChat 管理存储”指产品对数据的生命周期和存放位置有控制权；dim 是自己物理格式的唯一写入者。DeepChat 经注入的 storage 插件查询 dim 内容，继续管理 profile 与桌面数据操作，不替换 dim 底层存储实现。
 
-本轮交付是完整实施方案及可行性证据。后续实现按门禁逐阶段推进；保留现有可用能力是正式切换的前提，不以隐藏入口代替兼容。
+本轮交付是完整实施方案及可行性证据，产品运行代码尚未迁移。按用户明确的范围落实以下决定：
+
+- 队列直接复用 dim 的完整实现，DeepChat 只接 UI 和命令，不另建队列或预设上游缺口。
+- ACP 完全由 DeepChat 现有 client 负责；不新增 dim ACP gateway、ExternalAgent 或跨 ACP 委托任务，也不经 ACP 与 dim 通信。
+- 旧会话在首次续聊前 migration，转换为 dim 的会话内容；历史浏览不触发 agent 执行或全量迁移。
+- dim 自身 OAuth 不做适配或重实现；其他产品设置、模型配置和能力通过注入插件交互。
+- 兼容桥作为正常插件集成任务，不预先列为 dim 缺失功能。
+- 备份、同步、Inspector 和多窗口仍是 desktop 功能；移除数据库内容的持续加解密，只保留旧加密数据的一次性解密迁移。
+
+除明确移除持续加解密外，功能验收关注接入后既有用户操作是否可用，而非要求重新证明 dim 实现了这些功能。
 
 ## 2. 调研基线与证据
 
@@ -26,7 +35,7 @@
 | 对象 | 锁定依据 | 使用边界 |
 | --- | --- | --- |
 | DeepChat `origin/dev` | `42569d6a8f2128ac9c60daf7c4f15706894ccb04` | 本文现状、功能和路径基线 |
-| dim 最新抓取的 `main` | `157d0fc642e9be6f7ab0f58f49fc08e75765fe76` | 识别演进和缺口，不能当作 release 已支持 |
+| dim 最新抓取的 `main` | `157d0fc642e9be6f7ab0f58f49fc08e75765fe76` | 调研参考；接入 SDK 以实际选用 release 为准 |
 | dim `v0.1.0-alpha.21` | release manifest 的 `sourceCommit`：`0423b321abc923900525d79d030fd690110f91c4` | 首个集成候选，非已批准的生产版本 |
 | Linux x64 release | `dimcode-linux-x64-0.1.0-alpha.21.tar.gz`；SHA-256 `b38f8a68f75b9199a1b4c37053db716c077f09b72c29df5829907623692a02df` | 已与 release `SHA256SUMS` 比对并执行 |
 
@@ -49,7 +58,8 @@
 - [插件契约](https://github.com/arcships/dim/blob/0423b321abc923900525d79d030fd690110f91c4/docs/design/plugin-contract.md)、[TS 插件写法](https://github.com/arcships/dim/blob/0423b321abc923900525d79d030fd690110f91c4/docs/typescript-plugin-authoring.md)、[SDK](https://github.com/arcships/dim/blob/0423b321abc923900525d79d030fd690110f91c4/npm/plugin.d.ts)。
 - [存储装配](https://github.com/arcships/dim/blob/0423b321abc923900525d79d030fd690110f91c4/crates/dim-app-server/src/lib.rs)、[timeline 持久化](https://github.com/arcships/dim/blob/0423b321abc923900525d79d030fd690110f91c4/docs/architecture/rust-agent/timeline-storage.md)。
 - [发布与兼容约束](https://github.com/arcships/dim/blob/0423b321abc923900525d79d030fd690110f91c4/docs/release/README.md)：timeline query 形状曾发生破坏性变化，原生存储 v36 不支持旧二进制打开。
-- [ExternalAgent 草案](https://github.com/arcships/dim/blob/0423b321abc923900525d79d030fd690110f91c4/docs/design/plugins/ExternalAgent.md)：不能视作已实现的 ACP member 插件接口。main 的新增 EventHub 也不能算作 alpha.21 能力。
+
+以上基础探针用于确认 release 可运行；未执行的接入测试表示验证尚未完成，不表示 dim 缺少相关功能。ACP 扩展不属于本次 dim 集成范围。
 
 ## 3. 现状与替换边界
 
@@ -57,11 +67,11 @@
 
 | 当前所有者 | 目标所有者 | 迁移后的职责 |
 | --- | --- | --- |
-| `agent/deepchat/{harness,loop,runtime}` | dim Rust runtime / capabilities | 最终移除旧执行路径；TS adapter 只做命令、身份、事件和 UI 投影 |
+| `agent/deepchat/{harness,loop,runtime}` | dim Rust runtime / capabilities | 最终移除旧执行路径；注入插件调用 dim services，desktop adapter 做身份与 UI 投影 |
 | `provider/aiSdk`、内置 agent 调用的 Provider | dim Rust Aimux / provider 插件 | 请求构造、流、retry、工具协议、token/usage 均在 Rust |
 | `AgentManager`、Session 产品服务 | DeepChat | 稳定产品 session ID，路由到 dim 或 Direct ACP，不推进执行状态机 |
 | `agent/acp`、`directAcpAgentBackend` | DeepChat | 外部 ACP 的连接、鉴权 UI、资源、终端、工作区和扩展支持 |
-| `mcp`、`skill` 中的通用执行/管理 | dim 原生 MCP / Skills 插件 | DeepChat UI 调原生管理接口；一次性导入旧设置后不再双向保存 |
+| `mcp`、`skill` 中的通用执行/管理 | dim 原生 MCP / Skills 插件 | DeepChat UI 经注入插件操作对应 owner；产品特有能力通过 bridge 注册 |
 | DeepChat 内置 MCP、知识库、平台集成、CUA 等 | `deepchat-host` → 既有产品服务 | 只导出缺失的能力，不重建通用 MCP manager 或工具 loop |
 | `session/data`、Sync、导入导出 | DeepChat + `deepchat-storage` | 产品元数据归 DeepChat，dim 内容经 dim API；投影可重建 |
 | `tape` 的写入、journal、provider view | dim timeline / 原生恢复 | 旧 Tape 对新 session 不再是执行依赖 |
@@ -72,27 +82,27 @@
 ```mermaid
 flowchart TD
   UI[DeepChat Vue UI / CLI / Remote / Scheduler] --> S[DeepChat Session 服务与 AgentManager]
-  S --> A[Direct ACP client backend]
-  S --> D[DimAgentBackend / 本地协议客户端]
-  D --> R[官方 dim Rust App Server]
-  R --> N[dim 原生 Loop / Provider / MCP / Skills / Approval / Context / Collaboration]
-  R --> HP[deepchat-host 插件]
-  HP <--> H[DeepChat Main 能力网关]
-  H --> OS[系统集成 / 知识库 / 既有插件兼容]
-  R --> SP[deepchat-storage 插件]
-  SP --> Q[dim sessions / timeline 查询与原生存储]
-  D --> SP
-  Q --> DB[DeepChat profile 下的 dim 数据目录]
+  S --> A[现有 ACP client backend]
+  S --> D[DimAgentBackend / 插件调用客户端]
+  D <--> HP[注入 dim 的 deepchat-host 插件]
+  HP --> N[dim 原生 services: Session / Queue / Loop / Model / Tools]
+  HP <--> H[DeepChat Main 产品能力]
+  H --> OS[系统集成 / 知识库 / 既有插件]
+  D <--> SP[注入 dim 的 deepchat-storage 插件]
+  SP --> Q[dim sessions / timeline / 原生存储]
+  Q --> DB[DeepChat profile 下的 dim 数据]
   S --> META[DeepChat 产品元数据 / 可重建索引]
 ```
 
-每个 DeepChat profile 一个受监督 dim 进程，多 session 复用；不按消息 spawn CLI、不解析终端文本、不通过 ACP 包装 dim 以牺牲管理和 timeline 能力。Direct ACP 仍走独立 backend。
+每个 DeepChat profile 一个受监督 dim 宿主进程，多 session 复用。集成边界是**插件代码调用 dim services**：插件装入 dim 的服务体系，在 process/Session/branch scope 取得相应 owner 并操作它。DeepChat 不是 dim 的 ACP client，也不在进程外重建 dim 的运行逻辑。
+
+官方 release 的独立进程部署与插件代码集成可以同时成立：本地 socket/pipe 是 Electron 与插件间的承载层，业务能力来自注入的插件及其调用的 dim services。它不要求 Electron 同进程链接 Rust ABI，也不把仅调用 App Server 公共会话接口当作最终集成。前面的 App Server 探针只是验证基础宿主可用。
 
 ### 4.1 进程与协议
 
 - Linux/macOS 使用私有 Unix socket + NDJSON；Windows 使用限制到当前用户的 named pipe。生产 `--no-ws`。dim product/configured profile 的 WS 不能作为通用执行接口。
 - 显式 `--product-home <profile>/dim` 和 `--home <profile>/dim/rust`。测试用 `--mock-model` 或本地 mock provider；生产不带 mock。
-- main 中新增 `DimRuntimeSupervisor`、`DimRpcClient`、`DimAgentBackend`。沿用现有 `DeepChatSessionHandle` 的外部调用面，逐项适配；不强行复用依赖 Tape 的内部 port。
+- main 中新增 `DimRuntimeSupervisor`、`DimPluginClient`、`DimAgentBackend`。插件客户端以 typed 调用连接 `deepchat-host` / `deepchat-storage` 注册的方法；现有 session handle 适配这些插件方法。运行控制进入插件后直接使用 dim services，不使用 ACP。
 - 启动等待 socket → `hello` → 校验二进制/协议/功能 → 两插件 readiness → 恢复映射 → 接受命令。失败显示可定位错误，不自动回落旧 harness。
 - `hello.features` 只表示协议能力的一部分；Session 插件方法用 `session.methods` 发现，插件另提供版本与能力查询。新插件自定义方法是本 RFC 的拟实现合同，不是上游已有方法。
 - 断线标记 unavailable/reconnecting，不把正在运行的回合改成成功；重连校验 `instanceId`，重读快照与游标。保留 dim 的真实终态。
@@ -107,7 +117,7 @@ flowchart TD
 
 TS 插件通过 App Server 的 `--session-rows`、`--node`、`--js-runtime` 接入；注意这是 `app-server` 参数，不是旧版顶层 CLI 参数。固定与 host 匹配的 rutis 和声明，验证独立 Node runtime 的打包、寻址与生命周期；不得假设 Electron 自带的 Node 可直接作为受支持插件进程。
 
-优先顺序：**已有 release + 外置插件 → 上游补通用扩展并发布新 release → 临时从固定 commit 构建的薄 host**。最后一条只在 release 无法满足硬性门禁时启用，需在实施记录中说明缺口和退出条件；不得 fork 一套 loop，也不得把“源码有接口”写成“release 已支持”。
+默认交付为**官方 Rust release + 注入的两个 DeepChat 插件**。实施首先完成插件 service binding 与桌面调用，不预设需要 fork、薄 host 或上游扩展。只有出现具体可复现的接口限制，才单独记录实际问题；调研未覆盖某接口不是创建上游工作项的依据。
 
 ## 5. 插件设计：扩展能力，不扩展第二套执行权
 
@@ -119,10 +129,21 @@ TS 插件通过 App Server 的 `--session-rows`、`--node`、`--js-runtime` 接�
 
 - DeepChat 专有系统操作、通知、文件选择、浏览器/CUA、平台能力、内置知识库检索、尚无 dim 对应物的外部插件工具。
 - 既有插件安装与 consent 兼容。可转换为 dim 原生 MCP/Skills/Hooks 的配置优先转换；仅无法等价映射的部分走兼容 adapter，记录来源和退出条件。
-- DeepChat UI 的权限和问题交互适配、外部 ACP member 集成的产品一侧。
+- DeepChat UI 的权限、问题交互、队列操作与 session 控制。插件调用 dim 对应 owner，ACP client 继续走 DeepChat 原路径。
 - 必要的产品配置导入、工作区授权和凭据绑定。模型请求不得从这个插件回调旧 AI SDK。
 
-现有 TS SDK 可注册 `toolRegistry` 工具、`managementMethods` / `sessionMethods` 方法、`partRegistry` 分域组件，并经 `dispatcher.consume`/`timeline.query` 读取事件。`before`、动态 prompt/tool source 等部分仍有 Rust-only 边界；需要同步拦截或请求构造时，优先扩展 dim 的原生 owner，不能用异步通知冒充拦截合同。
+`deepchat-host` 在 `apply` 中通过 `ctx.use` 获取 dim 的 named services；使用 `partRegistry` 注册 Session/branch parts，使用 `toolRegistry` 注入产品工具，使用 `managementMethods` / `sessionMethods` 暴露桌面调用面，经 `dispatcher.consume` 订阅结果。会话、队列、审批、context、模型由对应 dim owner 执行。
+
+第一实施阶段固定以下 typed 产品接口（为拟实现插件接口，不宣称这些名称已存在于 dim）：
+
+| 插件入口 | 行为与权威 |
+| --- | --- |
+| Session create/send/cancel/snapshot | 调用 dim session services；稳定 ID、取消、终态原样返回 |
+| Queue list/update/reorder/steer/resume | 绑定 dim 完整队列 API；不在 TS 保存第二份可执行队列 |
+| Agent/model/settings apply/read | 通过 dim 配置与模型服务采用参数；不转发到旧 TS Provider |
+| Interaction respond / event subscribe | UI 回答交给 dim 交互 owner；结果用原始身份投影 |
+
+插件方法实现应绑定锁定 SDK 的真实 service 定义；跨语言声明需要遵循已有绑定合同，不把通知接口当作同步执行接口。
 
 DeepChat Main 提供受限双向本地网关；这是拟新增产品协议，不是 dim RPC 自带的反向 Electron 调用。能力以 `deepchat.*` 命名，由插件注册具体工具；不提供接受任意方法名、SQL、路径或 shell 的万能调用。
 
@@ -134,7 +155,7 @@ DeepChat Main 提供受限双向本地网关；这是拟新增产品协议，不
 
 dim 已有 `mcp.catalog/configuration/save/update/remove/inspect`、OAuth 和 Session 工具接入，也有 Skills catalog/启用/refresh。故默认方案是：
 
-1. DeepChat 现有设置页、发现、安装 UI 保留；main routes 改调 dim 管理接口。
+1. DeepChat 现有设置页、发现、安装 UI 保留；main routes 经注入插件调用 dim 原生管理能力。
 2. 旧用户/项目/插件配置及安全凭据迁移到 dim 对应来源，保留来源优先级、版本 CAS、禁用状态和安装 consent。
 3. 通用 stdio/HTTP/SSE server 的连接、重连、认证、工具发现、取消归 dim。每个 server identity 只有一个运行 owner。
 4. DeepChat in-memory MCP、企业身份和尚不兼容的 MCP Apps 等作为明确的桥接能力保留。能迁入 dim 原生 MCP 后移除 adapter；不通过两个 manager 同时连同一 server。
@@ -150,19 +171,19 @@ dim 已有 `mcp.catalog/configuration/save/update/remove/inspect`、OAuth 和 Se
 - 通过 dim `sessions`、`timeline.query`、原生历史/分支接口读取 session 内容、细节、usage、搜索和 export 所需数据；裁剪、脱敏后返回。冷 session acquire/release，读失败与空结果分开。
 - 提供拟新增 `deepchat.storage.capabilities`、`deepchat.storage.sessionPage`、`deepchat.storage.eventDetail`、`deepchat.storage.exportSession`；分支查询用 Session part 注册的 `session.deepchatStorage.*` 方法。具体 wire schema 在第一实施阶段固定。
 - 这些接口中的查询投影只能表达读取/序列化，不得构造模型请求、推进 loop 或直接改写 dim 事实。
-- 备份/删除/迁移由产品 coordinator 发起，优先调用 dim 原生命令；需要宿主级原子能力时列为上游扩展，不能伪装成 TS 插件已具备。
+- 备份/删除/迁移由 desktop coordinator 发起，插件调用 dim 原生内容接口并返回数据与游标。桌面层继续管理备份文件、同步、恢复和生命周期。
 
-**明确限制：** `pluginFiles` 是插件自有文件存储，并非可替换 `TimelineStore`；当前 release 在 Rust 装配 native SQLite。若未来有外部底层存储需求，必须实现 Rust 层的提交/发布、原子批次、查询、恢复和关闭合同，另作决策，不在 Electron 侧模拟。
+`pluginFiles` 用于插件自有状态，dim 原生存储用于会话事实；两者按既有职责使用。本次不替换 TimelineStore，不把这类非目标扩展列为功能缺口。
 
-### 5.4 配置和模型调用
+### 5.4 配置、模型与 OAuth 边界
 
-dim 管理模型配置和执行；DeepChat 保留设置 UI、产品预设与安全存储策略。导入 provider 配置后只通过 dim 管理接口写 provider 连接/模型偏好，避免两份 live authority。DeepChat 只保存产品映射和索引。
+模型调用、请求构造、流、重试和 usage 全部交给 dim Rust。DeepChat 的模型设置 UI、产品预设和相关配置通过 `deepchat-host` 注入到 dim 对应 services；桥只做参数、身份和结果映射，不调用旧 TypeScript Provider。
 
-逐 provider 核对 OpenAI Chat/Responses、Anthropic、Gemini/Vertex、Bedrock、Ollama、OpenAI-compatible 与现有特殊 provider（含 Copilot、Codex OAuth、Jev、Workers AI、媒体 provider 等）。同为 OpenAI-compatible 不等价：自定义 headers、代理、OAuth refresh、特殊 tool/result 语义、推理字段、cache usage 和错误类型都需要对应。
+主对话之外的标题、摘要、翻译、建议、记忆提取、embedding/rerank、图像/语音模型工作，同样经插件调用 dim 的 model/auxiliary/modality 能力。非模型的知识索引、向量存储和系统服务仍属于产品，通过插件提供工具或资源。
 
-发现缺口时在 dim Rust provider/Aimux 或 dim 原生 provider plugin 补齐；不可把 dim 的 model tool 接回旧 TypeScript Provider 实现。模型路由和限流归 dim；主对话之外的标题、摘要、翻译、建议、记忆提取、embedding/rerank、图像/语音调用也要登记并迁入 dim 的 auxiliary/model/modality 能力。非模型的知识索引、向量存储和系统工具可继续由产品服务持有。
+**dim 自身 OAuth 不适配、不迁移账号、不重实现登录或 token refresh，也不要求 DeepChat 统一其账号系统。** 其他 DeepChat 配置、凭据引用、工具和能力通过插件交互，沿用实际能力所有者的认证。对 settings 和 provider 的验收是插件参数与结果是否正确，不预先规划重写各家 provider 或新增通用 credential resolver。
 
-dim 当前 TS 插件无通用凭据服务。不能把完整秘密写到插件 row config、argv、timeline 或日志。优先 dim 原生 secret storage/安全导入；若需保留 OS keychain 为权威，则补 dim Rust 端受限 credential resolution 接口（短期凭据仅进程内使用、目标 host 绑定、轮换可撤销）。该项须验证后才切换相关 provider。
+秘密不写入普通插件 row config、argv、timeline 或日志。移除下文的数据加密功能不等于移除 API 凭据原有的安全保存或传输保护。
 
 ## 6. 数据布局、读取和一致性
 
@@ -196,17 +217,28 @@ attach 与历史补读需要无缝边界：先建立监听并暂存实时事件�
 
 每个 dim session 同时只有一个执行持有者。跨窗口、CLI、Remote 的引用计数属于 DeepChat host，不因关一个窗口就 stop。session delete/restore 使旧 generation 失效，晚到事件不得污染同名新 session。
 
-### 6.3 备份、同步、删除和恢复
+### 6.3 Desktop 数据功能
 
-首版采用可证明的一致性屏障：阻止新写入 → 处理运行/审批/后台工具 → graceful shutdown completed → 复制全部 dim 数据闭包和 DeepChat 映射/元数据 → manifest+校验 → 重启。插件只为内容导出提供只读 API；没有已验证的在线 snapshot API 时，不承诺流式运行中热备份。不得只复制运行中 `.sqlite` 而遗漏 WAL 和外部 blob。
+备份、同步、删除、恢复与多窗口继续由 DeepChat desktop 管理，本次只把其内容访问替换为 `deepchat-storage`。它们不是 dim 的缺失功能，也不要求 dim 重新实现 desktop 工作流。
 
-后续需要无暂停在线备份时，在 dim 存储 owner 中实现固定水位 snapshot/export 与文件闭包清单，再由 storage 插件提供受控入口。无法达到现有备份使用体验的部分要列为 G6 切换门禁。
+备份沿用桌面层调度与文件格式管理，经插件取得一致的 dim 内容及附件闭包；直接复制数据库时先用现有生命周期协调停止写入并完成关闭，不能漏掉 WAL/外部文件。同步继续走 DeepChat 的快照/导入与冲突策略，不对活跃 dim DB 直接做多端写入或文件合并。删除操作保持可恢复的 operation ID 与引用清理。
 
-Sync 仍由 DeepChat 管，但不对活跃 dim DB 做文件级合并；同步一致性快照或 dim 可导入的不可变内容包，冲突生成独立 imported session。定义设备/store identity，恢复不能同时运行两个 writer。
+回滚使用同版本的数据与二进制快照，保留迁移后的新增内容供再导入。此处要求是内容来源切换后的正确性验证，不新增“实现 dim 在线备份/同步服务”的前置任务。
 
-删除先冻结并 tombstone 产品映射，再经 dim 删除并处理 artifact 引用，最后清理 DeepChat 索引。用持久 operation ID 恢复中途失败；共享附件按引用释放。加密、备份密码、个人数据删除政策覆盖 dim 数据和日志；若现有加密无法覆盖新 SQLite，则必须补齐，不能因换引擎退化。
+### 6.4 移除持续加密，保留一次性解密迁移
 
-版本回滚必须恢复升级前**整套**数据与二进制快照。旧 dim 不能打开新格式；旧 DeepChat 不能继续写 dim 已接管 session。回滚后的新消息不得被静默丢弃，应保留升级后快照供重新导入。
+新数据使用普通 SQLite/原生 dim 存储，移除数据库内容加密、改密码、重新加密和日常解锁功能。旧加密数据库/备份的读取能力仅保留在 migration/import 路径。此决定针对数据库/会话内容，provider 凭据的 OS 保护与网络 TLS 保持原职责。
+
+现有复用入口：`src/main/app/databaseSecurity.ts` 的密码解析、SQLCipher 导出和中断恢复；`src/main/data/connectionConfig.ts` 的 SQLCipher compatibility 4；`databaseStartupRecovery.ts` 的损坏/WAL 检查，以及 SQLite 表复制顺序工具。
+
+1. 识别 legacy `app_db/agent.db` 及加密标记；在 profile 升级时获取已有 safeStorage 包装密码，必要时用现有本地解锁 UI 输入。密码错误、取消、密钥不可用与数据损坏分别报告，不新建空库覆盖旧库。
+2. 对旧库获取独占迁移锁、处理 WAL，保留可恢复的原始加密快照。导出到 profile 内受限 staging 的无密码数据库；复用逻辑表复制及排除规则，不用简单 `rekey` 覆盖唯一原件。
+3. 校验 schema、完整性、关键表计数、消息/工具/附件引用；只复制权威数据，可重建索引按现有规则重建。完成后原子切换数据库及加密 metadata，记录无密钥的 migration journal。
+4. 断电或失败时依据 journal 选择完整旧库或完整新库；校验通过前不删除原件。清理未采用的明文 staging 和本次迁移内存中的密码引用，日志、dim 插件和 session 内容均不接收旧数据库密码。
+5. 旧库解密是 profile 格式升级，**不是全量 dim 会话迁移**。会话仍按 §7.3 在续聊时转换；未续聊的旧历史从解密后的 legacy 数据只读浏览。
+6. 从旧加密备份恢复时执行相同解密导入。旧加密快照按恢复/保留策略管理；恢复旧版本时使用原加密快照与旧程序，不重新给新库加密。
+
+完成后不再向用户提供持续加密开关。帮助文案说明迁移后的数据为未加密存储；数据库驱动中的 legacy 解密能力须保留到旧备份导入兼容期结束，不能因删 UI 就提前删掉读取能力。
 
 ## 7. Tape 退化与 Timeline Inspector
 
@@ -248,52 +280,31 @@ timeline query 与公开 `session.history` 用途不同：history 用聊天；In
 
 1. 所有旧对话先可读、可检索、可导出；当前未结算运行标记 interrupted，旧持久队列维持显式恢复要求。
 2. 需要续聊时创建 migration record 和新 dim session，按稳定 ID 映射输入、assistant 内容、tool call/result、附件、分支 lineage、设置、有效摘要和来源。
-3. 通过 dim 正式 import/migration owner 导入可重放的历史语义；若锁定 release 不支持 DeepChat 格式，在 dim 端补导入能力。不能让普通插件伪造保留域 runtime events 或再次执行历史工具。
+3. `deepchat-storage` 的 migration adapter 将 DeepChat 历史转换为 dim 接受的会话表示，通过 dim 内容/导入能力落库。插件负责格式转换与映射，dim 负责采用内容；不得再次执行历史工具或把旧事实伪造成新运行结果。
 4. 不能保留 provider 私有 replay 格式的内容明确标记；原文/原始证据仍由 legacy reader 可读。必须证明导入后上下文、有效压缩边界、消息变体及附件引用可继续使用。
 5. 校验计数、hash、工具配对、来源与附件闭包，原子切换 session engine mapping；失败保留旧 reader，不留下半迁移可执行会话。
-6. migration key 由旧 session identity、revision、格式版本组成；重复执行无重复 session/内容。支持 dry run、分批续跑、失败隔离和磁盘空间预检。
+6. migration key 由旧 session identity、revision、格式版本组成；重复执行无重复 session/内容。支持 dry run、单会话中断续跑、失败隔离和磁盘空间预检。
 
-只有只读旧历史而无法无损续聊属于未通过门禁。显式“新建关联会话”的 fallback 可先提供给试用者，但不计为完整迁移达成。
+首次续聊流程固定为：加锁 → 解密前置检查 → 转换历史 → 校验 → 切换映射 → 将本次新输入交给 dim。转换未完成时不发送本次输入；失败允许重试，旧历史保持可读。浏览历史和首次启动都不触发全量 dim 会话迁移。
 
-## 8. 功能保持与缺口处理
+## 8. 能力归属与接入验收
 
-分类：**N** 使用 dim 原生 owner；**P** 使用产品插件；**G** 需要上游补齐或验证，关闭前不全量切换。以下是能力归属与上线标准，不是测试用例清单。
+以下是集成工作，不是 dim 功能缺口列表。dim 已有能力直接使用；尚未运行接入测试只记为未验证，不据此要求重写 dim。
 
-| 能力 | 路径 | 必须保持的产品行为 |
+| 能力 | 所有者与接入方式 | 验收重点 |
 | --- | --- | --- |
-| 文本/推理/工具流、停止/继续、错误恢复 | N + adapter | 消息块顺序、usage、取消、失败可见，不因断线重复工具 |
-| send/steer/queue/retry/edit/reorder | N/G1 | dim 已有 pending/withdraw/steer；旧队列编辑、排序、重启 hold 需要逐项等价，不维持 TS 第二 pump |
-| 系统提示、AGENTS、Skill、插件 context | N/P/G2 | 作用域、来源、token 预算、撤销与 refresh 时序保持；PromptRegistry 跨语言不足则补原生扩展 |
-| 自动/手动压缩、上下文占用、长对话 | N | summary 与快照分离，压缩后追溯、取消和失败行为不退化 |
-| 通用 MCP 与 Skills | N | 既有设置、scope 优先级、OAuth、企业身份、禁用状态和重连语义保持 |
-| 内置知识库、MCP Apps、浏览器/CUA、平台服务 | P/G2 | 原 UI、隔离边界、tool schema、进度、取消、外部副作用状态可用 |
-| Provider 与模型参数/OAuth/代理/headers | N/G3 | 按实际 provider/功能清单验证，缺口迁到 Rust；无 TS model fallback |
-| 图像/附件/OCR、音频/视频与生成 | N/P/G3 | 不静默丢附件，不用纯文本替代成功，二进制结果的存储与展示完整 |
-| 标题/翻译/建议/记忆模型/embedding | N/G3 | 所有模型工作在 dim，UI 及非模型知识/记忆存储可在 DeepChat |
-| 内置 subagent / branch / fork / transfer | N/G4 | 等待、取消、消息、权限、模型选择及 lineage 保持，禁止搬旧 scheduler |
-| Direct ACP client | DeepChat | 认证、终端、工具/UI 扩展、工作区、取消、重连继续工作 |
-| dim 委托 ACP agent / ACP-as-provider 旧配置 | G4 | ExternalAgent 尚为草案；优先 dim Collaboration member 扩展。原 ACP-as-provider 不能静默转为不等价委托，需迁移说明和用户可确认的映射 |
-| 旧历史续聊、编辑/重生成/变体、收藏与搜索 | P/G5 | 导入与 branch/fork 语义明确，引用可追踪；历史工具不重放 |
-| 备份/同步/加密/删除/崩溃恢复 | P + native storage/G6 | 同一数据闭包、无双 writer、失败可恢复、磁盘故障不报成功 |
-| Timeline Inspect 与请求 trace | N/P/G7 | 全部允许的事实、精确关联、分页/跟随、原有脱敏；缺失证据明确展示 |
-| 多窗口/CLI/Remote/计划任务/后台执行 | N/P/G8 | 同一 Session 命令边界；headless、通知、授权和关闭行为保持；不得因 main 新 EventHub 存在就假设 release 有 |
+| Loop、模型、上下文、压缩、工具调度 | dim Rust；host 插件调用原生 services | UI 流、取消、usage、错误与终态正确投影 |
+| 完整队列 | dim；host 插件绑定原生队列操作 | UI 编辑/排序/steer/resume 与真实队列一致，无第二 pump |
+| MCP、Skills、权限和原生协作 | dim 原生插件 | DeepChat 设置、交互和事件映射正确 |
+| DeepChat 系统能力、知识库、CUA、既有插件 | 经 host 插件注入 dim | 注册/撤销、参数/返回值、进度和取消正确 |
+| 模型配置与辅助模型功能 | host 插件 → dim model/auxiliary/modality | 配置及结果正确；dim OAuth 不适配 |
+| ACP client、ACP 认证与扩展 | DeepChat 现有实现 | 仅做不受影响的回归，不迁入 dim、不新增跨 ACP 委托 |
+| 旧会话续聊 | storage migration adapter → dim | 按需转换、幂等、历史工具不重放，迁移后本次输入执行一次 |
+| Timeline Inspector | desktop UI + storage 插件查询 dim | 复用现有 UI，身份/分页/事件关联与详情正确 |
+| 备份、同步、删除、窗口、CLI/Remote | DeepChat desktop 及现有入口 | 内容读取改走插件，既有产品工作流继续可用 |
+| 数据库持续加解密 | 按用户决定移除 | 旧加密库及备份可一次性解密迁入，无原件损坏或密码泄露 |
 
-G1–G8 必须在计划中有负责边界、验收和删除兼容路径条件。原有行为基线以当前用户 workflow 与稳定合同为准，不把旧私有函数实现一一复制。原有能力如果不再适用，需要产品明确接受后才能改变，不由工程单方面降级。
-
-### 8.1 如果立即替换当前 harness，会有哪些功能风险
-
-本 RFC 不批准主动删除功能；当前只提交方案，因此现有产品行为没有改变。但不能把 alpha.21 的基础回合验证视为全功能可替换：
-
-| 状态 | 具体能力 | 直接切换的后果与处理 |
-| --- | --- | --- |
-| 已知扩展边界 | TS 插件替换底层 TimelineStore、同步 before、部分 prompt/tool source | 当前不能仅靠外置 TS 插件完成。默认保留 dim 原生存储写入；确需这些扩展则在 dim Rust owner 补齐 |
-| 已知上游尚为草案 | dim 向外部 ACP agent 委托 | ExternalAgent 不能作为现成能力接入；需完成 Collaboration member 扩展。DeepChat 独立 Direct ACP client 不因此缺失 |
-| 缺少完整等价证明 | 队列编辑/排序/重启 hold，旧 ACP-as-provider | 不能用 pending/withdraw/steer 或 subagent 委托冒充原行为；实现或验证等价后再迁移受影响 session |
-| 需要专用迁移实现 | 旧对话续聊、变体、附件/工具配对、私有 replay | 仅展示旧历史不等于能续聊；需 dim 导入能力及上下文校验，原始证据保留只读 |
-| 尚未逐项验证 | 特殊 provider/OAuth、媒体、embedding/记忆、产品插件/MCP Apps/CUA | 不能宣称全部支持，也不能据此认定 dim 没有；逐能力核验，缺口补 Rust provider 或产品插件 |
-| 需要跨产品实现 | 一致备份/在线备份、同步、加密、完整 trace/Inspector、多入口生命周期 | 当前 release 的基本存储/history API 不能直接保证 DeepChat 产品行为；完成 G6–G8 后才允许全量切换 |
-
-优先阻断项是旧历史可续聊、现有 provider 能用、工具/插件可用和数据可恢复。未通过的项保持原 session 未迁移；最终完成时必须清除旧执行依赖，不能长期用双 harness 掩盖缺口。
+因此当前范围没有已决定接受的 agent 功能缺失；明确的产品取舍只有移除持续数据库加解密。剩余工作是插件代码集成、UI/配置绑定、内容转换和桌面读写适配。实现期间若遇到实际接口问题，记录具体复现后处理，不将 ACP、dim OAuth 或 desktop 功能重新扩成 harness 的前置依赖。
 
 ## 9. 安全、性能与故障不变量
 
@@ -306,18 +317,18 @@ G1–G8 必须在计划中有负责边界、验收和删除兼容路径条件。
 
 ## 10. 切换、验收和完成定义
 
-阶段试用按 session 固定 `engine=legacy|dim|acp` 和 runtime version。只允许独立 session A/B；禁止同一个用户输入同时真实执行两个 agent。旧 harness 只为迁移期既有 session 保留，不是长期 fallback。
+开发试用阶段可固定 session 的 backend 做独立 A/B，不对同一输入双执行。正式切换后，旧内置 session 记录为 `legacy-unmigrated`（只读、待续聊转换），新/已迁移 session 为 `dim`，ACP session 继续 `acp`。旧历史未全部转换不构成保留旧 harness 执行器的理由。
 
-新 session 默认切 dim 的前提：两个插件可用、目标平台包可启动、G1–G8 对发布范围全部通过、既有数据可恢复。最终移除 legacy 执行入口、旧内置 loop 和对应 Provider 调用链；历史 reader 可长期只读保留。
+正式切换验收包括插件控制链路、原生队列绑定、模型/工具交互、按需历史转换、旧库解密迁移和 desktop 内容访问。通过后移除旧内置 loop 和对应 Provider 调用链，保留 legacy reader/migrator；Direct ACP 无需等待 dim ACP 扩展。
 
 完成必须有以下可核查证据：
 
 1. 内置 agent 和所有辅助模型调用均由 dim Rust 发出，DeepChat adapter 不包含 loop/retry/context/queue 推进代码。
 2. 普通 MCP/Skills/Approval/Context/Collaboration 使用 dim owner，剩余 bridge 每项有 dim 未覆盖的产品理由。
-3. 主要桌面、CLI、Remote、Direct ACP workflow 保持；所有兼容缺口闭环或有明确产品批准的变更。
+3. 主要桌面、CLI、Remote workflow 经插件接入；Direct ACP 保持原路径，dim OAuth 不适配，兼容能力以插件注入。
 4. 新 session 不写 Tape；旧数据可读、可续聊、可检查，Timeline Inspector 可分页跟随新数据。
-5. 数据全部在受管理 profile 内，内容查询经 storage 插件；备份/迁移/删除/回滚在故障中可恢复。
+5. 数据全部在受管理 profile 内，内容查询经 storage 插件；旧加密库一次性解密可恢复，持续加密已移除；desktop 备份/迁移/删除保持正确。
 6. 六个平台 release 与插件运行时、签名/许可证/离线启动验收通过。跨平台结果必须分别记录。
 7. 全变更审查、必要质量门禁与现有行为回归完成；清理临时探针、旧无用执行模块与依赖，更新被替代的维护合同。
 
-当前没有需要用户先回答才可写方案的架构选择。上游扩展可行性和行为等价属于实施门禁；缺口阻止产品切换，不阻止可独立的 adapter、插件和 UI 工作。
+范围已经明确：优先插件集成与按需迁移，直接复用 dim 能力。实施验收验证 DeepChat 接入是否正确，不再将队列、ACP、OAuth 或桌面能力列为推测的 dim 缺口。

@@ -1,164 +1,160 @@
 # dim Rust Harness 迁移实施计划
 
-本文件是唯一执行跟踪表。目标、权威边界和验收合同见 [spec.md](./spec.md)。
+本文件是唯一执行跟踪表。目标与职责见 [spec.md](./spec.md)。
 
-状态：调研及实施方案完成；下面 P1–P9 尚未实施。本文中的路径与接口如无“现有”标识，均为拟新增或拟调整，不代表已交付。
+状态：方案已修订，产品代码尚未迁移。下列任务是 DeepChat 接入 dim 的实施任务，不是 dim 功能缺口清单。dim 的完整队列直接复用，ACP 保持 DeepChat client 路径，dim 自身 OAuth 不做适配，桌面功能保持原所有者；数据库持续加解密按用户决定移除，只保留旧数据解密迁移。
 
-## P0. 建立基线与验证接入方向
+## P0. 基线与已确认决策
 
-- [x] fetch 最新 `origin/dev`，从 `42569d6a8f2128ac9c60daf7c4f15706894ccb04` 创建 `docs/dim-rust-harness-migration`，保留原 checkout。
-- [x] 读取 AgentManager、built-in/Direct ACP backend、harness/host 合同、MCP/插件、Tape/Inspector 和存储边界。
-- [x] 对照 dim main、alpha.21 tag、release manifest、App Server、插件 SDK、原生存储装配和发布合同。
-- [x] 官方 Linux x64 release 下载与 SHA-256 校验；执行真实二进制的 v3 socket、mock 回合、history/lookup、关闭和重启读取探针。
-- [x] 将“dim 能做则交给 dim”落实到 MCP/Skills/权限/模型/队列/协作归属，而非把现有服务整体包进 bridge。
-- [x] 写入目标 RFC、缺口 G1–G8、迁移与回滚合同、阶段交付和验证状态。
+- [x] fetch `origin/dev`，从 `42569d6a8f2128ac9c60daf7c4f15706894ccb04` 创建 `docs/dim-rust-harness-migration`。
+- [x] 读取现有 Session/AgentManager、harness、Direct ACP、MCP/插件、Tape/Inspector 和数据边界。
+- [x] 核对 dim main、alpha.21 release、App Server、插件 SDK、原生存储与发布合同。
+- [x] 官方 Linux x64 release 校验与基础探针：v3 socket、mock 回合、history/lookup、关闭和重启一致性。
+- [x] 按用户确认的范围改为插件代码集成，移除原先推测的队列、ACP、OAuth 与 desktop 功能缺口。
+- [x] 调查 `databaseSecurity.ts`、SQLCipher compatibility 4 和数据库启动恢复路径，形成一次性解密方案。
 
-结论：官方 release 可以作为首个集成候选；并不等于 release 已满足所有功能。TS 插件不能直接替换底层 TimelineStore，ExternalAgent 文档不是已实现保证。
+已有探针只证明 release 基础宿主可用，尚未证明 DeepChat 插件集成；此区别不代表 dim 缺少功能。
 
-## P1. 固定协议、能力与发布包（门禁 A）
+## P1. 打包 dim release 并注入插件
 
-目标：不依赖本机开发工具链，能够启动锁定 dim，并知道这个版本确切能做什么。
+目标：默认使用官方 Rust release，将 DeepChat 插件装入 dim 的服务体系。
 
-负责边界：DeepChat runtime packaging / main supervisor；协议缺口归 dim 上游。
+负责边界：runtime packaging、`src/main/agent/dim/` supervisor、插件装载。
 
-- [ ] 建立 runtime lock manifest 和获取脚本，纳入 `scripts/install-runtime.mjs` / runtime 打包约定；记录六平台资源、hash、source commit、SDK、插件运行时与许可证。
-- [ ] 在 `src/main/agent/dim/` 实现 supervisor 和 v3 client：生命周期、socket/pipe 权限、握手、超时、请求相关、字节边界、取消、graceful shutdown、实例变化。
-- [ ] 明确生产 `product-home/home`、每 profile 的租约、短 socket 路径、离线包和系统代理/CA 注入；禁止连接用户全局 dim daemon。
-- [ ] 用相同 release 装载最小 TS process/Session/branch part，验证 `partRegistry`、`toolRegistry`、`sessionMethods`、`managementMethods`、`dispatcher.consume` 与 timeline 查询；固定匹配的 rutis/SDK，不从 main 拷贝不兼容声明。
-- [ ] 验证现有 `session.methods` 的 discovery、submit/lookup 的不确定性和重复 ID 合同、attach/history 的无丢失边界、u64 无损传输。
-- [ ] 建立功能对应清单，覆盖现有 provider registry、所有模型调用点、工具来源、插件格式、队列和 ACP 功能；每一项标 N/P/G、负责人、目标版本、验收证据及临时路径退出条件。
-- [ ] 对发现的 release 缺口确定上游补丁范围；需要薄 host 时保持原生 dim 核心、明确回到官方 release 的版本条件。此阶段只记录本地上游工作项，不自动创建 GitHub issue。
+- [ ] 固定 runtime manifest：release/source commit、六平台包/hash、SDK/rutis/插件运行时版本、插件 digest、存储版本和许可证；接入现有 runtime 安装与离线打包。
+- [ ] 每 profile 启动独立受监督宿主，显式 home/data root，socket/pipe 私有；复用现有进程树、退出和代理/CA 配置。
+- [ ] 装载 `deepchat-host` 与 `deepchat-storage` 两条插件 row；由插件注册 process/Session/branch parts，通过 `ctx.use` 获取 dim services。
+- [ ] 完成最小插件调用：desktop → 插件注册的方法 → dim session service → 插件事件 → desktop。业务边界是插件代码，不经 ACP、不解析 CLI 输出。
+- [ ] 固定 typed `DimPluginClient` 调用合同及版本握手；本地 socket/pipe 仅承载跨进程调用，App Server 公共 RPC 探针不代替插件集成验收。
+- [ ] 验证 loader 生命周期、SDK 匹配、卸载、重启、错误、字节上限和 u64 游标；不预设上游补丁或自建薄 host。
 
-完成条件：打包二进制能独立启动、插件加载且安全卸载，版本不匹配在执行前失败；能力清单区分 binary-tested、source-confirmed、proposed。一个关键入口缺失即不开放正式 dim session。
+完成条件：官方 release 可离线运行，两个插件可加载并直接调用 dim 服务，桌面能收到真实结果。
 
-## P2. 接通 DeepChat Session 与 dim 执行（依赖 P1）
+## P2. Session 与完整队列绑定
 
-目标：打通现有 UI → Session → dim → 流式 UI 的最小完整链路，同时隔离 Direct ACP。
+目标：现有聊天 UI 使用 dim 内置 agent 与完整队列，ACP 继续走原 client。
 
-负责边界：`src/main/agent/manager/`、`src/main/session/`、新增 dim adapter、app composition。
+负责边界：`AgentManager`、Session 服务、`DimAgentBackend`、`deepchat-host`。
 
-- [ ] 增加持久 engine/runtime/store/session/branch 映射与版本化迁移。对现有 session 标 legacy 或 acp，禁止根据是否有消息动态猜引擎。
-- [ ] `DimAgentBackend` 实现现有 session handle 的发送、取消、快照、settings 等 facet；不足的字段明确能力诊断，不用空实现伪装可用。
-- [ ] 将 dim event 投影为既有 `AssistantMessageBlock`、状态、usage 和 typed events，保留 request/turn/tool 身份及错误来源；变更 shared contracts、preload、renderer client 时保持 typed boundary。
-- [ ] 实现稳定 submission intent、accepted/unknown/rejected 状态和 input lookup；实现断线补页、事件去重、projection cursor 事务、重启 fencing。
-- [ ] 保持多窗口/CLI/Remote 的 session 引用和取消权限；冷查询不启动 agent、不消费输入。Direct ACP 不经过 dim backend。
-- [ ] 使用受控本地模型 fixture 完成普通对话、多轮、工具结果、错误与取消；真实运行需写入 dim 原生 store，不能只模拟 adapter。
+- [ ] 持久化 appSessionId ↔ dimSessionId/branch/store/runtime 映射；旧内置会话标为待转换，ACP 保留原 backend。
+- [ ] `DimAgentBackend` 通过 host 插件实现现有发送、取消、快照、设置与交互 facet；插件内调用 dim service，不导入旧 harness 服务图。
+- [ ] 将队列 list/update/reorder/steer/resume 等 UI 操作直接绑定 dim 原生队列；移除旧 pending pump 的执行职责，不新增 TS 队列或先行改造 dim InputQueue。
+- [ ] 将 dim 事件转换为既有消息块、usage、状态及 typed events，保留 turn/request/tool 身份和错误来源。
+- [ ] 实现稳定 submission intent、未知提交结果查询、重连补页、去重、projection cursor 与 generation fencing；确认丢失时不盲目重发。
+- [ ] 多窗口/CLI/Remote 复用现有产品入口；ACP 的认证、终端、扩展和取消保持原路径，只做回归，不新增 dim ACP 接口或跨 ACP 委托。
 
-完成条件：一个 dim session 可在现有聊天界面连续工作、重启恢复和取消，ACP session 原样工作；即使客户端回复丢失，也不会无条件重发。
+完成条件：现有聊天 UI 可多轮、取消、操作队列和重启恢复；执行和队列状态只由 dim 持有，Direct ACP 不经过 dim。
 
-## P3. 两个独立插件与内容读取（依赖 P1；与 P2 汇合）
+## P3. 两插件的产品能力与内容接口
 
-目标：证明插件边界，去除 adapter 对旧 harness 服务图的依赖。
+目标：用插件注入产品能力，用 storage 插件读取 dim；不复制执行核心。
 
-负责边界：`plugins/dim/deepchat-host/`、`plugins/dim/deepchat-storage/`；main 侧 `src/main/agent/dim/hostBridge/` 与 `src/main/session/data/`。
+负责边界：`plugins/dim/deepchat-host/`、`plugins/dim/deepchat-storage/`、main 产品能力网关。
 
-- [ ] `deepchat-host` 注册显式产品能力；实现受限 Main 网关、profile/session/branch/generation 授权、取消、限流、输出限界、故障诊断与卸载撤销。
-- [ ] 接入一个确有必要的产品工具（例如既有知识库查询），证明调用与结果属于 dim 的工具执行、审批和 timeline；不采用 bridge 内部 loop。
-- [ ] `deepchat-storage` 校验 store root 与 identity，提供版本/能力、session 内容页、分支详情、脱敏 event detail 和 export 接口。
-- [ ] 内容读通过 dim service/query，覆盖冷 session、关闭分支、固定水位与分页。无 UI 或 search 代码读取 dim SQLite 私有表。
-- [ ] 定义插件间无环依赖：storage 不等待 host 工具；host 不能通过 UI 读请求反向推进同一个被阻塞的 dim 调用。等待审批的状态归 dim，查询连接继续可用。
-- [ ] 确定投影缓存和 checkpoint 事务，验证只读访问失败不会被处理成空历史，慢客户端不无限积累流事件。
+- [ ] host 插件向 dim 注册 DeepChat 的系统工具、内置知识库/CUA、既有插件等能力，声明工具 schema、取消、来源与风险。
+- [ ] Main 网关限制到已授权能力，并绑定 profile/session/branch/generation；实现结果、进度、取消、卸载撤销和日志脱敏。
+- [ ] 配置/权限/问题 UI 经 host 插件交给 dim 对应 owner；保持 native 服务自己的授权检查，不引入第二套 agent 权限决策。
+- [ ] storage 插件实现 profile/store identity、内容页、event detail、timeline、导出和 migration 入口；读取通过 dim services/query，不直读私有 SQLite 表。
+- [ ] 定义只读缓存、固定水位、分页、冷 session 获取/释放和失败合同；投影失败可重建，不能回滚 dim 已提交事实。
+- [ ] 插件内直接绑定 dim 服务，调用面按业务拆分；避免任意 SQL/方法名通用网关和查询/工具调用之间的依赖环。
 
-完成条件：两个插件可独立加载/卸载/报告版本，权限撤销和 storage 失败可观察；重启仅靠 dim 权威内容即可重建聊天投影。
+完成条件：两个独立插件完成“操作 dim / 向 dim 注入能力 / 从 dim 读内容”，卸载与重启不留下旧授权或重复执行。
 
-## P4. 把 dim 原生能力收回到 dim（依赖 P2/P3；门禁 B）
+## P4. 原生能力与配置映射
 
-目标：消除双重 owner；逐项关闭 G1–G4、G8 中的运行时缺口。
+目标：dim 能完成的功能全部交给 dim，其他产品功能经插件交互。
 
-负责边界：dim 原生 owners / 上游扩展；DeepChat 仅配置 UI、转换器、产品桥。
+负责边界：dim 原生 owner + host 插件配置映射；不预设 provider 或 OAuth 重写。
 
-- [ ] **MCP / Skills**：迁移 user/project/plugin 配置、启用状态、凭据和来源 revision；UI 改调 dim 管理接口，通用连接/认证/工具发现由 dim。逐个迁出当前 `serverManager`、`toolManager` 的通用执行职责；in-memory、企业身份、MCP Apps 仅按真实缺口保留 bridge。
-- [ ] **模型与 G3**：按 `providerRegistry.ts`、特殊 Provider/auth/media 和辅助调用入口制定 mapping；Rust 完成请求、stream、retry、reasoning/cache、usage、代理/headers/OAuth。对齐模型设置、标题、翻译、memory extraction/embedding、媒体调用；缺少 provider 端口在 dim 补，禁止回调 TS AI SDK。
-- [ ] **凭据**：安全导入/绑定既有 secret，验证 redaction 与 refresh/revoke。OS keychain resolver 如为必需，应先完成 Rust 接口再启用；不得将 secret 填入普通插件 JSON。
-- [ ] **队列与 G1**：核对 send/steer/withdraw/pending 原生语义。编辑/排序/重启显式 resume 若缺失，在 dim InputQueue/Session methods 增加原子变更和版本校验；移除 DeepChat pending pump 的执行职责，UI 队列读 dim。
-- [ ] **Context / G2**：模型输入组装、自动/手动压缩、usage/budget、AGENTS/Skill/context revocation 归 dim；不能用 TS 拼好 provider messages 再交 dim 发送。现有插件 hook 事件时序与幂等性通过 dim owner/兼容 part 保持。
-- [ ] **工具和产品插件 / G2**：迁移标准文件/shell/search 到 dim，保留 CUA、知识库和专有系统能力；核对 large result、附件、question/permission、异步后台结果、并行风险与取消。
-- [ ] **协作 / G4**：native dim subagent/branch/collaboration 覆盖 DeepChat 原功能。跨 ACP 委托由 dim Collaboration 插件扩展调 DeepChat ACP adapter；审批回到原操作，取消和终态有单一 owner。明确 ExternalAgent 草案的待实现部分，不能视作已存在。
-- [ ] **ACP-as-provider**：清点现有配置/会话；能等价迁入 dim Rust provider adapter 才保留该执行方式，否则作为显式的产品迁移项，完成可接受方案前不切换受影响用户。
-- [ ] **Headless / G8**：CLI、Remote、计划任务经同一 Session backend；优先复用 dim scheduler 等已有插件，将 DeepChat 触发源作为输入。核对 background tool、通知、关窗口和 app quit 的生命周期。
+- [ ] MCP/Skills：现有 UI、安装、来源和启用状态通过插件映射到 dim 原生 owner；通用连接、工具发现和执行只保留一个 owner。
+- [ ] 既有 MCP/插件兼容：in-memory server、MCP Apps、企业身份、知识库和 CUA 经插件注入；保留 consent、撤销、更新与参数/结果语义。作为正常接入实现，不列为 dim 缺失能力。
+- [ ] 模型：将现有设置及连接参数通过插件交给 dim；会话和辅助模型请求都在 Rust 执行，不回调旧 TypeScript Provider。
+- [ ] 辅助调用：标题、摘要、翻译、记忆提取、embedding/rerank、媒体等接入 dim 对应 model/auxiliary/modality；desktop 保留展示、索引与非模型服务。
+- [ ] OAuth：dim 自身登录、账号和 refresh 不做适配或迁移，不新增统一认证层；其他凭据/配置按能力所有者，通过插件正常交互，不能进入 timeline 或普通 row config。
+- [ ] Context/Skills/Hooks：dim 负责提示词、上下文、压缩、预算和撤销，产品 context/hook 通过插件接入；不由 TS 拼 provider 请求。
+- [ ] 原生 subagent/branch/collaboration 直接用 dim；ACP 完全由 DeepChat 原有实现处理，不规划 ExternalAgent、dim ACP gateway 或 ACP-as-provider 的 dim 迁移。
+- [ ] CLI/Remote/计划任务保持 desktop 入口和调度职责，通过相同插件控制内置 agent；通知、关闭窗口和后台结果沿用现有产品流程。
 
-完成条件：能力清单中原生支持的功能均由 dim owner 执行；每个留下的桥接项有产品原因。模型请求、queue/approval/compaction/subagent 只有一套权威状态机。
+完成条件：模型、loop、queue、context 和工具调度只有 dim 一套 owner，产品能力通过插件可用，ACP 与 dim OAuth 未扩入改造范围。
 
-## P5. 数据迁移、备份与回滚（依赖 P3/P4；门禁 C）
+## P5. 一次性解密与续聊时转换
 
-目标：关闭 G5/G6，确保“历史仍在、能续聊、能恢复”。
+目标：旧数据可读、旧会话首次续聊转为 dim；移除持续加解密。
 
-负责边界：DeepChat migration/data lifecycle coordinator，dim import/storage owner。
+负责边界：desktop profile upgrader、storage migration adapter、dim 内容采用接口。
 
-- [ ] 建立 dry run、migration journal、stable mappings、磁盘容量预检和可恢复阶段标记。覆盖 userData 之外的旧 `~/.deepchat/sessions` 内容引用。
-- [ ] 复用或扩展 dim 的正式 migration/import 能力来接受 DeepChat 数据，保证旧工具不会重放；不能靠向保留域 timeline append 伪造执行事实。
-- [ ] 迁移消息、变体/编辑点、tool pairing、附件、有效压缩摘要、分支/子会话、配置/权限意图、context 来源；核验后原子切换 engine mapping。旧队列保持 hold，用户显式恢复后才执行。
-- [ ] 旧请求 replay/trace 无法等价转换时保留只读 legacy evidence，明示边界；导入上下文与用户可见内容一致，provider 特有字段不盲目送其他模型。
-- [ ] 重复迁移、崩溃续跑、单会话损坏隔离、取消及中途磁盘满都可恢复，不留下两个可写会话。
-- [ ] 实现 shutdown barrier 下的一致备份、恢复与完整性校验；不能在运行中只拷 SQLite。在线备份若为产品必要能力，补 dim 原生 snapshot/export 后再通过 storage 插件开放。
-- [ ] 同步迁为 snapshot/import 或不可变内容协议；迁移原来的活跃会话 sync 抑制机制，避免双 writer。关闭 G6 的加密、个人数据删除、附件闭包及回滚一致性缺口。
-- [ ] 显式演练 DeepChat 升级、dim store 格式升级和整套快照回滚；保留升级后的新增内容，不让旧二进制打开新 store。
+### P5a. 旧加密 profile / 备份的解密迁移
 
-完成条件：既有代表性真实结构样本能继续对话且不丢数据，备份/删除/恢复的每个中断点有确定结局；只读历史可用不算完成迁移。
+- [ ] 复用 `src/main/app/databaseSecurity.ts` 的密码解析、SQLCipher 导出/恢复及 `connectionConfig.ts` 的兼容设置，保留 legacy 读取能力。
+- [ ] 使用已有 safeStorage 或本地解锁 UI 获取旧密码；缺少密钥、错误密码、取消、损坏分别处理，不新建空库或向 dim 传密码。
+- [ ] 独占迁移锁、处理 WAL、保留原始加密快照；导出受限 staging 中的未加密数据库，校验 schema、完整性、关键计数和引用后原子切换。
+- [ ] migration journal 不保存密码；异常重启只采用完整旧库或完整新库，清理未采用的明文 staging，保证原件可恢复。
+- [ ] 移除持续数据库加密、改密码、重新加密和日常解锁 UI/运行入口；保留旧加密备份的导入解密路径与相应驱动能力。API 凭据的 OS 保护保持原职责。
 
-## P6. Timeline Inspector 与 Tape 退化（依赖 P3/P5；门禁 D）
+### P5b. 首次续聊 migration
 
-目标：关闭 G7，复用 Inspector 的展示能力，把 Tape 从新执行路径移除。
+- [ ] 历史浏览继续用 legacy reader，首次续聊获取单 session migration lock；如 profile 仍为加密格式，先完成 P5a。
+- [ ] storage 插件的 migration adapter 转换消息/变体、工具调用和结果、附件、有效摘要、分支来源及会话配置为 dim 接受的内容表示。
+- [ ] 通过 dim 内容/导入能力落库，校验计数、hash、配对和引用；不再次执行旧工具，不把旧内容伪造成新运行结果。
+- [ ] 以 legacy session/revision/转换版本作为幂等键，成功后原子切换 engine mapping，再发送本次新输入；中途失败保留原历史和待发送意图。
+- [ ] 旧私有 replay/trace 保留只读证据；转换输出服务于 dim 后续上下文，不能只取最后几条消息代替完整有效历史。
+- [ ] 未续聊的旧会话保持待转换状态，无需全量预迁移；正式切换后其续聊入口只走转换器，不继续调用旧 harness。
 
-负责边界：`src/shared/types/tape-inspector.ts` 的新来源无关合同、Session typed routes、storage plugin、renderer Inspector。
+完成条件：解密与会话转换可分别恢复，续聊透明转换且新输入执行一次；只读旧历史不依赖旧执行器。
 
-- [ ] 引入新的 Timeline identity、branch cursor、metadata/detail 合同；`LegacyTapeReader` 和 `DimTimelineReader` 共用 UI DTO，不共用事实写入器。
-- [ ] 迁移 Panel/Timeline/Row/DetailPane/layout/resize 的 UI，保留 virtualization、选择、follow/pause、过滤、按需详情和脱敏导出。
-- [ ] 重写 store/model/timeline 中依赖 Tape incarnation/entryId/run/requestSeq 的逻辑；dim 使用真实事件/turn/request/tool IDs 和分支顺序，未知关联不猜测。
-- [ ] 明确 public history 与完整 timeline 查询差异；新详情和 trace 通过插件按固定水位取，不能为了便利把 raw history 或原始 export 全量跨 IPC。
-- [ ] UI 使用 Timeline 命名，旧 Tape 记录明确标历史来源。更新全部 locale，保留旧入口的选中消息定位能力。
-- [ ] 对 dim session 停止 Tape 写入；Direct ACP 中只为 lineage 使用 Tape 的调用迁到产品关联数据。Legacy session 暂保持旧路径，直到 P8 结束。
+## P6. Desktop 内容访问与 Timeline Inspector
 
-完成条件：新旧会话均可检查，长会话/多分支/重连无重复漏读、错绑或隐私泄露；新 dim session 无 Tape 写入依赖。
+目标：复用已有桌面功能，将数据来源切到 storage 插件；不要求 dim 重做 desktop 服务。
 
-## P7. 全变更审查与验证选择（依赖 P2–P6）
+- [ ] Inspector 使用新的来源无关 identity/cursor；保留 legacy reader 与 dim timeline reader，复用 Panel/Timeline/Row/DetailPane、虚拟化、过滤、follow/pause、选择和脱敏导出。
+- [ ] 修改依赖 Tape entryId/incarnation 的数据层与关联，按真实 dim branch/event/turn/request/tool 身份读取；列表 metadata-only，详情按需加载。
+- [ ] 备份、同步、删除、恢复由现有 desktop coordinator 管理；经插件取得内容/附件闭包，保留现有一致性和冲突流程，不直接合并活跃 dim 数据库。
+- [ ] 迁移后的内容使用未加密存储，旧加密备份恢复调用 P5a。持续加密不再列为兼容目标。
+- [ ] 新内置会话停止写 Tape；legacy Tape/trace 保留只读。涉及 ACP 历史关联的共享 Tape 依赖只做产品 metadata 解耦，不改变 ACP client 执行。
+- [ ] 更新 Timeline 命名、i18n 和旧消息定位入口；多窗口、CLI/Remote、通知仍走既有 desktop 边界。
 
-按仓库规范先实现完整切片，再选择必要的永久测试。P0 的外部临时探针用于协议可行性，未新增产品测试；迁移/并发/恢复的 characterization 如必须先于实现，需在本计划记录具体理由。
+完成条件：桌面功能仍可用，内容查询来自 storage 插件，Inspector 展示新旧来源；没有新增 desktop 重写项目。
 
-- [ ] 审查依赖方向、所有权、权限和凭据：是否残留 loop/retry/context assembler、重复审批、双数据库事实、双 MCP server 或双调度器。
-- [ ] 盘点原有 behavior tests，将仍有效的产品断言迁到 adapter/真实 dim fixture；不删除仍保护恢复、持久化、安全和可见行为的覆盖，不继续锁定旧实现细节。
-- [ ] 选择最小必要的新回归：协议兼容/不确定提交、插件撤销、断线补页、崩溃恢复、旧数据转换和双 store 一致性。避免全部通过 mock adapter 的自证测试。
-- [ ] 使用现有主/renderer 测试及 E2E workflow：launch/settings、`36-chat-streaming`、provider custom headers/connection save、user plugin install、ACP extensions/composer、memory lineage/impact、knowledge read、原 Inspector 行为。
-- [ ] 真实 release + 本地脚本化 provider/MCP 验证无凭据链路；选定 provider 的 live 验证单独记录凭据需求、结果和未测范围。
-- [ ] 故障演练覆盖提交确认丢失、工具副作用后断线、插件中途卸载、被取消/删除 session 的晚到回包、磁盘满、备份中断及新格式回滚。
-- [ ] 测量旧/新性能基线：控制开销、TTFT、停止、流 UI、长历史页读、空闲内存、并发和包体；超阈值先诊断，不能宣称“Rust 所以更快”。
-- [ ] 在六平台验证可执行包、Node 插件 runtime、socket/pipe、权限、离线、升级/卸载、签名和 notices。按平台记录通过、失败、跳过、未测。
-- [ ] 清理临时探针；运行 format、i18n、lint、typecheck、相关 unit/E2E 和生产 build。dim 上游代码若有变更，另跑其 fmt/clippy/test/xtask/发布检查。
+## P7. 集成审查与验证
 
-完成条件：G1–G8 闭环；验证结果可追踪到锁定版本与目标平台。上游源码测试成功不能替代打包 release 验收。
+按仓库规范完成实现后选择必要的永久测试；现有检查可随时运行。本轮仅修改方案，没有实现 adapter 或产品测试。
 
-## P8. 灰度与移除旧执行路径（依赖全部门禁）
+- [ ] 检查真实路径为 desktop → 注入插件 → dim service，排除 ACP 包装、CLI 文本解析、旧 loop/queue/context 的重复实现。
+- [ ] 运行真实 release + 插件 + 本地模型/MCP fixture，验证发送、队列操作、取消、工具回调、事件补读与重启；不能只测 mock adapter。
+- [ ] 复用现有 main/renderer/E2E：launch/settings、聊天流、provider 参数、用户插件、知识库、memory 和 Inspector；ACP 只验证旧 client 未受影响。
+- [ ] 为按需转换、解密导入、未知提交结果和插件撤销选择必要的回归；覆盖错误密码、取消、WAL、磁盘满、切换前后崩溃、重复续聊与新输入执行一次。
+- [ ] 验证 desktop 内容适配后的备份/同步/删除、历史浏览、窗口关闭、CLI/Remote；不增加 dim OAuth 或外部 ACP 协作验收。
+- [ ] 六平台分别核查 release/插件 runtime、socket/pipe、离线、签名、升级和 notices，测量流 UI/停止/历史读取/内存，记录真实结果。
+- [ ] 清理临时探针，运行 format、i18n、lint、typecheck、相关 unit/E2E 和生产 build；未执行与环境阻塞不标为通过。
 
-- [ ] 内部 opt-in → 新 session 默认 dim → 旧 session 分批迁移；每个阶段只改变会话引擎选择，不对同一输入双执行。
-- [ ] 监测错误/恢复率、unknown submissions、权限拒绝、工具状态、迁移失败、延迟与内存；日志脱敏，不采集原始提示词或凭据。
-- [ ] 灰度失败暂停新迁移，保留 dim 数据并用对应版本恢复；旧未迁移 session 可继续旧引擎，已迁移 session 不静默降级。执行整套快照回滚须明确新增内容去向。
-- [ ] 完成旧会话处理后删除 `agent/deepchat` 的旧 harness/loop/runtime 执行模块、TS 内置模型执行路径、旧 pending pump 和 Tape writer/reconciler；先查剩余调用，保留 Direct ACP 和真实产品服务。
-- [ ] 将 `deepChatAgentBackend` 的产品名与实现分离，最终 backend 只指向 dim；清理 feature flag 与 legacy engine 执行选择。历史 Tape/trace reader 按兼容保留策略继续只读。
-- [ ] 移除确无调用者的 AI SDK/旧 runtime 依赖，保留 ACP 等还在使用的依赖；更新 lockfile，重跑完整必要打包检查。
+完成条件：验证证明接入正确，不以未测项推断 dim 缺失功能；解密迁移和按需转换失败不会损坏旧数据。
 
-完成条件：DeepChat 自有 agent harness 被 dim 完全替代，bridge 不含隐藏的第二 harness；正式默认路径没有 legacy 执行 fallback。
+## P8. 切换与旧执行器移除
 
-## P9. 更新维护合同与交付
+- [ ] 开发试用 → 新会话默认 dim → 正式将旧内置会话续聊入口切至 migration；不在后台批量迁移全部旧历史，不对同一输入双执行。
+- [ ] 观察接入错误、未确认提交、转换失败和延迟；失败恢复原始数据/对应版本，不把已迁移会话静默送回旧执行器。
+- [ ] 切换后删除旧 built-in harness/loop/runtime、pending pump、TS 模型执行及 Tape writer/reconciler；旧会话 reader/migrator 保留，未全部转换不阻塞旧执行器移除。
+- [ ] 保留 Direct ACP client 及真实 desktop 服务；清理 feature flag、无调用者依赖和持续数据库加密入口，legacy 解密 importer 仍支持旧备份。
+- [ ] 回滚使用一致的数据/二进制快照；保留升级后的新数据供恢复，旧程序使用旧加密快照，不重新加密新数据。
 
-- [ ] 将 `main-harness-portability`、`deepchat-agent-harness-boundaries`、`agent-system`、`session-management`、`tape-system`、`tape-trace-inspector` 的现行合同更新为已实现架构；保留历史只读限制。
-- [ ] 更新 user-plugins、MCP/Skills/provider/auth、memory/knowledge、工具表面、打包与开发文档，说明两插件 authoring、版本锁、数据目录、备份和故障恢复。
-- [ ] 为 reviewer 写明最终所有权、数据升级、回滚、行为差异与验证证据；UI PR 附 BEFORE/AFTER ASCII 布局。
-- [ ] 在所有能力通过后将 RFC 转为现行参考，按 SDD 规则清理已完成 plan；不提前把拟定状态写成已上线。
+完成条件：DeepChat 内置 harness 完全由 dim 替代，旧历史按需转换，ACP 保持原实现，持续加密已退出。
 
-## 实施依赖和工作量
+## P9. 维护文档与交付
 
-主路径：`P1 → P2/P3 → P4 → P5/P6 → P7 → P8 → P9`。两插件和 UI 投影可在协议稳定后独立推进；删除旧执行代码必须最后进行。
+- [ ] 按已实现状态更新 harness/host/agent/session/Tape/Inspector 合同，保留历史 reader/migration 说明。
+- [ ] 更新两插件开发、runtime 版本、数据目录、按需迁移、旧库解密和 desktop 内容访问文档；说明新数据库不再持续加密。
+- [ ] PR 描述反映最终范围和真实验证；涉及 UI 的实现 PR 附 BEFORE/AFTER 布局。
+- [ ] 实现完成后按 SDD 规则将 RFC 转为现行参考并清理已完成 plan。
 
-建议按上述阶段拆分可审查 PR；P4 按模型、MCP/Skills、queue/context、collaboration/ACP 拆分。负责人按 dim runtime、DeepChat main/data、desktop UI/packaging 三类职责分配；这是实施分工建议，不是本轮启动多 agent 工作。
+## 依赖与拆分
 
-工作量先按 **12–20 工程人周** 预估（含跨平台、数据迁移和行为回归，不含等待上游 release），P1 完成后按 G1–G8 的实际缺口重估。不能将“两进程能通信”当作迁移已完成，也不能在 provider/历史续聊等缺口未闭环时给出无条件上线日期。
+主路径：`P1 → P2/P3 → P4 → P5/P6 → P7 → P8 → P9`。旧库解密 P5a 与插件接入可独立实现；P5b 在首次续聊时执行。移除旧执行器依赖转换器可用，不依赖全量历史转换完成。
 
-## 本轮方案验证记录
+建议按 release/插件骨架、session/队列绑定、产品能力、解密与按需转换、desktop 读取/Inspector、切换清理拆 PR。取消旧版按推测上游缺口估算的 12–20 人周；首个插件端到端切片完成后，依据实际映射与转换工作量估算，不把 ACP/OAuth 重写或 desktop 重做计入。
 
-- 已验证：Git 基线与分支、上游 tag/release 资源、Linux x64 checksum/version、协议 v3、mock Rust loop、输入查询、固定水位历史读取与重启一致性。
-- 已核查源码但未做 DeepChat 集成：插件注册服务、原生 MCP/Skills、输入 pending/withdraw、compaction、存储装配；这些不能标为产品测试通过。
-- 未运行迁移产品测试：本轮未实现 adapter/插件/UI，也未变更 runtime 代码。
-- 文档检查通过：本轮文件的本地链接、代码围栏、未解决标记和 whitespace 检查；23 locales 的 `i18n:validate` 通过。
-- 使用仓库要求的 pnpm 10.34.5 尝试质量门禁：`format:check` 缺少 oxfmt；完整 `i18n` 在 validation 通过后缺少 i18n-check；`lint` 缺少 typescript；`typecheck` 缺少 tsc。依赖尚未完整安装，前次 frozen install 被 `cdn.sheetjs.com` 网络策略 403 阻塞。以上是环境阻塞，不能记为通过或归因于本轮文档变更。
-- 已结束本轮启动的 dim 进程并移除临时协议探针及其合成 profile；没有修改真实用户 profile。
-- 方案以面向 `dev` 的 Draft PR 交付；仅含设计文档及现有合同的迁移指引，不发布上游、不修改 dim 源码，也不将迁移实现标为完成。
+## 方案验证记录与 PR 状态
+
+- 基础验证沿用已完成记录：官方 alpha.21 Linux x64 checksum/version、v3 socket、mock Rust loop、input lookup、history 与重启一致性。未验证插件的部分未改标为通过。
+- 本次修订已通过文档本地链接、代码围栏、whitespace 与旧缺口标签清理检查；重新运行 `i18n:validate` 通过（23 locales）。
+- 完整质量门禁仍受既有依赖安装阻塞：缺少 oxfmt/i18n-check/typescript/tsc；先前 frozen install 被 cdn.sheetjs.com 网络策略 403 阻塞。本轮不改产品代码。
+- 方案分支已推送；Draft PR 创建此前被 api.github.com 的网络策略 403 阻塞，不能声称 PR 已存在。修订同时更新分支及待发布 PR 描述。
