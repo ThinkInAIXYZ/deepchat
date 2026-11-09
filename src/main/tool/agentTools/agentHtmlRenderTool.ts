@@ -126,7 +126,8 @@ const successResult = (toolName: string, content: string, extra?: object) => ({
 
 export class AgentHtmlRenderTool {
   // Section results are persisted only after the whole tool batch, so the database misses sections
-  // accepted earlier in the same batch.
+  // accepted earlier in the same batch. Each section counts the larger of the two sizes: a deleted
+  // message can bring back a larger stored version than the one accepted here.
   private readonly acceptedSections = new Map<string, Map<string, number>>()
 
   getToolDefinitions(): MCPToolDefinition[] {
@@ -204,7 +205,8 @@ export class AgentHtmlRenderTool {
     const bytes = Buffer.byteLength(html, 'utf8')
     const key = `${conversationId}\n${panelId}`
     const accepted = this.acceptedSections.get(key) ?? new Map<string, number>()
-    const sections = new Map([...stored.sectionBytes, ...accepted])
+    const sections = new Map(stored.sectionBytes)
+    for (const [id, size] of accepted) sections.set(id, Math.max(size, sections.get(id) ?? 0))
     sections.set(sectionId, bytes)
     let total = stored.shellBytes
     for (const size of sections.values()) total += size

@@ -54,4 +54,17 @@ describe('AgentHtmlRenderTool', () => {
     }
     expect(() => call('e')).toThrow(/2 MB/)
   })
+
+  it('counts the stored size when a deleted message brings back a larger section', () => {
+    let stored = new Map<string, number>()
+    const panels = { measurePanel: () => ({ shellBytes: 10, sectionBytes: stored }) }
+    const rollbackTool = new AgentHtmlRenderTool()
+    const call = (sectionId: string, html: string) =>
+      rollbackTool.callSection({ panelId: 'p', sectionId, html }, 'session-1', panels)
+
+    for (const sectionId of ['a', 'b', 'c', 'd']) call(sectionId, 'x')
+    stored = new Map(['a', 'b', 'c', 'd'].map((id) => [id, 500_000]))
+
+    expect(() => call('e', 'x'.repeat(200_000))).toThrow(/2 MB/)
+  })
 })
