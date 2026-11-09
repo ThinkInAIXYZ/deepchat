@@ -1,6 +1,8 @@
+mod inputs;
 mod models;
 mod secrets;
 mod settings;
+mod storage;
 static GATEWAY: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
 
 fn install(builder: &mut dim_agent_runtime::AgentBuilder) {
@@ -18,6 +20,8 @@ fn install(builder: &mut dim_agent_runtime::AgentBuilder) {
     settings::install(builder);
     models::install(builder);
     secrets::install(builder);
+    inputs::install(builder);
+    storage::install(builder);
 }
 
 fn main() {

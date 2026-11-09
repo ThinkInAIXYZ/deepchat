@@ -33,3 +33,11 @@ existing OS-protected credential store. Credential values never enter Timeline.
 
 Only Linux x64 has been built and exercised locally so far. Cross-platform
 packaging validation remains part of the migration acceptance work.
+
+`session.deepchat_inputs.submit` stores validated desktop presentation as a
+`deepchat/input-representation` extension (both context flags are false), then
+admits the input through the native Branch facade. The presentation preserves
+attachment names and inline references without putting UI data in model context.
+`session.deepchat_native_storage.history` reads every committed fact, including
+extensions hidden by dim's public history projection; desktop caches can be
+rebuilt after restart through the storage plugin.

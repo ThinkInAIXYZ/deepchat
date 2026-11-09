@@ -66,7 +66,15 @@ export class DimProjectionStore {
         }
       }
       for (const input of projection.inputEvents ?? [])
-        this.database.dimInputProjectionTable.put(sessionId, input)
+        this.database.dimInputProjectionTable.put(
+          sessionId,
+          input,
+          input.type === 'deepchat' &&
+            input.name === 'input-representation' &&
+            typeof input.data.submissionId === 'string'
+            ? `submission:${input.data.submissionId}`
+            : input.id
+        )
       for (const inputId of projection.consumedInputs ?? [])
         this.database.dimInputProjectionTable.delete(sessionId, inputId)
       if (projection.retractions) this.applier.applyRetractions(projection.retractions)

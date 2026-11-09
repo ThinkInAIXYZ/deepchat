@@ -63,18 +63,48 @@ export class DimSessionRuntime {
       mode?: 'queue' | 'steer' | 'append'
       submissionId?: string
       rawBlocks?: JsonValue[]
+      representation?: JsonValue
     } = {}
   ): Promise<DimInputReceipt> {
     const { binding, scope } = await this.open(sessionId)
     const submissionId = options.submissionId ?? randomUUID()
-    const payload: JsonValue = {
-      sessionId: binding.dimSessionId,
-      branchId: binding.branchId,
-      submissionId,
-      mode: options.mode ?? 'queue',
-      rawBlocks: options.rawBlocks ?? [],
-      content
-    }
+    const payload: JsonValue =
+      options.representation === undefined
+        ? {
+            sessionId: binding.dimSessionId,
+            branchId: binding.branchId,
+            submissionId,
+            mode: options.mode ?? 'queue',
+            rawBlocks: options.rawBlocks ?? [],
+            content
+          }
+        : {
+            sessionId: binding.dimSessionId,
+            branchId: binding.branchId,
+            input: {
+              submission_id: submissionId,
+              mode: options.mode ?? 'queue',
+              user: { content },
+              blocks: (options.rawBlocks ?? []).map((block) => {
+                if (
+                  !block ||
+                  typeof block !== 'object' ||
+                  Array.isArray(block) ||
+                  typeof block.text !== 'string'
+                )
+                  throw new Error('Invalid native raw block')
+                const key = block.key
+                return {
+                  type: 'raw',
+                  text: block.text,
+                  ...(key && typeof key === 'object' && !Array.isArray(key)
+                    ? { key: key.name, retire: key.use === 'retire' }
+                    : {})
+                }
+              })
+            },
+            representation: options.representation
+          }
     if (this.scopes.get(sessionId) !== scope)
       throw new DimConnectionError('dim session was closed before admission', 'not-sent')
     const stored = this.options.database.dimInputIntentsTable.begin({
@@ -94,7 +124,12 @@ export class DimSessionRuntime {
       const client = await this.options.host.start()
       if (this.scopes.get(sessionId) !== scope)
         throw new DimConnectionError('dim session was replaced before submission', 'not-sent')
-      const receipt = await client.call<DimInputReceipt>('deepchat.host.input', payload)
+      const receipt = await client.call<DimInputReceipt>(
+        options.representation === undefined
+          ? 'deepchat.host.input'
+          : 'session.deepchat_inputs.submit',
+        payload
+      )
       this.options.database.dimInputIntentsTable.settle(submissionId, 'accepted', receipt)
       return receipt
     } catch (error) {
@@ -111,6 +146,8 @@ export class DimSessionRuntime {
         (error instanceof DimConnectionError && error.outcome === 'not-sent') ||
         [
           'invalid_params',
+          'session_invalid_input',
+          'input_blocked',
           'rejected',
           'session_closed',
           'branch_missing',

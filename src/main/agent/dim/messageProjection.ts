@@ -65,9 +65,23 @@ export function projectDimEvent(
     createdAt: now,
     updatedAt: now
   })
+  if (key === 'deepchat/input-representation') {
+    result.inputEvents = [event]
+    return result
+  }
+  if (key === 'deepchat/input-rejected' && typeof event.data.submissionId === 'string') {
+    result.consumedInputs = [`submission:${event.data.submissionId}`]
+    return result
+  }
+  const clearInputCache = (inputId: string) => {
+    const input = readInput(inputId)
+    result.consumedInputs = [inputId]
+    if (typeof input?.data.submission_id === 'string')
+      result.consumedInputs.push(`submission:${input.data.submission_id}`)
+  }
   if (key === 'input/deleted' && typeof event.data.input_id === 'string') {
     result.retractions = [dimUserMessageId(binding, event.data.input_id)]
-    result.consumedInputs = [event.data.input_id]
+    clearInputCache(event.data.input_id)
     return result
   }
   if (key === 'input/message') {
@@ -75,7 +89,7 @@ export function projectDimEvent(
     return result
   }
   if (key === 'input/consumed' && typeof event.data.input_id === 'string') {
-    result.consumedInputs = [event.data.input_id]
+    clearInputCache(event.data.input_id)
     const original = readMessage(dimUserMessageId(binding, event.data.input_id))
     if (original) {
       const metadata = JSON.parse(original.metadata) as MessageMetadata
@@ -124,10 +138,26 @@ export function projectDimEvent(
         })
       }
     }
+    const representation =
+      typeof input.data.submission_id === 'string'
+        ? readInput(`submission:${input.data.submission_id}`)?.data.content
+        : undefined
+    if (
+      representation !== undefined &&
+      (!representation ||
+        typeof representation !== 'object' ||
+        Array.isArray(representation) ||
+        typeof representation.text !== 'string' ||
+        !Array.isArray(representation.files) ||
+        !Array.isArray(representation.links) ||
+        typeof representation.search !== 'boolean' ||
+        typeof representation.think !== 'boolean')
+    )
+      throw new Error('Invalid native product input representation')
     const record = createMessage(
       dimUserMessageId(binding, input.id),
       'user',
-      JSON.stringify(user),
+      JSON.stringify(representation ?? user),
       'sent'
     )
     record.createdAt = input.create_at

@@ -25,12 +25,12 @@ export class DimInputProjectionTable extends BaseTable {
       .get(sessionId, inputId) as { event_json: string } | undefined
     return row ? JSON.parse(row.event_json) : null
   }
-  put(sessionId: string, event: DimEvent): void {
+  put(sessionId: string, event: DimEvent, key = event.id): void {
     this.db
       .prepare(
         'INSERT INTO dim_input_projection(session_id, input_id, event_json) VALUES (?, ?, ?) ON CONFLICT(session_id, input_id) DO UPDATE SET event_json = excluded.event_json'
       )
-      .run(sessionId, event.id, JSON.stringify(event))
+      .run(sessionId, key, JSON.stringify(event))
   }
   delete(sessionId: string, inputId: string): void {
     this.db

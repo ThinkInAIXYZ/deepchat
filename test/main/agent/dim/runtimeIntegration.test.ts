@@ -1,5 +1,7 @@
 import { DimSessionConnection } from '@/agent/dim/sessionConnection'
 import { projectDimEvent } from '@/agent/dim/messageProjection'
+import { DimProjectionStore } from '@/agent/dim/projectionStore'
+import type { DimEvent } from '@/agent/dim/sessionConnection'
 import type { DimSessionBinding } from '@/session/data/tables/dimSessionBindings'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
 import { expect, it } from 'vitest'
@@ -429,16 +431,66 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
           config: { temperature: 0.23, topP: 0.71, maxTokens: 83 }
         })
       }
-      await client.call('deepchat.host.input', {
-        ...ref,
-        mode: 'queue',
-        submissionId: randomUUID(),
-        rawBlocks: [],
-        content: [{ type: 'text', text: 'native agent request' }]
-      })
+      const representation = {
+        text: 'UI-only representation sentinel',
+        files: [{ name: 'source.md', path: '/fixture/source.md' }],
+        links: ['https://example.test'],
+        search: false,
+        think: false,
+        activeSkills: ['product-skill']
+      }
+      if (nativePlugins) {
+        const submissionId = randomUUID()
+        grants.data.dimSessionBindingsTable.bind('product-ui', sessionId)
+        const failures: unknown[] = []
+        const desktop = new DimSessionRuntime({
+          database: grants.data,
+          host,
+          launch: async () => {
+            throw new Error('Existing native identity must be reused')
+          },
+          projected: () => {},
+          failed: (_id, error) => failures.push(error)
+        })
+        const accepted = await desktop.submit(
+          'product-ui',
+          [{ type: 'text', text: 'native agent request' }],
+          { submissionId, representation }
+        )
+        expect(
+          await desktop.submit('product-ui', [{ type: 'text', text: 'native agent request' }], {
+            submissionId,
+            representation
+          })
+        ).toEqual(accepted)
+        await desktop.waitIdle('product-ui')
+        await desktop.close('product-ui')
+        expect(failures).toEqual([])
+        const input = {
+          ...ref,
+          input: {
+            submission_id: submissionId,
+            mode: 'queue',
+            user: {
+              content: [{ type: 'text', text: 'native agent request' }]
+            }
+          },
+          representation
+        }
+        expect(await client.call('session.deepchat_inputs.submit', input)).toEqual(accepted)
+      } else {
+        await client.call('deepchat.host.input', {
+          ...ref,
+          mode: 'queue',
+          submissionId: randomUUID(),
+          rawBlocks: [],
+          content: [{ type: 'text', text: 'native agent request' }]
+        })
+      }
       await client.call('deepchat.host.idle', ref)
       const history = await client.call<{
-        events: Array<{ type: string; name: string; data: { delta?: string } }>
+        through: number | string
+        events: DimEvent[]
       }>('deepchat.storage.history', { ...ref, limit: 100 })
       expect(
         history.events
@@ -448,6 +500,22 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
         JSON.stringify(history.events.filter((event) => event.type === 'turn'))
       ).toBe('Rust provider answer')
       expect(JSON.stringify(history)).not.toContain('fixture-secret-only')
+      if (nativePlugins) {
+        expect(
+          history.events.filter(
+            (event) => event.type === 'deepchat' && event.name === 'input-representation'
+          )
+        ).toHaveLength(1)
+        const binding = grants.data.dimSessionBindingsTable.get('product-ui')!
+        const projection = new DimProjectionStore(grants.data)
+        for (const event of history.events) projection.apply(binding, event)
+        const user = grants.data.deepchatMessagesTable
+          .getBySession('product-ui')
+          .find((row) => row.role === 'user')!
+        expect(JSON.parse(user.content)).toEqual(representation)
+        expect(JSON.stringify(requests[0].body)).not.toContain(representation.text)
+      }
+
       expect(
         await models.complete(
           target,
@@ -510,6 +578,25 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
         await verifyNoPlaintextCredential(path.join(profile, 'dim'))
       }
       expect(await admit()).toEqual(target)
+      if (nativePlugins) {
+        const recovered = await (
+          await host.start()
+        ).call<{ events: DimEvent[] }>('deepchat.storage.history', {
+          ...ref,
+          limit: 100,
+          through: String(history.through)
+        })
+        expect(recovered.events).toEqual(history.events)
+        grants.data.deepchatMessagesTable.deleteBySession('product-ui')
+        grants.data.dimSessionBindingsTable.delete('product-ui')
+        const binding = grants.data.dimSessionBindingsTable.bind('product-ui', sessionId)
+        const projection = new DimProjectionStore(grants.data)
+        for (const event of recovered.events) projection.apply(binding, event)
+        const user = grants.data.deepchatMessagesTable
+          .getBySession('product-ui')
+          .find((row) => row.role === 'user')!
+        expect(JSON.parse(user.content)).toEqual(representation)
+      }
       expect(
         await models.complete(target, { messages: [{ role: 'user', content: 'after restart' }] })
       ).toMatchObject({ text: 'Rust provider answer' })

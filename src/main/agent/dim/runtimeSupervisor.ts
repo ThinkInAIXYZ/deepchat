@@ -171,7 +171,11 @@ export class DimRuntimeSupervisor {
           id: 'deepchat-storage',
           name: path.join(plugins, 'modules/deepchat-storage/index.mjs'),
           provides: {},
-          config: {}
+          config: {
+            hostAddress: address,
+            profile: this.options.profile ?? 'product',
+            rawHistory: native !== null
+          }
         },
         ...(this.options.profile === 'mock'
           ? []

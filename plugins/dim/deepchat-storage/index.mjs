@@ -1,10 +1,11 @@
 import { definePlugin } from '@arcships/rutis'
+import { withNativeClient } from '../deepchat-host/native-client.mjs'
 
 // Reads belong to dim. This plugin never opens its SQLite database or copies its event log.
 export default definePlugin({
   name: 'DeepChatStorage',
   inject: ['managementMethods', 'sessions', 'partRegistry'],
-  async apply(ctx) {
+  async apply(ctx, config) {
     const sessions = ctx.use('sessions')
     await ctx.use('partRegistry').registerDefinition(
       'session',
@@ -80,6 +81,19 @@ export default definePlugin({
             return { code: 'invalid_params', message: 'History requires a limit between 1 and 200' }
           }
           const request = { ...params }
+          if (config.rawHistory) {
+            return {
+              kind: 'value',
+              value: await withNativeClient(
+                config.hostAddress,
+                {
+                  profile: config.profile,
+                  methods: ['session.deepchat_native_storage.history']
+                },
+                (call) => call('session.deepchat_native_storage.history', request)
+              )
+            }
+          }
           for (const key of ['after', 'through', 'atLeast']) {
             if (typeof request[key] === 'string') {
               if (!/^\d+$/.test(request[key]) || BigInt(request[key]) > 18446744073709551615n) {
