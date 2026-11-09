@@ -2,34 +2,28 @@ import type { ComputedRef, InjectionKey } from 'vue'
 import { HTML_RENDER_SECTION_TOOL_NAME } from '@shared/agentHtmlRenderTool'
 import type { DisplayMessage } from '@/features/chat-page/model/displayMessage'
 
-export type HtmlRenderSection = { id: string; html: string }
-export type HtmlRenderPanelSections = ReadonlyMap<string, readonly HtmlRenderSection[]>
+/** panelId → a key that changes whenever a successful section block of that panel is added or removed. */
+export type HtmlRenderSectionRevisions = ReadonlyMap<string, string>
 
-export const HTML_RENDER_SECTIONS_KEY: InjectionKey<ComputedRef<HtmlRenderPanelSections>> =
+export const HTML_RENDER_SECTIONS_KEY: InjectionKey<ComputedRef<HtmlRenderSectionRevisions>> =
   Symbol('htmlRenderSections')
 
-type ParsedSection = { panelId: string; sectionId: string; html: string } | null
+const readPanelId = (params: string): string | null => {
+  try {
+    const value = JSON.parse(params) as Record<string, unknown>
+    return typeof value.panelId === 'string' ? value.panelId : null
+  } catch {
+    return null
+  }
+}
 
 export const createHtmlRenderSectionCollector = () => {
   // The list recomputes on every streaming flush; reuse parses of unchanged params.
-  let parseCache = new Map<string, { params: string; section: ParsedSection }>()
+  let parseCache = new Map<string, { params: string; panelId: string | null }>()
 
-  const parse = (params: string): ParsedSection => {
-    try {
-      const value = JSON.parse(params) as Record<string, unknown>
-      return typeof value.panelId === 'string' &&
-        typeof value.sectionId === 'string' &&
-        typeof value.html === 'string'
-        ? { panelId: value.panelId, sectionId: value.sectionId, html: value.html }
-        : null
-    } catch {
-      return null
-    }
-  }
-
-  return (messages: readonly DisplayMessage[]): HtmlRenderPanelSections => {
-    const nextCache = new Map<string, { params: string; section: ParsedSection }>()
-    const panels = new Map<string, Map<string, string>>()
+  return (messages: readonly DisplayMessage[]): HtmlRenderSectionRevisions => {
+    const nextCache = new Map<string, { params: string; panelId: string | null }>()
+    const panels = new Map<string, string[]>()
     for (const message of messages) {
       if (message.role !== 'assistant') continue
       message.content.forEach((block, index) => {
@@ -44,21 +38,16 @@ export const createHtmlRenderSectionCollector = () => {
         }
         const key = `${message.id}:${toolCall.id ?? index}`
         const cached = parseCache.get(key)
-        const section =
-          cached && cached.params === toolCall.params ? cached.section : parse(toolCall.params)
-        nextCache.set(key, { params: toolCall.params, section })
-        if (!section) return
-        const sections = panels.get(section.panelId) ?? new Map<string, string>()
-        sections.set(section.sectionId, section.html)
-        panels.set(section.panelId, sections)
+        const panelId =
+          cached && cached.params === toolCall.params
+            ? cached.panelId
+            : readPanelId(toolCall.params)
+        nextCache.set(key, { params: toolCall.params, panelId })
+        if (!panelId) return
+        panels.set(panelId, [...(panels.get(panelId) ?? []), key])
       })
     }
     parseCache = nextCache
-    return new Map(
-      Array.from(panels, ([panelId, sections]) => [
-        panelId,
-        Array.from(sections, ([id, html]) => ({ id, html }))
-      ])
-    )
+    return new Map(Array.from(panels, ([panelId, keys]) => [panelId, keys.join('|')]))
   }
 }

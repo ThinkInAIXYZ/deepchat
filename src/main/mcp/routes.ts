@@ -12,6 +12,7 @@ import {
   mcpAppsPrepareViewRoute,
   mcpAppsPrepareHostViewRoute,
   mcpAppsPrepareHtmlRenderRoute,
+  mcpAppsReadHtmlRenderSectionsRoute,
   mcpAppsReadResourceRoute,
   mcpAppsReleaseViewRoute,
   mcpAppsRetryToolAccessRoute,
@@ -538,6 +539,16 @@ export function createMcpRoutes(deps: {
         const input = mcpAppsPrepareHtmlRenderRoute.input.parse(rawInput)
         return mcpAppsPrepareHtmlRenderRoute.output.parse({
           view: await deps.mcpAppHost.prepareHtmlRenderView(input, appContext(context))
+        })
+      }
+    ],
+    [
+      mcpAppsReadHtmlRenderSectionsRoute.name,
+      async (rawInput) => {
+        assertAppRouteInput(rawInput)
+        const input = mcpAppsReadHtmlRenderSectionsRoute.input.parse(rawInput)
+        return mcpAppsReadHtmlRenderSectionsRoute.output.parse({
+          sections: await deps.mcpAppHost.readHtmlRenderSections(input)
         })
       }
     ],

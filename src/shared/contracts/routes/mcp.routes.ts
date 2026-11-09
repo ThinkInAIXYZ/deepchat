@@ -1317,6 +1317,14 @@ export const mcpAppsPrepareHtmlRenderRoute = defineRouteContract({
   })
 })
 
+export const mcpAppsReadHtmlRenderSectionsRoute = defineRouteContract({
+  name: 'mcp.apps.readHtmlRenderSections',
+  input: mcpAppsPrepareHtmlRenderRoute.input,
+  output: z.object({
+    sections: z.array(z.object({ id: z.string(), html: z.string() }))
+  })
+})
+
 export const mcpAppsReleaseViewRoute = defineRouteContract({
   name: 'mcp.apps.releaseView',
   input: z.object({

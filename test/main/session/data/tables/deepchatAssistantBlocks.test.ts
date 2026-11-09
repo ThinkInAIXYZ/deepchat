@@ -311,6 +311,10 @@ describeIfSqlite('DeepChatAssistantBlocksTable html_render panels', () => {
       ])
     })
     expect(table.measureHtmlRenderPanel('session-2', 'panel-1')).toBeNull()
+    expect(table.listHtmlRenderSections('session-1', 'panel-1')).toEqual([
+      { id: 'a', html: 'a' },
+      { id: 'b', html: 'bb' }
+    ])
 
     db.close()
   })

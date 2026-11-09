@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useIntersectionObserver } from '@vueuse/core'
+import { useDebounceFn, useIntersectionObserver } from '@vueuse/core'
 import { Icon } from '@iconify/vue'
 import { DcButton } from '@dc-ui/components/button'
 import {
@@ -57,9 +57,9 @@ const failed = ref(false)
 const scriptError = ref(false)
 const fullscreen = ref(false)
 const attempt = ref(0)
-const panelSections = inject(HTML_RENDER_SECTIONS_KEY, null)
-const sections = computed(() =>
-  props.panelId ? (panelSections?.value.get(props.panelId) ?? []) : []
+const sectionRevisions = inject(HTML_RENDER_SECTIONS_KEY, null)
+const sectionRevision = computed(() =>
+  props.panelId ? (sectionRevisions?.value.get(props.panelId) ?? '') : ''
 )
 const displayKey = `html-render:${props.blockId}`
 const placeholderHeight = props.height ?? HTML_RENDER_DEFAULT_HEIGHT
@@ -101,21 +101,27 @@ const buildHostStyle = (): string => {
 
 const decorateHtml = (html: string) => html.replace(HTML_RENDER_HOST_STYLE_SLOT, buildHostStyle)
 
-const prepareView = () =>
-  mcpClient.prepareHtmlRenderView({
-    conversationId: props.conversationId,
-    messageId: props.messageId,
-    blockId: props.blockId
-  })
-
-const sendSections = () => {
-  if (!ready.value || !props.panelId) return
-  void frame.value
-    ?.notify(HTML_RENDER_SECTIONS_METHOD, {
-      sections: sections.value.map(({ id, html }) => ({ id, html }))
-    })
-    .catch(() => undefined)
+const sourceRef = {
+  conversationId: props.conversationId,
+  messageId: props.messageId,
+  blockId: props.blockId
 }
+
+const prepareView = () => mcpClient.prepareHtmlRenderView(sourceRef)
+
+const sendSections = async () => {
+  if (!ready.value || !props.panelId) return
+  try {
+    const sections = await mcpClient.readHtmlRenderSections(sourceRef)
+    await frame.value?.notify(HTML_RENDER_SECTIONS_METHOD, { sections })
+  } catch {
+    // The next section change or reload sends the list again.
+  }
+}
+
+// A block shows as successful here up to 600 ms before it is written to the database (the stream's
+// DB flush interval), and sections are read from the database.
+const syncSections = useDebounceFn(sendSections, 700)
 
 const handleNotification = (method: string) => {
   if (method === HTML_RENDER_SCRIPT_ERROR_METHOD) scriptError.value = true
@@ -123,7 +129,7 @@ const handleNotification = (method: string) => {
 
 const handleReady = () => {
   ready.value = true
-  sendSections()
+  void sendSections()
 }
 
 const setFullscreen = (next: boolean) => {
@@ -167,7 +173,7 @@ const { stop: stopVisibilityWatch } = useIntersectionObserver(
   { rootMargin: '160px' }
 )
 
-watch(sections, sendSections)
+watch(sectionRevision, syncSections)
 
 // Canvas and SVG charts bake colors in when drawn, so a theme change re-renders the page.
 watch(

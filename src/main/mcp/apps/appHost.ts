@@ -215,7 +215,11 @@ export class McpAppHost implements McpAppHostPort {
         conversationId: string
         messageId: string
         blockId: string
-      }): { title: string; html: string } | null
+      }): { title: string; html: string; panelId?: string } | null
+      listHtmlRenderSections(
+        conversationId: string,
+        panelId: string
+      ): Array<{ id: string; html: string }>
       persistModelContext(
         messageId: string,
         blockId: string,
@@ -358,6 +362,20 @@ export class McpAppHost implements McpAppHostPort {
       csp: instance.csp,
       expiresAt: instance.expiresAt
     }
+  }
+
+  async readHtmlRenderSections(input: {
+    conversationId: string
+    messageId: string
+    blockId: string
+  }): Promise<Array<{ id: string; html: string }>> {
+    const source = this.deps.readHtmlRenderSource(input)
+    if (!source) {
+      throw new Error('The rendered page is no longer available')
+    }
+    return source.panelId
+      ? this.deps.listHtmlRenderSections(input.conversationId, source.panelId)
+      : []
   }
 
   async releaseView(instanceId: string, context: McpAppRouteContext): Promise<void> {

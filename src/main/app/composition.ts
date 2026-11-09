@@ -1623,6 +1623,11 @@ export async function createMainProcessControl(dependencies: {
             )
           : null
       },
+      listHtmlRenderSections: (conversationId, panelId) =>
+        sessionData.database.deepchatAssistantBlocksTable.listHtmlRenderSections(
+          conversationId,
+          panelId
+        ),
       persistModelContext: (messageId, blockId, descriptor, toolInput, context) =>
         sessionData.database.deepchatAssistantBlocksTable.updateMcpAppModelContext(
           messageId,

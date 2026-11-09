@@ -188,7 +188,11 @@ export class McpService implements McpServicePort {
         conversationId: string
         messageId: string
         blockId: string
-      }): { title: string; html: string } | null
+      }): { title: string; html: string; panelId?: string } | null
+      listHtmlRenderSections(
+        conversationId: string,
+        panelId: string
+      ): Array<{ id: string; html: string }>
       persistModelContext(
         messageId: string,
         blockId: string,
@@ -274,6 +278,7 @@ export class McpService implements McpServicePort {
           getPermissionMode: mcpApps.getPermissionMode,
           validateSource: mcpApps.validateSource,
           readHtmlRenderSource: mcpApps.readHtmlRenderSource,
+          listHtmlRenderSections: mcpApps.listHtmlRenderSections,
           persistModelContext: mcpApps.persistModelContext
         })
       : null

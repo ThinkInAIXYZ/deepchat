@@ -435,6 +435,11 @@ export interface McpAppHostPort {
     input: { conversationId: string; messageId: string; blockId: string },
     context: { webContentsId: number; windowId: number | null }
   ): Promise<McpHostPreparedView>
+  readHtmlRenderSections(input: {
+    conversationId: string
+    messageId: string
+    blockId: string
+  }): Promise<Array<{ id: string; html: string }>>
   releaseView(
     instanceId: string,
     context: { webContentsId: number; windowId: number | null }

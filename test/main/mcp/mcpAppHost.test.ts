@@ -105,8 +105,9 @@ const createHarness = () => {
     (input: { conversationId: string; messageId: string; blockId: string }) => {
       title: string
       html: string
+      panelId: string
     } | null
-  >(() => ({ title: 'Revenue', html: '<main>Revenue</main>' }))
+  >(() => ({ title: 'Revenue', html: '<main>Revenue</main>', panelId: 'panel-1' }))
   const host = new McpAppHost({
     settings: {
       getMcpServers
@@ -120,6 +121,7 @@ const createHarness = () => {
     getPermissionMode: vi.fn().mockResolvedValue('default'),
     validateSource,
     readHtmlRenderSource,
+    listHtmlRenderSections: vi.fn(() => []),
     persistModelContext: vi.fn(() => true)
   })
 

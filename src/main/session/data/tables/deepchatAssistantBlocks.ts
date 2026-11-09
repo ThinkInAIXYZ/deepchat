@@ -261,7 +261,10 @@ export class DeepChatAssistantBlocksTable extends BaseTable {
     return false
   }
 
-  readHtmlRenderSource(messageId: string, blockId: string): { title: string; html: string } | null {
+  readHtmlRenderSource(
+    messageId: string,
+    blockId: string
+  ): { title: string; html: string; panelId?: string } | null {
     for (const row of this.listByMessageId(messageId)) {
       if (
         row.block_type !== 'tool_call' ||
@@ -278,7 +281,7 @@ export class DeepChatAssistantBlocksTable extends BaseTable {
         }
         const params = row.tool_params ? JSON.parse(row.tool_params) : null
         return typeof params?.html === 'string'
-          ? { title: descriptor.title, html: params.html }
+          ? { title: descriptor.title, html: params.html, panelId: descriptor.panelId }
           : null
       } catch {
         return null
@@ -291,6 +294,24 @@ export class DeepChatAssistantBlocksTable extends BaseTable {
     sessionId: string,
     panelId: string
   ): { shellBytes: number; sectionBytes: Map<string, number> } | null {
+    const panel = this.scanHtmlRenderPanel(sessionId, panelId)
+    if (panel.shellHtml === null) return null
+    const sectionBytes = new Map<string, number>()
+    for (const [id, html] of panel.sections) sectionBytes.set(id, Buffer.byteLength(html, 'utf8'))
+    return { shellBytes: Buffer.byteLength(panel.shellHtml, 'utf8'), sectionBytes }
+  }
+
+  listHtmlRenderSections(sessionId: string, panelId: string): Array<{ id: string; html: string }> {
+    return Array.from(this.scanHtmlRenderPanel(sessionId, panelId).sections, ([id, html]) => ({
+      id,
+      html
+    }))
+  }
+
+  private scanHtmlRenderPanel(
+    sessionId: string,
+    panelId: string
+  ): { shellHtml: string | null; sections: Map<string, string> } {
     const rows = this.db
       .prepare(
         `SELECT b.tool_name, b.tool_params, b.extra_json
@@ -305,24 +326,23 @@ export class DeepChatAssistantBlocksTable extends BaseTable {
       tool_params: string | null
       extra_json: string | null
     }>
-    let shellBytes: number | null = null
-    const sectionBytes = new Map<string, number>()
+    let shellHtml: string | null = null
+    const sections = new Map<string, string>()
     for (const row of rows) {
       try {
         const params = row.tool_params ? JSON.parse(row.tool_params) : null
         if (typeof params?.html !== 'string') continue
-        const bytes = Buffer.byteLength(params.html, 'utf8')
         if (row.tool_name === HTML_RENDER_TOOL_NAME) {
           const extra = row.extra_json ? (JSON.parse(row.extra_json) as PersistedBlockExtra) : {}
-          if (extra.toolCallExtra?.htmlRender?.panelId === panelId) shellBytes = bytes
+          if (extra.toolCallExtra?.htmlRender?.panelId === panelId) shellHtml = params.html
         } else if (params.panelId === panelId && typeof params.sectionId === 'string') {
-          sectionBytes.set(params.sectionId, bytes)
+          sections.set(params.sectionId, params.html)
         }
       } catch {
         continue
       }
     }
-    return shellBytes === null ? null : { shellBytes, sectionBytes }
+    return { shellHtml, sections }
   }
 
   updateMcpAppModelContext(
