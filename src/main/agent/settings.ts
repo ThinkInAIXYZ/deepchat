@@ -17,7 +17,7 @@ import type {
   DeepChatAgentConfig,
   UpdateDeepChatAgentInput
 } from '@shared/types/agent-interface'
-import { DEFAULT_DISABLED_AGENT_TOOLS } from '@shared/agentTools'
+import { DEFAULT_DISABLED_AGENT_TOOLS, HTML_RENDER_AGENT_TOOL_NAMES } from '@shared/agentTools'
 import { normalizeDeepChatSubagentConfig } from '@shared/lib/deepchatSubagents'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import type { SettingsStore } from '@/config/settingsStore'
@@ -32,6 +32,7 @@ import { AgentRepository, BUILTIN_DEEPCHAT_AGENT_ID } from '@/agent/repository'
 import type { AgentLifecycleGatePort } from '@/agent/lifecycleGate'
 
 const UNIFIED_AGENTS_MIGRATION_VERSION = 3
+const HTML_RENDER_TOOLS_SEEDED_KEY = 'htmlRenderToolsSeeded'
 const PENDING_AGENT_SKILL_CLEANUP_KEY = 'pendingAgentSkillCleanupIds'
 const DEPRECATED_BUILTIN_PROVIDER_IDS = ['qwenlm', 'laoshi'] as const
 const MEMORY_MAINTENANCE_TRIGGER_CONFIG_KEYS: readonly (keyof DeepChatAgentConfig)[] = [
@@ -129,15 +130,11 @@ const withDeepChatAgentDefaults = (config: DeepChatAgentConfig): DeepChatAgentCo
     : [...DEFAULT_DISABLED_AGENT_TOOLS]
 })
 
-const mergeDefaultDisabledAgentTools = (
-  disabledAgentTools: DeepChatAgentConfig['disabledAgentTools']
+const mergeDisabledAgentTools = (
+  disabledAgentTools: DeepChatAgentConfig['disabledAgentTools'],
+  tools: readonly string[]
 ): string[] =>
-  Array.from(
-    new Set([
-      ...(Array.isArray(disabledAgentTools) ? disabledAgentTools : []),
-      ...DEFAULT_DISABLED_AGENT_TOOLS
-    ])
-  )
+  Array.from(new Set([...(Array.isArray(disabledAgentTools) ? disabledAgentTools : []), ...tools]))
 
 const hasMemoryMaintenanceTriggerConfigUpdate = (
   updates: Partial<DeepChatAgentConfig> | null | undefined
@@ -729,24 +726,32 @@ export class AgentSettings implements AgentSettingsPort {
     }
 
     if (migratedVersion < 2) {
-      for (const agent of this.repository.listAgents({ agentType: 'deepchat' })) {
-        const config = this.repository.getDeepChatAgentConfig(agent.id) ?? {}
-        if (agent.id !== BUILTIN_DEEPCHAT_AGENT_ID && !Array.isArray(config.disabledAgentTools)) {
-          continue
-        }
-        const disabledAgentTools = mergeDefaultDisabledAgentTools(config.disabledAgentTools)
-        if (
-          !Array.isArray(config.disabledAgentTools) ||
-          disabledAgentTools.length !== config.disabledAgentTools.length ||
-          disabledAgentTools.some((tool) => !config.disabledAgentTools?.includes(tool))
-        ) {
-          this.repository.updateDeepChatAgent(agent.id, { config: { disabledAgentTools } })
-        }
-      }
+      this.seedDisabledAgentTools(DEFAULT_DISABLED_AGENT_TOOLS)
       migratedVersion = 2
       this.settings.set('unifiedAgentsMigrationVersion', migratedVersion)
     }
+    if (!this.settings.get<boolean>(HTML_RENDER_TOOLS_SEEDED_KEY)) {
+      this.seedDisabledAgentTools(HTML_RENDER_AGENT_TOOL_NAMES)
+      this.settings.set(HTML_RENDER_TOOLS_SEEDED_KEY, true)
+    }
     if (!registryAgentsSynced) this.syncRegistryAgentsToRepository()
+  }
+
+  // Opt-in tools start disabled in existing agents too; sessions keep the tool list they started with.
+  private seedDisabledAgentTools(tools: readonly string[]): void {
+    for (const agent of this.repository.listAgents({ agentType: 'deepchat' })) {
+      const config = this.repository.getDeepChatAgentConfig(agent.id) ?? {}
+      if (agent.id !== BUILTIN_DEEPCHAT_AGENT_ID && !Array.isArray(config.disabledAgentTools)) {
+        continue
+      }
+      const disabledAgentTools = mergeDisabledAgentTools(config.disabledAgentTools, tools)
+      if (
+        !Array.isArray(config.disabledAgentTools) ||
+        disabledAgentTools.length !== config.disabledAgentTools.length
+      ) {
+        this.repository.updateDeepChatAgent(agent.id, { config: { disabledAgentTools } })
+      }
+    }
   }
 
   private materializeIndependentDeepChatAgentConfigs(): void {

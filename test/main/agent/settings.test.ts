@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { AgentSettings } from '@/agent/settings'
 import { AgentLifecycleGate } from '@/agent/lifecycleGate'
 import { BUILTIN_DEEPCHAT_AGENT_ID } from '@/agent/repository'
-import { CRON_JOB_AGENT_TOOL_NAME } from '@shared/agentTools'
+import { DEFAULT_DISABLED_AGENT_TOOLS } from '@shared/agentTools'
 import type { CreateDeepChatAgentInput } from '@shared/types/agent-interface'
 
 const createModelSelection = (providerId: string, modelId: string) => ({ providerId, modelId })
@@ -347,12 +347,38 @@ describe('AgentSettings migrations', () => {
     ;(settings as any).initializeUnifiedAgents()
 
     expect(repository.updateDeepChatAgent).toHaveBeenNthCalledWith(1, BUILTIN_DEEPCHAT_AGENT_ID, {
-      config: { disabledAgentTools: ['tool-a', CRON_JOB_AGENT_TOOL_NAME] }
+      config: { disabledAgentTools: ['tool-a', ...DEFAULT_DISABLED_AGENT_TOOLS] }
     })
     expect(repository.updateDeepChatAgent).toHaveBeenNthCalledWith(2, 'deepchat-custom', {
-      config: { disabledAgentTools: [CRON_JOB_AGENT_TOOL_NAME] }
+      config: { disabledAgentTools: [...DEFAULT_DISABLED_AGENT_TOOLS] }
     })
     expect(store.set).toHaveBeenCalledWith('unifiedAgentsMigrationVersion', 2)
+  })
+
+  it('disables html_render in migrated agents without re-disabling tools users enabled', () => {
+    const repository = {
+      ensureBuiltinDeepChatAgent: vi.fn(),
+      listAgents: vi.fn(() => [{ id: BUILTIN_DEEPCHAT_AGENT_ID }]),
+      getDeepChatAgentConfig: vi.fn(() => ({ disabledAgentTools: ['tool-a'] })),
+      updateDeepChatAgent: vi.fn()
+    }
+    const store = {
+      get: vi.fn((key: string) => (key === 'unifiedAgentsMigrationVersion' ? 3 : undefined)),
+      set: vi.fn()
+    }
+    const settings = Object.assign(Object.create(AgentSettings.prototype), {
+      repository,
+      settings: store,
+      syncRegistryAgentsToRepository: vi.fn()
+    }) as AgentSettings
+
+    ;(settings as any).initializeUnifiedAgents()
+
+    expect(repository.updateDeepChatAgent).toHaveBeenCalledOnce()
+    expect(repository.updateDeepChatAgent).toHaveBeenCalledWith(BUILTIN_DEEPCHAT_AGENT_ID, {
+      config: { disabledAgentTools: ['tool-a', 'html_render', 'html_render_section'] }
+    })
+    expect(store.set).toHaveBeenCalledWith('htmlRenderToolsSeeded', true)
   })
 
   it('moves live legacy model selections into the built-in agent', () => {
