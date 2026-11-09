@@ -17,6 +17,11 @@ export interface DimSessionRuntimeOptions {
   projected(sessionId: string, projection: DimProjection): void
   failed(sessionId: string, error: unknown): void
 }
+export interface DimUserMessageReuse {
+  messageId: string
+  orderSeq: number
+  createdAt: number
+}
 interface OpenSession {
   scope: object
   reader: DimSessionConnection
@@ -64,6 +69,7 @@ export class DimSessionRuntime {
       submissionId?: string
       rawBlocks?: JsonValue[]
       representation?: JsonValue
+      reuseUserMessage?: DimUserMessageReuse
     } = {}
   ): Promise<DimInputReceipt> {
     const { binding, scope } = await this.open(sessionId)
@@ -105,7 +111,8 @@ export class DimSessionRuntime {
           },
           ...(options.representation !== undefined
             ? { representation: options.representation }
-            : {})
+            : {}),
+          ...(options.reuseUserMessage ? { reuseUserMessage: { ...options.reuseUserMessage } } : {})
         }
     if (this.scopes.get(sessionId) !== scope)
       throw new DimConnectionError('dim session was closed before admission', 'not-sent')

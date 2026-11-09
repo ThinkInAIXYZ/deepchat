@@ -385,7 +385,7 @@ export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
     if (runtime.kind === 'acp') {
       // ACP re-creates the user message on send, so truncate from the source
       // user message (inclusive) to avoid a stale duplicate.
-      this.dependencies.transcript.commitRetryMessage(sessionId, prepared.sourceOrderSeq)
+      await this.dependencies.transcript.commitRetryMessage(sessionId, prepared.sourceOrderSeq)
       return await runtime.send({
         content: prepared.content,
         context: { projectDir: prepared.projectDir, emitRefreshBeforeStream: true }
@@ -403,6 +403,7 @@ export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
         projectDir: prepared.projectDir,
         emitRefreshBeforeStream: true,
         preserveResolvedRepresentations: true,
+        ...(prepared.reuseUserMessage ? { reuseUserMessage: prepared.reuseUserMessage } : {}),
         ...(prepared.sourceMessageId ? { preStreamAnchorMessageId: prepared.sourceMessageId } : {}),
         beforeHistoryPreparation: () =>
           this.dependencies.transcript.commitRetryMessage(sessionId, prepared.retryFromOrderSeq)

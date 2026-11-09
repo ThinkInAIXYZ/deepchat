@@ -109,8 +109,33 @@ export function projectDimEvent(
     if (typeof input?.data.submission_id === 'string')
       result.consumedInputs.push(`submission:${input.data.submission_id}`)
   }
+  const userIdentity = (inputId: string) => {
+    const input = readInput(inputId)
+    const representation =
+      typeof input?.data.submission_id === 'string'
+        ? readInput(`submission:${input.data.submission_id}`)
+        : null
+    const reuse = representation?.data.reuseUserMessage
+    if (reuse != null) {
+      if (
+        typeof reuse !== 'object' ||
+        Array.isArray(reuse) ||
+        typeof reuse.messageId !== 'string' ||
+        !reuse.messageId ||
+        typeof reuse.orderSeq !== 'number' ||
+        !Number.isSafeInteger(reuse.orderSeq) ||
+        reuse.orderSeq < 1 ||
+        typeof reuse.createdAt !== 'number' ||
+        !Number.isSafeInteger(reuse.createdAt) ||
+        reuse.createdAt < 0
+      )
+        throw new Error('Invalid retried product message identity')
+      return { id: reuse.messageId, orderSeq: reuse.orderSeq, createdAt: reuse.createdAt }
+    }
+    return { id: dimUserMessageId(binding, inputId) }
+  }
   if (key === 'input/deleted' && typeof event.data.input_id === 'string') {
-    result.retractions = [dimUserMessageId(binding, event.data.input_id)]
+    result.retractions = [userIdentity(event.data.input_id).id]
     clearInputCache(event.data.input_id)
     return result
   }
@@ -119,8 +144,8 @@ export function projectDimEvent(
     return result
   }
   if (key === 'input/consumed' && typeof event.data.input_id === 'string') {
+    const original = readMessage(userIdentity(event.data.input_id).id)
     clearInputCache(event.data.input_id)
-    const original = readMessage(dimUserMessageId(binding, event.data.input_id))
     if (original) {
       const metadata = JSON.parse(original.metadata) as MessageMetadata
       if (metadata.inputReceipt) {
@@ -190,13 +215,18 @@ export function projectDimEvent(
         typeof representation.think !== 'boolean')
     )
       throw new Error('Invalid native product input representation')
+    const identity = userIdentity(input.id)
     const record = createMessage(
-      dimUserMessageId(binding, input.id),
+      identity.id,
       'user',
       JSON.stringify(representation ?? user),
       'sent'
     )
-    record.createdAt = input.create_at
+    record.createdAt = identity.createdAt ?? input.create_at
+    if (identity.orderSeq !== undefined) {
+      record.orderSeq = identity.orderSeq
+      next.nextOrderSeq = Math.max(next.nextOrderSeq, identity.orderSeq + 1)
+    }
     if (input.data.mode === 'steer')
       record.metadata = JSON.stringify({
         ...JSON.parse(record.metadata),

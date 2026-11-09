@@ -45,7 +45,8 @@ export interface DeepChatAgentBackendPort {
       emitRefreshBeforeStream?: boolean
       maxProviderRounds?: number
       preserveResolvedRepresentations?: boolean
-      beforeHistoryPreparation?: () => void
+      beforeHistoryPreparation?: () => void | Promise<void>
+      reuseUserMessage?: { messageId: string; orderSeq: number; createdAt: number }
     }
   ): Promise<MessageStartResult>
   cancelGeneration(sessionId: AppSessionId): Promise<void>

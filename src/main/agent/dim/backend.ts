@@ -76,12 +76,13 @@ export function createDimSessionBackend(options: DimBackendOptions): DeepChatAge
     signal?.throwIfAborted()
     if (context?.projectDir !== undefined)
       await controllers.setSessionProjectDir(sessionId, context.projectDir)
-    context?.beforeHistoryPreparation?.()
+    await context?.beforeHistoryPreparation?.()
     await options.prepareNative(sessionId, context)
     signal?.throwIfAborted()
     await runtime.submit(sessionId, prepared.content, {
       mode,
-      representation: prepared.representation
+      representation: prepared.representation,
+      reuseUserMessage: context?.reuseUserMessage
     })
     // The native receipt acknowledges admission, not execution. Live projection publishes the
     // eventual user/assistant identities; a queued submission must not borrow the active turn id.

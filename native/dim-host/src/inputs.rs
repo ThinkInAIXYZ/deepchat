@@ -79,6 +79,15 @@ struct Submit {
     branch_id: String,
     input: InputMessageData,
     representation: Option<Value>,
+    reuse_user_message: Option<ReuseUserMessage>,
+}
+
+#[derive(Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ReuseUserMessage {
+    message_id: String,
+    order_seq: u64,
+    created_at: u64,
 }
 
 #[derive(Deserialize)]
@@ -169,6 +178,13 @@ impl DynPlugin for Inputs {
                     let submission = value.input.submission_id.as_deref().filter(|id| !id.is_empty())
                         .ok_or_else(|| RpcError::invalid("Submission identity is required"))?.to_owned();
                     if let Some(representation)=&value.representation {validate_representation(representation)?;}
+                    if let Some(reuse)=&value.reuse_user_message {
+                        if reuse.message_id.is_empty() || reuse.message_id.len()>2048 || reuse.order_seq==0
+                            || reuse.order_seq>=9_007_199_254_740_991 || reuse.created_at>9_007_199_254_740_991
+                            || value.representation.is_none() || value.input.user.is_none() {
+                            return Err(RpcError::invalid("Invalid retried product message identity"));
+                        }
+                    }
                     value.input.validate().map_err(RpcError::invalid)?;
                     if value.input.handover.is_some() { return Err(RpcError::invalid("Product input cannot address a handover")); }
                     let branch = tree.get(&value.branch_id)?;
@@ -181,7 +197,7 @@ impl DynPlugin for Inputs {
                     crate::queue::recover(&tree, &value.branch_id, &metadata).await?;
                     crate::migration::check_ready(&metadata).await?;
                     if let Some(representation)=value.representation {metadata.timeline.append(EventKind::Extension(ExtensionEvent::new(
-                        "deepchat", "input-representation", json!({"submissionId": submission, "content": representation})
+                        "deepchat", "input-representation", json!({"submissionId": submission, "content": representation, "reuseUserMessage": value.reuse_user_message})
                     ).map_err(RpcError::invalid)?).into())?;}
                     let event = match branch.input(value.input).await {
                         Ok(event) => event,

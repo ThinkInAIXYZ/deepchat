@@ -149,7 +149,7 @@ export interface TurnStartContext {
   emitRefreshBeforeStream?: boolean
   maxProviderRounds?: number
   preserveResolvedRepresentations?: boolean
-  beforeHistoryPreparation?: () => void
+  beforeHistoryPreparation?: () => void | Promise<void>
   preStreamAnchorMessageId?: string
 }
 
@@ -766,7 +766,7 @@ export class TurnCoordinator {
       })
       // Retry truncation is destructive. Keep it after all independent resource I/O, but before
       // history/compaction preparation so those stages observe the replacement transcript.
-      context?.beforeHistoryPreparation?.()
+      await context?.beforeHistoryPreparation?.()
       let shouldGuardAttachmentText = content.files?.some(hasUntrustedAttachmentText)
       let basePromptAssembly = shouldGuardAttachmentText
         ? appendAttachmentTextSafetySection(unguardedBasePromptAssembly)

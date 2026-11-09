@@ -157,6 +157,8 @@
 
 ## 模块进度
 
+- 模块 20：新增 native transcript mutation adapter，并在产品 mutation coordinator 提供明确的 native 路由；编辑/删除/清空/重试使用 storage 插件读取和 generation controller，不调用旧 Tape writer/runtime。重试先移除原用户消息及其后续内容，再由 Rust 接纳一次新 input；非上下文展示事实保存复用的消息 ID/顺序/时间，读模型可完全从原生事实重建该身份。submission intent 包含复用身份，重复提交复用旧回执。history preparation callback 改为可等待，确保异步切换完成后才提交。真实 Rust 验证模型只收到一次重试消息、消息身份/时间保持、全代归属，以及禁用 provider 时编辑/清空不调用模型；8 项 native、200 项 dim/session 回归与双端 typecheck 通过。fork、有效 legacy 来源与主 composition 继续接线。
+
 - 模块 19：实现目录/工具创建身份变化与 retain/edit/truncate/clear 的 generation controller。产品 mutation intent 记录来源、固定 cutoff、目标身份和进度；Rust 原生提交封口与队列空检查共用 admission lane。目标先获得持久归属，再由 native import owner 导入并封存；停止/关闭旧执行实例后只读其存储，最后把消息缓存、绑定与各代归属同事务切换。重启复用已封存目标，不重复创建或导入；旧消息 ID 和图片保留，历史修改丢弃旧 summary。纯数据变更从原生来源复制模型设置，不要求 provider 启用。真实 Rust 验证切换前中断/重启、目录、后续模型上下文、编辑、清空、队列保护及 provider 禁用。8 项 native、950 项 dim/session/data 回归先通过；新增归属约束后调整旧替换回归使用真实原子切换，相关 78 项和 8 项 native 再次全部通过，format/i18n/lint/双端 typecheck 通过。主 composition 与 transcript controller 接线继续进行。
 
 - 模块 18：存储插件通过 dim 公共 SessionStore/TimelineStore owner 读取关闭会话的完整 committed Timeline 和 submission 回执，不恢复 agent、不直接访问 native SQLite。新增隔离的 transcript 重建入口供目录切换、编辑与 fork 使用，保持固定 through 和原生 u64 游标。桌面通知改为历史失效信号，持久游标只由按序历史读取推进，避免跨进程乱序造成内容遗漏；加入乱序与缺失通知的回归。真实 Rust 验证关闭后历史与读模型一致、旧回执可查询且没有新模型调用；8 项 native、8 项相关单元回归与 node typecheck 通过。完整 generation controller 和主入口仍在接线。

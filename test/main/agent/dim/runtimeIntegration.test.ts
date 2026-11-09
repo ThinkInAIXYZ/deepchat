@@ -30,6 +30,8 @@ import { DimInteractions } from '@/agent/dim/interactions'
 import { DimContext } from '@/agent/dim/context'
 import { DimContent } from '@/agent/dim/content'
 import { DimScopeTransitions } from '@/agent/dim/scopeTransitions'
+import { DimTranscriptMutations } from '@/agent/dim/transcriptMutations'
+import { SessionTranscriptMutations } from '@/session/transcriptMutations'
 import { DimLegacyMigration } from '@/agent/dim/legacyMigration'
 import { dimLegacySnapshot } from '@/agent/dim/legacyMigration'
 import {
@@ -465,7 +467,11 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
           profiles: new DimAgentProfiles(host),
           models: catalog,
           controls: new DimSessionControls(host),
-          identity: async () => ({ name: 'Product fixture', description: '', cwd: profile }),
+          identity: async (id) => ({
+            name: 'Product fixture',
+            description: '',
+            cwd: grants.data.newSessionsTable.get(id)?.project_dir ?? profile
+          }),
           configurationChanged: async () => {}
         })
         await nativeSettings.initSession('product-ui', {
@@ -1370,6 +1376,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
           grants.data.deepchatMessagesTable.getBySession(scopeProduct).map((row) => row.id)
         ).toEqual(originalView.messages.map((message) => message.id))
         expect(conversationRequests()).toHaveLength(nativeCallsBeforeChange)
+        grants.data.newSessionsTable.update(scopeProduct, { project_dir: changedDirectory })
         expect(
           await controls.call('native_identity', {
             sessionId: changedScope.dimSessionId,
@@ -1386,25 +1393,88 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
           ...JSON.parse(sourceMessage.content),
           text: 'scope edited'
         })
-        await transitions.replace(
-          scopeProduct,
-          { cwd: changedDirectory },
-          {
-            kind: 'edit',
-            messageId: sourceMessage.id,
-            expectedContent: sourceMessage.content,
-            content: editedContent
+        const invalidated: number[] = []
+        const nativeMutations = new DimTranscriptMutations({
+          database: grants.data,
+          host,
+          settings: nativeSettings!,
+          transitions,
+          prepareHistory: async () => {},
+          projectDir: () => changedDirectory,
+          invalidate: (_id, from) => {
+            invalidated.push(from)
           }
-        )
+        })
+        const mutations = new SessionTranscriptMutations({
+          native: { owns: (id) => id === scopeProduct, mutations: nativeMutations },
+          get transcript() {
+            throw new Error('Native edits must not use the legacy writer')
+          },
+          get settings() {
+            throw new Error('Native edits must not reset Tape')
+          },
+          get pendingInputs() {
+            throw new Error('Native edits must not use the old queue')
+          },
+          get runtime() {
+            throw new Error('Native edits must not use the old runtime')
+          },
+          runInTransaction: () => {
+            throw new Error('Native edits must use atomic generation installation')
+          }
+        })
+        await mutations.editUserMessage(scopeProduct, sourceMessage.id, 'scope edited')
         expect(grants.data.deepchatMessagesTable.get(sourceMessage.id)?.content).toBe(editedContent)
         expect(grants.data.dimSessionBindingsTable.get(scopeProduct)?.generation).toBe(3)
-        await transitions.replace(scopeProduct, { cwd: changedDirectory }, { kind: 'clear' })
+        expect(conversationRequests()).toHaveLength(callsBeforeEdit)
+        providerEnabled = true
+        const retry = await mutations.prepareRetryMessage(scopeProduct, sourceMessage.id)
+        expect(retry.reuseUserMessage?.messageId).toBe(sourceMessage.id)
+        await mutations.commitRetryMessage(scopeProduct, retry.retryFromOrderSeq)
+        const retrySubmissionId = randomUUID()
+        const retried = await scopeRuntime.submit(
+          scopeProduct,
+          [{ type: 'text', text: retry.content.text }],
+          {
+            submissionId: retrySubmissionId,
+            representation: JSON.parse(editedContent),
+            reuseUserMessage: retry.reuseUserMessage
+          }
+        )
+        expect(
+          await scopeRuntime.submit(scopeProduct, [{ type: 'text', text: retry.content.text }], {
+            submissionId: retrySubmissionId,
+            representation: JSON.parse(editedContent),
+            reuseUserMessage: retry.reuseUserMessage
+          })
+        ).toEqual(retried)
+        await scopeRuntime.waitIdle(scopeProduct)
+        expect(
+          JSON.stringify(conversationRequests().at(-1)!.body).match(/scope edited/g)
+        ).toHaveLength(1)
+        const retriedView = await new DimContent(host).transcript(
+          {
+            sessionId: grants.data.dimSessionBindingsTable.get(scopeProduct)!.dimSessionId,
+            branchId: 'main'
+          },
+          scopeProduct
+        )
+        expect(retriedView.messages).toHaveLength(2)
+        expect(retriedView.messages[0]).toMatchObject({
+          id: sourceMessage.id,
+          createdAt: sourceMessage.createdAt,
+          content: editedContent
+        })
+        const callsBeforeClear = conversationRequests().length
+        providerEnabled = false
+        await mutations.clearMessages(scopeProduct)
         expect(grants.data.deepchatMessagesTable.getBySession(scopeProduct)).toEqual([])
-        expect(grants.data.dimSessionBindingsTable.get(scopeProduct)?.generation).toBe(4)
+        expect(grants.data.dimSessionBindingsTable.get(scopeProduct)?.generation).toBe(5)
         expect(
           grants.data.dimSessionScopesTable.list(scopeProduct).map((scope) => scope.generation)
-        ).toEqual([1, 2, 3, 4])
-        expect(conversationRequests()).toHaveLength(callsBeforeEdit)
+        ).toEqual([1, 2, 3, 4, 5])
+        expect(conversationRequests()).toHaveLength(callsBeforeClear)
+        expect(invalidated).toEqual([1, 1, 1])
         providerEnabled = true
         expect(importFailures).toEqual([])
       }
