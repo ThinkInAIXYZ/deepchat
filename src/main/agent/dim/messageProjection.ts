@@ -74,11 +74,12 @@ export function projectDimEvent(
     id: string,
     role: 'user' | 'assistant',
     content: string,
-    status: ChatMessageRecord['status']
+    status: ChatMessageRecord['status'],
+    orderSeq?: number
   ): ChatMessageRecord => ({
     id,
     sessionId: binding.sessionId,
-    orderSeq: next.nextOrderSeq++,
+    orderSeq: orderSeq ?? next.nextOrderSeq++,
     role,
     content,
     status,
@@ -220,7 +221,8 @@ export function projectDimEvent(
       identity.id,
       'user',
       JSON.stringify(representation ?? user),
-      'sent'
+      'sent',
+      identity.orderSeq
     )
     record.createdAt = identity.createdAt ?? input.create_at
     if (identity.orderSeq !== undefined) {

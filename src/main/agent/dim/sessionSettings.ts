@@ -37,13 +37,15 @@ export class DimSessionSettings {
   private readonly lanes = new Map<string, Promise<unknown>>()
   constructor(private readonly options: SettingsOptions) {}
 
-  async launch(sessionId: string): Promise<JsonValue> {
+  async launch(sessionId: string, historyOnly = false): Promise<JsonValue> {
     const row = this.require(sessionId)
     const generation = (await this.options.state.getGenerationSettings(sessionId))!
     const creation = await this.creation(sessionId)
-    const model = await this.options.models.admit(row.provider_id, row.model_id, {
-      timeout: generation.timeout
-    })
+    const model = await this.options.models[historyOnly ? 'registerForHistory' : 'admit'](
+      row.provider_id,
+      row.model_id,
+      { timeout: generation.timeout }
+    )
     return { ...creation, model: { ...model } }
   }
 

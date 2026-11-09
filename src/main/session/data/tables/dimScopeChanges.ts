@@ -7,6 +7,7 @@ export type DimHistoryChange =
   | { kind: 'retain' }
   | { kind: 'clear' }
   | { kind: 'truncate'; fromOrderSeq: number }
+  | { kind: 'retry'; fromOrderSeq: number; messageId: string }
   | { kind: 'edit'; messageId: string; expectedContent: string; content: string }
 
 export interface DimScopeChange {

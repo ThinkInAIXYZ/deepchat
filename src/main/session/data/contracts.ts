@@ -92,7 +92,11 @@ export interface SessionTranscriptMutationPort {
     sourceMessageId: string | null
     reuseUserMessage?: { messageId: string; orderSeq: number; createdAt: number }
   }>
-  commitRetryMessage(sessionId: string, orderSeq: number): void | Promise<void>
+  commitRetryMessage(
+    sessionId: string,
+    orderSeq: number,
+    reuseUserMessage?: { messageId: string; orderSeq: number; createdAt: number }
+  ): void | Promise<void>
   deleteMessage(sessionId: string, messageId: string): Promise<void>
   editUserMessage(
     sessionId: string,

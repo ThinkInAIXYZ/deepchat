@@ -406,7 +406,13 @@ export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
         ...(prepared.reuseUserMessage ? { reuseUserMessage: prepared.reuseUserMessage } : {}),
         ...(prepared.sourceMessageId ? { preStreamAnchorMessageId: prepared.sourceMessageId } : {}),
         beforeHistoryPreparation: () =>
-          this.dependencies.transcript.commitRetryMessage(sessionId, prepared.retryFromOrderSeq)
+          prepared.reuseUserMessage
+            ? this.dependencies.transcript.commitRetryMessage(
+                sessionId,
+                prepared.retryFromOrderSeq,
+                prepared.reuseUserMessage
+              )
+            : this.dependencies.transcript.commitRetryMessage(sessionId, prepared.retryFromOrderSeq)
       }
     })
   }

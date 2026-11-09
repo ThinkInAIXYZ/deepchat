@@ -104,4 +104,13 @@ export class DimSessionImportsTable extends BaseTable {
       )
     if (updated.changes !== 1) throw new Error('Native import receipt belongs to another scope')
   }
+  list(sessionId: string): Array<{ dimSessionId: string; branchId: string }> {
+    const rows = this.db
+      .prepare('SELECT dim_session_id,branch_id FROM dim_session_imports WHERE session_id=?')
+      .all(sessionId) as Array<{ dim_session_id: string; branch_id: string }>
+    return rows.map((row) => ({ dimSessionId: row.dim_session_id, branchId: row.branch_id }))
+  }
+  deleteBySession(sessionId: string): void {
+    this.db.prepare('DELETE FROM dim_session_imports WHERE session_id=?').run(sessionId)
+  }
 }

@@ -15,13 +15,15 @@ export class DimMethodError extends Error {
   constructor(
     public readonly code: number,
     message: string,
-    public readonly data?: JsonValue
+    public readonly data?: JsonValue,
+    public readonly method?: string
   ) {
     super(message)
   }
 }
 
 interface PendingCall {
+  method: string
   resolve(value: JsonValue): void
   reject(error: Error): void
   timer: ReturnType<typeof setTimeout>
@@ -113,6 +115,7 @@ export class DimPluginClient extends EventEmitter {
         )
       }, timeoutMs)
       const pending: PendingCall = {
+        method,
         resolve: (value) => resolve(value as T),
         reject,
         timer,
@@ -161,7 +164,7 @@ export class DimPluginClient extends EventEmitter {
           clearTimeout(call.timer)
           if (message.error && typeof message.error === 'object') {
             const error = message.error as { code: number; message: string; data?: JsonValue }
-            call.reject(new DimMethodError(error.code, error.message, error.data))
+            call.reject(new DimMethodError(error.code, error.message, error.data, call.method))
           } else if ('result' in message) call.resolve(message.result as JsonValue)
           else call.reject(new DimConnectionError('Invalid dim response', 'unknown'))
         } else if (typeof message.method === 'string') {

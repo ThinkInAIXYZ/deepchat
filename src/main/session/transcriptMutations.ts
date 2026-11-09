@@ -93,9 +93,17 @@ export class SessionTranscriptMutations {
     }
   }
 
-  commitRetryMessage(sessionId: string, orderSeq: number): void | Promise<void> {
+  commitRetryMessage(
+    sessionId: string,
+    orderSeq: number,
+    reuseUserMessage?: { messageId: string; orderSeq: number; createdAt: number }
+  ): void | Promise<void> {
     if (this.dependencies.native?.owns(sessionId))
-      return this.dependencies.native.mutations.commitRetryMessage(sessionId, orderSeq)
+      return this.dependencies.native.mutations.commitRetryMessage(
+        sessionId,
+        orderSeq,
+        reuseUserMessage
+      )
     this.dependencies.runInTransaction(() => {
       this.dependencies.transcript.deleteFromOrderSeq(sessionId, orderSeq)
     })

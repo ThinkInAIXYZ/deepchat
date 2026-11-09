@@ -7,6 +7,7 @@ import type { DimSessionSettings } from './sessionSettings'
 import type { DimScopeTransitions } from './scopeTransitions'
 import type { DimRuntimeSupervisor } from './runtimeSupervisor'
 import { DimContent } from './content'
+import type { DimUserMessageReuse } from './sessionRuntime'
 
 interface MutationOptions {
   database: SessionDatabase
@@ -40,6 +41,23 @@ export class DimTranscriptMutations implements Omit<
 
   async prepareRetryMessage(sessionId: string, messageId: string) {
     await this.options.prepareHistory(sessionId)
+    this.requireMessage(await this.messages(sessionId), messageId)
+    const binding = this.options.database.dimSessionBindingsTable.get(sessionId)!
+    const client = await this.options.host.start()
+    const ref = { sessionId: binding.dimSessionId, branchId: binding.branchId }
+    const pending = await client.call<{
+      inputs: Array<{ input: { mode?: string; user?: unknown } }>
+    }>('session.deepchat_queue.list', ref)
+    if (
+      pending.inputs.some(
+        ({ input }) =>
+          input.mode === 'queue' ||
+          input.mode === 'steer' ||
+          (input.mode === undefined && input.user != null)
+      )
+    )
+      throw new Error('Finish or remove queued input before retrying this message')
+    await client.call('deepchat.host.stop', ref)
     const messages = await this.messages(sessionId)
     const target = this.requireMessage(messages, messageId)
     const source =
@@ -65,11 +83,17 @@ export class DimTranscriptMutations implements Omit<
     }
   }
 
-  async commitRetryMessage(sessionId: string, fromOrderSeq: number): Promise<void> {
+  async commitRetryMessage(
+    sessionId: string,
+    fromOrderSeq: number,
+    reuseUserMessage?: DimUserMessageReuse
+  ): Promise<void> {
     await this.options.transitions.replace(
       sessionId,
       await this.options.settings.creation(sessionId),
-      { kind: 'truncate', fromOrderSeq }
+      reuseUserMessage
+        ? { kind: 'retry', fromOrderSeq, messageId: reuseUserMessage.messageId }
+        : { kind: 'truncate', fromOrderSeq }
     )
     await this.options.invalidate(sessionId, fromOrderSeq)
   }

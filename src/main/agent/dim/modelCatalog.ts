@@ -39,8 +39,26 @@ export class DimModelCatalog {
     modelId: string,
     options?: { timeout?: number }
   ): Promise<DimModelId> {
-    const provider = this.requireProvider(providerId)
-    if (!this.options.settings.getModelStatus(providerId, modelId))
+    return this.configure(providerId, modelId, options, false)
+  }
+
+  /** Register a frozen history container. This never authorizes inference or credential access. */
+  async registerForHistory(
+    providerId: string,
+    modelId: string,
+    options?: { timeout?: number }
+  ): Promise<DimModelId> {
+    return this.configure(providerId, modelId, options, true)
+  }
+
+  private async configure(
+    providerId: string,
+    modelId: string,
+    options: { timeout?: number } | undefined,
+    historyOnly: boolean
+  ): Promise<DimModelId> {
+    const provider = this.requireProvider(providerId, historyOnly)
+    if (!historyOnly && !this.options.settings.getModelStatus(providerId, modelId))
       throw new Error('Model is disabled')
     const config = {
       ...this.options.settings.getModelConfig(modelId, providerId),
@@ -82,8 +100,8 @@ export class DimModelCatalog {
       connection,
       model
     })
-    const current = this.requireProvider(providerId)
-    if (!this.options.settings.getModelStatus(providerId, modelId))
+    const current = this.requireProvider(providerId, historyOnly)
+    if (!historyOnly && !this.options.settings.getModelStatus(providerId, modelId))
       throw new Error('Model is disabled')
     if (fingerprint(this.connection(current, modelId, config)) !== fingerprint(connection))
       throw new Error('Provider connection changed during native configuration')
@@ -129,9 +147,9 @@ export class DimModelCatalog {
     return value
   }
 
-  private requireProvider(id: string): LLM_PROVIDER {
+  private requireProvider(id: string, historyOnly = false): LLM_PROVIDER {
     const provider = this.options.settings.getProviderById(id)
-    if (!provider?.enable) throw new Error('Provider is unavailable')
+    if (!provider || (!historyOnly && !provider.enable)) throw new Error('Provider is unavailable')
     return provider
   }
 

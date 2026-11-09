@@ -10,6 +10,11 @@ mod storage;
 static GATEWAY: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
 
 fn install(builder: &mut dim_agent_runtime::AgentBuilder) {
+    // The JS compatibility catalog belongs to one Session, including custom Agents and reloads.
+    builder.catalog_mut().register_shared_instance(
+        "deepchatProductCatalog",
+        dim_agent_runtime::SESSION_GROUP,
+    );
     dim_session_title::install(builder);
     dim_agent_scheduler::install(builder);
     dim_goal::install(builder);

@@ -64,6 +64,12 @@ export class DimSessionBindingsTable extends BaseTable {
         }
       : null
   }
+  getByNative(dimSessionId: string, branchId = 'main'): DimSessionBinding | null {
+    const row = this.db
+      .prepare('SELECT session_id FROM dim_session_bindings WHERE dim_session_id=? AND branch_id=?')
+      .get(dimSessionId, branchId) as { session_id: string } | undefined
+    return row ? this.get(row.session_id) : null
+  }
   bind(
     sessionId: string,
     dimSessionId: string,

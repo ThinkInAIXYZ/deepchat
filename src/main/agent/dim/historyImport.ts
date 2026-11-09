@@ -16,6 +16,7 @@ export interface DimHistorySnapshot {
   summary: string | null
   contextFromOrderSeq?: number
   pendingInputs?: PendingSessionInputRecord[]
+  excludedContextMessageIds?: string[]
   images?: Record<string, JsonValue[]>
   source?: JsonValue
 }

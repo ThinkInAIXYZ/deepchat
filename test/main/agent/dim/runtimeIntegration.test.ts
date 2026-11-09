@@ -32,6 +32,8 @@ import { DimContent } from '@/agent/dim/content'
 import { DimScopeTransitions } from '@/agent/dim/scopeTransitions'
 import { DimTranscriptMutations } from '@/agent/dim/transcriptMutations'
 import { SessionTranscriptMutations } from '@/session/transcriptMutations'
+import { createDimAgent } from '@/agent/dim/createDimAgent'
+import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import { DimLegacyMigration } from '@/agent/dim/legacyMigration'
 import { DimLegacySource } from '@/agent/dim/legacySource'
 import {
@@ -275,7 +277,10 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
       for await (const data of req) payload += data
       const body = payload ? JSON.parse(payload) : {}
       requests.push({ authorization: req.headers.authorization, body })
-      if (holdQueue) {
+      const titleRequest = JSON.stringify(body.messages ?? []).includes(
+        'Write a short title for this conversation:'
+      )
+      if (holdQueue && !titleRequest) {
         holdQueue = false
         heldQueueResponse = res
         res.writeHead(200, { 'Content-Type': 'text/event-stream' })
@@ -297,7 +302,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
       }
       if (body.stream) {
         res.writeHead(200, { 'Content-Type': 'text/event-stream' })
-        if (nextTools) {
+        if (nextTools && !titleRequest) {
           const tools = nextTools
           nextTools = null
           res.end(
@@ -349,17 +354,44 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
     const grants = dimDatabase(path.join(profile, 'desktop.sqlite'))
     let catalog: DimModelCatalog | null = null
     let nativeSettings: DimSessionSettings | null = null
+    let nativeState: DesktopSessionState | null = null
     let admittedProvider = ''
     let credentialValue = 'fixture-secret-only'
     let providerEnabled = true
+    const productToolCalls: DimProductToolCall[] = []
     const gateway = new DimProductGateway({
-      resolve: async () => ({
-        version: 'empty',
-        tools: [],
-        execute: async () => {
-          throw new Error('No tools')
+      resolve: async (nativeId) => {
+        if (
+          grants.data.dimSessionBindingsTable.getByNative(nativeId)?.sessionId === 'facade-product'
+        )
+          return {
+            version: 'facade-only',
+            tools: [
+              {
+                name: 'deepchat_facade_echo',
+                description: 'Fixture product capability',
+                inputSchema: {
+                  type: 'object',
+                  properties: { text: { type: 'string' } },
+                  required: ['text']
+                },
+                source: 'extension' as const,
+                risk: 'session' as const
+              }
+            ],
+            execute: async (call) => {
+              productToolCalls.push(call)
+              return { content: `product capability: ${call.arguments.text}` }
+            }
+          }
+        return {
+          version: 'empty',
+          tools: [],
+          execute: async () => {
+            throw new Error('No tools')
+          }
         }
-      }),
+      },
       credential: async (providerId, reference, signal) => {
         if (catalog) return catalog.credential(providerId, reference, signal)
         if (providerId !== admittedProvider || reference !== 'desktop/provider/fixture')
@@ -461,6 +493,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
           providerSettings: settings,
           promptSettings: { getDefaultSystemPrompt: async () => 'Native product persona sentinel' }
         })
+        nativeState = state
         nativeSettings = new DimSessionSettings({
           state,
           database: grants.data,
@@ -1446,7 +1479,11 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
         providerEnabled = true
         const retry = await mutations.prepareRetryMessage(scopeProduct, sourceMessage.id)
         expect(retry.reuseUserMessage?.messageId).toBe(sourceMessage.id)
-        await mutations.commitRetryMessage(scopeProduct, retry.retryFromOrderSeq)
+        await mutations.commitRetryMessage(
+          scopeProduct,
+          retry.retryFromOrderSeq,
+          retry.reuseUserMessage
+        )
         const retrySubmissionId = randomUUID()
         const retried = await scopeRuntime.submit(
           scopeProduct,
@@ -1492,6 +1529,194 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
         expect(conversationRequests()).toHaveLength(callsBeforeClear)
         expect(invalidated).toEqual([1, 1, 1])
         providerEnabled = true
+        expect(importFailures).toEqual([])
+
+        // Exercise the composed desktop backend, including its asynchronous retry boundary.
+        const facadeId = toAppSessionId('facade-product')
+        grants.data.newSessionsTable.create(facadeId, 'deepchat', 'Facade session', profile)
+        const facade = createDimAgent({
+          database: grants.data,
+          host,
+          state: nativeState!,
+          models: catalog!,
+          legacy: new DimLegacySource({
+            database: grants.data,
+            transcript: { getMessages: () => [] },
+            tape: { getEffectiveViewInputRows: () => [] },
+            summary: {
+              getSummaryState: () => ({
+                summaryText: null,
+                summaryCursorOrderSeq: 1,
+                summaryUpdatedAt: null
+              })
+            },
+            pending: { listPendingInputs: () => [] }
+          }),
+          identity: async (id) => ({
+            name: 'Facade fixture',
+            description: '',
+            cwd: grants.data.newSessionsTable.get(id)?.project_dir ?? profile
+          }),
+          prepareInput: async (_id, input) => ({
+            content: [{ type: 'text', text: input.text }],
+            representation: { text: input.text, files: [], links: [], search: false, think: false },
+            summary: { status: 'ready', issues: [], suggestedActions: [] }
+          }),
+          output: createDeepChatOutputProjection({
+            publishEvent: () => {},
+            publishSessionUpdate: () => {}
+          }),
+          publishStatus: () => {},
+          publishEvent: () => {},
+          completed: () => {},
+          committed: () => {},
+          failed: (_id, error) => importFailures.push(error),
+          refreshTools: async (binding) => {
+            await (
+              await host.start()
+            ).call('session.deepchat_tools.refresh', {
+              sessionId: binding.dimSessionId,
+              branchId: binding.branchId
+            })
+          },
+          closed: () => {},
+          invalidateHistory: () => {},
+          beginDestroy: () => {},
+          finishDestroy: () => {},
+          deleteLegacyMetadata: () => {}
+        })
+        await facade.backend.initSession(facadeId, {
+          providerId: 'desktop-fixture',
+          modelId: 'fixture'
+        })
+        providerEnabled = false
+        const callsBeforeContainer = conversationRequests().length
+        await facade.prepareHistory(facadeId)
+        expect(grants.data.dimSessionBindingsTable.get(facadeId)).toBeTruthy()
+        await expect(
+          facade.backend.send(facadeId, { content: { text: 'disabled inference' } })
+        ).rejects.toThrow('Provider is unavailable')
+        expect(grants.data.deepchatMessagesTable.getBySession(facadeId)).toEqual([])
+        expect(conversationRequests()).toHaveLength(callsBeforeContainer)
+        providerEnabled = true
+        nextTools = [
+          {
+            id: 'facade-capability',
+            name: 'deepchat_facade_echo',
+            arguments: { text: 'scope-only' }
+          }
+        ]
+        await facade.backend.send(facadeId, { content: { text: 'facade original' } })
+        await facade.runtime.waitIdle(facadeId)
+        expect(productToolCalls).toHaveLength(1)
+        expect(productToolCalls[0]).toMatchObject({
+          sessionId: grants.data.dimSessionBindingsTable.get(facadeId)!.dimSessionId,
+          name: 'deepchat_facade_echo',
+          arguments: { text: 'scope-only' }
+        })
+        const facadeBinding = grants.data.dimSessionBindingsTable.get(facadeId)!
+        const otherBinding = grants.data.dimSessionBindingsTable.get(scopeProduct)!
+        expect(
+          await (
+            await host.start()
+          ).call('session.deepchat_tools.refresh', {
+            sessionId: otherBinding.dimSessionId,
+            branchId: otherBinding.branchId
+          })
+        ).toMatchObject({ count: 0, version: 'empty' })
+        expect(
+          await (
+            await host.start()
+          ).call('session.deepchat_tools.refresh', {
+            sessionId: facadeBinding.dimSessionId,
+            branchId: facadeBinding.branchId
+          })
+        ).toMatchObject({ count: 1, version: 'facade-only' })
+        await facade.backend.setSessionProjectDir(facadeId, changedDirectory)
+        await facade.backend.send(facadeId, { content: { text: 'facade after directory' } })
+        await facade.runtime.waitIdle(facadeId)
+        const facadeUser = grants.data.deepchatMessagesTable.getBySession(facadeId)[2]
+        const facadeRetry = await facade.mutations.prepareRetryMessage(facadeId, facadeUser.id)
+        let boundaryCompleted = false
+        await facade.backend.send(facadeId, {
+          content: facadeRetry.content,
+          context: {
+            reuseUserMessage: facadeRetry.reuseUserMessage,
+            beforeHistoryPreparation: async () => {
+              await facade.mutations.commitRetryMessage(
+                facadeId,
+                facadeRetry.retryFromOrderSeq,
+                facadeRetry.reuseUserMessage
+              )
+              boundaryCompleted = true
+            }
+          }
+        })
+        expect(boundaryCompleted).toBe(true)
+        await facade.runtime.waitIdle(facadeId)
+        const facadeRows = grants.data.deepchatMessagesTable.getBySession(facadeId)
+        expect(facadeRows).toHaveLength(4)
+        expect(facadeRows[2].id).toBe(facadeUser.id)
+        expect(
+          JSON.stringify(conversationRequests().at(-1)!.body).match(/facade after directory/g)
+        ).toHaveLength(1)
+        const cancelledRetry = new AbortController()
+        const beforeCancelledRetry = conversationRequests().length
+        await expect(
+          facade.backend.send(facadeId, {
+            content: facadeRetry.content,
+            context: {
+              signal: cancelledRetry.signal,
+              reuseUserMessage: facadeRetry.reuseUserMessage,
+              beforeHistoryPreparation: async () => {
+                await facade.mutations.commitRetryMessage(
+                  facadeId,
+                  facadeRetry.retryFromOrderSeq,
+                  facadeRetry.reuseUserMessage
+                )
+                cancelledRetry.abort()
+              }
+            }
+          })
+        ).rejects.toThrow()
+        expect(conversationRequests()).toHaveLength(beforeCancelledRetry)
+        expect(grants.data.deepchatMessagesTable.get(facadeUser.id)?.role).toBe('user')
+        expect(grants.data.deepchatMessagesTable.getBySession(facadeId)).toHaveLength(3)
+        // Reopening must preserve the unsubmitted prompt; the next ordinary input restores its
+        // historical context through native Append, without running a separate turn for it.
+        await facade.runtime.close(facadeId)
+        await host.stop()
+        await facade.runtime.open(facadeId)
+        await facade.backend.send(facadeId, { content: { text: 'after cancelled retry' } })
+        await facade.runtime.waitIdle(facadeId)
+        expect(conversationRequests()).toHaveLength(beforeCancelledRetry + 1)
+        expect(
+          JSON.stringify(conversationRequests().at(-1)!.body).match(/facade after directory/g)
+        ).toHaveLength(1)
+        expect(JSON.stringify(conversationRequests().at(-1)!.body)).toContain(
+          'after cancelled retry'
+        )
+        expect(grants.data.deepchatMessagesTable.getBySession(facadeId)).toHaveLength(5)
+        const facadeScopes = grants.data.dimSessionScopesTable.list(facadeId)
+        expect(facadeScopes).toHaveLength(4)
+        await facade.backend.destroySession(facadeId)
+        expect(grants.data.dimSessionBindingsTable.get(facadeId)).toBeNull()
+        expect(grants.data.deepchatMessagesTable.getBySession(facadeId)).toEqual([])
+        expect(grants.data.dimSessionScopesTable.list(facadeId)).toEqual([])
+        const remaining = await (
+          await host.start()
+        ).call<Array<{ sessionId: string }>>('session.summaries', { includeClosed: true })
+        expect(
+          remaining.some((row) =>
+            facadeScopes.some((scope) => scope.dimSessionId === row.sessionId)
+          )
+        ).toBe(false)
+        expect(
+          remaining.some(
+            (row) =>
+              row.sessionId === grants.data.dimSessionBindingsTable.get(scopeProduct)!.dimSessionId
+          )
+        ).toBe(true)
         expect(importFailures).toEqual([])
       }
     } finally {

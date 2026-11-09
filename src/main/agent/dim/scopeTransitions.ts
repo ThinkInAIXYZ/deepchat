@@ -242,8 +242,18 @@ export class DimScopeTransitions {
     let messages = source.messages
     const change = record.change
     if (change.kind === 'clear') messages = []
-    else if (change.kind === 'truncate')
-      messages = messages.filter((message) => message.orderSeq < change.fromOrderSeq)
+    else if (change.kind === 'truncate' || change.kind === 'retry')
+      messages = messages
+        .filter(
+          (message) =>
+            message.orderSeq < change.fromOrderSeq ||
+            (change.kind === 'retry' && message.id === change.messageId)
+        )
+        .map((message) =>
+          change.kind === 'retry' && message.id === change.messageId
+            ? { ...message, status: 'sent' as const }
+            : message
+        )
     else if (change.kind === 'edit') {
       const target = messages.find((message) => message.id === change.messageId)
       if (!target || target.role !== 'user' || target.content !== change.expectedContent)
@@ -260,6 +270,12 @@ export class DimScopeTransitions {
       summary: change.kind === 'retain' ? source.summary : null,
       contextFromOrderSeq: change.kind === 'retain' ? source.contextFromOrderSeq : 1,
       pendingInputs: change.kind === 'clear' ? [] : source.pendingInputs,
+      excludedContextMessageIds: [
+        ...new Set([
+          ...source.excludedContextMessageIds.filter((id) => retained.has(id)),
+          ...(change.kind === 'retry' ? [change.messageId] : [])
+        ])
+      ],
       images: Object.fromEntries(Object.entries(source.images).filter(([id]) => retained.has(id))),
       source: {
         kind: 'native-transition',
@@ -285,17 +301,22 @@ export class DimScopeTransitions {
     if (creation.tools?.some((tool) => !tool.trim()))
       throw new Error('Native tool names cannot be empty')
     if (
-      change.kind === 'truncate' &&
+      (change.kind === 'truncate' || change.kind === 'retry') &&
       (!Number.isSafeInteger(change.fromOrderSeq) || change.fromOrderSeq < 1)
     )
       throw new Error('Invalid native transcript truncation')
-    if (change.kind !== 'edit') return
+    if (change.kind !== 'edit' && change.kind !== 'retry') return
     const view = await this.content.transcript(
       { sessionId: binding.dimSessionId, branchId: binding.branchId },
       binding.sessionId
     )
     const target = view.messages.find((message) => message.id === change.messageId)
-    if (!target || target.role !== 'user' || target.content !== change.expectedContent)
+    if (
+      !target ||
+      target.role !== 'user' ||
+      (change.kind === 'edit' && target.content !== change.expectedContent) ||
+      (change.kind === 'retry' && target.orderSeq !== change.fromOrderSeq)
+    )
       throw new Error('Message changed before the native edit was requested')
   }
   private run<T>(sessionId: string, operation: () => Promise<T>): Promise<T> {

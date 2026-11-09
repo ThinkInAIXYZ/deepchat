@@ -22,6 +22,7 @@ export class DimContent {
     summary: string | null
     contextFromOrderSeq: number
     pendingInputs: PendingSessionInputRecord[]
+    excludedContextMessageIds: string[]
     images: Record<string, JsonValue[]>
   }> {
     const client = await this.host.start()
@@ -42,6 +43,7 @@ export class DimContent {
     let summary: string | null = null
     let contextFromOrderSeq = 1
     let pendingInputs: PendingSessionInputRecord[] = []
+    const excluded = new Set<string>()
     let fixed = through
     while (true) {
       const page = await client.call<{ through: number | string; events: DimEvent[] }>(
@@ -55,6 +57,8 @@ export class DimContent {
           summary = imported.snapshot.summary
           contextFromOrderSeq = imported.snapshot.contextFromOrderSeq ?? 1
           pendingInputs = imported.snapshot.pendingInputs ?? []
+          excluded.clear()
+          for (const id of imported.snapshot.excludedContextMessageIds ?? []) excluded.add(id)
           images.clear()
           for (const [key, blocks] of Object.entries(imported.snapshot.images ?? {}))
             images.set(key, blocks)
@@ -65,6 +69,8 @@ export class DimContent {
           (id) => messages.get(id) ?? null,
           (id) => inputs.get(id) ?? null
         )
+        if (event.type === 'deepchat' && event.name === 'context-restored')
+          excluded.delete(String(event.data.messageId))
         if (event.type === 'input' && event.name === 'applied') {
           const input = inputs.get(String(event.data.input_id))
           const user = input?.data.user
@@ -81,6 +87,8 @@ export class DimContent {
             const message = projection.messages.find((message) => message.role === 'user')
             if (message && blocks.length) images.set(message.id, blocks)
           }
+          for (const message of projection.messages)
+            if (message.role === 'user') excluded.delete(message.id)
         }
         for (const input of projection.inputEvents ?? [])
           inputs.set(dimProjectionInputKey(input), input)
@@ -98,6 +106,7 @@ export class DimContent {
       summary,
       contextFromOrderSeq,
       pendingInputs,
+      excludedContextMessageIds: [...excluded],
       images: Object.fromEntries(images)
     }
   }

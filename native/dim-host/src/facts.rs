@@ -56,3 +56,17 @@ pub(crate) fn append(timeline: &Timeline, name: &str, data: Value) -> Result<(),
     )?;
     Ok(())
 }
+
+/// Timeline.append allocates a fact before its store publishes it. A durable product receipt
+/// must cross this owner barrier before desktop may discard caches or change generation.
+pub(crate) async fn published(timeline: &Timeline, through: u64) -> Result<(), RpcError> {
+    let mut changed = timeline.watch();
+    loop {
+        if timeline.sequence() >= through { return Ok(()); }
+        if let Some(error) = timeline.failure() { return Err(error.into()); }
+        let closed = changed.borrow().1;
+        if closed || changed.changed().await.is_err() {
+            return Err(RpcError::service("storage_failed", "Timeline closed before publishing the product receipt"));
+        }
+    }
+}

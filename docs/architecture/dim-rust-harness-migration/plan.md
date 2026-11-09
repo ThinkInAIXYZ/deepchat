@@ -157,6 +157,8 @@
 
 ## 模块进度
 
+- 模块 22：新增 createDimAgent 统一组合设置、迁移、generation、队列、交互、context 与现有 backend contract；新 history 容器可登记禁用 provider 的 metadata，但真实提交仍必须通过严格模型准入，凭据读取继续拒绝禁用状态。实现全代原生删除及关联 cache/metadata 原子清理。组合验证发现并修复 JS 工具目录被误当作全局服务的问题，改为 Session scoped shared service；导入/提交封口回执等待原生 publication，防止绑定安装越过未落盘的 history seal。重试保留原用户行，仅暂缓其上下文；真实 retry 替换一次，取消后由下一条普通输入通过 native Append 恢复历史。验证宿主重启、异步 retry hook、实际插件工具执行、两 Session 的不同目录、全部 generations 删除且保留其他会话。8 项 native 与 951 项 dim/session/data 回归通过；补充重试预先停止/队列保护后定向原生回归再次通过，format/i18n/lint/双端 typecheck 通过。该工厂尚未替换主 composition，fork、legacy 草稿、MCP/附件/memory 等完整产品接线继续进行。
+
 - 模块 21：新增只读 legacy 来源选择器，在同一 SQL 快照中合并有效 Tape 与旧 SQL 专有消息；Tape 编辑/撤回优先，陈旧缓存不复活删除内容，pending assistant 保留给 importer 转为中断历史。快照捕获 summary 边界、旧队列 payload 与附件转换结果，摘要边界随 retain generation 保留，历史修改则重置。Rust import 分离完整展示历史和模型上下文：边界前的消息仍可查看，但只追加原摘要和边界后的消息给原生上下文。真实 Rust 证明摘要生效、旧工具结果保留且被摘要覆盖的原用户消息不重复进入模型请求；8 项 native、890 项 dim/session 回归和双端 typecheck 通过。旧 queue payload 已保存在 native 快照，其兼容草稿恢复入口与主 factory 仍需接线。
 
 - 模块 20：新增 native transcript mutation adapter，并在产品 mutation coordinator 提供明确的 native 路由；编辑/删除/清空/重试使用 storage 插件读取和 generation controller，不调用旧 Tape writer/runtime。重试先移除原用户消息及其后续内容，再由 Rust 接纳一次新 input；非上下文展示事实保存复用的消息 ID/顺序/时间，读模型可完全从原生事实重建该身份。submission intent 包含复用身份，重复提交复用旧回执。history preparation callback 改为可等待，确保异步切换完成后才提交。真实 Rust 验证模型只收到一次重试消息、消息身份/时间保持、全代归属，以及禁用 provider 时编辑/清空不调用模型；8 项 native、200 项 dim/session 回归与双端 typecheck 通过。fork、有效 legacy 来源与主 composition 继续接线。

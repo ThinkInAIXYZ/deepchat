@@ -163,6 +163,7 @@ impl DynPlugin for Inputs {
                         if let Some(event)=crate::facts::events(&metadata.timeline,crate::facts::extension("session-retired")).await?.first() {
                             let EventKind::Extension(extension)=&event.kind else{unreachable!()};
                             if extension.data()["operationId"]!=value.operation_id {return Err(RpcError::service("session_retired","Native generation was retired by another operation"));}
+                            crate::facts::published(&metadata.timeline,event.sequence).await?;
                             return reply(json!({"retired":true,"sequence":event.sequence.to_string()}));
                         }
                         crate::queue::recover(&tree,&value.branch_id,&metadata).await?;
@@ -172,6 +173,7 @@ impl DynPlugin for Inputs {
                             return Err(RpcError::service("input_blocked","Finish or remove queued input before changing native generation"));
                         }
                         let event=metadata.timeline.append(EventKind::Extension(ExtensionEvent::new("deepchat","session-retired",json!({"operationId":value.operation_id})).map_err(RpcError::invalid)?).into())?;
+                        crate::facts::published(&metadata.timeline,event.sequence).await?;
                         return reply(json!({"retired":true,"sequence":event.sequence.to_string()}));
                     }
                     let value: Submit = params(call.params)?;
@@ -196,6 +198,7 @@ impl DynPlugin for Inputs {
                     ensure_active(&metadata).await?;
                     crate::queue::recover(&tree, &value.branch_id, &metadata).await?;
                     crate::migration::check_ready(&metadata).await?;
+                    crate::migration::restore_context(&branch, &metadata, value.reuse_user_message.as_ref().map(|reuse| reuse.message_id.as_str())).await?;
                     if let Some(representation)=value.representation {metadata.timeline.append(EventKind::Extension(ExtensionEvent::new(
                         "deepchat", "input-representation", json!({"submissionId": submission, "content": representation, "reuseUserMessage": value.reuse_user_message})
                     ).map_err(RpcError::invalid)?).into())?;}
@@ -208,6 +211,9 @@ impl DynPlugin for Inputs {
                             return Err(error.into());
                         }
                     };
+                    if let Some(reuse) = value.reuse_user_message {
+                        crate::facts::append(&metadata.timeline, "context-restored", json!({"messageId":reuse.message_id}))?;
+                    }
                     reply(json!({"inputId": event.id, "sequence": event.sequence}))
                 })
             }))?;

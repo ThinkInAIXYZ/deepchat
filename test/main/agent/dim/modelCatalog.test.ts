@@ -80,6 +80,13 @@ it('persists non-secret grants, rotates credentials and fences replaced or disab
     modelEnabled = true
     provider.enable = false
     await expect(catalog.credential('native', reference, signal)).rejects.toThrow('unavailable')
+    modelEnabled = false
+    expect(await catalog.registerForHistory('custom', 'fixture')).toEqual({
+      providerId: 'native',
+      modelId: 'fixture'
+    })
+    await expect(catalog.admit('custom', 'fixture')).rejects.toThrow('unavailable')
+    await expect(catalog.credential('native', reference, signal)).rejects.toThrow('unavailable')
     expect(resolutions).toBe(1)
   } finally {
     db.sqlite.close()
