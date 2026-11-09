@@ -155,3 +155,53 @@ it('authorizes credential references separately and redacts owner failures', asy
     await gateway.stop()
   }
 })
+
+it('validates native context identities and full u64 positions before reading desktop context', async () => {
+  let reads = 0
+  const gateway = new DimProductGateway({
+    resolve: async () => {
+      throw new Error('Context does not resolve a tool catalog')
+    },
+    context: async (input) => {
+      if (input.sessionId !== 'native') throw new Error('Unknown native session')
+      reads++
+      return {
+        messages: [{ role: 'user', content: `context at ${input.through}` }],
+        receipts: [{ source: 'fixture' }]
+      }
+    }
+  })
+  const address = await gateway.start()
+  const input = {
+    kind: 'context',
+    sessionId: 'native',
+    turnId: 'turn',
+    requestId: 'request',
+    providerId: 'provider',
+    modelId: 'model',
+    through: '18446744073709551615',
+    query: 'user input'
+  }
+  try {
+    for (const through of ['18446744073709551616', '01', 9007199254740992])
+      expect(await request(address, { ...input, through })).toEqual({
+        error: 'Invalid native context request'
+      })
+    expect(await request(address, { ...input, requestId: '' })).toEqual({
+      error: 'Invalid native context request'
+    })
+    expect(reads).toBe(0)
+    expect(await request(address, { ...input, sessionId: 'other' })).toEqual({
+      error: 'Unknown native session'
+    })
+    expect(await request(address, input)).toEqual({
+      result: {
+        messages: [{ role: 'user', content: 'context at 18446744073709551615' }],
+        receipts: [{ source: 'fixture' }]
+      }
+    })
+    expect(reads).toBe(1)
+  } finally {
+    await gateway.stop()
+  }
+})

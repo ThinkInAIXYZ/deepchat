@@ -62,9 +62,50 @@ const expected = assembled.replace(headerBefore, headerAfter)
 const current = await readFile(path.join(directory, filename), 'utf8')
 if (current !== original && current !== assembled && current !== expected)
   throw new Error('Pinned dim provider source has unexpected changes')
-git(['diff', '--exit-code', '--', '.', `:!${filename}`])
+const assemblyFile = 'crates/dim-agent-runtime/src/assembly.rs'
+git(['diff', '--exit-code', '--', '.', `:!${filename}`, `:!${assemblyFile}`])
 if (current !== expected) await writeFile(path.join(directory, filename), expected)
+// Add an explicit host-value replacement to the builder's assembly API. It changes no
+// existing registration behavior; product plugins can replace the stock IdentityContext
+// while retaining dim's own context preparation, loop and validation owners.
+const assemblyOriginal = git(['show', `HEAD:${assemblyFile}`]) + '\n'
+const assemblyNeedle = `    /// Provides a host-configured value under its Session name in every`
+const replacementMethod = `    /// Replaces one Session host with an explicit per-Session factory, or
+    /// provides it when absent. Assembly only; active Sessions are unchanged.
+    pub fn replace_session_host<T: ?Sized + Send + Sync + 'static>(
+        &mut self,
+        make: impl Fn(&SessionIdentity) -> Arc<T> + Send + Sync + 'static,
+    ) -> &mut Self {
+        let name = crate::names::name_of::<T>();
+        let provide: Provide = Arc::new(move |ctx, scope| {
+            let identity = ctx.require_at(&scope.key::<SessionIdentity>())?;
+            ctx.provide_at::<T>(scope.key::<T>(), make(&identity))?;
+            Ok(())
+        });
+        if let Some(index) = self.assembly.value_names.iter().position(|existing| existing == &name) {
+            self.assembly.values[index] = provide;
+        } else {
+            self.assembly.value_names.push(name);
+            self.assembly.values.push(provide);
+        }
+        self
+    }
+`
+if (assemblyOriginal.split(assemblyNeedle).length !== 2)
+  throw new Error('Native Session host-value assembly seam changed')
+const assemblyExpected = assemblyOriginal.replace(
+  assemblyNeedle,
+  replacementMethod + assemblyNeedle
+)
+const assemblyCurrent = await readFile(path.join(directory, assemblyFile), 'utf8')
+if (assemblyCurrent !== assemblyOriginal && assemblyCurrent !== assemblyExpected)
+  throw new Error('Pinned dim assembly source has unexpected changes')
+if (assemblyCurrent !== assemblyExpected)
+  await writeFile(path.join(directory, assemblyFile), assemblyExpected)
 export const nativeSource = {
   sourceRevision: lock.sourceCommit,
-  assemblyPatch: { path: filename, sha256: createHash('sha256').update(expected).digest('hex') }
+  assemblyPatch: { path: filename, sha256: createHash('sha256').update(expected).digest('hex') },
+  extensionPatches: [
+    { path: assemblyFile, sha256: createHash('sha256').update(assemblyExpected).digest('hex') }
+  ]
 }

@@ -1,7 +1,9 @@
+mod context;
 mod facts;
+mod gateway;
 mod inputs;
-mod migration;
 mod media;
+mod migration;
 mod models;
 mod permissions;
 mod product_tools;
@@ -9,6 +11,7 @@ mod queue;
 mod secrets;
 mod settings;
 mod storage;
+static CONTEXT_ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
 static GATEWAY: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
 
 fn install(builder: &mut dim_agent_runtime::AgentBuilder) {
@@ -23,6 +26,7 @@ fn install(builder: &mut dim_agent_runtime::AgentBuilder) {
             ..Default::default()
         },
     );
+    context::install(builder);
     settings::install(builder);
     permissions::install(builder);
     product_tools::install(builder);
@@ -49,16 +53,20 @@ fn main() {
     let mut args = std::env::args().skip(2);
     let mut forwarded = Vec::new();
     let mut gateway = None;
+    let mut context_enabled = false;
     while let Some(arg) = args.next() {
         if arg == "--deepchat-gateway" {
             gateway = args.next();
             if gateway.is_none() {
                 std::process::exit(2);
             }
+        } else if arg == "--deepchat-context" {
+            context_enabled = true;
         } else {
             forwarded.push(arg);
         }
     }
+    let _ = CONTEXT_ENABLED.set(context_enabled);
     let _ = GATEWAY.set(gateway);
     if let Err(error) = dim_app_server::cli::process_entry(forwarded, None, install) {
         eprintln!("dim host failed: {error}");

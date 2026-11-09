@@ -8,11 +8,17 @@ credential recovery and auxiliary inference to dim. It contains no agent loop.
 The official alpha.21 executable remains installed and covered by the smoke
 suite. Its TS plugin bindings do not expose arbitrary `ModelConfig` adoption or
 `ProviderSecretHost`, so production integration needs this native assembly.
-`scripts/prepare-dim-source.mjs` verifies the pinned Git object and checks two exact changes in the Provider assembly: enabling the existing
+`scripts/prepare-dim-source.mjs` verifies the pinned Git object and checks exact changes in the Provider assembly: enabling the existing
 `ProviderSecretHost` dependency and resolving explicitly marked custom-header
-references through that same host when a connection is opened. All other tracked
+references through that same host when a connection is opened. Except for the builder extension below, all other tracked
 source must match the pinned revision. Loop, queue, context and model drivers
 remain upstream implementations.
+
+The builder assembly additionally exposes `replace_session_host`: an explicit
+per-Session host factory using dim's own SessionIdentity. The context plugin
+uses it to supply the public PrepareContext host in place of IdentityContext.
+This does not alter existing registration behavior or active Sessions. Its
+separate source hash is recorded in `extensionPatches` and checked at launch.
 
 Run `pnpm run installRuntime:dim`, then `pnpm run build:dim-host` with Rust 1.98.1.
 Use `pnpm run build:dim-host -- --dev` for local smoke tests. Downloaded dim source
@@ -43,3 +49,11 @@ attachment names and inline references without putting UI data in model context.
 `session.deepchat_native_storage.history` reads every committed fact, including
 extensions hidden by dim's public history projection; desktop caches can be
 rebuilt after restart through the storage plugin.
+
+With the product context bridge enabled, Rust calls the private desktop context
+port at each native model request boundary, including requests that execute
+queued inputs. Contributions append text to the pinned native history; dim
+validates that prefix and owns budgeting/compaction. The plugin registers its
+context marker in the native prompt guide. Receipts enter ModelCall metadata,
+with no Tape audit write. A native cancellation closes the callback socket and
+cancels desktop context work before inference. This port does not invoke models.

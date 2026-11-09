@@ -13,7 +13,8 @@ const nativeLock = JSON.parse(
 )
 if (
   nativeSource.sourceRevision !== nativeLock.sourceRevision ||
-  nativeSource.assemblyPatch.sha256 !== nativeLock.assemblyPatch.sha256
+  nativeSource.assemblyPatch.sha256 !== nativeLock.assemblyPatch.sha256 ||
+  JSON.stringify(nativeSource.extensionPatches) !== JSON.stringify(nativeLock.extensionPatches)
 )
   throw new Error('Native assembly lock mismatch')
 const target = `${process.platform}-${process.arch}`
@@ -59,7 +60,8 @@ await writeFile(
   path.join(destination, 'DEEPCHAT-NATIVE-NOTICE.txt'),
   `DeepChat native dim assembly\nBase: ${lock.sourceCommit}\n` +
     'Modified Provider assembly to enable ProviderSecretHost and referenced custom headers.\n' +
-    'DeepChat adds configuration, auxiliary-model and credential-reference plugins.\n' +
+    'Adds an explicit Session host-value replacement to the builder assembly API.\n' +
+    'DeepChat adds configuration, auxiliary-model, context and credential-reference plugins.\n' +
     'Execution implementations are supplied by dim. DeepChat additions: Apache-2.0.\n'
 )
 // The release tag's Cargo package still says alpha.18. Record both identities explicitly.
@@ -78,7 +80,8 @@ await writeFile(
       apiVersion: nativeLock.apiVersion,
       sha256: createHash('sha256').update(binary).digest('hex'),
       cargoLockSha256: createHash('sha256').update(cargoLock).digest('hex'),
-      assemblyPatch: nativeSource.assemblyPatch
+      assemblyPatch: nativeSource.assemblyPatch,
+      extensionPatches: nativeSource.extensionPatches
     },
     null,
     2

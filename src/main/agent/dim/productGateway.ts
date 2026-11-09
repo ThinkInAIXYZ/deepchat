@@ -37,10 +37,24 @@ export interface DimProductCapabilitySet {
   tools: DimProductToolDefinition[]
   execute(call: DimProductToolCall, signal: AbortSignal): Promise<DimProductToolResult>
 }
+export interface DimProductContextRequest {
+  sessionId: string
+  turnId: string
+  requestId: string
+  through: string
+  providerId: string
+  modelId: string
+  query: string
+}
+export interface DimProductContextReply {
+  messages: Array<{ role: 'user'; content: string }>
+  receipts?: JsonValue[]
+}
 export interface DimProductGatewayOptions {
   // Resolve through the durable native-to-product binding and current product authorization.
   // Only capabilities that dim does not implement belong in this catalog.
   resolve(nativeSessionId: string): Promise<DimProductCapabilitySet>
+  context?(request: DimProductContextRequest, signal: AbortSignal): Promise<DimProductContextReply>
   credential?(
     providerId: string,
     reference: string,
@@ -213,6 +227,43 @@ export class DimProductGateway {
       } catch {
         throw new Error('Credential reference is unavailable')
       }
+    }
+    if (request.kind === 'context') {
+      if (
+        !this.options.context ||
+        ['sessionId', 'turnId', 'requestId', 'providerId', 'modelId'].some(
+          (key) => typeof request[key] !== 'string' || !request[key] || request[key].length > 4096
+        ) ||
+        typeof request.through !== 'string' ||
+        !/^(0|[1-9][0-9]{0,19})$/.test(request.through) ||
+        BigInt(request.through) > 18446744073709551615n ||
+        typeof request.query !== 'string' ||
+        request.query.length > 65_536
+      )
+        throw new Error('Invalid native context request')
+      const result = await this.options.context(
+        {
+          sessionId: request.sessionId as string,
+          turnId: request.turnId as string,
+          requestId: request.requestId as string,
+          providerId: request.providerId as string,
+          modelId: request.modelId as string,
+          through: request.through,
+          query: request.query
+        },
+        signal
+      )
+      signal.throwIfAborted()
+      if (
+        !Array.isArray(result.messages) ||
+        result.messages.length > 32 ||
+        result.messages.some(
+          (message) => message.role !== 'user' || typeof message.content !== 'string'
+        ) ||
+        (result.receipts && (!Array.isArray(result.receipts) || result.receipts.length > 128))
+      )
+        throw new Error('Invalid product context contribution')
+      return result as unknown as JsonValue
     }
     if (typeof request.sessionId !== 'string' || !request.sessionId)
       throw new Error('Product capability requires a native session')

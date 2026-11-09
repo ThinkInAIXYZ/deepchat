@@ -12,7 +12,12 @@ import { randomUUID } from 'node:crypto'
 import { DimRuntimeSupervisor } from '@/agent/dim/runtimeSupervisor'
 import { DimSessionRuntime } from '@/agent/dim/sessionRuntime'
 import { dimDatabase } from './fixtures/database'
-import { DimProductGateway, type DimProductToolCall } from '@/agent/dim/productGateway'
+import { DimProductContext } from '@/agent/dim/productContext'
+import {
+  DimProductGateway,
+  type DimProductToolCall,
+  type DimProductGatewayOptions
+} from '@/agent/dim/productGateway'
 import { DimModelBridge } from '@/agent/dim/modelBridge'
 import { DimInputPreparation } from '@/agent/dim/inputPreparation'
 import { DimAuxiliaryModels } from '@/agent/dim/auxiliaryModels'
@@ -422,7 +427,41 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
     let credentialValue = 'fixture-secret-only'
     let providerEnabled = true
     let productCatalogVersion = 'facade-only'
+    let liveContextVersion = 1
+    const contextSessionIds: string[] = []
+    let contextStarted = false
+    let contextCancelled = false
     const productToolCalls: DimProductToolCall[] = []
+    const prepareContext: NonNullable<DimProductGatewayOptions['context']> = async (
+      request,
+      signal
+    ) => {
+      contextSessionIds.push(request.sessionId)
+      if (request.query.includes('block native product context')) {
+        contextStarted = true
+        await new Promise<void>((resolve) => {
+          const cancelled = () => {
+            contextCancelled = true
+            resolve()
+          }
+          signal.addEventListener('abort', cancelled, { once: true })
+          if (signal.aborted) cancelled()
+        })
+        signal.throwIfAborted()
+      }
+      return {
+        messages: [
+          { role: 'user', content: `native product context version ${liveContextVersion}` }
+        ],
+        receipts: [{ source: 'product-context-fixture', version: liveContextVersion }]
+      }
+    }
+    const scopedContext = new DimProductContext({
+      database: grants.data,
+      content: { latest: (...args) => new DimContent(host).latest(...args) },
+      authorize: () => {},
+      prepare: (_binding, request, signal) => prepareContext(request, signal)
+    })
     const gateway = new DimProductGateway({
       resolve: async (nativeId) => {
         if (
@@ -456,6 +495,10 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
           }
         }
       },
+      context: (request, signal) =>
+        grants.data.dimSessionBindingsTable.getByNative(request.sessionId)
+          ? scopedContext.prepare(request, signal)
+          : prepareContext(request, signal),
       credential: async (providerId, reference, signal) => {
         if (catalog) return catalog.credential(providerId, reference, signal)
         if (providerId !== admittedProvider || reference !== 'desktop/provider/fixture')
@@ -466,6 +509,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
     const host = new DimRuntimeSupervisor({
       runtimeRoot: path.resolve('runtime/dim'),
       nativePlugins,
+      contextBridge: nativePlugins,
       gatewayAddress: nativePlugins ? await gateway.start() : undefined,
       profileRoot: profile,
       nodeExecutable: path.resolve(
@@ -674,7 +718,8 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
         await desktop.close('product-ui')
         expect(failures).toEqual([])
         expect(
-          desktopEvents.filter((event) => event.name === 'chat.stream.completed')
+          desktopEvents.filter((event) => event.name === 'chat.stream.completed'),
+          JSON.stringify(desktopEvents)
         ).toHaveLength(1)
         expect(desktopEvents.some((event) => event.name === 'chat.stream.updated')).toBe(true)
         expect(
@@ -724,6 +769,12 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
       ).toBe('Rust provider answer')
       expect(JSON.stringify(history)).not.toContain('fixture-secret-only')
       if (nativePlugins) {
+        const nativeCall = history.events.find(
+          (event) => event.type === 'model' && event.name === 'call'
+        )
+        expect(nativeCall?.data.request).toMatchObject({
+          metadata: { deepchatContextReceipts: [{ source: 'product-context-fixture', version: 1 }] }
+        })
         expect(
           history.events.filter(
             (event) => event.type === 'deepchat' && event.name === 'input-representation'
@@ -940,6 +991,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
         await expect(queue.deletePendingInput('product-ui', pending[1].id)).rejects.toThrow(
           'already started'
         )
+        liveContextVersion = 2
         const steered = await queue.steerPendingInput('product-ui', edited.id)
         expect(steered.mode).toBe('steer')
         const response = heldQueueResponse as unknown as ServerResponse
@@ -948,6 +1000,12 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
         )
         await current.call('deepchat.host.idle', ref)
         expect(await queue.listPendingInputs('product-ui')).toEqual([])
+        expect(JSON.stringify(conversationRequests().at(-1)!.body)).toContain(
+          'native product context version 2'
+        )
+        expect(JSON.stringify(conversationRequests().at(-1)!.body)).not.toContain(
+          'native product context version 1'
+        )
         await queueRuntime.close('product-ui')
         const desktop = new DimSessionRuntime({
           database: grants.data,
@@ -1729,6 +1787,9 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
         await facade.backend.setSessionProjectDir(facadeId, changedDirectory)
         await facade.backend.send(facadeId, { content: { text: 'facade after directory' } })
         await facade.runtime.waitIdle(facadeId)
+        expect(contextSessionIds.at(-1)).toBe(
+          grants.data.dimSessionBindingsTable.get(facadeId)!.dimSessionId
+        )
         const facadeUser = grants.data.deepchatMessagesTable.getBySession(facadeId)[2]
         const facadeRetry = await facade.mutations.prepareRetryMessage(facadeId, facadeUser.id)
         let boundaryCompleted = false
@@ -1813,6 +1874,13 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
           'Native MCP migration fixture'
         )
         expect(productToolCalls).toHaveLength(1)
+        const beforeBlockedContext = conversationRequests().length
+        await facade.backend.send(facadeId, { content: { text: 'block native product context' } })
+        await expect.poll(() => contextStarted).toBe(true)
+        await facade.backend.cancelGeneration(facadeId)
+        await facade.runtime.waitIdle(facadeId)
+        await expect.poll(() => contextCancelled).toBe(true)
+        expect(conversationRequests()).toHaveLength(beforeBlockedContext)
         const facadeScopes = grants.data.dimSessionScopesTable.list(facadeId)
         expect(facadeScopes).toHaveLength(4)
         await facade.backend.destroySession(facadeId)

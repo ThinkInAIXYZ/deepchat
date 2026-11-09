@@ -16,6 +16,7 @@ export interface DimRuntimeOptions {
   startupTimeoutMs?: number
   gatewayAddress?: string
   nativePlugins?: boolean
+  contextBridge?: boolean
 }
 
 export class DimRuntimeSupervisor {
@@ -93,6 +94,8 @@ export class DimRuntimeSupervisor {
   private async launch(): Promise<DimPluginClient> {
     if (this.options.nativePlugins && this.options.profile === 'mock')
       throw new Error('Native product plugins require the product execution profile')
+    if (this.options.contextBridge && (!this.options.nativePlugins || !this.options.gatewayAddress))
+      throw new Error('Product context requires the native plugin host and desktop gateway')
     const { runtimeRoot, profileRoot, nodeExecutable } = this.options
     const plugins = path.resolve(runtimeRoot, 'plugins')
     const lock = JSON.parse(await readFile(path.join(plugins, 'runtime-lock.json'), 'utf8'))
@@ -131,6 +134,8 @@ export class DimRuntimeSupervisor {
         manifest.cargoLockSha256 !== nativeLock.cargoLockSha256 ||
         manifest.assemblyPatch?.path !== nativeLock.assemblyPatch.path ||
         manifest.assemblyPatch?.sha256 !== nativeLock.assemblyPatch.sha256 ||
+        !Array.isArray(nativeLock.extensionPatches) ||
+        JSON.stringify(manifest.extensionPatches) !== JSON.stringify(nativeLock.extensionPatches) ||
         manifest.apiVersion !== nativeLock.apiVersion ||
         manifest.apiVersion !== lock.pluginApiVersion
       )
@@ -214,6 +219,7 @@ export class DimRuntimeSupervisor {
     else args.push('--product-home', home)
     if (native && this.options.gatewayAddress)
       args.push('--deepchat-gateway', this.options.gatewayAddress)
+    if (this.options.contextBridge) args.push('--deepchat-context')
     const child = spawn(executable, args, {
       stdio: ['ignore', 'ignore', 'ignore'],
       windowsHide: true
