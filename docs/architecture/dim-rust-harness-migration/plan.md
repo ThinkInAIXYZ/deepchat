@@ -2,7 +2,7 @@
 
 本文件是唯一执行跟踪表。目标与职责见 [spec.md](./spec.md)。
 
-状态：方案已修订，产品代码尚未迁移。下列任务是 DeepChat 接入 dim 的实施任务，不是 dim 功能缺口清单。dim 的完整队列直接复用，ACP 保持 DeepChat client 路径，dim 自身 OAuth 不做适配，桌面功能保持原所有者；数据库持续加解密按用户决定移除，只保留旧数据解密迁移。
+状态：已开始实施，先交付 release 安装与插件基础模块；主产品的 session backend 尚未切换。下列任务是 DeepChat 接入 dim 的实施任务，不是 dim 功能缺口清单。dim 的完整队列直接复用，ACP 保持 DeepChat client 路径，dim 自身 OAuth 不做适配，桌面功能保持原所有者；数据库持续加解密按用户决定移除，只保留旧数据解密迁移。
 
 ## P0. 基线与已确认决策
 
@@ -21,7 +21,7 @@
 
 负责边界：runtime packaging、`src/main/agent/dim/` supervisor、插件装载。
 
-- [ ] 固定 runtime manifest：release/source commit、六平台包/hash、SDK/rutis/插件运行时版本、插件 digest、存储版本和许可证；接入现有 runtime 安装与离线打包。
+- [x] 固定 runtime manifest：release/source commit、六平台包/hash、SDK/rutis/插件运行时版本、插件 digest、存储版本和许可证；接入现有 runtime 安装与离线打包。
 - [ ] 每 profile 启动独立受监督宿主，显式 home/data root，socket/pipe 私有；复用现有进程树、退出和代理/CA 配置。
 - [ ] 装载 `deepchat-host` 与 `deepchat-storage` 两条插件 row；由插件注册 process/Session/branch parts，通过 `ctx.use` 获取 dim services。
 - [ ] 完成最小插件调用：desktop → 插件注册的方法 → dim session service → 插件事件 → desktop。业务边界是插件代码，不经 ACP、不解析 CLI 输出。
@@ -152,9 +152,14 @@
 
 建议按 release/插件骨架、session/队列绑定、产品能力、解密与按需转换、desktop 读取/Inspector、切换清理拆 PR。取消旧版按推测上游缺口估算的 12–20 人周；首个插件端到端切片完成后，依据实际映射与转换工作量估算，不把 ACP/OAuth 重写或 desktop 重做计入。
 
+## 模块进度
+
+- 模块 1：锁定 alpha.21 六平台 release 与 rutis 0.19.3，新增 `installRuntime:dim`、冻结插件运行时依赖、两个独立插件模块和安装完整性回归。Linux x64 的首次安装、重复安装以及托管 Node 已验证；其他平台尚未执行。
+- 模块 2：宿主进程、插件客户端及原生集成验证正在接入，完成后单独提交。主应用尚未接入，P2 队列 UI、P5 migration 等任务保持未完成。
+
 ## 方案验证记录与 PR 状态
 
 - 基础验证沿用已完成记录：官方 alpha.21 Linux x64 checksum/version、v3 socket、mock Rust loop、input lookup、history 与重启一致性。未验证插件的部分未改标为通过。
 - 本次修订已通过文档本地链接、代码围栏、whitespace 与旧缺口标签清理检查；重新运行 `i18n:validate` 通过（23 locales）。
-- 完整质量门禁仍受既有依赖安装阻塞：缺少 oxfmt/i18n-check/typescript/tsc；先前 frozen install 被 cdn.sheetjs.com 网络策略 403 阻塞。本轮不改产品代码。
+- 网络变更后依赖和 Electron 原生模块已安装，先前依赖阻塞已解除；当前模块的验证结果在提交时更新。
 - 方案已提交为面向 `dev` 的 [Draft PR #2511](https://github.com/ThinkInAIXYZ/deepchat/pull/2511)，包含修订后的插件集成与按需迁移范围；产品代码尚未迁移。

@@ -75,6 +75,7 @@
     "build:linux:arm64": "pnpm run build && pnpm run plugin:bundle:clean && pnpm run plugin:bundle -- --name feishu --platform linux --arch arm64 && pnpm run plugin:bundle -- --name nowledge-mem --platform linux --arch arm64 && pnpm run plugin:bundle -- --name memcode --platform linux --arch arm64 && pnpm run installRuntime:duckdb:vss:linux:arm64 && electron-builder --linux --arm64",
     "afterSign": "scripts/notarize.js",
     "installRuntime": "node scripts/install-runtime.mjs",
+    "installRuntime:dim": "node scripts/install-runtime.mjs --types node,dim",
     "installRuntime:win:x64": "node scripts/install-runtime.mjs --platform win32 --arch x64",
     "installRuntime:win:arm64": "node scripts/install-runtime.mjs --platform win32 --arch arm64",
     "installRuntime:mac:arm64": "node scripts/install-runtime.mjs --platform darwin --arch arm64",

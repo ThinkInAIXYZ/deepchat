@@ -1,0 +1,26 @@
+{
+  "name": "deepchat-dim-plugins",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@arcships/rutis": "0.19.3",
+    "@arcships/rutis-runtime": "0.19.3"
+  },
+  "pnpm": {
+    "supportedArchitectures": {
+      "os": [
+        "darwin",
+        "linux",
+        "win32"
+      ],
+      "cpu": [
+        "x64",
+        "arm64"
+      ],
+      "libc": [
+        "glibc"
+      ]
+    }
+  }
+}

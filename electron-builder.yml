@@ -13,6 +13,7 @@ files:
   - '!docs/*'
   - '!plugins/**'
   - '!runtime/rtk/**'
+  - '!runtime/dim/**'
   - '!out/main/lightOcrHelper.js'
   - '!out/cli/**'
   - '!keys/*'
