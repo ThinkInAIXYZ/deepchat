@@ -252,7 +252,7 @@ test('html_render pages run outside the app origin and cannot leave the sandbox 
   }
 })
 
-test('html_render sections replace by id and restore when the chat reopens @smoke', async ({
+test('html_render sections with scripts replace by id and restore when the chat reopens @smoke', async ({
   app
 }) => {
   const panelIdOf = (toolResults: string[]) => /panelId: ([A-Za-z0-9_-]+)/.exec(toolResults[0])![1]
@@ -264,14 +264,18 @@ test('html_render sections replace by id and restore when the chat reopens @smok
     }),
     finishReason: 'tool_calls'
   })
+  // Every section declares the same top-level const, as chart sections do, so a replaced or second
+  // section only renders if its script runs again without a redeclaration error.
+  const labelled = (label: string) =>
+    `<p></p><script>const label = '${label}'; document.currentScript.previousElementSibling.textContent = label</script>`
   const fixture = await startFixture([
     () => ({
       delta: toolCall('panel-shell', 'html_render', { title: 'Panel', html: panelShell }),
       finishReason: 'tool_calls'
     }),
-    section('section-kpi', 'kpi', '<p>first</p>'),
-    section('section-notes', 'notes', '<p>notes</p>'),
-    section('section-kpi-retry', 'kpi', '<p>retried</p>')
+    section('section-kpi', 'kpi', labelled('first')),
+    section('section-notes', 'notes', labelled('notes')),
+    section('section-kpi-retry', 'kpi', labelled('retried'))
   ])
   try {
     await startChat(app.page, fixture.origin, 'Build the panel.')
@@ -283,7 +287,7 @@ test('html_render sections replace by id and restore when the chat reopens @smok
             .evaluate(() =>
               Array.from(
                 document.querySelectorAll<HTMLElement>('[data-dc-section]'),
-                (slot) => `${slot.dataset.dcSection}:${slot.textContent}`
+                (slot) => `${slot.dataset.dcSection}:${slot.querySelector('p')?.textContent}`
               ).join(',')
             )
             .catch(() => null)

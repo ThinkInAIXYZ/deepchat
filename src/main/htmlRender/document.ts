@@ -35,6 +35,9 @@ body{margin:0;background:transparent}
 // Minimal MCP Apps view handshake so the existing AppBridge host and sandbox proxy work unchanged.
 // Sections wait for DOMContentLoaded so libraries loaded by the shell's <head> are defined, and
 // their scripts are re-created because scripts parsed through innerHTML never run.
+// Inline section scripts run inside a block: a replaced section runs its script again in the same
+// global scope, where a second top-level const/let/class would throw. var and function declarations
+// still become globals, so inline handlers such as onclick keep working.
 // Size reports come straight from ResizeObserver/load, not rAF: Chromium throttles rAF in
 // cross-origin frames it considers hidden, so the first report could never arrive.
 const BOOTSTRAP_SCRIPT = `<script>
@@ -73,7 +76,11 @@ const BOOTSTRAP_SCRIPT = `<script>
       for (const attribute of Array.from(inert.attributes)) {
         script.setAttribute(attribute.name, attribute.value)
       }
-      script.textContent = inert.textContent
+      const type = (inert.getAttribute('type') || '').trim().toLowerCase()
+      const classic = !type || type === 'text/javascript' || type === 'application/javascript'
+      script.textContent = classic && !script.src
+        ? '{\\n' + inert.textContent + '\\n}'
+        : inert.textContent
       const loaded = script.src
         ? new Promise((resolve) => { script.onload = script.onerror = resolve })
         : null
