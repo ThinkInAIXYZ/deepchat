@@ -2,7 +2,7 @@ import type { JsonValue } from '@shared/contracts/json'
 import type { DimRuntimeSupervisor } from './runtimeSupervisor'
 import type { DimEvent, DimSessionRef } from './sessionConnection'
 import type { DimSessionBinding } from '@/session/data/tables/dimSessionBindings'
-import type { ChatMessageRecord } from '@shared/types/agent-interface'
+import type { ChatMessageRecord, PendingSessionInputRecord } from '@shared/types/agent-interface'
 import { dimProjectionInputKey, projectDimEvent } from './messageProjection'
 import { dimSequence } from './sessionConnection'
 import { readDimImportedSnapshot } from './historyImport'
@@ -20,6 +20,8 @@ export class DimContent {
     messages: ChatMessageRecord[]
     through: string
     summary: string | null
+    contextFromOrderSeq: number
+    pendingInputs: PendingSessionInputRecord[]
     images: Record<string, JsonValue[]>
   }> {
     const client = await this.host.start()
@@ -38,6 +40,8 @@ export class DimContent {
     const inputs = new Map<string, DimEvent>()
     const images = new Map<string, JsonValue[]>()
     let summary: string | null = null
+    let contextFromOrderSeq = 1
+    let pendingInputs: PendingSessionInputRecord[] = []
     let fixed = through
     while (true) {
       const page = await client.call<{ through: number | string; events: DimEvent[] }>(
@@ -49,6 +53,8 @@ export class DimContent {
         if (event.type === 'deepchat' && event.name === 'history-sealed') {
           const imported = readDimImportedSnapshot(binding, event, (id) => inputs.get(id) ?? null)
           summary = imported.snapshot.summary
+          contextFromOrderSeq = imported.snapshot.contextFromOrderSeq ?? 1
+          pendingInputs = imported.snapshot.pendingInputs ?? []
           images.clear()
           for (const [key, blocks] of Object.entries(imported.snapshot.images ?? {}))
             images.set(key, blocks)
@@ -90,6 +96,8 @@ export class DimContent {
       messages: [...messages.values()].sort((left, right) => left.orderSeq - right.orderSeq),
       through: fixed!,
       summary,
+      contextFromOrderSeq,
+      pendingInputs,
       images: Object.fromEntries(images)
     }
   }

@@ -59,6 +59,7 @@ struct Snapshot {
     product_session_id: String,
     messages: Vec<Message>,
     summary: Option<String>,
+    context_from_order_seq: Option<u64>,
     #[serde(default)]
     images: BTreeMap<String, Vec<ContentBlock>>,
 }
@@ -251,6 +252,11 @@ async fn commit(
             "History snapshot identity does not match its manifest",
         ));
     }
+    let context_from = snapshot.context_from_order_seq.unwrap_or(1);
+    if context_from == 0 || context_from > 9_007_199_254_740_991
+        || (context_from > 1 && snapshot.summary.as_ref().is_none_or(|summary| summary.trim().is_empty())) {
+        return Err(invalid("Invalid imported summary boundary"));
+    }
     let mut ids = BTreeSet::new();
     let mut last = 0;
     for message in &snapshot.messages {
@@ -298,6 +304,7 @@ async fn commit(
             .await?;
     }
     for (index, message) in snapshot.messages.iter().enumerate() {
+        if message.order_seq < context_from { continue; }
         let images = snapshot
             .images
             .get(&message.id)

@@ -157,6 +157,8 @@
 
 ## 模块进度
 
+- 模块 21：新增只读 legacy 来源选择器，在同一 SQL 快照中合并有效 Tape 与旧 SQL 专有消息；Tape 编辑/撤回优先，陈旧缓存不复活删除内容，pending assistant 保留给 importer 转为中断历史。快照捕获 summary 边界、旧队列 payload 与附件转换结果，摘要边界随 retain generation 保留，历史修改则重置。Rust import 分离完整展示历史和模型上下文：边界前的消息仍可查看，但只追加原摘要和边界后的消息给原生上下文。真实 Rust 证明摘要生效、旧工具结果保留且被摘要覆盖的原用户消息不重复进入模型请求；8 项 native、890 项 dim/session 回归和双端 typecheck 通过。旧 queue payload 已保存在 native 快照，其兼容草稿恢复入口与主 factory 仍需接线。
+
 - 模块 20：新增 native transcript mutation adapter，并在产品 mutation coordinator 提供明确的 native 路由；编辑/删除/清空/重试使用 storage 插件读取和 generation controller，不调用旧 Tape writer/runtime。重试先移除原用户消息及其后续内容，再由 Rust 接纳一次新 input；非上下文展示事实保存复用的消息 ID/顺序/时间，读模型可完全从原生事实重建该身份。submission intent 包含复用身份，重复提交复用旧回执。history preparation callback 改为可等待，确保异步切换完成后才提交。真实 Rust 验证模型只收到一次重试消息、消息身份/时间保持、全代归属，以及禁用 provider 时编辑/清空不调用模型；8 项 native、200 项 dim/session 回归与双端 typecheck 通过。fork、有效 legacy 来源与主 composition 继续接线。
 
 - 模块 19：实现目录/工具创建身份变化与 retain/edit/truncate/clear 的 generation controller。产品 mutation intent 记录来源、固定 cutoff、目标身份和进度；Rust 原生提交封口与队列空检查共用 admission lane。目标先获得持久归属，再由 native import owner 导入并封存；停止/关闭旧执行实例后只读其存储，最后把消息缓存、绑定与各代归属同事务切换。重启复用已封存目标，不重复创建或导入；旧消息 ID 和图片保留，历史修改丢弃旧 summary。纯数据变更从原生来源复制模型设置，不要求 provider 启用。真实 Rust 验证切换前中断/重启、目录、后续模型上下文、编辑、清空、队列保护及 provider 禁用。8 项 native、950 项 dim/session/data 回归先通过；新增归属约束后调整旧替换回归使用真实原子切换，相关 78 项和 8 项 native 再次全部通过，format/i18n/lint/双端 typecheck 通过。主 composition 与 transcript controller 接线继续进行。

@@ -1,5 +1,9 @@
 import { createHash } from 'node:crypto'
-import type { ChatMessageRecord, MessageMetadata } from '@shared/types/agent-interface'
+import type {
+  ChatMessageRecord,
+  MessageMetadata,
+  PendingSessionInputRecord
+} from '@shared/types/agent-interface'
 import type { JsonValue } from '@shared/contracts/json'
 import type { DimSessionBinding } from '@/session/data/tables/dimSessionBindings'
 import type { DimEvent } from './sessionConnection'
@@ -10,6 +14,8 @@ export interface DimHistorySnapshot {
   productSessionId: string
   messages: ChatMessageRecord[]
   summary: string | null
+  contextFromOrderSeq?: number
+  pendingInputs?: PendingSessionInputRecord[]
   images?: Record<string, JsonValue[]>
   source?: JsonValue
 }

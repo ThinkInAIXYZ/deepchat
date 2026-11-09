@@ -33,7 +33,7 @@ import { DimScopeTransitions } from '@/agent/dim/scopeTransitions'
 import { DimTranscriptMutations } from '@/agent/dim/transcriptMutations'
 import { SessionTranscriptMutations } from '@/session/transcriptMutations'
 import { DimLegacyMigration } from '@/agent/dim/legacyMigration'
-import { dimLegacySnapshot } from '@/agent/dim/legacyMigration'
+import { DimLegacySource } from '@/agent/dim/legacySource'
 import {
   dimHistoryPlan,
   dimHistoryHash,
@@ -1096,11 +1096,21 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
           4
         )
         const legacyRef = { sessionId: legacyCreated.sessionId, branchId: 'main' }
-        const snapshot = dimLegacySnapshot(
-          legacyProduct,
-          oldMessages.map(normalizeDimImportedMessage),
-          'Prior summary retained'
-        )
+        const legacySource = new DimLegacySource({
+          database: grants.data,
+          transcript: { getMessages: () => oldMessages },
+          tape: { getEffectiveViewInputRows: () => [] },
+          summary: {
+            getSummaryState: () => ({
+              summaryText: 'Prior summary retained',
+              summaryCursorOrderSeq: 2,
+              summaryUpdatedAt: 1234
+            })
+          },
+          pending: { listPendingInputs: () => [] }
+        })
+        const snapshot = await legacySource.snapshot(legacyProduct)
+        snapshot.messages = snapshot.messages.map(normalizeDimImportedMessage)
         const historyPlan = dimHistoryPlan(snapshot)
         expect(historyPlan.chunks.length).toBeGreaterThan(1)
         grants.data.dimSessionImportsTable.begin(legacyBinding, historyPlan)
@@ -1156,7 +1166,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
           snapshot: async () => {
             sourceReads++
             if (sourceReads > 1) throw new Error('Committed history must be read only through dim')
-            return dimLegacySnapshot(legacyProduct, oldMessages, 'Prior summary retained')
+            return legacySource.snapshot(legacyProduct)
           }
         })
         const importFailures: unknown[] = []
@@ -1204,6 +1214,12 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
         )
         await importedRuntime.waitIdle(legacyProduct)
         expect(JSON.stringify(conversationRequests().at(-1)!.body)).toContain('legacy-tool-result')
+        expect(JSON.stringify(conversationRequests().at(-1)!.body)).not.toContain(
+          'Legacy original message'
+        )
+        expect(JSON.stringify(conversationRequests().at(-1)!.body)).toContain(
+          'Prior summary retained'
+        )
         expect(JSON.stringify(conversationRequests().at(-1)!.body)).toContain(
           'first native continuation'
         )

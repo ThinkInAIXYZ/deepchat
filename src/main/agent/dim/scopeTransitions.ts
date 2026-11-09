@@ -258,6 +258,8 @@ export class DimScopeTransitions {
       productSessionId: binding.sessionId,
       messages,
       summary: change.kind === 'retain' ? source.summary : null,
+      contextFromOrderSeq: change.kind === 'retain' ? source.contextFromOrderSeq : 1,
+      pendingInputs: change.kind === 'clear' ? [] : source.pendingInputs,
       images: Object.fromEntries(Object.entries(source.images).filter(([id]) => retained.has(id))),
       source: {
         kind: 'native-transition',
