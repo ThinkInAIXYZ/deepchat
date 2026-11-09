@@ -29,6 +29,7 @@ import { DimQueue } from '@/agent/dim/queue'
 import { DimInteractions } from '@/agent/dim/interactions'
 import { DimContext } from '@/agent/dim/context'
 import { DimContent } from '@/agent/dim/content'
+import { DimScopeTransitions } from '@/agent/dim/scopeTransitions'
 import { DimLegacyMigration } from '@/agent/dim/legacyMigration'
 import { dimLegacySnapshot } from '@/agent/dim/legacyMigration'
 import {
@@ -348,6 +349,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
     let nativeSettings: DimSessionSettings | null = null
     let admittedProvider = ''
     let credentialValue = 'fixture-secret-only'
+    let providerEnabled = true
     const gateway = new DimProductGateway({
       resolve: async () => ({
         version: 'empty',
@@ -412,7 +414,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
             apiType: 'openai-compatible',
             apiKey: credentialValue,
             baseUrl: configuration.connection.baseUrl,
-            enable: true
+            enable: providerEnabled
           }),
           getModelStatus: () => true,
           isKnownModel: () => true,
@@ -792,6 +794,9 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
           b.inputId,
           c.inputId
         ])
+        await expect(queueRuntime.retire('product-ui', randomUUID(), true)).rejects.toMatchObject({
+          data: { appError: 'input_blocked' }
+        })
         const moved = await queue.moveQueuedInput('product-ui', c.inputId, 0)
         expect(moved.map((item) => item.payload.text)).toEqual(['queue C', 'queue A', 'queue B'])
         const edited = await queue.updateQueuedInput('product-ui', moved[1].id, {
@@ -1304,6 +1309,104 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
           deleted
         )
         expect(await queue.listPendingInputs('product-ui')).toEqual([])
+
+        // A sealed target survives interruption before the atomic product binding switch.
+        const scopeProduct = 'scope-product'
+        grants.data.newSessionsTable.create(scopeProduct, 'deepchat', 'Scope session', profile)
+        await nativeSettings!.initSession(scopeProduct, {
+          providerId: 'desktop-fixture',
+          modelId: 'fixture'
+        })
+        const scopeRuntime = new DimSessionRuntime({
+          database: grants.data,
+          host,
+          launch: (id) => nativeSettings!.launch(id),
+          prepare: (binding) => nativeSettings!.prepare(binding),
+          projected: () => {},
+          failed: (_id, error) => importFailures.push(error)
+        })
+        await scopeRuntime.submit(scopeProduct, [{ type: 'text', text: 'scope original' }])
+        await scopeRuntime.waitIdle(scopeProduct)
+        const originalScope = grants.data.dimSessionBindingsTable.get(scopeProduct)!
+        const originalView = await new DimContent(host).transcript(
+          { sessionId: originalScope.dimSessionId, branchId: originalScope.branchId },
+          scopeProduct
+        )
+        const changedDirectory = await mkdtemp(path.join(profile, 'scope-directory-'))
+        const transitionOptions = {
+          database: grants.data,
+          host,
+          runtime: scopeRuntime,
+          installed: () => {}
+        }
+        const nativeCallsBeforeChange = conversationRequests().length
+        grants.sqlite.exec(`CREATE TRIGGER interrupt_scope_install
+          BEFORE UPDATE ON dim_session_bindings WHEN OLD.session_id='scope-product'
+          AND NEW.generation=2 BEGIN SELECT RAISE(ABORT,'scope install interrupted'); END`)
+        await expect(
+          new DimScopeTransitions(transitionOptions).replace(
+            scopeProduct,
+            { cwd: changedDirectory },
+            { kind: 'retain' }
+          )
+        ).rejects.toThrow('scope install interrupted')
+        const interrupted = grants.data.dimScopeChangesTable.get(scopeProduct)!
+        expect(interrupted.targetSessionId).toBeTruthy()
+        expect(grants.data.dimSessionBindingsTable.get(scopeProduct)?.generation).toBe(1)
+        expect(conversationRequests()).toHaveLength(nativeCallsBeforeChange)
+        await host.stop()
+        grants.sqlite.exec('DROP TRIGGER interrupt_scope_install')
+        const transitions = new DimScopeTransitions(transitionOptions)
+        const changedScope = (await transitions.recover(scopeProduct))!
+        expect(changedScope).toMatchObject({
+          generation: 2,
+          dimSessionId: interrupted.targetSessionId
+        })
+        expect(grants.data.dimScopeChangesTable.get(scopeProduct)).toBeNull()
+        expect(
+          await transitions.ensureCreation(scopeProduct, { cwd: changedDirectory })
+        ).toMatchObject({ generation: 2, dimSessionId: changedScope.dimSessionId })
+        expect(
+          grants.data.deepchatMessagesTable.getBySession(scopeProduct).map((row) => row.id)
+        ).toEqual(originalView.messages.map((message) => message.id))
+        expect(conversationRequests()).toHaveLength(nativeCallsBeforeChange)
+        expect(
+          await controls.call('native_identity', {
+            sessionId: changedScope.dimSessionId,
+            branchId: changedScope.branchId
+          })
+        ).toMatchObject({ cwd: changedDirectory })
+        await scopeRuntime.submit(scopeProduct, [{ type: 'text', text: 'scope after directory' }])
+        await scopeRuntime.waitIdle(scopeProduct)
+        expect(JSON.stringify(conversationRequests().at(-1)!.body)).toContain('scope original')
+        const callsBeforeEdit = conversationRequests().length
+        providerEnabled = false
+        const sourceMessage = originalView.messages[0]
+        const editedContent = JSON.stringify({
+          ...JSON.parse(sourceMessage.content),
+          text: 'scope edited'
+        })
+        await transitions.replace(
+          scopeProduct,
+          { cwd: changedDirectory },
+          {
+            kind: 'edit',
+            messageId: sourceMessage.id,
+            expectedContent: sourceMessage.content,
+            content: editedContent
+          }
+        )
+        expect(grants.data.deepchatMessagesTable.get(sourceMessage.id)?.content).toBe(editedContent)
+        expect(grants.data.dimSessionBindingsTable.get(scopeProduct)?.generation).toBe(3)
+        await transitions.replace(scopeProduct, { cwd: changedDirectory }, { kind: 'clear' })
+        expect(grants.data.deepchatMessagesTable.getBySession(scopeProduct)).toEqual([])
+        expect(grants.data.dimSessionBindingsTable.get(scopeProduct)?.generation).toBe(4)
+        expect(
+          grants.data.dimSessionScopesTable.list(scopeProduct).map((scope) => scope.generation)
+        ).toEqual([1, 2, 3, 4])
+        expect(conversationRequests()).toHaveLength(callsBeforeEdit)
+        providerEnabled = true
+        expect(importFailures).toEqual([])
       }
     } finally {
       await host.stop()

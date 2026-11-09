@@ -45,7 +45,7 @@ fn conflict() -> RpcError {
     )
 }
 /// A query projection of the native queue, including applied inputs until consumed.
-async fn pending(metadata: &DeepChatInputMetadata) -> Result<Vec<Arc<AgentEvent>>, RpcError> {
+pub(crate) async fn pending(metadata: &DeepChatInputMetadata) -> Result<Vec<Arc<AgentEvent>>, RpcError> {
     events(&metadata.timeline, and(vec![
         equal("kind", json!("input/message")),
         json!({"op":"not","condition":{"op":"present","value":field("data.handover")}}),

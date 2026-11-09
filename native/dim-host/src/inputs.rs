@@ -5,7 +5,7 @@ use dim_agent_capabilities::{
     timeline_tree::TreeCommands,
 };
 use dim_agent_runtime::{AgentBuilder, BRANCH_GROUP, Feature, Names, PublicService, Timeline};
-use dim_agent_types::{EventKind, ExtensionEvent, InputMessageData};
+use dim_agent_types::{EventKind, ExtensionEvent, InputMessageData, InputMode};
 use rutis::Ctx;
 use rutis::host::{BoxFuture, CtxHost, DynPlugin, Effect, Key, TypeKey};
 use serde::Deserialize;
@@ -88,6 +88,8 @@ struct Retire {
     _session_id: String,
     branch_id: String,
     operation_id: String,
+    #[serde(default)]
+    require_empty_queue: bool,
 }
 pub(crate) async fn ensure_active(metadata: &DeepChatInputMetadata) -> Result<(), RpcError> {
     if !crate::facts::events(
@@ -155,6 +157,11 @@ impl DynPlugin for Inputs {
                             return reply(json!({"retired":true,"sequence":event.sequence.to_string()}));
                         }
                         crate::queue::recover(&tree,&value.branch_id,&metadata).await?;
+                        if value.require_empty_queue && crate::queue::pending(&metadata).await?.iter().any(|event| {
+                            matches!(&event.kind, EventKind::InputMessage(input) if input.effective_mode() != InputMode::Append)
+                        }) {
+                            return Err(RpcError::service("input_blocked","Finish or remove queued input before changing native generation"));
+                        }
                         let event=metadata.timeline.append(EventKind::Extension(ExtensionEvent::new("deepchat","session-retired",json!({"operationId":value.operation_id})).map_err(RpcError::invalid)?).into())?;
                         return reply(json!({"retired":true,"sequence":event.sequence.to_string()}));
                     }

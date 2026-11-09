@@ -79,6 +79,8 @@ export default definePlugin({
                 ...(params.model
                   ? { model: { provider: params.model.providerId, modelId: params.model.modelId } }
                   : {}),
+                ...(params.modelFromSession ? { modelFromSession: params.modelFromSession } : {}),
+                ...(params.tools ? { tools: params.tools } : {}),
                 ...(params.policy ? { permissionPolicy: params.policy } : {}),
                 interactive: true
               })

@@ -1,6 +1,7 @@
 import type Database from 'better-sqlite3-multiple-ciphers'
 import { BaseTable } from '@/data/baseTable'
 import type { SessionStatus } from '@shared/types/agent-interface'
+import { DimSessionScopesTable } from './dimSessionScopes'
 
 export interface DimSessionBinding {
   sessionId: string
@@ -69,12 +70,50 @@ export class DimSessionBindingsTable extends BaseTable {
     branchId = 'main',
     nextOrderSeq = 1
   ): DimSessionBinding {
-    this.db
-      .prepare(
-        'INSERT INTO dim_session_bindings (session_id, dim_session_id, branch_id, next_order_seq) VALUES (?, ?, ?, ?)'
-      )
-      .run(sessionId, dimSessionId, branchId, nextOrderSeq)
-    return this.get(sessionId)!
+    return this.db.transaction(() => {
+      this.db
+        .prepare(
+          'INSERT INTO dim_session_bindings (session_id, dim_session_id, branch_id, next_order_seq) VALUES (?, ?, ?, ?)'
+        )
+        .run(sessionId, dimSessionId, branchId, nextOrderSeq)
+      const binding = this.get(sessionId)!
+      new DimSessionScopesTable(this.db).register(binding)
+      return binding
+    })()
+  }
+  /** The caller must atomically install the corresponding desktop read model. */
+  replace(previous: DimSessionBinding, next: DimSessionBinding): void {
+    if (
+      previous.sessionId !== next.sessionId ||
+      next.generation !== previous.generation + 1 ||
+      next.dimSessionId === previous.dimSessionId ||
+      !/^\d+$/.test(next.cursor)
+    )
+      throw new Error('Invalid native generation replacement')
+    this.db.transaction(() => {
+      const result = this.db
+        .prepare(`UPDATE dim_session_bindings SET dim_session_id=?,branch_id=?,generation=?,
+      cursor=?,next_order_seq=?,active_turn_id=?,assistant_message_id=?,status=?
+      WHERE session_id=? AND dim_session_id=? AND branch_id=? AND generation=?`)
+        .run(
+          next.dimSessionId,
+          next.branchId,
+          next.generation,
+          next.cursor,
+          next.nextOrderSeq,
+          next.activeTurnId,
+          next.assistantMessageId,
+          next.status,
+          previous.sessionId,
+          previous.dimSessionId,
+          previous.branchId,
+          previous.generation
+        )
+      if (result.changes !== 1) throw new Error('Native generation was already replaced')
+      const ownership = new DimSessionScopesTable(this.db)
+      ownership.register(previous)
+      ownership.register(next)
+    })()
   }
   /** Must share the transaction of the associated transcript projection writes. */
   advance(previous: DimSessionBinding, next: DimSessionBinding): void {

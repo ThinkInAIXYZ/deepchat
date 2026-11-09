@@ -1,5 +1,7 @@
 import { DimInputProjectionTable } from '@/session/data/tables/dimInputProjection'
 import { DimSessionImportsTable } from '@/session/data/tables/dimSessionImports'
+import { DimScopeChangesTable } from '@/session/data/tables/dimScopeChanges'
+import { DimSessionScopesTable } from '@/session/data/tables/dimSessionScopes'
 import { DimInputIntentsTable } from '@/session/data/tables/dimInputIntents'
 import { DimSessionBindingsTable } from '@/session/data/tables/dimSessionBindings'
 import { DimProviderGrantsTable } from '@/session/data/tables/dimProviderGrants'
@@ -81,6 +83,8 @@ function normalizeDeclaredType(type: string | null | undefined): string | null {
 }
 
 const CATALOG_DEFINITIONS: CatalogDefinition[] = [
+  { name: 'dim_session_scopes', createTable: (db) => new DimSessionScopesTable(db) },
+  { name: 'dim_scope_changes', createTable: (db) => new DimScopeChangesTable(db) },
   { name: 'dim_session_imports', createTable: (db) => new DimSessionImportsTable(db) },
   { name: 'dim_provider_grants', createTable: (db) => new DimProviderGrantsTable(db) },
   { name: 'dim_input_projection', createTable: (db) => new DimInputProjectionTable(db) },
@@ -493,6 +497,8 @@ export function createMainSchemaCatalog(db: Database.Database): MainSchemaCatalo
   const projects = new NewProjectsTable(db)
   const dimInputProjection = new DimInputProjectionTable(db)
   const dimSessionImports = new DimSessionImportsTable(db)
+  const dimScopeChanges = new DimScopeChangesTable(db)
+  const dimSessionScopes = new DimSessionScopesTable(db)
   const dimIntents = new DimInputIntentsTable(db)
   const dimBindings = new DimSessionBindingsTable(db)
   const dimProviderGrants = new DimProviderGrantsTable(db)
@@ -544,6 +550,8 @@ export function createMainSchemaCatalog(db: Database.Database): MainSchemaCatalo
     dimIntents,
     dimInputProjection,
     dimSessionImports,
+    dimScopeChanges,
+    dimSessionScopes,
     messages,
     userMessages,
     userMessageFiles,

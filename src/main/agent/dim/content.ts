@@ -5,6 +5,7 @@ import type { DimSessionBinding } from '@/session/data/tables/dimSessionBindings
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
 import { dimProjectionInputKey, projectDimEvent } from './messageProjection'
 import { dimSequence } from './sessionConnection'
+import { readDimImportedSnapshot } from './historyImport'
 
 /** All native content reads cross the injected storage plugin; no desktop SQLite reader. */
 export class DimContent {
@@ -15,7 +16,12 @@ export class DimContent {
     ref: DimSessionRef,
     productSessionId: string,
     through?: string
-  ): Promise<{ messages: ChatMessageRecord[]; through: string }> {
+  ): Promise<{
+    messages: ChatMessageRecord[]
+    through: string
+    summary: string | null
+    images: Record<string, JsonValue[]>
+  }> {
     const client = await this.host.start()
     let binding: DimSessionBinding = {
       sessionId: productSessionId,
@@ -30,6 +36,8 @@ export class DimContent {
     }
     const messages = new Map<string, ChatMessageRecord>()
     const inputs = new Map<string, DimEvent>()
+    const images = new Map<string, JsonValue[]>()
+    let summary: string | null = null
     let fixed = through
     while (true) {
       const page = await client.call<{ through: number | string; events: DimEvent[] }>(
@@ -38,12 +46,36 @@ export class DimContent {
       )
       fixed ??= String(page.through)
       for (const event of page.events) {
+        if (event.type === 'deepchat' && event.name === 'history-sealed') {
+          const imported = readDimImportedSnapshot(binding, event, (id) => inputs.get(id) ?? null)
+          summary = imported.snapshot.summary
+          images.clear()
+          for (const [key, blocks] of Object.entries(imported.snapshot.images ?? {}))
+            images.set(key, blocks)
+        }
         const projection = projectDimEvent(
           binding,
           event,
           (id) => messages.get(id) ?? null,
           (id) => inputs.get(id) ?? null
         )
+        if (event.type === 'input' && event.name === 'applied') {
+          const input = inputs.get(String(event.data.input_id))
+          const user = input?.data.user
+          if (user && typeof user === 'object' && !Array.isArray(user)) {
+            const blocks = Array.isArray(user.content)
+              ? user.content.filter(
+                  (block) =>
+                    block &&
+                    typeof block === 'object' &&
+                    !Array.isArray(block) &&
+                    block.type === 'image'
+                )
+              : []
+            const message = projection.messages.find((message) => message.role === 'user')
+            if (message && blocks.length) images.set(message.id, blocks)
+          }
+        }
         for (const input of projection.inputEvents ?? [])
           inputs.set(dimProjectionInputKey(input), input)
         for (const key of projection.consumedInputs ?? []) inputs.delete(key)
@@ -56,7 +88,9 @@ export class DimContent {
     }
     return {
       messages: [...messages.values()].sort((left, right) => left.orderSeq - right.orderSeq),
-      through: fixed!
+      through: fixed!,
+      summary,
+      images: Object.fromEntries(images)
     }
   }
 

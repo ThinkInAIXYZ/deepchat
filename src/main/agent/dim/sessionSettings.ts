@@ -10,6 +10,7 @@ import { DesktopSessionState } from '@/session/desktopSessionState'
 import { DimAgentProfiles } from './agentProfiles'
 import { DimModelCatalog, dimModelParameters } from './modelCatalog'
 import { DimSessionControls } from './sessionControls'
+import type { DimScopeCreation } from './scopeTransitions'
 
 interface SessionIdentity {
   name: string
@@ -39,6 +40,17 @@ export class DimSessionSettings {
   async launch(sessionId: string): Promise<JsonValue> {
     const row = this.require(sessionId)
     const generation = (await this.options.state.getGenerationSettings(sessionId))!
+    const creation = await this.creation(sessionId)
+    const model = await this.options.models.admit(row.provider_id, row.model_id, {
+      timeout: generation.timeout
+    })
+    return { ...creation, model: { ...model } }
+  }
+
+  /** Creation identity can be read for a data-only edit even when a provider is disabled. */
+  async creation(sessionId: string): Promise<DimScopeCreation> {
+    const row = this.require(sessionId)
+    const generation = (await this.options.state.getGenerationSettings(sessionId))!
     const identity = await this.options.identity(sessionId)
     const agent = await this.options.profiles.ensure({
       name: identity.name,
@@ -46,13 +58,10 @@ export class DimSessionSettings {
       systemPrompt: generation.systemPrompt,
       ...(identity.tools ? { tools: identity.tools } : {})
     })
-    const model = await this.options.models.admit(row.provider_id, row.model_id, {
-      timeout: generation.timeout
-    })
     return {
       agent,
-      model: { ...model },
       cwd: identity.cwd,
+      ...(identity.tools ? { tools: identity.tools } : {}),
       policy: { preset: preset(row.permission_mode), allowedTools: [], disallowedTools: [] }
     }
   }

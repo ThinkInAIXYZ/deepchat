@@ -200,14 +200,15 @@ export class DimSessionRuntime {
   }
 
   /** A native fence orders late product submissions before a generation change. */
-  async retire(sessionId: string, operationId: string): Promise<void> {
+  async retire(sessionId: string, operationId: string, requireEmptyQueue = false): Promise<void> {
     const binding = this.options.database.dimSessionBindingsTable.get(sessionId)
     if (!binding) return
     const client = await this.options.host.start()
     await client.call('session.deepchat_inputs.retire', {
       sessionId: binding.dimSessionId,
       branchId: binding.branchId,
-      operationId
+      operationId,
+      requireEmptyQueue
     })
     // After the owner acknowledges the fence, an absent submission can no longer arrive late.
     for (const intent of this.options.database.dimInputIntentsTable.pending(sessionId)) {

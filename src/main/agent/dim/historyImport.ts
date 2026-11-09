@@ -99,35 +99,7 @@ export function projectDimHistory(
   seal: DimEvent,
   read: (key: string) => DimEvent | null
 ): { messages: ChatMessageRecord[]; keys: string[] } {
-  const { migrationId, chunks, digest, productSessionId } = seal.data
-  if (
-    typeof migrationId !== 'string' ||
-    typeof chunks !== 'number' ||
-    !Number.isInteger(chunks) ||
-    chunks < 1 ||
-    chunks > 2048 ||
-    productSessionId !== binding.sessionId
-  )
-    throw new Error('Invalid native history seal')
-  const keys = Array.from({ length: chunks }, (_, index) => `history:${migrationId}:${index}`)
-  const payload = keys
-    .map((key) => {
-      const chunk = read(key)
-      if (typeof chunk?.data.payload !== 'string')
-        throw new Error('Native history projection is missing a chunk')
-      return chunk.data.payload
-    })
-    .join('')
-  if (dimHistoryHash(payload) !== digest)
-    throw new Error('Native history projection digest mismatch')
-  const snapshot = JSON.parse(payload) as DimHistorySnapshot
-  if (
-    snapshot.formatVersion !== 1 ||
-    snapshot.productSessionId !== binding.sessionId ||
-    !Array.isArray(snapshot.messages) ||
-    snapshot.messages.length !== seal.data.messages
-  )
-    throw new Error('Invalid native imported history')
+  const { snapshot, keys } = readDimImportedSnapshot(binding, seal, read)
   const ids = new Set<string>()
   let previous = 0
   const messages = snapshot.messages.map((message) => {
@@ -168,4 +140,41 @@ export function projectDimHistory(
     }
   })
   return { messages, keys }
+}
+
+export function readDimImportedSnapshot(
+  binding: DimSessionBinding,
+  seal: DimEvent,
+  read: (key: string) => DimEvent | null
+): { snapshot: DimHistorySnapshot; keys: string[] } {
+  const { migrationId, chunks, digest, productSessionId } = seal.data
+  if (
+    typeof migrationId !== 'string' ||
+    typeof chunks !== 'number' ||
+    !Number.isInteger(chunks) ||
+    chunks < 1 ||
+    chunks > 2048 ||
+    productSessionId !== binding.sessionId
+  )
+    throw new Error('Invalid native history seal')
+  const keys = Array.from({ length: chunks }, (_, index) => `history:${migrationId}:${index}`)
+  const payload = keys
+    .map((key) => {
+      const chunk = read(key)
+      if (typeof chunk?.data.payload !== 'string')
+        throw new Error('Native history projection is missing a chunk')
+      return chunk.data.payload
+    })
+    .join('')
+  if (dimHistoryHash(payload) !== digest)
+    throw new Error('Native history projection digest mismatch')
+  const snapshot = JSON.parse(payload) as DimHistorySnapshot
+  if (
+    snapshot.formatVersion !== 1 ||
+    snapshot.productSessionId !== binding.sessionId ||
+    !Array.isArray(snapshot.messages) ||
+    snapshot.messages.length !== seal.data.messages
+  )
+    throw new Error('Invalid native imported history')
+  return { snapshot, keys }
 }

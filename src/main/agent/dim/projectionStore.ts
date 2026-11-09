@@ -11,6 +11,28 @@ export class DimProjectionStore {
   constructor(private readonly database: SessionDatabase) {
     this.applier = new TranscriptProjectionApplier(database)
   }
+  installGeneration(
+    previous: DimSessionBinding,
+    next: DimSessionBinding,
+    messages: ChatMessageRecord[]
+  ): void {
+    this.database.getDatabase().transaction(() => {
+      const retained = new Set(messages.map((message) => message.id))
+      for (const message of messages) {
+        const row = this.database.deepchatMessagesTable.get(message.id)
+        if (message.sessionId !== next.sessionId || (row && row.session_id !== next.sessionId))
+          throw new Error('Native transition message belongs to another product session')
+      }
+      this.database.dimSessionBindingsTable.replace(previous, next)
+      this.applier.applyRetractions(
+        this.database.deepchatMessagesTable
+          .getIdsBySession(next.sessionId)
+          .filter((id) => !retained.has(id))
+      )
+      for (const message of messages) this.applier.applyRecord(message)
+      this.database.dimInputProjectionTable.deleteBySession(next.sessionId)
+    })()
+  }
   apply(
     scope: Pick<DimSessionBinding, 'sessionId' | 'dimSessionId' | 'branchId' | 'generation'>,
     event: DimEvent

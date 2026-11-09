@@ -14,6 +14,7 @@ interface MigrationOptions {
   host: DimRuntimeSupervisor
   // The effective legacy view, or the view selected by an explicit edit/retry/fork.
   snapshot(binding: DimSessionBinding): Promise<DimHistorySnapshot>
+  isCurrentScope?(binding: DimSessionBinding): boolean
 }
 interface Status {
   sealed: boolean
@@ -53,6 +54,7 @@ export class DimLegacyMigration {
     if (record?.sealed) return
     const client = await this.options.host.start()
     const current = () => {
+      if (this.options.isCurrentScope?.(binding)) return
       const active = this.options.database.dimSessionBindingsTable.get(binding.sessionId)
       if (
         !active ||

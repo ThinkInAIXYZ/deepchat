@@ -29,6 +29,8 @@ export function dimDatabase(filename = ':memory:') {
   for (const table of [
     data.dimSessionBindingsTable,
     data.dimSessionImportsTable,
+    data.dimScopeChangesTable,
+    data.dimSessionScopesTable,
     data.dimInputIntentsTable,
     data.dimInputProjectionTable,
     data.dimProviderGrantsTable,

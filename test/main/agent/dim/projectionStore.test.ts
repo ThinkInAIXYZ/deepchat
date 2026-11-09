@@ -76,13 +76,20 @@ it('rolls back both the message and cursor when projection persistence fails', (
 
 it('refuses a late event belonging to a replaced native session before writing content', () => {
   const { data, binding, projection } = database()
-  data.dimSessionBindingsTable.delete('app')
-  data.dimSessionBindingsTable.bind('app', 'replacement')
+  projection.installGeneration(
+    binding,
+    { ...binding, dimSessionId: 'replacement', generation: 2 },
+    []
+  )
   expect(() =>
     projection.apply(binding, event(2, 'turn', 'start', { turn_id: 'old-turn' }))
   ).toThrow('Stale dim session binding')
   expect(data.deepchatMessagesTable.getBySession('app')).toEqual([])
   expect(data.dimSessionBindingsTable.get('app')!.cursor).toBe('0')
+  expect(data.dimSessionScopesTable.list('app').map((scope) => scope.dimSessionId)).toEqual([
+    'native',
+    'replacement'
+  ])
 })
 
 it('commits input acceptance with its projection and retains only an immutable receipt', () => {
