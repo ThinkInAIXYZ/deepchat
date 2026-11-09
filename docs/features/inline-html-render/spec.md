@@ -121,8 +121,10 @@ const htmlRenderSectionSchema = z.strictObject({
   switches with no new setting: the per-agent tool toggle in agent settings (`disabledAgentTools`)
   and the per-session override (`updateSessionDisabledAgentTools`), so a user can turn them on or
   off for one conversation. They are opt-in, like `cronjob`: both names are in
-  `DEFAULT_DISABLED_AGENT_TOOLS`, and a one-time step (`htmlRenderToolsSeeded`) adds them to the
-  disabled list of existing agents without touching other tools. Conversations created before
+  `DEFAULT_DISABLED_AGENT_TOOLS`, which also applies to an agent created without a list. A
+  one-time step (`htmlRenderToolsSeeded`) adds them to the disabled list of every existing agent
+  without touching other tools; it runs after the independent-config migration, so a missing list
+  means every tool was enabled. Conversations created before
   the upgrade keep the tool list they started with. The tools are toggled one by one: with
   only `html_render` disabled, `html_render_section` stays listed but every call fails for lack of
   a panel. They are grouped with the `agent-core` tools, so the settings and session tool lists
@@ -191,7 +193,8 @@ back to the model.
   (`deepchatAssistantBlocks.measureHtmlRenderPanel`). Blocks reach the DB within 600 ms, and a
   section call can only start in the model round after the shell result, so the shell is stored.
   Section results are stored only after the whole tool batch, so the tool also counts the sections
-  it accepted earlier in the process for the 2 MB cap, with the newest size per section winning.
+  it accepted earlier in the process for the 2 MB cap. Each section counts the larger of its
+  stored and accepted sizes, since deleting a message can bring back a larger stored version.
 
 ## Persistence
 
@@ -295,7 +298,8 @@ work unchanged:
   `DOMContentLoaded` so libraries in the shell `<head>` are defined, then for each new or changed
   section fills a `<div data-dc-section style="display:contents">` slot inside
   `[data-dc-sections]` (else `body`) and re-creates its `<script>` elements in order, because
-  scripts parsed through `innerHTML` never run; slots whose id is no longer in the list are
+  scripts parsed through `innerHTML` never run. Inline classic scripts run inside a block, so a
+  replaced section, or another section, can declare the same top-level `const` again; slots whose id is no longer in the list are
   removed, so a deleted or regenerated message drops its sections;
 - reports the first uncaught script error once with `dc/html-render/script-error`; the view keeps
   the page and shows a one-line notice under it, since the rest of the page may still be useful;
