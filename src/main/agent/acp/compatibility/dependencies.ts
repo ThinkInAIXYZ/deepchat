@@ -29,7 +29,7 @@ import {
   capAgentRequestMaxTokens,
   estimateToolReserveTokens
 } from '@/agent/deepchat/runtime/contextBudget'
-import { createUserChatMessage } from '@/agent/deepchat/runtime/contextBuilder'
+import { createUserChatMessage } from '@/agent/shared/inputContent'
 import {
   resolveEffectiveActiveSkillNames,
   buildSystemPromptWithSkills,

@@ -14,6 +14,7 @@ import { DimSessionRuntime } from '@/agent/dim/sessionRuntime'
 import { dimDatabase } from './fixtures/database'
 import { DimProductGateway, type DimProductToolCall } from '@/agent/dim/productGateway'
 import { DimModelBridge } from '@/agent/dim/modelBridge'
+import { DimAuxiliaryModels } from '@/agent/dim/auxiliaryModels'
 import { DimModelCatalog } from '@/agent/dim/modelCatalog'
 import { DimAgentProfiles } from '@/agent/dim/agentProfiles'
 import { DimSessionSettings } from '@/agent/dim/sessionSettings'
@@ -729,15 +730,25 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
       }
 
       expect(
-        await models.complete(
-          target,
-          {
-            messages: [{ role: 'user', content: 'native auxiliary request' }],
-            maxOutputTokens: 100
-          },
-          undefined,
-          nativePlugins ? { temperature: 0.31, topP: 0.68, maxTokens: 93 } : undefined
-        )
+        nativePlugins
+          ? await new DimAuxiliaryModels({ models: catalog!, bridge: models }).complete({
+              providerId: 'desktop-fixture',
+              modelId: 'fixture',
+              messages: [
+                { role: 'system', content: 'native auxiliary instructions' },
+                { role: 'user', content: 'native auxiliary request' }
+              ],
+              parameters: { temperature: 0.31, topP: 0.68, maxTokens: 93 }
+            })
+          : await models.complete(
+              target,
+              {
+                messages: [{ role: 'user', content: 'native auxiliary request' }],
+                maxOutputTokens: 100
+              },
+              undefined,
+              nativePlugins ? { temperature: 0.31, topP: 0.68, maxTokens: 93 } : undefined
+            )
       ).toMatchObject({ text: 'Rust provider answer' })
       if (nativePlugins) {
         expect(conversationRequests()[0].body).toMatchObject({
