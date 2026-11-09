@@ -759,18 +759,26 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
         const a = await send('queue A')
         const b = await send('queue B')
         const c = await send('queue C')
+        const queueRuntime = new DimSessionRuntime({
+          database: grants.data,
+          host,
+          launch: async () => {
+            throw new Error('Reuse the existing binding')
+          },
+          projected: () => {},
+          failed: () => {}
+        })
+        await queueRuntime.open('product-ui')
+        await Promise.all([
+          queueRuntime.synchronize('product-ui'),
+          queueRuntime.synchronize('product-ui')
+        ])
+        expect((heldQueueResponse as unknown as ServerResponse).writableEnded).toBe(false)
+        expect(grants.data.dimSessionBindingsTable.get('product-ui')?.status).toBe('generating')
         const queue = new DimQueue({
           database: grants.data,
           host,
-          runtime: new DimSessionRuntime({
-            database: grants.data,
-            host,
-            launch: async () => {
-              throw new Error('Reuse the existing binding')
-            },
-            projected: () => {},
-            failed: () => {}
-          }),
+          runtime: queueRuntime,
           prepareNative: async () => {},
           setProjectDir: async () => {},
           prepareInput: async (_id, input) => ({
@@ -816,6 +824,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
         )
         await current.call('deepchat.host.idle', ref)
         expect(await queue.listPendingInputs('product-ui')).toEqual([])
+        await queueRuntime.close('product-ui')
         const desktop = new DimSessionRuntime({
           database: grants.data,
           host,
@@ -1176,9 +1185,12 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
         await expect(readFile(path.join(profile, 'legacy-never-run.txt'))).rejects.toMatchObject({
           code: 'ENOENT'
         })
-        await importedRuntime.submit(legacyProduct, [
-          { type: 'text', text: 'first native continuation' }
-        ])
+        const resumedSubmissionId = randomUUID()
+        const resumed = await importedRuntime.submit(
+          legacyProduct,
+          [{ type: 'text', text: 'first native continuation' }],
+          { submissionId: resumedSubmissionId }
+        )
         await importedRuntime.waitIdle(legacyProduct)
         expect(JSON.stringify(conversationRequests().at(-1)!.body)).toContain('legacy-tool-result')
         expect(JSON.stringify(conversationRequests().at(-1)!.body)).toContain(
@@ -1207,9 +1219,58 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
         await expect(readFile(path.join(profile, 'legacy-never-run.txt'))).rejects.toMatchObject({
           code: 'ENOENT'
         })
+        expect(await new DimSessionControls(host).call('native_identity', legacyRef)).toMatchObject(
+          { cwd: profile, tools: null }
+        )
+        const neverSent = randomUUID()
+        grants.data.dimInputIntentsTable.begin({
+          submissionId: neverSent,
+          sessionId: legacyProduct,
+          dimSessionId: legacyCreated.sessionId,
+          branchId: 'main',
+          payload: {}
+        })
+        grants.data.dimInputIntentsTable.settle(neverSent, 'unknown')
+        const retirement = randomUUID()
+        const beforeRetirement = conversationRequests().length
+        await importedRuntime.retire(legacyProduct, retirement)
+        await importedRuntime.retire(legacyProduct, retirement)
+        expect(grants.data.dimInputIntentsTable.get(neverSent)?.state).toBe('rejected')
+        expect(
+          await (
+            await host.start()
+          ).call('session.deepchat_inputs.submit', {
+            ...legacyRef,
+            input: {
+              submission_id: resumedSubmissionId,
+              mode: 'queue',
+              user: { content: [{ type: 'text', text: 'first native continuation' }] }
+            }
+          })
+        ).toEqual(resumed)
+        const lateSubmission = randomUUID()
+        await expect(
+          importedRuntime.submit(
+            legacyProduct,
+            [{ type: 'text', text: 'late input into retired generation' }],
+            { submissionId: lateSubmission }
+          )
+        ).rejects.toMatchObject({ data: { appError: 'session_retired' } })
+        expect(grants.data.dimInputIntentsTable.get(lateSubmission)?.state).toBe('rejected')
+        expect(conversationRequests()).toHaveLength(beforeRetirement)
         await importedRuntime.close(legacyProduct)
         await host.stop()
         const restored = await host.start()
+        await expect(
+          restored.call('session.deepchat_inputs.submit', {
+            ...legacyRef,
+            input: {
+              submission_id: randomUUID(),
+              user: { content: [{ type: 'text', text: 'retirement survives restart' }] },
+              mode: 'queue'
+            }
+          })
+        ).rejects.toMatchObject({ data: { appError: 'session_retired' } })
         expect(await restored.call('session.deepchat_queue.mutate', { ...ref, plan })).toEqual(
           deleted
         )

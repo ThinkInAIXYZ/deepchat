@@ -32,6 +32,9 @@ export class DimRuntimeSupervisor {
     null
 
   constructor(private readonly options: DimRuntimeOptions) {}
+  get usesNativePlugins(): boolean {
+    return this.options.nativePlugins === true
+  }
 
   start(): Promise<DimPluginClient> {
     if (this.stopping) return this.stopping.then(() => this.start())

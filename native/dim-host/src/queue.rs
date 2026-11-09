@@ -368,6 +368,7 @@ async fn mutate(
             None => finish(tree, branch_id, metadata, &stored, ready).await,
         };
     }
+    crate::inputs::ensure_active(metadata).await?;
     recover(tree, branch_id, metadata).await?;
     if plan.sources.is_empty()
         || plan.sources.len() > 128

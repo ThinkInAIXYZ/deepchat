@@ -4,7 +4,7 @@ use dim_agent_capabilities::{
     prompt_state::PromptSnapshot,
     timeline_tree::TreeCommands,
 };
-use dim_agent_runtime::{AgentBuilder, ConfigureOutcome, ConfigureUpdate, Names};
+use dim_agent_runtime::{AgentBuilder, ConfigureOutcome, ConfigureUpdate, Names, SessionConfig};
 use dim_agent_types::{ModelConfig, ModelId, ModelSelection};
 use rutis::Ctx;
 use rutis::host::{BoxFuture, CtxHost, DynPlugin, Effect, Key, TypeKey};
@@ -24,6 +24,7 @@ struct Settings {
     tree: Key<TreeCommands>,
     methods: Key<SessionMethods>,
     selection: Key<ModelSelectionHost>,
+    creation: Key<SessionConfig>,
 }
 impl Settings {
     fn new(names: &Names<'_>) -> rutis::Result<Self> {
@@ -31,6 +32,7 @@ impl Settings {
             tree: names.key()?,
             methods: names.key()?,
             selection: names.key()?,
+            creation: names.key()?,
         })
     }
 }
@@ -43,6 +45,7 @@ impl DynPlugin for Settings {
             self.tree.erase(),
             self.methods.erase(),
             self.selection.erase(),
+            self.creation.erase(),
         ]
     }
     fn apply<'a>(&'a self, ctx: &'a Ctx) -> BoxFuture<'a, rutis::Result<Effect>> {
@@ -50,10 +53,16 @@ impl DynPlugin for Settings {
             let tree = ctx.require_at(&self.tree)?;
             let methods = ctx.require_at(&self.methods)?;
             let selection = ctx.require_at(&self.selection)?;
+            let creation = ctx.require_at(&self.creation)?;
             methods.register(
                 ctx,
                 "session.deepchat_native",
                 vec![
+                    MethodDecl::new(
+                        "session.deepchat_native.identity",
+                        false,
+                        Interruption::Report,
+                    ),
                     MethodDecl::new(
                         "session.deepchat_native.settings",
                         false,
@@ -68,6 +77,7 @@ impl DynPlugin for Settings {
                 Arc::new(move |call, cancel, _| {
                     let tree = tree.clone();
                     let selection = selection.clone();
+                    let creation = creation.clone();
                     Box::pin(async move {
                         let MethodCall {
                             method,
@@ -93,6 +103,9 @@ impl DynPlugin for Settings {
                         }
                         let p: Params = params(value)?;
                         let branch = tree.get(&p.branch_id)?;
+                        if method.ends_with(".identity") {
+                            return reply(json!({"cwd":creation.cwd,"tools":creation.tools}));
+                        }
                         let current = branch
                             .get::<PromptSnapshot>()
                             .and_then(|state| state.configuration)

@@ -51,6 +51,7 @@ export class DimSessionConnection {
   private work: Promise<void> = Promise.resolve()
   private needsCatchup = false
   private idling: Promise<void> | null = null
+  private synchronizing: Promise<void> | null = null
 
   constructor(
     private readonly client: DimPluginClient,
@@ -166,6 +167,24 @@ export class DimSessionConnection {
 
   private async finishIdle(): Promise<void> {
     await this.client.call('deepchat.host.idle', { ...this.ref })
+    await this.synchronize()
+  }
+
+  synchronize(): Promise<void> {
+    // A caller arriving during a fixed-through read needs a subsequent read: joining the old
+    // one could miss facts committed before this caller (notably stop/retirement acknowledgements).
+    const operation = this.synchronizing
+      ? this.synchronizing.then(() => this.synchronizeCommitted())
+      : this.synchronizeCommitted()
+    this.synchronizing = operation
+    void operation
+      .finally(() => {
+        if (this.synchronizing === operation) this.synchronizing = null
+      })
+      .catch(() => {})
+    return operation
+  }
+  private async synchronizeCommitted(): Promise<void> {
     this.reading = true
     await this.work
     if (this.stopped) throw new Error('dim reader stopped before completing its projection')

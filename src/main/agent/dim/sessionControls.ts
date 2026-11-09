@@ -18,6 +18,7 @@ export type DimSessionOperation =
   | 'approval'
   | 'fork'
   | 'native_settings'
+  | 'native_identity'
   | 'native_configure'
 
 /** Fixed commands exposed by the injected plugin; dim owns validation and mutations. */

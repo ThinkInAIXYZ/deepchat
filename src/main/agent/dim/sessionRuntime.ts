@@ -68,43 +68,45 @@ export class DimSessionRuntime {
   ): Promise<DimInputReceipt> {
     const { binding, scope } = await this.open(sessionId)
     const submissionId = options.submissionId ?? randomUUID()
-    const payload: JsonValue =
-      options.representation === undefined
-        ? {
-            sessionId: binding.dimSessionId,
-            branchId: binding.branchId,
-            submissionId,
+    const native = this.options.host.usesNativePlugins || options.representation !== undefined
+    const payload: JsonValue = !native
+      ? {
+          sessionId: binding.dimSessionId,
+          branchId: binding.branchId,
+          submissionId,
+          mode: options.mode ?? 'queue',
+          rawBlocks: options.rawBlocks ?? [],
+          content
+        }
+      : {
+          sessionId: binding.dimSessionId,
+          branchId: binding.branchId,
+          input: {
+            submission_id: submissionId,
             mode: options.mode ?? 'queue',
-            rawBlocks: options.rawBlocks ?? [],
-            content
-          }
-        : {
-            sessionId: binding.dimSessionId,
-            branchId: binding.branchId,
-            input: {
-              submission_id: submissionId,
-              mode: options.mode ?? 'queue',
-              user: { content },
-              blocks: (options.rawBlocks ?? []).map((block) => {
-                if (
-                  !block ||
-                  typeof block !== 'object' ||
-                  Array.isArray(block) ||
-                  typeof block.text !== 'string'
-                )
-                  throw new Error('Invalid native raw block')
-                const key = block.key
-                return {
-                  type: 'raw',
-                  text: block.text,
-                  ...(key && typeof key === 'object' && !Array.isArray(key)
-                    ? { key: key.name, retire: key.use === 'retire' }
-                    : {})
-                }
-              })
-            },
-            representation: options.representation
-          }
+            ...(content.length ? { user: { content } } : {}),
+            blocks: (options.rawBlocks ?? []).map((block) => {
+              if (
+                !block ||
+                typeof block !== 'object' ||
+                Array.isArray(block) ||
+                typeof block.text !== 'string'
+              )
+                throw new Error('Invalid native raw block')
+              const key = block.key
+              return {
+                type: 'raw',
+                text: block.text,
+                ...(key && typeof key === 'object' && !Array.isArray(key)
+                  ? { key: key.name, retire: key.use === 'retire' }
+                  : {})
+              }
+            })
+          },
+          ...(options.representation !== undefined
+            ? { representation: options.representation }
+            : {})
+        }
     if (this.scopes.get(sessionId) !== scope)
       throw new DimConnectionError('dim session was closed before admission', 'not-sent')
     const stored = this.options.database.dimInputIntentsTable.begin({
@@ -125,9 +127,7 @@ export class DimSessionRuntime {
       if (this.scopes.get(sessionId) !== scope)
         throw new DimConnectionError('dim session was replaced before submission', 'not-sent')
       const receipt = await client.call<DimInputReceipt>(
-        options.representation === undefined
-          ? 'deepchat.host.input'
-          : 'session.deepchat_inputs.submit',
+        !native ? 'deepchat.host.input' : 'session.deepchat_inputs.submit',
         payload
       )
       this.options.database.dimInputIntentsTable.settle(submissionId, 'accepted', receipt)
@@ -149,6 +149,7 @@ export class DimSessionRuntime {
           'session_invalid_input',
           'input_blocked',
           'migration_incomplete',
+          'session_retired',
           'rejected',
           'session_closed',
           'branch_missing',
@@ -185,7 +186,31 @@ export class DimSessionRuntime {
     await (await this.open(sessionId)).reader.waitIdle()
   }
   async cancel(sessionId: string): Promise<void> {
-    await (await this.open(sessionId)).reader.stopGeneration()
+    const { reader } = await this.open(sessionId)
+    await reader.stopGeneration()
+    await reader.synchronize()
+  }
+  async synchronize(sessionId: string): Promise<void> {
+    await (await this.open(sessionId)).reader.synchronize()
+  }
+
+  /** A native fence orders late product submissions before a generation change. */
+  async retire(sessionId: string, operationId: string): Promise<void> {
+    const binding = this.options.database.dimSessionBindingsTable.get(sessionId)
+    if (!binding) return
+    const client = await this.options.host.start()
+    await client.call('session.deepchat_inputs.retire', {
+      sessionId: binding.dimSessionId,
+      branchId: binding.branchId,
+      operationId
+    })
+    // After the owner acknowledges the fence, an absent submission can no longer arrive late.
+    for (const intent of this.options.database.dimInputIntentsTable.pending(sessionId)) {
+      if (intent.dimSessionId !== binding.dimSessionId || intent.branchId !== binding.branchId)
+        continue
+      if (!(await this.reconcile(intent)))
+        this.options.database.dimInputIntentsTable.settle(intent.submissionId, 'rejected')
+    }
   }
   async close(sessionId: string): Promise<void> {
     const reader = this.readers.get(sessionId)

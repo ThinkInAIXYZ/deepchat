@@ -157,6 +157,8 @@
 
 ## 模块进度
 
+- 模块 17：原生插件新增持久提交封口；与产品提交/队列控制共用 native lane，封口后新输入明确拒绝，既有 submission lookup 仍返回原回执。Rust 装配下的所有 Runtime 提交统一经过插件，展示 metadata 可选，不再让无 representation 的输入绕过封口。封口确认后，仍不存在的旧未知提交才能标记拒绝。新增只同步 committed facts 的 reader 方法，取消后同步桌面状态，并读取 native 创建时 cwd/tools。真实 HTTP 阻塞期间验证同步不等待 agent，8 项 native、19 项相关回归及 format/lint/typecheck 通过；验证封口幂等、重启、旧回执和拒绝后无新模型调用。generation 切换的 controller 继续接线。
+
 - 模块 16：新增 Rust history import 插件，非上下文快照分块逐块/整体 SHA-256 校验，通过 Branch.input 的 Append 模式提供历史上下文，完成标记前阻止产品新输入。桌面只持久导入身份/进度，未知回执通过 native status 恢复；完成后不再读取 legacy 来源。导入快照可重建现有消息/附件/引用/metadata 读模型，旧待确认交互退为历史，保留原消息 ID 且防止跨产品会话覆盖。初次接纳时保留相同消息的 legacy sidecar。真实 Rust 验证损坏分块拒绝、中途退出后恢复、Unicode 分块、导入不调用模型/不重放工具、首次新回合，以及丢失缓存和桌面回执后的 native 重建。8 项 native 和 952 项 dim/session/schema/install 回归通过，format/lint/typecheck 通过。主 factory、有效 legacy Tape 来源选择、legacy 队列/图片准备及 mutation/目录变化的 rollover 继续接线。
 
 - 模块 15：新增 storage 插件的固定边界最新事件读取，context usage/manual compact 委托 native owner；compaction 快照与事件保留原生 session/branch/event/u64 字符串位置，Tape 专属 evidence 字段为空。固定 through 的读取与读途中 generation 检查防止混合或过期快照；桌面投影新增 committed-event 观察口。真实 Rust 验证 context 上限、占用、手动压缩成功及未转换会话的被动读取。8 项 native 通过；session/contracts/dim 的 930 项先通过，发现一项旧 Code Mode 预期与已批准的停用行为相反，更新后该 9 项 table suite 全通过（合计 931 项）。format/lint/typecheck 通过。

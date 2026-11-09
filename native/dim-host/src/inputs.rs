@@ -78,7 +78,31 @@ struct Submit {
     _session_id: String,
     branch_id: String,
     input: InputMessageData,
-    representation: Value,
+    representation: Option<Value>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct Retire {
+    #[serde(rename = "sessionId")]
+    _session_id: String,
+    branch_id: String,
+    operation_id: String,
+}
+pub(crate) async fn ensure_active(metadata: &DeepChatInputMetadata) -> Result<(), RpcError> {
+    if !crate::facts::events(
+        &metadata.timeline,
+        crate::facts::extension("session-retired"),
+    )
+    .await?
+    .is_empty()
+    {
+        return Err(RpcError::service(
+            "session_retired",
+            "This native generation no longer admits product input",
+        ));
+    }
+    Ok(())
 }
 
 pub(crate) fn validate_representation(value: &Value) -> Result<(), RpcError> {
@@ -114,27 +138,44 @@ impl DynPlugin for Inputs {
         Box::pin(async move {
             let tree = ctx.require_at(&self.tree)?;
             ctx.require_at(&self.methods)?.register(ctx, "session.deepchat_inputs", vec![
-                MethodDecl::new("session.deepchat_inputs.submit", true, Interruption::Drain)
+                MethodDecl::new("session.deepchat_inputs.submit", true, Interruption::Drain),
+                MethodDecl::new("session.deepchat_inputs.retire", true, Interruption::Drain)
             ], Arc::new(move |call, _cancel, _| {
                 let tree = tree.clone();
                 Box::pin(async move {
+                    if call.method.ends_with(".retire") {
+                        let value:Retire=params(call.params)?;
+                        if value.operation_id.is_empty() || value.operation_id.len()>64 || !value.operation_id.bytes().all(|byte|byte.is_ascii_alphanumeric()||byte==b'-') {return Err(RpcError::invalid("Invalid retirement identity"));}
+                        let branch=tree.get(&value.branch_id)?;
+                        let metadata=branch.service::<DeepChatInputMetadata>()?;
+                        let _lane=metadata.lane.lock().await;
+                        if let Some(event)=crate::facts::events(&metadata.timeline,crate::facts::extension("session-retired")).await?.first() {
+                            let EventKind::Extension(extension)=&event.kind else{unreachable!()};
+                            if extension.data()["operationId"]!=value.operation_id {return Err(RpcError::service("session_retired","Native generation was retired by another operation"));}
+                            return reply(json!({"retired":true,"sequence":event.sequence.to_string()}));
+                        }
+                        crate::queue::recover(&tree,&value.branch_id,&metadata).await?;
+                        let event=metadata.timeline.append(EventKind::Extension(ExtensionEvent::new("deepchat","session-retired",json!({"operationId":value.operation_id})).map_err(RpcError::invalid)?).into())?;
+                        return reply(json!({"retired":true,"sequence":event.sequence.to_string()}));
+                    }
                     let value: Submit = params(call.params)?;
                     let submission = value.input.submission_id.as_deref().filter(|id| !id.is_empty())
                         .ok_or_else(|| RpcError::invalid("Submission identity is required"))?.to_owned();
-                    validate_representation(&value.representation)?;
+                    if let Some(representation)=&value.representation {validate_representation(representation)?;}
                     value.input.validate().map_err(RpcError::invalid)?;
                     if value.input.handover.is_some() { return Err(RpcError::invalid("Product input cannot address a handover")); }
                     let branch = tree.get(&value.branch_id)?;
                     let metadata = branch.service::<DeepChatInputMetadata>()?;
                     let _lane = metadata.lane.lock().await;
-                    crate::queue::recover(&tree, &value.branch_id, &metadata).await?;
-                    crate::migration::check_ready(&metadata).await?;
                     if let Some(event) = branch.lookup(&submission).await? {
                         return reply(json!({"inputId": event.id, "sequence": event.sequence}));
                     }
-                    metadata.timeline.append(EventKind::Extension(ExtensionEvent::new(
-                        "deepchat", "input-representation", json!({"submissionId": submission, "content": value.representation})
-                    ).map_err(RpcError::invalid)?).into())?;
+                    ensure_active(&metadata).await?;
+                    crate::queue::recover(&tree, &value.branch_id, &metadata).await?;
+                    crate::migration::check_ready(&metadata).await?;
+                    if let Some(representation)=value.representation {metadata.timeline.append(EventKind::Extension(ExtensionEvent::new(
+                        "deepchat", "input-representation", json!({"submissionId": submission, "content": representation})
+                    ).map_err(RpcError::invalid)?).into())?;}
                     let event = match branch.input(value.input).await {
                         Ok(event) => event,
                         Err(error) => {
