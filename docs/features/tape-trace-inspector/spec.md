@@ -1,5 +1,9 @@
 # Tape Trace Inspector
 
+> Planned replacement: [dim Rust harness migration](../../architecture/dim-rust-harness-migration/spec.md).
+> This document remains the current implementation contract until the migration gates pass;
+> the new RFC is not yet implemented.
+
 ## Status
 
 Core implementation is complete. The renderer presentation is being refined for scanability and

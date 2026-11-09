@@ -1,5 +1,9 @@
 # Main Host and Portable Harness Boundaries
 
+> Planned replacement: [dim Rust harness migration](../dim-rust-harness-migration/spec.md).
+> This document remains the current implementation contract until the migration gates pass;
+> the new RFC is not yet implemented.
+
 Electron and the standalone Node host construct the same built-in Agent through
 `src/main/agent/deepchat/harness/index.ts`. Turn, Run, permission waits, cancellation, pending inputs
 and recovery belong to that runtime. The desktop host owns native capabilities, credentials,

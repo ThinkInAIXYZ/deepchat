@@ -1,5 +1,9 @@
 # DeepChat Runtime, Tool Execution and Hooks
 
+> Planned replacement: [dim Rust harness migration](../dim-rust-harness-migration/spec.md).
+> This document remains the current implementation contract until the migration gates pass;
+> the new RFC is not yet implemented.
+
 The [Main host contract](../main-harness-portability/spec.md) defines the production entry and
 execution/persistence/output ports. This document defines the runtime owners beneath that boundary.
 Direct ACP uses its own backend; cross-agent state reads go through AgentManager.
