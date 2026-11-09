@@ -65,3 +65,11 @@ views through the storage plugin, including closed generations; product memory
 policies and its own claim store remain in DeepChat. The existing JSON lineage
 column accepts explicit dim view references alongside read-only numeric Tape
 references, without inventing new Tape ids or changing dim's store schema.
+
+`deepchat.storage.scope` reads native origin, parent, immutable CWD/model/mounts and
+title metadata through the independent storage plugin and public SessionStore.
+`session.deepchat_scope.frame` finds the native branch that owns a model request;
+the query position distinguishes that branch from another line's inherited prefix.
+The desktop authorizes native delegation against the current root binding before
+and after I/O. The dim `agent` tool creates and executes members; this metadata port
+does not create, schedule or invoke them.

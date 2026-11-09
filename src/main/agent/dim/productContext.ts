@@ -3,10 +3,12 @@ import type { DimSessionBinding } from '@/session/data/tables/dimSessionBindings
 import type { DimContent } from './content'
 import type { DimProductContextRequest, DimProductContextReply } from './productGateway'
 import { dimSequence } from './sessionConnection'
+import type { DimAuthorizedScope } from './scopes'
 
 interface ProductContextOptions {
   database: SessionDatabase
   content: Pick<DimContent, 'latest'>
+  resolve?(request: DimProductContextRequest, signal: AbortSignal): Promise<DimAuthorizedScope>
   authorize(binding: Readonly<DimSessionBinding>, signal: AbortSignal): void | Promise<void>
   prepare(
     binding: Readonly<DimSessionBinding>,
@@ -24,10 +26,14 @@ export class DimProductContext {
     signal: AbortSignal
   ): Promise<DimProductContextReply> => {
     signal.throwIfAborted()
-    const binding = this.options.database.dimSessionBindingsTable.getByNative(request.sessionId)
+    const resolved = await this.options.resolve?.(request, signal)
+    const binding =
+      resolved?.binding ??
+      this.options.database.dimSessionBindingsTable.getByNative(request.sessionId)
     if (!binding) throw new Error('Native context has no current desktop binding')
     const scope = Object.freeze({ ...binding })
     const check = () => {
+      resolved?.assertCurrent()
       signal.throwIfAborted()
       const current = this.options.database.dimSessionBindingsTable.get(binding.sessionId)
       if (
@@ -43,9 +49,10 @@ export class DimProductContext {
     await this.options.authorize(scope, signal)
     check()
     // ContextSource fixes a history prefix. Resolve the live native step independently of the
-    // desktop's asynchronous status projection, and deny requests from another native branch.
+    // desktop's asynchronous status projection. Internal branches/children first resolve their
+    // native owner and current root generation through the public delegation boundary.
     const current = await this.options.content.latest(
-      {
+      resolved?.ref ?? {
         sessionId: scope.dimSessionId,
         branchId: scope.branchId
       },

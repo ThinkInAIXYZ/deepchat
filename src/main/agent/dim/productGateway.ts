@@ -45,6 +45,7 @@ export interface DimProductContextRequest {
   providerId: string
   modelId: string
   query: string
+  nativeAgentId?: string
 }
 export interface DimProductContextReply {
   messages: Array<{ role: 'user'; content: string }>
@@ -238,7 +239,11 @@ export class DimProductGateway {
         !/^(0|[1-9][0-9]{0,19})$/.test(request.through) ||
         BigInt(request.through) > 18446744073709551615n ||
         typeof request.query !== 'string' ||
-        request.query.length > 65_536
+        request.query.length > 65_536 ||
+        (request.nativeAgentId != null &&
+          (typeof request.nativeAgentId !== 'string' ||
+            !request.nativeAgentId ||
+            request.nativeAgentId.length > 4096))
       )
         throw new Error('Invalid native context request')
       const result = await this.options.context(
@@ -249,7 +254,10 @@ export class DimProductGateway {
           providerId: request.providerId as string,
           modelId: request.modelId as string,
           through: request.through,
-          query: request.query
+          query: request.query,
+          ...(typeof request.nativeAgentId === 'string'
+            ? { nativeAgentId: request.nativeAgentId }
+            : {})
         },
         signal
       )

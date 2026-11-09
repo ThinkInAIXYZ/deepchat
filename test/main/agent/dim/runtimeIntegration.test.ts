@@ -13,6 +13,7 @@ import { DimRuntimeSupervisor } from '@/agent/dim/runtimeSupervisor'
 import { DimSessionRuntime } from '@/agent/dim/sessionRuntime'
 import { dimDatabase } from './fixtures/database'
 import { DimProductContext } from '@/agent/dim/productContext'
+import { DimScopes, type DimAuthorizedScope } from '@/agent/dim/scopes'
 import { DimProductTools } from '@/agent/dim/productTools'
 import { TOOL_EXECUTION } from '@shared/types/mcp'
 import {
@@ -461,9 +462,15 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
         receipts: [{ source: 'product-context-fixture', version: liveContextVersion }]
       }
     }
+    const nativeScopes: DimAuthorizedScope[] = []
     const scopedContext = new DimProductContext({
       database: grants.data,
       content: { latest: (...args) => new DimContent(host).latest(...args) },
+      resolve: async (request, signal) => {
+        const scope = await new DimScopes({ database: grants.data, host }).context(request, signal)
+        nativeScopes.push(scope)
+        return scope
+      },
       authorize: () => {},
       prepare: (_binding, request, signal) => prepareContext(request, signal)
     })
@@ -508,10 +515,16 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
           }
         }
       },
-      context: (request, signal) =>
-        grants.data.dimSessionBindingsTable.getByNative(request.sessionId)
+      context: async (request, signal) => {
+        if (grants.data.dimSessionBindingsTable.getByNative(request.sessionId))
+          return scopedContext.prepare(request, signal)
+        const scope = await new DimScopes({ database: grants.data, host }).describe(
+          request.sessionId
+        )
+        return scope.origin === 'internal'
           ? scopedContext.prepare(request, signal)
-          : prepareContext(request, signal),
+          : prepareContext(request, signal)
+      },
       credential: async (providerId, reference, signal) => {
         if (catalog) return catalog.credential(providerId, reference, signal)
         if (providerId !== admittedProvider || reference !== 'desktop/provider/fixture')
@@ -1978,6 +1991,72 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
         await facade.runtime.waitIdle(facadeId)
         await expect.poll(() => contextCancelled).toBe(true)
         expect(conversationRequests()).toHaveLength(beforeBlockedContext)
+        // dim's own agent tool creates and runs the member. The desktop authorizes its
+        // immutable native parent link; it never creates, schedules or calls the child model.
+        await facade.backend.setPermissionMode(facadeId, 'full_access')
+        const leaderBinding = grants.data.dimSessionBindingsTable.get(facadeId)!
+        const nativeModel = await new DimSessionControls(host).call<{
+          providerId: string
+          modelId: string
+        }>('native_settings', {
+          sessionId: leaderBinding.dimSessionId,
+          branchId: leaderBinding.branchId
+        })
+        nextTools = [
+          {
+            id: 'native-delegation',
+            name: 'agent',
+            arguments: {
+              action: 'request',
+              prompt: 'native member task scope proof',
+              profile: {
+                name: 'Native scope member',
+                description: 'Native delegation fixture',
+                systemPrompt: 'Complete the delegated task.',
+                tools: [],
+                model: nativeModel
+              }
+            }
+          }
+        ]
+        await facade.backend.send(facadeId, {
+          content: { text: 'delegate through the native agent tool' }
+        })
+        await facade.runtime.waitIdle(facadeId)
+        await expect
+          .poll(() =>
+            nativeScopes.some(
+              (scope) =>
+                scope.description.parentSessionId === leaderBinding.dimSessionId &&
+                scope.description.role === 'member'
+            )
+          )
+          .toBe(true)
+        const child = nativeScopes.findLast(
+          (scope) => scope.description.parentSessionId === leaderBinding.dimSessionId
+        )!
+        expect(child.binding.sessionId).toBe(facadeId)
+        expect(child.ref.sessionId).not.toBe(leaderBinding.dimSessionId)
+        expect(child.ref.branchId).toBe('main')
+        expect(child.description.cwd).toBe(changedDirectory)
+        await expect
+          .poll(() =>
+            requests.some((request) => {
+              const messages = request.body.messages as
+                | Array<{ role: string; content: unknown }>
+                | undefined
+              return (
+                messages?.some(
+                  (message) =>
+                    message.role === 'system' &&
+                    JSON.stringify(message.content).includes('Complete the delegated task.')
+                ) && JSON.stringify(messages).includes('native member task scope proof')
+              )
+            })
+          )
+          .toBe(true)
+        await (await host.start()).call('deepchat.host.delete', { sessionId: child.ref.sessionId })
+        await facade.runtime.waitIdle(facadeId)
         const facadeScopes = grants.data.dimSessionScopesTable.list(facadeId)
         expect(facadeScopes).toHaveLength(4)
         await facade.backend.destroySession(facadeId)

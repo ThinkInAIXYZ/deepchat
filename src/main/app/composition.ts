@@ -190,6 +190,7 @@ import { DimModelCatalog } from '@/agent/dim/modelCatalog'
 import { DimModelBridge } from '@/agent/dim/modelBridge'
 import { DimAuxiliaryModels } from '@/agent/dim/auxiliaryModels'
 import { DimContent } from '@/agent/dim/content'
+import { DimScopes } from '@/agent/dim/scopes'
 import { DimLegacySource } from '@/agent/dim/legacySource'
 import { DimInputPreparation } from '@/agent/dim/inputPreparation'
 import { createDimMemoryRuntime } from '@/agent/dim/memoryRuntime'
@@ -2113,6 +2114,7 @@ export async function createMainProcessControl(dependencies: {
   dimContext = new DimProductContext({
     database: sessionData.database,
     content: new DimContent(dimHost),
+    resolve: new DimScopes({ database: sessionData.database, host: dimHost }).context,
     authorize: authorizeDimScope,
     prepare: dimMemory.contribute
   })

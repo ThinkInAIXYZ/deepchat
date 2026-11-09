@@ -9,6 +9,7 @@ mod models;
 mod permissions;
 mod product_tools;
 mod queue;
+mod scopes;
 mod secrets;
 mod settings;
 mod storage;
@@ -38,6 +39,7 @@ fn install(builder: &mut dim_agent_runtime::AgentBuilder) {
     queue::install(builder);
     storage::install(builder);
     memory::install(builder);
+    scopes::install(builder);
 }
 
 fn main() {

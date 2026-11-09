@@ -94,6 +94,7 @@ impl PrepareContext for DesktopContext {
                     "kind":"context", "sessionId":self.session_id, "turnId":source.turn_id,
                     "requestId":source.request_id, "through":source.through.to_string(),
                     "providerId":request.provider_id, "modelId":request.model_id, "query":query,
+                    "nativeAgentId":request.metadata.as_ref().and_then(|metadata|metadata.agent_id.clone()),
                 }),
                 cancel.clone(),
                 8 * 1024 * 1024,

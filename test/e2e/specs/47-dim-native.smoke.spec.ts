@@ -8,7 +8,7 @@ import {
   selectModel,
   sendMessage
 } from '../helpers/chat'
-import { waitForAppReady, waitForGenerationDone } from '../helpers/wait'
+import { waitForAppReady } from '../helpers/wait'
 
 test('desktop chat uses persistent native dim sessions @smoke', async ({ app, launchApp }) => {
   const requests: Array<{ messages?: unknown[]; tools?: Array<{ function: { name: string } }> }> =
@@ -89,8 +89,12 @@ test('desktop chat uses persistent native dim sessions @smoke', async ({ app, la
     await selectAgent(app.page)
     await selectModel(app.page, 'dim-desktop-fixture', providerId)
     await sendMessage(app.page, 'NATIVE_DIM_FIRST_INPUT')
-    await waitForGenerationDone(app.page)
+    await expect(getAssistantMessages(app.page)).toHaveCount(1)
     await expect(getAssistantMessages(app.page).last()).toContainText('NATIVE_DIM_DESKTOP_REPLY')
+    await expect(app.page.getByTestId('chat-page-shell')).toHaveAttribute(
+      'data-generating',
+      'false'
+    )
     const sessionId = await getActiveSessionId(app.page)
     const firstPage = await app.page.evaluate(
       (id) => window.deepchat.invoke('sessions.listMessagesPage', { sessionId: id }),
@@ -119,13 +123,21 @@ test('desktop chat uses persistent native dim sessions @smoke', async ({ app, la
       'NATIVE_DIM_DESKTOP_REPLY'
     )
     await sendMessage(reopened.page, 'NATIVE_DIM_AFTER_RESTART')
-    await waitForGenerationDone(reopened.page)
+    await expect(getAssistantMessages(reopened.page)).toHaveCount(2)
+    await expect(getAssistantMessages(reopened.page).last()).toContainText(
+      'NATIVE_DIM_DESKTOP_REPLY'
+    )
+    await expect(reopened.page.getByTestId('chat-page-shell')).toHaveAttribute(
+      'data-generating',
+      'false'
+    )
     const restored = await reopened.page.evaluate(
       (id) => window.deepchat.invoke('sessions.listMessagesPage', { sessionId: id }),
       sessionId
     )
     expect(restored.messages.filter((message) => message.role === 'user')).toHaveLength(2)
     expect(restored.messages.filter((message) => message.role === 'assistant')).toHaveLength(2)
+    expect(restored.messages.every((message) => message.status === 'sent')).toBe(true)
     expect(
       restored.messages.every((message) => JSON.parse(message.metadata).dim?.sessionId === nativeId)
     ).toBe(true)

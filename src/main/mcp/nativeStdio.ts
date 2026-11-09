@@ -17,8 +17,8 @@ export function nativeMcpStdio(
   config: MCPServerConfig,
   options: StdioOptions
 ): DimMcpServer | null {
-  // The pinned public native transport cannot set CWD or clear inherited variables. Retain the
-  // product-managed transport for those explicit settings, rather than silently ignoring them.
+  // Native temporary bindings pin stdio CWD to the owning Session and inherit the daemon's
+  // environment. Preserve explicit per-server CWD/isolation through the product compatibility owner.
   if (config.cwd || config.inheritEnv === 'minimal') return null
   const resolve = (value: string) =>
     options.expand(resolveMcpEnvironmentBinding(value, config.environmentVariables))
