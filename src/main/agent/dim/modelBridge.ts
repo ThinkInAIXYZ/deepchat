@@ -53,6 +53,31 @@ export class DimModelBridge {
     return target
   }
 
+  async embed(
+    model: DimModelId,
+    values: string[],
+    signal?: AbortSignal
+  ): Promise<{ vectors: number[][] }> {
+    signal?.throwIfAborted()
+    const client = await this.host.openConnection()
+    const cancel = () => client.close()
+    signal?.addEventListener('abort', cancel, { once: true })
+    try {
+      signal?.throwIfAborted()
+      return await client.call(
+        'deepchat.native_embeddings.embed',
+        { model: { ...model }, values },
+        30 * 60 * 1000
+      )
+    } catch (error) {
+      signal?.throwIfAborted()
+      throw error
+    } finally {
+      signal?.removeEventListener('abort', cancel)
+      client.close()
+    }
+  }
+
   async complete(
     model: DimModelId,
     request: DimAuxiliaryRequest,

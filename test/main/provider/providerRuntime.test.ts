@@ -10,6 +10,7 @@ import { AcpRuntimeOwner } from '@/agent/acp/client'
 import { AcpSessionPersistence } from '@/agent/acp/runtime'
 import { DEFAULT_PROVIDERS } from '@/provider/defaults'
 import { DimAuxiliaryModels } from '@/agent/dim/auxiliaryModels'
+import { DimEmbeddingModels } from '@/agent/dim/embeddingModels'
 import { DimMediaModels } from '@/agent/dim/mediaModels'
 import { DimMediaSubmissionError } from '@/agent/dim/modality'
 import { ProviderInstanceManager } from '@/provider/managers/providerInstanceManager'
@@ -520,6 +521,41 @@ describe('ProviderRuntime Integration Tests', () => {
           { signal: controller.signal }
         )
       ).rejects.toThrow()
+      expect(legacy).not.toHaveBeenCalled()
+    })
+
+    it('routes knowledge embeddings and dimension failures exclusively through dim', async () => {
+      const legacy = vi.spyOn(
+        providerRuntime.getProviderInstance('mock-openai-api'),
+        'getEmbeddings'
+      )
+      const embed = vi.fn().mockResolvedValue({ vectors: [[1, 0]] })
+      providerRuntime.setNativeEmbedding(
+        new DimEmbeddingModels({
+          models: {
+            admit: async () => ({ providerId: 'native-provider', modelId: 'native-model' })
+          },
+          bridge: { embed }
+        })
+      )
+      await expect(
+        providerRuntime.getEmbeddings('mock-openai-api', 'mock-gpt-thinking', ['sample'])
+      ).resolves.toEqual([[1, 0]])
+      await expect(
+        providerRuntime.getDimensions('mock-openai-api', 'mock-gpt-thinking')
+      ).resolves.toEqual({ data: { dimensions: 2, normalized: true } })
+      embed.mockRejectedValue(new Error('native connection lost'))
+      await expect(
+        providerRuntime.getDimensions('mock-openai-api', 'mock-gpt-thinking')
+      ).resolves.toEqual({
+        data: { dimensions: 0, normalized: false },
+        errorMsg: 'native connection lost'
+      })
+      const controller = new AbortController()
+      controller.abort(new Error('cancel dimensions'))
+      await expect(
+        providerRuntime.getDimensions('mock-openai-api', 'mock-gpt-thinking', controller.signal)
+      ).rejects.toThrow('cancel dimensions')
       expect(legacy).not.toHaveBeenCalled()
     })
 

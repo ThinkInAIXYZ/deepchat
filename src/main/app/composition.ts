@@ -188,6 +188,7 @@ import { DimProductTools } from '@/agent/dim/productTools'
 import { DimProductContext } from '@/agent/dim/productContext'
 import { DimModelCatalog } from '@/agent/dim/modelCatalog'
 import { DimModelBridge } from '@/agent/dim/modelBridge'
+import { DimEmbeddingModels } from '@/agent/dim/embeddingModels'
 import { DimAuxiliaryModels } from '@/agent/dim/auxiliaryModels'
 import { DimMediaModels } from '@/agent/dim/mediaModels'
 import { DimModality } from '@/agent/dim/modality'
@@ -1059,6 +1060,9 @@ export async function createMainProcessControl(dependencies: {
     publishDeepchatEvent
   )
   providerRuntime.setNativeModels(dimAuxiliary)
+  providerRuntime.setNativeEmbedding(
+    new DimEmbeddingModels({ models: dimModels, bridge: dimModelBridge })
+  )
   providerRuntime.setNativeMedia(
     new DimMediaModels({
       settings: providerSettings,

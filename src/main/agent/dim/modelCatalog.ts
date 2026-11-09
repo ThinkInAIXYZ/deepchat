@@ -269,6 +269,8 @@ function headerReference(providerId: string, name: string, value: string): strin
 
 function dimModality(config: ModelConfig): { kind: string; output?: string; operations: string[] } {
   switch (config.type) {
+    case ModelType.Embedding:
+      return { kind: 'embedding', operations: ['embedding.embed'] }
     case ModelType.ImageGeneration:
       return {
         kind: 'image-generation',

@@ -158,6 +158,8 @@
 
 ## 模块进度
 
+- 模块 32：知识库/记忆使用的 embeddings 与维度探测已接入 Native Rust 插件。连接通过公开 ModalityConnectionHost 按声明的 embedding.embed 授权，实际请求、重试和取消使用 dim 锁定的 Aimux；产品只分装有界传输页。Rust 遵守模型批量上限，并只在明确的 HTTP 400 批量拒绝后缩小批次；文本过长不重送，结果顺序/维度/有限值和响应大小有界。保持维度失败 DTO 与取消语义，生产入口不回退 TS embedding provider。真实 HTTP fixture 覆盖 35 条结果、供应商批量拒绝、维度、长文本拒绝及取消；39 项 provider/目录/辅助回归与 37 项 dim 单元回归通过。完整回归中并发资源争用暴露旧长用例 120s 预算和新增请求启动默认等待过短，原生长用例隔离复验 86s 通过；smoke 文件改为串行，新等待显式采用跨进程预算。最终 9 项 Rust smoke、Electron 真实聊天/重启续聊、format/i18n/lint、双端 typecheck 和 Memory scope 检查均通过。桥 0.7.0，不新增上游补丁；视频和特殊 provider 兼容、工具/子会话、Inspector、备份及旧执行器物理删除继续实施。
+
 - 模块 31：桌面图片生成、TTS 与独立 ASR facade 接入 Native Modality；保留现有配置合并、产品限流和结果 DTO，实际 HTTP、任务排队、文件与取消由 dim Rust 持有。结果通过公开任务文件分块读取并核对 hash，不读取 Native 私有数据库。Native admission 结果未知时保留 clientTaskId 并直接报错，不重送或回退 TS provider。真实 HTTP fixture 验证尺寸、质量、背景、格式、voice/speed、转写、任务取消和重启恢复；36 项相关单元回归通过。视频、向量与旧聊天音频转写兼容仍需后续接入，不能把本模块计为全部模型迁移完成。
 
 - 模块 30：原生插件通过 SessionStore/TimelineStore 公开 owner 提供 readonly creation origin、父 Session、CWD、模型与 title/revision，并通过 TreeCommands 查询模型请求实际所在的 branch；用 QueryEvent.position 排除其他分支继承的历史前缀，游标以字符串返回。产品 context 逐级核验原生 parent link、拒绝未知 client/环路/旧代父 scope，并在 I/O 前后校验当前 desktop generation；原生请求附带实际 agent profile 身份供后续产品配置映射。main 已接入 resolver。实际由 dim 的 agent 工具创建 member，并证明 member 在继承目录内发起真实模型请求；DeepChat 不创建、调度或调用 member 模型。7 项作用域/网关单元、9 项 Rust smoke、存储插件路径的真实 Rust 复验与 Electron 聊天/重启续聊通过；format、i18n、lint 与双端 typecheck 通过。桥版本 0.6.0，装配补丁不增加。Native 子会话的桌面展示、独立产品配置/MCP 继承、profile/context 细化继续实施。

@@ -12,6 +12,7 @@ import { DimModelBridge } from '@/agent/dim/modelBridge'
 import { DimModelCatalog } from '@/agent/dim/modelCatalog'
 import { DimProductGateway } from '@/agent/dim/productGateway'
 import { DimModality, type DimMediaTask } from '@/agent/dim/modality'
+import { DimEmbeddingModels } from '@/agent/dim/embeddingModels'
 import { DimMediaModels } from '@/agent/dim/mediaModels'
 import { dimDatabase } from './fixtures/database'
 
@@ -19,7 +20,7 @@ interface TaskReply {
   task: DimMediaTask
 }
 it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
-  'runs UUID provider image, speech and transcription tasks through native dim media owners',
+  'runs UUID provider image, speech, transcription and embedding requests through native dim owners',
   async () => {
     const png = Buffer.from(
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
@@ -32,6 +33,8 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
       productHeader?: string
       body?: Record<string, unknown>
     }> = []
+    let embeddingHeld = false
+    let embeddingCancelled = false
     let held = false
     let cancelled = false
     let credential = 'native-media-first'
@@ -60,6 +63,43 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
         }
         response.writeHead(200, { 'Content-Type': 'application/json' })
         response.end(JSON.stringify({ created: 0, data: [{ b64_json: png.toString('base64') }] }))
+      } else if (request.url === '/v1/embeddings') {
+        const values = JSON.parse(body.toString()).input as string[]
+        if (values[0] === 'native embedding hold') {
+          embeddingHeld = true
+          response.writeHead(200, { 'Content-Type': 'application/json' })
+          response.flushHeaders()
+          response.once('close', () => {
+            embeddingCancelled = true
+          })
+          return
+        }
+        if (values.length > 2 || values[0] === 'input-too-long') {
+          response.writeHead(400, { 'Content-Type': 'application/json' })
+          response.end(
+            JSON.stringify({
+              error: {
+                message:
+                  values[0] === 'input-too-long'
+                    ? 'Input text is too long'
+                    : 'Too many inputs. Maximum batch size is 2.'
+              }
+            })
+          )
+          return
+        }
+        response.writeHead(200, { 'Content-Type': 'application/json' })
+        response.end(
+          JSON.stringify({
+            object: 'list',
+            data: values.map((value, index) => ({
+              object: 'embedding',
+              index,
+              embedding: [1, value.startsWith('vector-') ? Number(value.slice(7)) : 0]
+            })),
+            usage: { prompt_tokens: values.length, total_tokens: values.length }
+          })
+        )
       } else if (request.url === '/v1/audio/speech') {
         expect(JSON.parse(body.toString()).input).toBe('native speech')
         response.writeHead(200, { 'Content-Type': 'audio/wav' })
@@ -113,7 +153,9 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
             ? ModelType.ImageGeneration
             : id === 'tts-1'
               ? ModelType.TTS
-              : ModelType.Chat,
+              : id === 'text-embedding-3-small'
+                ? ModelType.Embedding
+                : ModelType.Chat,
         speechRecognition: id === 'whisper-1',
         contextLength: 8192,
         maxTokens: 1024,
@@ -138,6 +180,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
       grants: database.data.dimProviderGrantsTable,
       credential: async () => credential
     })
+    const embedding = new DimEmbeddingModels({ models: catalog, bridge: new DimModelBridge(host) })
     const media = new DimModality(host)
     const desktopMedia = new DimMediaModels({
       settings: { getModelConfig },
@@ -249,6 +292,33 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
           'C:\\recordings\\sample.wav'
         )
       ).toBe('native transcription')
+      const values = Array.from({ length: 35 }, (_, index) => `vector-${index}`)
+      expect(await embedding.getEmbeddings(provider.id, 'text-embedding-3-small', values)).toEqual(
+        values.map((_, index) => [1, index])
+      )
+      expect(await embedding.getDimensions(provider.id, 'text-embedding-3-small')).toEqual({
+        data: { dimensions: 2, normalized: true }
+      })
+      const beforeLongInput = requests.filter((request) => request.url === '/v1/embeddings').length
+      await expect(
+        embedding.getEmbeddings(provider.id, 'text-embedding-3-small', ['input-too-long'])
+      ).rejects.toThrow('Native embedding request failed')
+      expect(requests.filter((request) => request.url === '/v1/embeddings').length).toBe(
+        beforeLongInput + 1
+      )
+      const embeddingAbort = new AbortController()
+      const embeddingWait = embedding
+        .getEmbeddings(
+          provider.id,
+          'text-embedding-3-small',
+          ['native embedding hold'],
+          embeddingAbort.signal
+        )
+        .catch((error: unknown) => error)
+      await expect.poll(() => embeddingHeld, { timeout: 10_000 }).toBe(true)
+      embeddingAbort.abort(new Error('cancel native embedding'))
+      expect(await embeddingWait).toMatchObject({ message: 'cancel native embedding' })
+      await expect.poll(() => embeddingCancelled, { timeout: 10_000 }).toBe(true)
       const heldTask = await media.submit({
         ...submission,
         client_task_id: randomUUID(),

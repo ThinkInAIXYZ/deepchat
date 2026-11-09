@@ -1,5 +1,6 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
 import type { DimAuxiliaryModels } from '@/agent/dim/auxiliaryModels'
+import type { DimEmbeddingModels } from '@/agent/dim/embeddingModels'
 import type { DimMediaModels } from '@/agent/dim/mediaModels'
 import logger from '@shared/logger'
 import type { LLMResponse } from '@shared/types/provider'
@@ -159,10 +160,15 @@ export class ProviderRuntime
   private readonly acpRuntimeOwner: AcpRuntimeOwner
   private readonly acpSessionPersistence: AcpSessionPersistence
   private shutdownPromise?: Promise<void>
+  private nativeEmbedding?: DimEmbeddingModels
   private nativeModels?: DimAuxiliaryModels
   private nativeMedia?: DimMediaModels
 
   /** Desktop catalog administration remains here; production text inference belongs to dim. */
+  setNativeEmbedding(embedding: DimEmbeddingModels): void {
+    this.nativeEmbedding = embedding
+  }
+
   setNativeModels(models: DimAuxiliaryModels): void {
     this.nativeModels = models
   }
@@ -1275,6 +1281,8 @@ export class ProviderRuntime
     texts: string[],
     signal?: AbortSignal
   ): Promise<number[][]> {
+    if (this.nativeEmbedding)
+      return this.nativeEmbedding.getEmbeddings(providerId, modelId, texts, signal)
     return this.embeddingManager.getEmbeddings(providerId, modelId, texts, signal)
   }
 
@@ -1289,6 +1297,7 @@ export class ProviderRuntime
     modelId: string,
     signal?: AbortSignal
   ): Promise<{ data: LLM_EMBEDDING_ATTRS; errorMsg?: string }> {
+    if (this.nativeEmbedding) return this.nativeEmbedding.getDimensions(providerId, modelId, signal)
     return this.embeddingManager.getDimensions(providerId, modelId, signal)
   }
 

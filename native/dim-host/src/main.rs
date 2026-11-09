@@ -1,4 +1,5 @@
 mod context;
+mod embeddings;
 mod facts;
 mod gateway;
 mod inputs;
@@ -33,6 +34,7 @@ fn install(builder: &mut dim_agent_runtime::AgentBuilder) {
     permissions::install(builder);
     product_tools::install(builder);
     models::install(builder);
+    embeddings::install(builder);
     secrets::install(builder);
     inputs::install(builder);
     migration::install(builder);

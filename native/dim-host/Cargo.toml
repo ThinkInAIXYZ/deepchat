@@ -1,12 +1,16 @@
 [package]
 name = "deepchat-dim-host"
-version = "0.6.0"
+version = "0.7.0"
 edition = "2024"
 rust-version = "1.98"
 license = "Apache-2.0"
 publish = false
 
 [dependencies]
+aimux-core = { path = "../dim-source/vendor/aimux/aimux-core" }
+aimux-providers = { path = "../dim-source/vendor/aimux/aimux-providers", default-features = false }
+aimux-provider-utils = { path = "../dim-source/vendor/aimux/aimux-provider-utils" }
+dim-agent-aimux = { path = "../dim-source/crates/dim-agent-aimux" }
 dim-app-server = { path = "../dim-source/crates/dim-app-server" }
 dim-agent-runtime = { path = "../dim-source/crates/dim-agent-runtime" }
 dim-agent-types = { path = "../dim-source/crates/dim-agent-types" }
