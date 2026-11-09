@@ -103,7 +103,8 @@ export class DimSessionSettings {
       expectedModel: { ...target },
       replace: true,
       config: dimModelParameters(generation) as unknown as JsonValue,
-      limits: { contextWindow: generation.contextLength, maxOutputTokens: generation.maxTokens }
+      limits: { contextWindow: generation.contextLength, maxOutputTokens: generation.maxTokens },
+      productPermissionMode: row.permission_mode
     })
     const permission = await this.options.controls.call<NativePermission>('permission', ref)
     currentScope()
@@ -207,10 +208,10 @@ export class DimSessionSettings {
 
 function preset(mode: PermissionMode): string {
   return mode === 'full_access'
-    ? 'danger-full-access'
+    ? 'full-access'
     : mode === 'auto_approve'
       ? 'workspace-write'
-      : 'read-only'
+      : 'workspace-write'
 }
 function checkOutcome(reply: JsonValue): void {
   if (reply && typeof reply === 'object' && !Array.isArray(reply) && reply.outcome === 'superseded')

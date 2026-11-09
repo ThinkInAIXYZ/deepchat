@@ -157,6 +157,8 @@
 
 ## 模块进度
 
+- 模块 14：桌面会话改走原生 session.create（sessions.launch 是非交互委托入口），ask_user 的 1–4 题、多选和自定义答案直接提交 native question.respond；审批直接交给 native approval.respond，取消由原生事实清除等待卡片。通过 Permission advisor 表达 DeepChat 默认模式的 mutating-tool consent，Rust 继续决定准入、确认后执行与取消；修正 full-access preset 名称。交互界面复用原控件，新增 native 批次表单，不移植旧 question executor。真实 HTTP 模型 fixture 验证原生提问、非法答案拒绝、多选/自定义、write 审批及取消；8 项 native、489 项 main、7 项 renderer 通过，format/i18n/lint/typecheck 通过。
+
 - 模块 13：队列 UI controller 直接读取 native Timeline，编辑/排序/删除/steer 通过 Rust 插件调用 InputQueue.withdraw 与 Branch.inputs；扩展事实只保存控制日志和展示信息，不建立第二个执行队列。操作身份支持重复请求，分阶段日志在 branch 加载和后续提交前恢复；已开始输入返回冲突，恢复只重送确认撤回的输入。真实 Rust + 阻塞 HTTP fixture 验证排序、编辑、删除、steer、重复命令及重启后去重；8 项 native 集成和 18 项 dim/desktop 状态回归通过，format/lint/双端 typecheck 通过。附件准备阻塞的产品草稿处理与主 factory 仍在后续接线。
 
 - 模块 1：锁定 alpha.21 六平台 release 与 rutis 0.19.3，新增 `installRuntime:dim`、冻结插件运行时依赖、两个独立插件模块和安装完整性回归。Linux x64 的首次安装、重复安装以及托管 Node 已验证；其他平台尚未执行。

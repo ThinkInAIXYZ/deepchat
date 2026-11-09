@@ -834,6 +834,7 @@ export type ToolInteractionResponse =
   | {
       kind: 'question_option'
       optionLabel: string
+      answers?: import('../dimQuestions').DimQuestionAnswer[]
     }
   | {
       kind: 'question_custom'

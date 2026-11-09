@@ -26,6 +26,8 @@ import type { ProviderSettingsPort } from '@/provider/settings'
 import type { ModelConfig } from '@shared/types/provider'
 import { DimSessionControls } from '@/agent/dim/sessionControls'
 import { DimQueue } from '@/agent/dim/queue'
+import { DimInteractions } from '@/agent/dim/interactions'
+import type { AssistantMessageBlock } from '@shared/types/agent-interface'
 import type { ServerResponse } from 'node:http'
 import { createServer } from 'node:http'
 
@@ -245,9 +247,16 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
   'uses Rust model owners with native extensions=%s and cancels their HTTP requests',
   async (nativePlugins) => {
     const requests: Array<{ authorization?: string; body: Record<string, unknown> }> = []
+    const conversationRequests = () =>
+      requests.filter(
+        (item) =>
+          item.body.messages &&
+          !JSON.stringify(item.body.messages).includes('Write a short title for this conversation:')
+      )
     let nativeCancelled = false
     let holdQueue = false
     let heldQueueResponse: ServerResponse | null = null
+    let nextTools: Array<{ id: string; name: string; arguments: object }> | null = null
     const fixture = createServer(async (req, res) => {
       let payload = ''
       for await (const data of req) payload += data
@@ -275,6 +284,14 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
       }
       if (body.stream) {
         res.writeHead(200, { 'Content-Type': 'text/event-stream' })
+        if (nextTools) {
+          const tools = nextTools
+          nextTools = null
+          res.end(
+            `data: ${JSON.stringify({ id: 'native-tools', object: 'chat.completion.chunk', model: 'fixture', created: 0, choices: [{ index: 0, delta: { role: 'assistant', tool_calls: tools.map((tool, index) => ({ index, id: tool.id, type: 'function', function: { name: tool.name, arguments: JSON.stringify(tool.arguments) } })) }, finish_reason: 'tool_calls' }] })}\n\ndata: [DONE]\n\n`
+          )
+          return
+        }
         for (const chunk of [
           {
             choices: [
@@ -461,12 +478,14 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
         version: number
         policy: { preset: string; allowedTools: string[]; disallowedTools: string[] }
       }>('permission', ref)
+      const changedPreset =
+        policy.policy.preset === 'workspace-write' ? 'full-access' : 'workspace-write'
       await controls.call('set_permission', ref, {
         expectedVersion: String(policy.version),
-        policy: { ...policy.policy, preset: 'workspace-write' }
+        policy: { ...policy.policy, preset: changedPreset }
       })
       expect(await controls.call('permission', ref)).toMatchObject({
-        policy: { preset: 'workspace-write' }
+        policy: { preset: changedPreset }
       })
       await expect(
         controls.call('set_permission', ref, {
@@ -548,7 +567,9 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
             .map((event) => (event.payload as { status: string }).status)
         ).toEqual(['idle', 'generating', 'idle'])
         expect(notifications).toBe(1)
-        expect(JSON.stringify(requests[0].body)).toContain('Native product persona sentinel')
+        expect(JSON.stringify(conversationRequests()[0].body)).toContain(
+          'Native product persona sentinel'
+        )
         expect(await controls.call('native_settings', ref)).toMatchObject({
           capabilitySnapshot: { capabilities: { contextWindow: 64000, maxOutputTokens: 83 } }
         })
@@ -599,7 +620,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
           .getBySession('product-ui')
           .find((row) => row.role === 'user')!
         expect(JSON.parse(user.content)).toEqual(representation)
-        expect(JSON.stringify(requests[0].body)).not.toContain(representation.text)
+        expect(JSON.stringify(conversationRequests()[0].body)).not.toContain(representation.text)
       }
 
       expect(
@@ -614,8 +635,16 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
         )
       ).toMatchObject({ text: 'Rust provider answer' })
       if (nativePlugins) {
-        expect(requests[0].body).toMatchObject({ temperature: 0.23, top_p: 0.71, max_tokens: 83 })
-        expect(requests[1].body).toMatchObject({ temperature: 0.31, top_p: 0.68, max_tokens: 93 })
+        expect(conversationRequests()[0].body).toMatchObject({
+          temperature: 0.23,
+          top_p: 0.71,
+          max_tokens: 83
+        })
+        expect(conversationRequests()[1].body).toMatchObject({
+          temperature: 0.31,
+          top_p: 0.68,
+          max_tokens: 93
+        })
         await nativeSettings!.setSessionModel('product-ui', 'desktop-fixture', 'fixture-2')
         expect(await controls.call('native_settings', ref)).toMatchObject({ modelId: 'fixture-2' })
         await nativeSettings!.setSessionModel('product-ui', 'desktop-fixture', 'fixture')
@@ -643,7 +672,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
         const adopted = await controls.call<{ config: { topP?: number } }>('native_settings', ref)
         expect(adopted.config.topP).toBeUndefined()
       }
-      expect(requests.filter((item) => item.body.messages)).toHaveLength(2)
+      expect(conversationRequests()).toHaveLength(2)
       expect(requests.every((item) => item.authorization === 'Bearer fixture-secret-only')).toBe(
         true
       )
@@ -657,7 +686,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
       )
       // Attach the rejection handler before cancelling so it cannot become an unhandled promise.
       const cancelled = expect(completion).rejects.toThrow()
-      await expect.poll(() => requests.filter((item) => item.body.messages).length).toBe(3)
+      await expect.poll(() => conversationRequests().length).toBe(3)
       abort.abort()
       await cancelled
       await expect.poll(() => nativeCancelled).toBe(true)
@@ -777,6 +806,138 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
         )
         await current.call('deepchat.host.idle', ref)
         expect(await queue.listPendingInputs('product-ui')).toEqual([])
+        const desktop = new DimSessionRuntime({
+          database: grants.data,
+          host,
+          launch: async () => {
+            throw new Error('Existing native session')
+          },
+          projected: () => {},
+          failed: () => {}
+        })
+        const interactions = new DimInteractions(grants.data, new DimSessionControls(host))
+        const pendingAction = () =>
+          grants.data.deepchatMessagesTable
+            .getBySession('product-ui')
+            .flatMap((message) =>
+              message.role === 'assistant'
+                ? (JSON.parse(message.content) as AssistantMessageBlock[])
+                    .filter((block) => block.type === 'action' && block.status === 'pending')
+                    .map((block) => ({ messageId: message.id, block }))
+                : []
+            )
+            .at(-1)
+        nextTools = [
+          {
+            id: 'native-question',
+            name: 'ask_user',
+            arguments: {
+              questions: [
+                {
+                  id: 'colours',
+                  question: 'Choose colours',
+                  options: [{ label: 'red, green' }, { label: 'blue' }],
+                  multiSelect: true
+                },
+                {
+                  id: 'language',
+                  question: 'Choose language',
+                  options: [{ label: 'Rust' }, { label: 'TypeScript' }],
+                  allowCustom: true
+                }
+              ]
+            }
+          }
+        ]
+        await desktop.submit('product-ui', [
+          { type: 'text', text: 'native question batch fixture' }
+        ])
+        await expect.poll(() => pendingAction()?.block.action_type).toBe('question_request')
+        const question = pendingAction()!
+        await expect(
+          interactions.respondToolInteraction('product-ui', question.messageId, 'native-question', {
+            kind: 'question_option',
+            optionLabel: 'invalid',
+            answers: [
+              { questionId: 'colours', selected: ['unknown'] },
+              { questionId: 'language', selected: ['Rust'] }
+            ]
+          })
+        ).rejects.toThrow()
+        await interactions.respondToolInteraction(
+          'product-ui',
+          question.messageId,
+          'native-question',
+          {
+            kind: 'question_option',
+            optionLabel: 'native structured answer',
+            answers: [
+              { questionId: 'colours', selected: ['red, green', 'blue'] },
+              { questionId: 'language', selected: [], custom: 'native Rust host' }
+            ]
+          }
+        )
+        await desktop.waitIdle('product-ui')
+        expect(pendingAction()).toBeUndefined()
+        const resolved = JSON.parse(
+          grants.data.deepchatMessagesTable.get(question.messageId)!.content
+        ) as AssistantMessageBlock[]
+        expect(resolved.find((block) => block.action_type === 'question_request')).toMatchObject({
+          status: 'success',
+          extra: { needsUserAction: false }
+        })
+        expect(requests.at(-1)!.body.messages).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              role: 'tool',
+              content: expect.stringContaining('native Rust host')
+            })
+          ])
+        )
+        await expect(
+          interactions.respondToolInteraction('product-ui', question.messageId, 'native-question', {
+            kind: 'question_custom',
+            answerText: 'duplicate'
+          })
+        ).rejects.toThrow('no longer pending')
+        nextTools = [
+          {
+            id: 'native-write',
+            name: 'write',
+            arguments: { path: 'native-consent.txt', content: 'Written by dim' }
+          }
+        ]
+        await desktop.submit('product-ui', [{ type: 'text', text: 'native approval fixture' }])
+        await expect.poll(() => pendingAction()?.block.action_type).toBe('tool_call_permission')
+        const approval = pendingAction()!
+        await interactions.respondToolInteraction(
+          'product-ui',
+          approval.messageId,
+          approval.block.tool_call!.id!,
+          { kind: 'permission', granted: true }
+        )
+        await desktop.waitIdle('product-ui')
+        expect(await readFile(path.join(profile, 'native-consent.txt'), 'utf8')).toBe(
+          'Written by dim'
+        )
+        expect(pendingAction()).toBeUndefined()
+        nextTools = [
+          {
+            id: 'native-declined',
+            name: 'ask_user',
+            arguments: {
+              questions: [
+                { question: 'Cancel this question?', options: [{ label: 'Yes' }, { label: 'No' }] }
+              ]
+            }
+          }
+        ]
+        await desktop.submit('product-ui', [{ type: 'text', text: 'native cancel fixture' }])
+        await expect.poll(() => pendingAction()?.block.action_type).toBe('question_request')
+        await desktop.cancel('product-ui')
+        await desktop.waitIdle('product-ui')
+        expect(pendingAction()).toBeUndefined()
+        await desktop.close('product-ui')
         await host.stop()
         const restored = await host.start()
         expect(await restored.call('session.deepchat_queue.mutate', { ...ref, plan })).toEqual(

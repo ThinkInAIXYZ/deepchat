@@ -88,6 +88,8 @@ impl DynPlugin for Settings {
                             expected_model: Option<ModelId>,
                             #[serde(default)]
                             limits: Option<Limits>,
+                            #[serde(default)]
+                            product_permission_mode: Option<String>,
                         }
                         let p: Params = params(value)?;
                         let branch = tree.get(&p.branch_id)?;
@@ -159,13 +161,24 @@ impl DynPlugin for Settings {
                             base
                         };
                         let config = merge(base, patch)?;
+                        let mut metadata = current.metadata;
+                        if let Some(mode) = p.product_permission_mode {
+                            if !["default", "auto_approve", "full_access"].contains(&mode.as_str())
+                            {
+                                return Err(RpcError::invalid("Invalid product permission mode"));
+                            }
+                            metadata
+                                .get_or_insert_with(Default::default)
+                                .extensions
+                                .insert("deepchatPermissionMode".into(), json!(mode));
+                        }
                         let outcome = branch
                             .configure(ConfigureUpdate {
                                 model: Some(ModelSelection {
                                     provider_id: current.provider_id,
                                     model_id: current.model_id,
                                     capability_snapshot: capabilities,
-                                    metadata: current.metadata,
+                                    metadata,
                                     config: Some(config),
                                 }),
                                 ..Default::default()

@@ -6,6 +6,7 @@ import type {
 } from '@shared/types/agent-interface'
 import type { DimSessionBinding } from '@/session/data/tables/dimSessionBindings'
 import { dimSequence, type DimEvent } from './sessionConnection'
+import { dimQuestions } from '@shared/dimQuestions'
 
 export interface DimProjection {
   binding: DimSessionBinding
@@ -232,6 +233,35 @@ export function projectDimEvent(
           params: JSON.stringify(value.input ?? {})
         }
       })
+      const input = value.input
+      const questions =
+        value.name === 'ask_user' && input && typeof input === 'object' && !Array.isArray(input)
+          ? dimQuestions(input.questions)
+          : []
+      if (questions.length)
+        blocks.push({
+          id: `question:${event.data.request_id}:${value.id}`,
+          type: 'action',
+          action_type: 'question_request',
+          status: 'pending',
+          timestamp: now,
+          content: questions.map((question) => question.question).join('\n'),
+          tool_call: {
+            id: String(value.id),
+            name: 'ask_user',
+            params: JSON.stringify(value.input)
+          },
+          extra: {
+            needsUserAction: true,
+            questionResolution: 'asked',
+            dimRequestId: String(event.data.request_id),
+            dimQuestions: JSON.stringify(questions),
+            questionText: questions.map((question) => question.question).join('\n'),
+            questionOptions: questions[0].options,
+            questionMultiple: questions[0].multiSelect,
+            questionCustom: questions[0].allowCustom
+          }
+        })
     }
     changed = true
   } else if (key === 'step/tool-completed' || key === 'step/tool-result') {
@@ -257,6 +287,25 @@ export function projectDimEvent(
           toolResult.isError
             ? 'error'
             : 'success'
+        const action = blocks.find(
+          (candidate) =>
+            candidate.type === 'action' &&
+            candidate.tool_call?.id === value.call_id &&
+            candidate.extra?.dimRequestId === event.data.request_id
+        )
+        if (action) {
+          action.status = block.status
+          const content =
+            toolResult && typeof toolResult === 'object' && !Array.isArray(toolResult)
+              ? toolResult.content
+              : ''
+          action.extra = {
+            ...action.extra,
+            needsUserAction: false,
+            questionResolution: block.status === 'error' ? 'rejected' : 'replied',
+            answerText: typeof content === 'string' ? content : JSON.stringify(content)
+          }
+        }
       }
     changed = true
   } else if (
@@ -289,6 +338,10 @@ export function projectDimEvent(
     const cancelled = event.data.status === 'cancelled'
     for (const block of blocks)
       if (block.status === 'loading') block.status = error || cancelled ? 'error' : 'success'
+      else if (block.type === 'action' && block.status === 'pending') {
+        block.status = 'denied'
+        block.extra = { ...block.extra, needsUserAction: false, questionResolution: 'rejected' }
+      }
     if (error)
       blocks.push({ id: event.id, type: 'error', content: error, status: 'error', timestamp: now })
     metadata.runOutcome = error ? 'error' : cancelled ? 'aborted' : 'completed'

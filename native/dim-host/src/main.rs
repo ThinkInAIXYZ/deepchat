@@ -1,5 +1,6 @@
 mod inputs;
 mod models;
+mod permissions;
 mod queue;
 mod secrets;
 mod settings;
@@ -19,6 +20,7 @@ fn install(builder: &mut dim_agent_runtime::AgentBuilder) {
         },
     );
     settings::install(builder);
+    permissions::install(builder);
     models::install(builder);
     secrets::install(builder);
     inputs::install(builder);

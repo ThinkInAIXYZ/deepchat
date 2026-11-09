@@ -3,6 +3,7 @@ import { definePlugin } from '@arcships/rutis'
 import { registerProductTools } from './product-tools.mjs'
 import { registerSessionControls } from './session-controls.mjs'
 import { registerAgentProfiles } from './agent-profiles.mjs'
+import { withNativeClient } from './native-client.mjs'
 
 export default definePlugin({
   name: 'DeepChatHost',
@@ -59,7 +60,40 @@ export default definePlugin({
     await registerSessionControls(ctx, config.hostAddress, config.profile)
     await registerAgentProfiles(ctx, config.hostAddress, config.profile)
     const operations = {
-      launch: (params) => sessions.launch(params),
+      // sessions.launch is intentionally non-interactive (delegation). Desktop sessions use
+      // the native client creation command, so ask_user and approvals have a human client.
+      launch: async (params) => {
+        if (!params || typeof params.cwd !== 'string' || params.starter)
+          return {
+            ok: false,
+            error: { code: 'invalid_params', message: 'Invalid desktop session creation' }
+          }
+        try {
+          const value = await withNativeClient(
+            config.hostAddress,
+            { profile: config.profile, methods: ['session.create'] },
+            (call) =>
+              call('session.create', {
+                cwd: params.cwd,
+                ...(params.agent ? { agentId: params.agent } : {}),
+                ...(params.model
+                  ? { model: { provider: params.model.providerId, modelId: params.model.modelId } }
+                  : {}),
+                ...(params.policy ? { permissionPolicy: params.policy } : {}),
+                interactive: true
+              })
+          )
+          return { ok: true, value }
+        } catch (error) {
+          return {
+            ok: false,
+            error: {
+              code: error.code ?? 'session_creation_failed',
+              message: error.message ?? 'Native session creation failed'
+            }
+          }
+        }
+      },
       input: (params) => sessions.input(params),
       lookup: (params) => sessions.lookup(params),
       stop: (params) => sessions.stop(params),

@@ -393,7 +393,18 @@ export const ToolInteractionResponseSchema = z.discriminatedUnion('kind', [
   }),
   z.object({
     kind: z.literal('question_option'),
-    optionLabel: z.string()
+    optionLabel: z.string(),
+    answers: z
+      .array(
+        z.object({
+          questionId: z.string().min(1),
+          selected: z.array(z.string()),
+          custom: z.string().optional()
+        })
+      )
+      .min(1)
+      .max(4)
+      .optional()
   }),
   z.object({
     kind: z.literal('question_custom'),
