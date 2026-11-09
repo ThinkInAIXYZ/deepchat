@@ -189,6 +189,8 @@ import { DimProductContext } from '@/agent/dim/productContext'
 import { DimModelCatalog } from '@/agent/dim/modelCatalog'
 import { DimModelBridge } from '@/agent/dim/modelBridge'
 import { DimAuxiliaryModels } from '@/agent/dim/auxiliaryModels'
+import { DimMediaModels } from '@/agent/dim/mediaModels'
+import { DimModality } from '@/agent/dim/modality'
 import { DimContent } from '@/agent/dim/content'
 import { DimScopes } from '@/agent/dim/scopes'
 import { DimLegacySource } from '@/agent/dim/legacySource'
@@ -1057,6 +1059,13 @@ export async function createMainProcessControl(dependencies: {
     publishDeepchatEvent
   )
   providerRuntime.setNativeModels(dimAuxiliary)
+  providerRuntime.setNativeMedia(
+    new DimMediaModels({
+      settings: providerSettings,
+      models: dimModels,
+      media: new DimModality(dimHost)
+    })
+  )
   cliComputeService = new CliComputeService({
     providerSettings,
     providerRuntime,

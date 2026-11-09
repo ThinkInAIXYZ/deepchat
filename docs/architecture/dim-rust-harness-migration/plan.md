@@ -158,6 +158,8 @@
 
 ## 模块进度
 
+- 模块 31：桌面图片生成、TTS 与独立 ASR facade 接入 Native Modality；保留现有配置合并、产品限流和结果 DTO，实际 HTTP、任务排队、文件与取消由 dim Rust 持有。结果通过公开任务文件分块读取并核对 hash，不读取 Native 私有数据库。Native admission 结果未知时保留 clientTaskId 并直接报错，不重送或回退 TS provider。真实 HTTP fixture 验证尺寸、质量、背景、格式、voice/speed、转写、任务取消和重启恢复；36 项相关单元回归通过。视频、向量与旧聊天音频转写兼容仍需后续接入，不能把本模块计为全部模型迁移完成。
+
 - 模块 30：原生插件通过 SessionStore/TimelineStore 公开 owner 提供 readonly creation origin、父 Session、CWD、模型与 title/revision，并通过 TreeCommands 查询模型请求实际所在的 branch；用 QueryEvent.position 排除其他分支继承的历史前缀，游标以字符串返回。产品 context 逐级核验原生 parent link、拒绝未知 client/环路/旧代父 scope，并在 I/O 前后校验当前 desktop generation；原生请求附带实际 agent profile 身份供后续产品配置映射。main 已接入 resolver。实际由 dim 的 agent 工具创建 member，并证明 member 在继承目录内发起真实模型请求；DeepChat 不创建、调度或调用 member 模型。7 项作用域/网关单元、9 项 Rust smoke、存储插件路径的真实 Rust 复验与 Electron 聊天/重启续聊通过；format、i18n、lint 与双端 typecheck 通过。桥版本 0.6.0，装配补丁不增加。Native 子会话的桌面展示、独立产品配置/MCP 继承、profile/context 细化继续实施。
 
 - 模块 29：主 composition 改为 createDimAgent，旧 harness 不再实例化；会话、队列、交互、配置、消息编辑/重试/清空、记忆 context/提取/证据与销毁走 Native owners。持久绑定恢复只附着已接纳的 Native scopes，不在启动时转换旧会话；数据库维护先关闭 Native readers/租约与宿主，恢复后再附着。辅助文本通过 DimAuxiliaryModels 接入 ProviderRuntime 的产品 facade；媒体、向量和特殊推理仍需继续迁移。新产品工具目录直接复用桌面浏览器/记忆/会话引用处理器及产品管理 MCP，不导入旧 AgentToolManager、ToolSurface 或内置文件/进程/搜索/skills/agent/调度工具。标准 stdio MCP 只映射命令、工具链与环境后交给 Rust；显式 CWD/隔离环境走产品兼容桥。原生 fork 固定来源 cutoff、为目标生成独立展示身份并导入 Native owner，持久 mutation intent 支持中断恢复，删除分叉不影响来源。新增 Electron 真实产品会话/重启续聊用例，在虚拟 X11 显示中执行。9 项原生 smoke、64 项入口/工具/模型回归和 100 项产品生命周期回归通过；完整构建和 Electron 真实聊天/重启续聊验收通过；format、i18n、lint、双端 typecheck 与 Memory scope 检查通过。下一阶段处理原生内部 branch/child 的产品作用域、剩余模型/skills/hooks/Inspector、备份及旧代码删除。

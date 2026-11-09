@@ -12,6 +12,7 @@ import { DimModelBridge } from '@/agent/dim/modelBridge'
 import { DimModelCatalog } from '@/agent/dim/modelCatalog'
 import { DimProductGateway } from '@/agent/dim/productGateway'
 import { DimModality, type DimMediaTask } from '@/agent/dim/modality'
+import { DimMediaModels } from '@/agent/dim/mediaModels'
 import { dimDatabase } from './fixtures/database'
 
 interface TaskReply {
@@ -25,7 +26,12 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
       'base64'
     )
     const wave = Buffer.from('RIFF\u0004\u0000\u0000\u0000WAVE')
-    const requests: Array<{ url: string; authorization?: string; productHeader?: string }> = []
+    const requests: Array<{
+      url: string
+      authorization?: string
+      productHeader?: string
+      body?: Record<string, unknown>
+    }> = []
     let held = false
     let cancelled = false
     let credential = 'native-media-first'
@@ -36,7 +42,10 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
       requests.push({
         url: request.url!,
         authorization: request.headers.authorization,
-        productHeader: request.headers['x-product-secret'] as string | undefined
+        productHeader: request.headers['x-product-secret'] as string | undefined,
+        ...(request.headers['content-type']?.includes('application/json')
+          ? { body: JSON.parse(body.toString()) }
+          : {})
       })
       if (request.url === '/v1/images/generations') {
         expect(JSON.parse(body.toString()).prompt).toContain('native image')
@@ -97,25 +106,26 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
       apiKey: 'protected-by-product',
       customHeaders: { 'x-product-secret': 'native-media-header-secret' }
     }
+    const getModelConfig = (id: string) =>
+      ({
+        type:
+          id === 'gpt-image-1'
+            ? ModelType.ImageGeneration
+            : id === 'tts-1'
+              ? ModelType.TTS
+              : ModelType.Chat,
+        speechRecognition: id === 'whisper-1',
+        contextLength: 8192,
+        maxTokens: 1024,
+        functionCall: false,
+        vision: false,
+        reasoning: false
+      }) as ModelConfig
     catalog = new DimModelCatalog({
       settings: {
         getProviderById: () => provider,
         getModelStatus: () => true,
-        getModelConfig: (id) =>
-          ({
-            type:
-              id === 'gpt-image-1'
-                ? ModelType.ImageGeneration
-                : id === 'tts-1'
-                  ? ModelType.TTS
-                  : ModelType.Chat,
-            speechRecognition: id === 'whisper-1',
-            contextLength: 8192,
-            maxTokens: 1024,
-            functionCall: false,
-            vision: false,
-            reasoning: false
-          }) as ModelConfig,
+        getModelConfig,
         getProviderModelRouteMetadata: () => undefined,
         getCapabilitySnapshot: () =>
           ({
@@ -129,6 +139,11 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
       credential: async () => credential
     })
     const media = new DimModality(host)
+    const desktopMedia = new DimMediaModels({
+      settings: { getModelConfig },
+      models: catalog,
+      media
+    })
     const wait = async (id: string) => {
       const done = await media.wait(id)
       expect(done.state, JSON.stringify(done.error)).toBe('succeeded')
@@ -180,6 +195,60 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
       expect(
         requests.every((request) => request.authorization === 'Bearer native-media-first')
       ).toBe(true)
+      const generated = await desktopMedia.generateImageStandalone(
+        provider.id,
+        'native image desktop facade',
+        'gpt-image-1',
+        {
+          quality: 'high',
+          background: 'opaque',
+          moderation: 'low',
+          outputFormat: 'png',
+          size: '1024x1024'
+        }
+      )
+      expect(generated).toMatchObject({
+        providerId: provider.id,
+        modelId: 'gpt-image-1',
+        images: [{ data: png.toString('base64'), mimeType: 'image/png' }]
+      })
+      expect(
+        requests.findLast((request) => request.url === '/v1/images/generations')?.body
+      ).toMatchObject({
+        prompt: 'native image desktop facade',
+        quality: 'high',
+        background: 'opaque',
+        moderation: 'low',
+        output_format: 'png'
+      })
+      const spoken = await desktopMedia.generateSpeechStandalone(
+        provider.id,
+        'native speech',
+        'tts-1',
+        {
+          voice: 'alloy',
+          responseFormat: 'wav',
+          speed: 1.25
+        }
+      )
+      expect(spoken.audio).toEqual({ data: wave.toString('base64'), mimeType: 'audio/wav' })
+      expect(
+        requests.findLast((request) => request.url === '/v1/audio/speech')?.body
+      ).toMatchObject({
+        input: 'native speech',
+        voice: 'alloy',
+        response_format: 'wav',
+        speed: 1.25
+      })
+      expect(
+        await desktopMedia.transcribeAudioStandalone(
+          provider.id,
+          'whisper-1',
+          wave.toString('base64'),
+          'audio/wav',
+          'C:\\recordings\\sample.wav'
+        )
+      ).toBe('native transcription')
       const heldTask = await media.submit({
         ...submission,
         client_task_id: randomUUID(),

@@ -10,6 +10,8 @@ import { AcpRuntimeOwner } from '@/agent/acp/client'
 import { AcpSessionPersistence } from '@/agent/acp/runtime'
 import { DEFAULT_PROVIDERS } from '@/provider/defaults'
 import { DimAuxiliaryModels } from '@/agent/dim/auxiliaryModels'
+import { DimMediaModels } from '@/agent/dim/mediaModels'
+import { DimMediaSubmissionError } from '@/agent/dim/modality'
 import { ProviderInstanceManager } from '@/provider/managers/providerInstanceManager'
 
 const {
@@ -518,6 +520,43 @@ describe('ProviderRuntime Integration Tests', () => {
           { signal: controller.signal }
         )
       ).rejects.toThrow()
+      expect(legacy).not.toHaveBeenCalled()
+    })
+
+    it('keeps desktop media admission limits and never retries an unknown native submission', async () => {
+      const unknown = new DimMediaSubmissionError('native-task-id', new Error('connection lost'))
+      const submit = vi.fn().mockRejectedValue(unknown)
+      const legacy = vi.spyOn(providerRuntime.getProviderInstance('mock-openai-api'), 'coreStream')
+      const rateLimit = vi.spyOn(providerRuntime, 'executeWithRateLimit').mockResolvedValue()
+      providerRuntime.setNativeMedia(
+        new DimMediaModels({
+          settings: mockProviderSettings,
+          models: {
+            admit: async () => ({ providerId: 'native-provider', modelId: 'native-model' })
+          },
+          media: { submit, wait: vi.fn(), readResult: vi.fn() }
+        })
+      )
+      const calls = [
+        () =>
+          providerRuntime.generateImageStandalone('mock-openai-api', 'image', 'mock-gpt-thinking'),
+        () =>
+          providerRuntime.generateSpeechStandalone(
+            'mock-openai-api',
+            'speech',
+            'mock-gpt-thinking'
+          ),
+        () =>
+          providerRuntime.transcribeAudioStandalone(
+            'mock-openai-api',
+            'mock-gpt-thinking',
+            'AQID',
+            'audio/wav'
+          )
+      ]
+      for (const call of calls) await expect(call()).rejects.toBe(unknown)
+      expect(rateLimit).toHaveBeenCalledTimes(3)
+      expect(submit).toHaveBeenCalledTimes(3)
       expect(legacy).not.toHaveBeenCalled()
     })
 

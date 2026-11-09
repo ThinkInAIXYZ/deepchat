@@ -1,5 +1,6 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
 import type { DimAuxiliaryModels } from '@/agent/dim/auxiliaryModels'
+import type { DimMediaModels } from '@/agent/dim/mediaModels'
 import logger from '@shared/logger'
 import type { LLMResponse } from '@shared/types/provider'
 import type { ChatMessage } from '@shared/types/core/chat-message'
@@ -159,10 +160,15 @@ export class ProviderRuntime
   private readonly acpSessionPersistence: AcpSessionPersistence
   private shutdownPromise?: Promise<void>
   private nativeModels?: DimAuxiliaryModels
+  private nativeMedia?: DimMediaModels
 
   /** Desktop catalog administration remains here; production text inference belongs to dim. */
   setNativeModels(models: DimAuxiliaryModels): void {
     this.nativeModels = models
+  }
+
+  setNativeMedia(media: DimMediaModels): void {
+    this.nativeMedia = media
   }
 
   private async nativeCompletion(
@@ -736,6 +742,16 @@ export class ProviderRuntime
 
     await this.executeWithRateLimit(providerId, { signal })
 
+    if (this.nativeMedia)
+      return this.nativeMedia.transcribeAudioStandalone(
+        providerId,
+        modelId,
+        audioBase64,
+        mimeType,
+        filename,
+        options
+      )
+
     const provider = this.getProviderInstance(providerId)
     try {
       return (
@@ -803,6 +819,15 @@ export class ProviderRuntime
     }
 
     await this.executeWithRateLimit(providerId, { signal })
+
+    if (this.nativeMedia)
+      return this.nativeMedia.generateImageStandalone(
+        providerId,
+        prompt,
+        modelId,
+        imageOptions,
+        options
+      )
 
     const provider = this.getProviderInstance(providerId)
     const modelConfig = this.providerSettings.getModelConfig(modelId, providerId)
@@ -968,6 +993,15 @@ export class ProviderRuntime
     }
 
     await this.executeWithRateLimit(providerId, { signal })
+
+    if (this.nativeMedia)
+      return this.nativeMedia.generateSpeechStandalone(
+        providerId,
+        text,
+        modelId,
+        speechOptions,
+        options
+      )
 
     const provider = this.getProviderInstance(providerId)
     const modelConfig = this.providerSettings.getModelConfig(modelId, providerId)
