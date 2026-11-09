@@ -29,6 +29,7 @@ export function dimDatabase(filename = ':memory:') {
   for (const table of [
     data.dimSessionBindingsTable,
     data.dimInputIntentsTable,
+    data.deepchatSessionsTable,
     data.newSessionsTable,
     data.deepchatMessagesTable,
     data.deepchatAssistantBlocksTable,

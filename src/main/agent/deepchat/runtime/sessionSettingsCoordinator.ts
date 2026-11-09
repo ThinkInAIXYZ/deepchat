@@ -21,10 +21,10 @@ import {
   sanitizeGenerationSettings,
   resolveSessionGenerationSettings,
   type PersistedSessionGenerationRow
-} from './generationSettings'
+} from '@/agent/shared/generationSettings'
 import {
   type ProviderModelRuntimeFacts
-} from './providerModelRuntimeFacts'
+} from '@/agent/shared/providerModelRuntimeFacts'
 import type { SessionSettingsPort } from '@/session/data/contracts'
 import type { DeepChatToolResolver } from './toolResolver'
 import type { PromptSettingsPort } from '@/agent/promptSettings'

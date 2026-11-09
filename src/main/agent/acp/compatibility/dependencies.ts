@@ -24,7 +24,7 @@ import { logSlowPreStreamStep } from '@/agent/deepchat/runtime/preStreamWatchdog
 import {
   resolveSessionGenerationSettings,
   type PersistedSessionGenerationRow
-} from '@/agent/deepchat/runtime/generationSettings'
+} from '@/agent/shared/generationSettings'
 import {
   capAgentRequestMaxTokens,
   estimateToolReserveTokens

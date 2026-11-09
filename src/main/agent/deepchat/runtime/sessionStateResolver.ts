@@ -5,7 +5,7 @@ import type {
   SessionScopeRegistry
 } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import type { SessionSettingsPort } from '@/session/data/contracts'
-import type { PersistedSessionGenerationRow } from './generationSettings'
+import type { PersistedSessionGenerationRow } from '@/agent/shared/generationSettings'
 import type { RunLifecycleCoordinator } from './runLifecycleCoordinator'
 import type { SessionIdentityService } from './sessionIdentityService'
 import type { SessionSettingsCoordinator } from './sessionSettingsCoordinator'

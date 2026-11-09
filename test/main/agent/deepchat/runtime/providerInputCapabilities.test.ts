@@ -7,7 +7,7 @@ import {
 import {
   assertProviderModelRuntimeFacts,
   resolveProviderModelRuntimeFacts
-} from '@/agent/deepchat/runtime/providerModelRuntimeFacts'
+} from '@/agent/shared/providerModelRuntimeFacts'
 
 const createCapabilitySnapshot = (supportsAudioInput: boolean) =>
   ({

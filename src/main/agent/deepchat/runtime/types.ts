@@ -92,14 +92,8 @@ export function notifyRunJournalObserver(
   }
 }
 
-export interface InterleavedReasoningConfig {
-  preserveReasoningContent: boolean
-  preserveEmptyReasoningContent?: boolean
-  forcedBySessionSetting: boolean
-  portraitInterleaved: boolean
-  reasoningSupported: boolean
-  providerDbSourceUrl: string
-}
+import type { InterleavedReasoningConfig } from '@/agent/shared/generationSettings'
+export type { InterleavedReasoningConfig } from '@/agent/shared/generationSettings'
 
 export interface ToolCallResult {
   id: string

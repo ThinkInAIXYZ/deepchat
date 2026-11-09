@@ -8,8 +8,8 @@ import {
   mapPersistedGenerationPatch,
   resolveInterleavedReasoningConfig,
   sanitizeGenerationSettings
-} from '@/agent/deepchat/runtime/generationSettings'
-import { resolveProviderModelRuntimeFacts } from '@/agent/deepchat/runtime/providerModelRuntimeFacts'
+} from '@/agent/shared/generationSettings'
+import { resolveProviderModelRuntimeFacts } from '@/agent/shared/providerModelRuntimeFacts'
 
 const createCapabilitySnapshot = () => ({
   mediaSettings: { image: false, video: false },

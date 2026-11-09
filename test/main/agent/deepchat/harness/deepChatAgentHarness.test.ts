@@ -42,7 +42,7 @@ import {
   isEffectiveMessageInputRow,
   isEffectiveViewInputRow
 } from '@/tape/domain/effectiveSemantics'
-import { resolveInterleavedReasoningConfig } from '@/agent/deepchat/runtime/generationSettings'
+import { resolveInterleavedReasoningConfig } from '@/agent/shared/generationSettings'
 import { toAcpRemoteSessionId, toAppSessionId } from '@/agent/shared/agentSessionIds'
 import { createLoopRun, type LoopRunRequestToolSurfaceBinding } from '@/agent/deepchat/loop/loopRun'
 import {

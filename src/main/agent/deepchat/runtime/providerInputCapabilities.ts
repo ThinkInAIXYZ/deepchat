@@ -4,7 +4,7 @@ import {
   resolveProviderModelRuntimeFacts,
   type ProviderModelRuntimeFacts,
   type ProviderModelRuntimeFactsPort
-} from './providerModelRuntimeFacts'
+} from '@/agent/shared/providerModelRuntimeFacts'
 
 export interface ProviderInputCapabilities {
   supportsVision: boolean

@@ -74,7 +74,7 @@ import {
   hasCompactionBoundaryAdvanced,
   type CompactionService
 } from '@/agent/deepchat/runtime/compactionService'
-import { resolveInterleavedReasoningConfig } from '@/agent/deepchat/runtime/generationSettings'
+import { resolveInterleavedReasoningConfig } from '@/agent/shared/generationSettings'
 import {
   inspectContextOverflow,
   isContextWindowErrorLike,
@@ -181,7 +181,7 @@ import {
   assertProviderModelRuntimeFacts,
   resolveProviderModelRuntimeFacts,
   type ProviderModelRuntimeFacts
-} from './providerModelRuntimeFacts'
+} from '@/agent/shared/providerModelRuntimeFacts'
 import { throwIfAbortRequested } from './abortErrors'
 import type { RunLifecycleCoordinator } from './runLifecycleCoordinator'
 import type { SessionScopeRegistry } from '@/agent/deepchat/instance/deepChatAgentRuntime'

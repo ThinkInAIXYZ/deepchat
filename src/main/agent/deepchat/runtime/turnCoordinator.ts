@@ -53,7 +53,7 @@ import {
 import type { CompactionRuntimeCoordinator } from './compactionRuntimeCoordinator'
 import { hasCompactionBoundaryAdvanced, type CompactionService } from './compactionService'
 import { isContextWindowErrorLike } from './contextWindowError'
-import { resolveInterleavedReasoningConfig } from './generationSettings'
+import { resolveInterleavedReasoningConfig } from '@/agent/shared/generationSettings'
 import {
   updateToolCallResponse,
   parseAssistantBlocks
@@ -100,7 +100,7 @@ import { resolveProviderInputCapabilities } from './providerInputCapabilities'
 import {
   resolveProviderModelRuntimeFacts,
   type ProviderModelRuntimeFacts
-} from './providerModelRuntimeFacts'
+} from '@/agent/shared/providerModelRuntimeFacts'
 import { PENDING_INPUT_ABORT_REASON, throwIfAbortRequested } from './abortErrors'
 import type { RunLifecycleCoordinator } from './runLifecycleCoordinator'
 import type { RuntimeHookSink } from './runtimeHookSink'

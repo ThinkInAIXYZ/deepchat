@@ -27,7 +27,7 @@ it('loads generation settings in plain Node without Electron or a user profile',
         outDir: join(root, 'bundle'),
         minify: false,
         lib: {
-          entry: resolve('src/main/agent/deepchat/runtime/generationSettings.ts'),
+          entry: resolve('src/main/agent/shared/generationSettings.ts'),
           formats: ['es'],
           fileName: () => 'settings.mjs'
         },

@@ -28,8 +28,7 @@ import {
 import { normalizeImageGenerationOptions } from '@shared/imageGenerationSettings'
 import { normalizeVideoGenerationOptions } from '@shared/videoGenerationSettings'
 import { isDeepSeekSeriesModelId } from '@shared/model'
-import { capAgentRequestMaxTokens } from './contextBudget'
-import type { InterleavedReasoningConfig } from './types'
+import { capAgentRequestMaxTokens } from './generationLimits'
 import {
   assertProviderModelRuntimeFacts,
   resolveProviderModelRuntimeFacts,
@@ -697,4 +696,13 @@ export async function resolveSessionGenerationSettings(
     providerModelFacts
   )
   return { ...sanitized }
+}
+
+export interface InterleavedReasoningConfig {
+  preserveReasoningContent: boolean
+  preserveEmptyReasoningContent?: boolean
+  forcedBySessionSetting: boolean
+  portraitInterleaved: boolean
+  reasoningSupported: boolean
+  providerDbSourceUrl: string
 }

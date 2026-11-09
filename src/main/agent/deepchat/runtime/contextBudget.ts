@@ -1,3 +1,5 @@
+import { AGENT_MIN_EFFECTIVE_OUTPUT_TOKENS, AGENT_CONTEXT_SAFETY_MARGIN_TOKENS, capAgentRequestMaxTokens } from '@/agent/shared/generationLimits'
+export { AGENT_REQUEST_MAX_OUTPUT_TOKENS_CAP, AGENT_MIN_EFFECTIVE_OUTPUT_TOKENS, AGENT_CONTEXT_SAFETY_MARGIN_TOKENS, capAgentRequestMaxTokens } from '@/agent/shared/generationLimits'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type {
@@ -13,9 +15,6 @@ import {
 } from './contextBuilder'
 import type { ContextRuntimeContributions } from './contextContributions'
 
-export const AGENT_REQUEST_MAX_OUTPUT_TOKENS_CAP = 131_072
-export const AGENT_MIN_EFFECTIVE_OUTPUT_TOKENS = 1
-export const AGENT_CONTEXT_SAFETY_MARGIN_TOKENS = 256
 export const AGENT_CONTEXT_PRESSURE_MIN_OUTPUT_TOKENS = 4_000
 
 export type RequestContextBudget = {
@@ -112,21 +111,6 @@ export function getUsableContextLength(contextLength: number): number {
   return Math.max(
     AGENT_MIN_EFFECTIVE_OUTPUT_TOKENS,
     Math.floor(contextLength - AGENT_CONTEXT_SAFETY_MARGIN_TOKENS)
-  )
-}
-
-export function capAgentRequestMaxTokens(
-  maxTokens: number,
-  contextLength: number = Number.MAX_SAFE_INTEGER
-): number {
-  const normalizedMaxTokens = Number.isFinite(maxTokens)
-    ? Math.floor(maxTokens)
-    : AGENT_MIN_EFFECTIVE_OUTPUT_TOKENS
-  const requested = Math.max(AGENT_MIN_EFFECTIVE_OUTPUT_TOKENS, normalizedMaxTokens)
-
-  return Math.max(
-    AGENT_MIN_EFFECTIVE_OUTPUT_TOKENS,
-    Math.min(requested, AGENT_REQUEST_MAX_OUTPUT_TOKENS_CAP, getContextOutputCap(contextLength))
   )
 }
 
@@ -669,10 +653,3 @@ function sanitizeToolContinuationMessages(messages: ChatMessage[]): ChatMessage[
   return sanitized
 }
 
-function getContextOutputCap(contextLength: number): number {
-  if (!Number.isFinite(contextLength) || contextLength <= 0) {
-    return Number.MAX_SAFE_INTEGER
-  }
-
-  return Math.max(AGENT_MIN_EFFECTIVE_OUTPUT_TOKENS, Math.floor(contextLength / 2))
-}

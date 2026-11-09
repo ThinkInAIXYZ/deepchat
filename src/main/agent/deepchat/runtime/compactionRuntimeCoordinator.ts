@@ -29,9 +29,9 @@ import {
   resolveDeepChatContextBudgetLength,
   shouldBypassDeepChatContextBudget
 } from './contextBudgetPolicy'
-import { resolveInterleavedReasoningConfig } from './generationSettings'
+import { resolveInterleavedReasoningConfig } from '@/agent/shared/generationSettings'
 import { resolveProviderInputCapabilities } from './providerInputCapabilities'
-import { resolveProviderModelRuntimeFacts } from './providerModelRuntimeFacts'
+import { resolveProviderModelRuntimeFacts } from '@/agent/shared/providerModelRuntimeFacts'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import type { CommandShellPort } from '@shared/commandShell'
 import {

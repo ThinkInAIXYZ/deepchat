@@ -3,6 +3,7 @@ import { createDeepChatProgrammaticToolPort } from '@/cli/deepChatToolPort'
 import { createAcpCompatibilityDependencies } from '@/agent/acp/compatibility/dependencies'
 import { createDeepChatOutputProjection } from '@/session/outputProjection'
 import { createSessionStatusProjection } from '@/session/sessionStatusProjection'
+import { DesktopSessionState } from '@/session/desktopSessionState'
 import { SyncSessionActivity } from '@/sync/sessionActivity'
 import type { DeepChatInternalSessionUpdate } from '@/agent/deepchat/runtime/sessionUpdates'
 import { SyncReplicaStore } from '@/sync/replica/store'
@@ -183,7 +184,7 @@ import { AgentUnavailableError } from '@/agent/shared/agentCatalogCodec'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import { SessionQuery } from '@/session/query'
 import { SessionAssignmentPolicy } from '@/session/assignmentPolicy'
-import { sanitizeGenerationSettings } from '@/agent/deepchat/runtime/generationSettings'
+import { sanitizeGenerationSettings } from '@/agent/shared/generationSettings'
 import { SessionAssignment } from '@/session/assignment'
 import { SessionDeletion } from '@/session/deletion'
 import { SessionTranscriptMutations } from '@/session/transcriptMutations'
@@ -2184,6 +2185,11 @@ export async function createMainProcessControl(dependencies: {
       ),
     sessionData.pendingInputs
   )
+  const desktopSessionState = new DesktopSessionState({
+    database: sessionData.database,
+    providerSettings,
+    promptSettings
+  })
   agentManager = new AgentManager(agentRepository, appSessionService, {
     deepchat: createDeepChatAgentBackend({
       port: deepChatAgentHarness,
@@ -2192,11 +2198,13 @@ export async function createMainProcessControl(dependencies: {
     }),
     acp: createDirectAcpAgentBackend({
       runtime: acpAgentRuntime,
-      sessionState: deepChatAgentHarness,
+      sessionState: desktopSessionState,
       transcript: sessionData.transcript,
       tape: sessionData.tape,
       deleteDurableSession: async (sessionId) => {
         await acpSessionPersistence.deleteSessions(sessionId)
+        sessionData.transcript.deleteBySession(sessionId)
+        sessionData.settings.delete(sessionId)
       },
       resolveInput: async (sessionId, descriptor) => {
         const session = appSessionService.get(sessionId)
