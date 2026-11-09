@@ -1271,6 +1271,35 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
             }
           })
         ).rejects.toMatchObject({ data: { appError: 'session_retired' } })
+        const callsBeforeStoredRead = conversationRequests().length
+        await new DimSessionControls(host).call('close', legacyRef)
+        const stored = await new DimContent(host).transcript(legacyRef, legacyProduct)
+        expect(
+          stored.messages.map((message) => ({
+            id: message.id,
+            content: message.content,
+            status: message.status
+          }))
+        ).toEqual(
+          grants.data.deepchatMessagesTable.getBySession(legacyProduct).map((message) => ({
+            id: message.id,
+            content: message.content,
+            status: message.status
+          }))
+        )
+        expect(
+          await importedRuntime.reconcile(
+            grants.data.dimInputIntentsTable.get(resumedSubmissionId)!
+          )
+        ).toEqual(resumed)
+        const summaries = await restored.call<Array<{ sessionId: string; closed: boolean }>>(
+          'session.summaries',
+          { includeClosed: true }
+        )
+        expect(summaries.find((session) => session.sessionId === legacyRef.sessionId)?.closed).toBe(
+          true
+        )
+        expect(conversationRequests()).toHaveLength(callsBeforeStoredRead)
         expect(await restored.call('session.deepchat_queue.mutate', { ...ref, plan })).toEqual(
           deleted
         )

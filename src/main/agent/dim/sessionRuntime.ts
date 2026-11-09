@@ -171,11 +171,16 @@ export class DimSessionRuntime {
       status: 'accepted' | 'unknown'
       inputId?: string
       sequence?: number | string
-    }>('deepchat.host.lookup', {
-      sessionId: intent.dimSessionId,
-      branchId: intent.branchId,
-      submissionId: intent.submissionId
-    })
+    }>(
+      this.options.host.usesNativePlugins
+        ? 'deepchat.native_storage.lookup'
+        : 'deepchat.host.lookup',
+      {
+        sessionId: intent.dimSessionId,
+        branchId: intent.branchId,
+        submissionId: intent.submissionId
+      }
+    )
     if (result.status !== 'accepted' || !result.inputId || result.sequence == null) return null
     const receipt = { inputId: result.inputId, sequence: result.sequence }
     this.options.database.dimInputIntentsTable.settle(intent.submissionId, 'accepted', receipt)

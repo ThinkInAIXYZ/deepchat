@@ -20,6 +20,18 @@ export interface DimProjection {
   completed?: { requestId: string; messageId: string; error?: string }
 }
 
+export function dimProjectionInputKey(input: DimEvent): string {
+  if (
+    input.type === 'deepchat' &&
+    input.name === 'input-representation' &&
+    typeof input.data.submissionId === 'string'
+  )
+    return `submission:${input.data.submissionId}`
+  if (input.type === 'deepchat' && input.name === 'history-chunk')
+    return `history:${input.data.migrationId}:${input.data.index}`
+  return input.id
+}
+
 /** A desktop read-model fold; none of these decisions can advance dim's execution. */
 export function projectDimEvent(
   binding: DimSessionBinding,

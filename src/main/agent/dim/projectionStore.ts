@@ -3,7 +3,7 @@ import type { SessionDatabase } from '@/session/data/database'
 import { TranscriptProjectionApplier } from '@/session/data/transcriptProjection'
 import type { DimSessionBinding } from '@/session/data/tables/dimSessionBindings'
 import type { DimEvent } from './sessionConnection'
-import { projectDimEvent, type DimProjection } from './messageProjection'
+import { projectDimEvent, dimProjectionInputKey, type DimProjection } from './messageProjection'
 
 /** Existing desktop transcript tables are a cache. Only dim accepts inputs or executes a turn. */
 export class DimProjectionStore {
@@ -66,17 +66,7 @@ export class DimProjectionStore {
         }
       }
       for (const input of projection.inputEvents ?? [])
-        this.database.dimInputProjectionTable.put(
-          sessionId,
-          input,
-          input.type === 'deepchat' &&
-            input.name === 'input-representation' &&
-            typeof input.data.submissionId === 'string'
-            ? `submission:${input.data.submissionId}`
-            : input.type === 'deepchat' && input.name === 'history-chunk'
-              ? `history:${input.data.migrationId}:${input.data.index}`
-              : input.id
-        )
+        this.database.dimInputProjectionTable.put(sessionId, input, dimProjectionInputKey(input))
       for (const inputId of projection.consumedInputs ?? [])
         this.database.dimInputProjectionTable.delete(sessionId, inputId)
       if (projection.retractions) this.applier.applyRetractions(projection.retractions)

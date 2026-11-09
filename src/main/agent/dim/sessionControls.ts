@@ -17,6 +17,7 @@ export type DimSessionOperation =
   | 'answer'
   | 'approval'
   | 'fork'
+  | 'close'
   | 'native_settings'
   | 'native_identity'
   | 'native_configure'
@@ -35,7 +36,9 @@ export class DimSessionControls {
       operation.startsWith('native_')
         ? `session.deepchat_native.${operation.slice(7)}`
         : `deepchat.session.${operation}`,
-      operation === 'fork' ? { ...params, sessionId: ref.sessionId } : { ...params, ...ref },
+      operation === 'fork' || operation === 'close'
+        ? { ...params, sessionId: ref.sessionId }
+        : { ...params, ...ref },
       operation === 'compact' ? 30 * 60 * 1000 : 30_000
     )
   }

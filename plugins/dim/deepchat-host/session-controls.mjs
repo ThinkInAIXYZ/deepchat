@@ -14,7 +14,8 @@ const OPERATIONS = {
   questions: ['session.question.pending', false],
   answer: ['session.question.respond', true],
   approval: ['approval.respond', true],
-  fork: ['session.fork', true]
+  fork: ['session.fork', true],
+  close: ['session.close', true]
 }
 
 export async function registerSessionControls(ctx, address, profile) {

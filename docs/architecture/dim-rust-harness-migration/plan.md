@@ -157,6 +157,8 @@
 
 ## 模块进度
 
+- 模块 18：存储插件通过 dim 公共 SessionStore/TimelineStore owner 读取关闭会话的完整 committed Timeline 和 submission 回执，不恢复 agent、不直接访问 native SQLite。新增隔离的 transcript 重建入口供目录切换、编辑与 fork 使用，保持固定 through 和原生 u64 游标。桌面通知改为历史失效信号，持久游标只由按序历史读取推进，避免跨进程乱序造成内容遗漏；加入乱序与缺失通知的回归。真实 Rust 验证关闭后历史与读模型一致、旧回执可查询且没有新模型调用；8 项 native、8 项相关单元回归与 node typecheck 通过。完整 generation controller 和主入口仍在接线。
+
 - 模块 17：原生插件新增持久提交封口；与产品提交/队列控制共用 native lane，封口后新输入明确拒绝，既有 submission lookup 仍返回原回执。Rust 装配下的所有 Runtime 提交统一经过插件，展示 metadata 可选，不再让无 representation 的输入绕过封口。封口确认后，仍不存在的旧未知提交才能标记拒绝。新增只同步 committed facts 的 reader 方法，取消后同步桌面状态，并读取 native 创建时 cwd/tools。真实 HTTP 阻塞期间验证同步不等待 agent，8 项 native、19 项相关回归及 format/lint/typecheck 通过；验证封口幂等、重启、旧回执和拒绝后无新模型调用。generation 切换的 controller 继续接线。
 
 - 模块 16：新增 Rust history import 插件，非上下文快照分块逐块/整体 SHA-256 校验，通过 Branch.input 的 Append 模式提供历史上下文，完成标记前阻止产品新输入。桌面只持久导入身份/进度，未知回执通过 native status 恢复；完成后不再读取 legacy 来源。导入快照可重建现有消息/附件/引用/metadata 读模型，旧待确认交互退为历史，保留原消息 ID 且防止跨产品会话覆盖。初次接纳时保留相同消息的 legacy sidecar。真实 Rust 验证损坏分块拒绝、中途退出后恢复、Unicode 分块、导入不调用模型/不重放工具、首次新回合，以及丢失缓存和桌面回执后的 native 重建。8 项 native 和 952 项 dim/session/schema/install 回归通过，format/lint/typecheck 通过。主 factory、有效 legacy Tape 来源选择、legacy 队列/图片准备及 mutation/目录变化的 rollover 继续接线。

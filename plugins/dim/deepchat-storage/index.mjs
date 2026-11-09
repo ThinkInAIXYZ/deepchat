@@ -88,9 +88,9 @@ export default definePlugin({
                 config.hostAddress,
                 {
                   profile: config.profile,
-                  methods: ['session.deepchat_native_storage.history']
+                  methods: ['deepchat.native_storage.history']
                 },
-                (call) => call('session.deepchat_native_storage.history', request)
+                (call) => call('deepchat.native_storage.history', request)
               )
             }
           }

@@ -42,19 +42,17 @@ export function dimSequence(value: number | string): bigint {
 /** One desktop reader of a native branch. It never owns turn progression or a pending-input pump. */
 export class DimSessionConnection {
   private watchId: string | null = null
-  private live: Notice[] = []
   private reading = false
   private started = false
-  private pendingOperations = 0
+  private refreshScheduled = false
   private stopped = false
   private through: bigint
   private work: Promise<void> = Promise.resolve()
   private needsCatchup = false
   private idling: Promise<void> | null = null
-  private synchronizing: Promise<void> | null = null
 
   constructor(
-    private readonly client: DimPluginClient,
+    private readonly client: Pick<DimPluginClient, 'call' | 'on' | 'off'>,
     readonly ref: DimSessionRef,
     private readonly consume: (event: DimEvent) => void | Promise<void>,
     private readonly failed: (error: unknown) => void,
@@ -72,20 +70,28 @@ export class DimSessionConnection {
       return
     if (this.watchId && message.params.watchId !== this.watchId) return
     if (!this.watchId) {
-      if (this.live.length >= 256) this.needsCatchup = true
-      else this.live.push(message)
+      this.needsCatchup = true
       return
     }
     if (message.method === 'deepchat.host.gap') {
       this.reportFailure(new Error('dim event subscription overflowed; reconnect and catch up'))
       return
     }
-    if (this.reading) {
-      if (this.live.length >= 256) this.needsCatchup = true
-      else this.live.push(message)
-      return
-    }
-    if (message.params.event) this.enqueue(() => this.accept(message.params.event!))
+    // Notifications can cross asynchronous plugin callbacks in a different order. They invalidate
+    // the read model; only an ordered, fixed-through owner read may advance its durable cursor.
+    this.needsCatchup = true
+    this.refresh()
+  }
+
+  private refresh(): void {
+    if (this.reading || this.refreshScheduled || this.stopped) return
+    this.refreshScheduled = true
+    void this.synchronize()
+      .finally(() => {
+        this.refreshScheduled = false
+        if (this.needsCatchup) this.refresh()
+      })
+      .catch(() => {})
   }
 
   private readonly disconnected = (): void =>
@@ -105,19 +111,12 @@ export class DimSessionConnection {
         this.ref as unknown as JsonValue
       )
       this.watchId = watchId
-      // The watch is active before reading history. Facts delivered during catch-up are buffered
-      // and deduplicated by their native sequence after the fixed read completes.
+      // The watch is active before reading history. Notifications received during a fixed read
+      // request another read without trusting their delivery order or retaining event payloads.
       do {
         this.needsCatchup = false
         await this.catchUp()
-        const buffered = this.live.splice(0)
-        for (const notice of buffered) {
-          if (notice.params.watchId !== watchId) continue
-          if (notice.method === 'deepchat.host.gap')
-            throw new Error('dim subscription lost while catching up')
-          if (notice.params.event) await this.accept(notice.params.event)
-        }
-      } while (this.needsCatchup || this.live.length > 0)
+      } while (this.needsCatchup)
       this.reading = false
     } catch (error) {
       await this.close()
@@ -173,31 +172,18 @@ export class DimSessionConnection {
   synchronize(): Promise<void> {
     // A caller arriving during a fixed-through read needs a subsequent read: joining the old
     // one could miss facts committed before this caller (notably stop/retirement acknowledgements).
-    const operation = this.synchronizing
-      ? this.synchronizing.then(() => this.synchronizeCommitted())
-      : this.synchronizeCommitted()
-    this.synchronizing = operation
-    void operation
-      .finally(() => {
-        if (this.synchronizing === operation) this.synchronizing = null
-      })
-      .catch(() => {})
+    const operation = this.work.then(() => this.synchronizeCommitted())
+    this.work = operation.catch((error) => this.reportFailure(error))
     return operation
   }
   private async synchronizeCommitted(): Promise<void> {
     this.reading = true
-    await this.work
     if (this.stopped) throw new Error('dim reader stopped before completing its projection')
     try {
       do {
         this.needsCatchup = false
         await this.catchUp()
-        for (const notice of this.live.splice(0)) {
-          if (notice.method === 'deepchat.host.gap')
-            throw new Error('dim subscription needs resynchronization')
-          if (notice.params.event) await this.accept(notice.params.event)
-        }
-      } while (this.needsCatchup || this.live.length > 0)
+      } while (this.needsCatchup)
     } catch (error) {
       this.reportFailure(error)
       throw error
@@ -214,7 +200,6 @@ export class DimSessionConnection {
     this.stopped = true
     this.client.off('notification', this.notice)
     this.client.off('disconnected', this.disconnected)
-    this.live = []
     const watchId = this.watchId
     this.watchId = null
     if (watchId) await this.client.call('deepchat.host.unsubscribe', { watchId }).catch(() => {})
@@ -242,30 +227,11 @@ export class DimSessionConnection {
     this.through = dimSequence(event.sequence)
   }
 
-  private enqueue(operation: () => Promise<void>): void {
-    if (this.pendingOperations >= 256) {
-      this.reportFailure(
-        new Error('dim desktop reader fell behind; reconnect from its committed cursor')
-      )
-      return
-    }
-    this.pendingOperations++
-    this.work = this.work
-      .then(async () => {
-        if (!this.stopped) await operation()
-      })
-      .catch((error) => this.reportFailure(error))
-      .finally(() => {
-        this.pendingOperations--
-      })
-  }
-
   private reportFailure(error: unknown): void {
     if (this.stopped) return
     this.stopped = true
     this.client.off('notification', this.notice)
     this.client.off('disconnected', this.disconnected)
-    this.live = []
     if (this.watchId) {
       const watchId = this.watchId
       this.watchId = null
