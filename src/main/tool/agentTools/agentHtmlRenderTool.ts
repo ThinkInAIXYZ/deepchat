@@ -124,12 +124,19 @@ const successResult = (toolName: string, content: string, extra?: object) => ({
   }
 })
 
+// A tool batch writes its results when it ends, so an accepted section that is still missing from
+// the database after this long was never written (failed write, message deleted first).
+const ACCEPTED_SECTION_TTL_MS = 10 * 60_000
+
 export class AgentHtmlRenderTool {
   // Section results are persisted only after the whole tool batch, so the database misses sections
   // accepted earlier in the same batch. Each section counts the larger of the two sizes: a deleted
   // message can bring back a larger stored version than the one accepted here. An accepted size is
   // dropped once the database covers it, so later deletions are measured from the database alone.
-  private readonly acceptedSections = new Map<string, Map<string, number>>()
+  private readonly acceptedSections = new Map<
+    string,
+    Map<string, { bytes: number; acceptedAt: number }>
+  >()
 
   getToolDefinitions(): MCPToolDefinition[] {
     return [
@@ -197,31 +204,46 @@ export class AgentHtmlRenderTool {
     if (!conversationId || !panels) {
       throw new Error(`${HTML_RENDER_SECTION_TOOL_NAME} requires a conversation.`)
     }
+    const now = Date.now()
+    this.releaseExpiredSections(now)
+    const key = `${conversationId}\n${panelId}`
     const stored = panels.measurePanel(conversationId, panelId)
     if (stored === null) {
+      this.acceptedSections.delete(key)
       throw new Error(
         `No panel ${panelId} in this conversation. Create one with html_render and use its panelId.`
       )
     }
     const bytes = Buffer.byteLength(html, 'utf8')
-    const key = `${conversationId}\n${panelId}`
-    const accepted = this.acceptedSections.get(key) ?? new Map<string, number>()
-    for (const [id, size] of accepted) {
-      if ((stored.sectionBytes.get(id) ?? -1) >= size) accepted.delete(id)
+    const accepted = this.acceptedSections.get(key) ?? new Map()
+    for (const [id, entry] of accepted) {
+      if ((stored.sectionBytes.get(id) ?? -1) >= entry.bytes) accepted.delete(id)
     }
+    if (accepted.size === 0) this.acceptedSections.delete(key)
     const sections = new Map(stored.sectionBytes)
-    for (const [id, size] of accepted) sections.set(id, Math.max(size, sections.get(id) ?? 0))
+    for (const [id, entry] of accepted) {
+      sections.set(id, Math.max(entry.bytes, sections.get(id) ?? 0))
+    }
     sections.set(sectionId, bytes)
     let total = stored.shellBytes
     for (const size of sections.values()) total += size
     if (total > HTML_RENDER_MAX_PANEL_BYTES) {
       throw new Error('The panel would exceed 2 MB. Start a new panel with html_render.')
     }
-    accepted.set(sectionId, bytes)
+    accepted.set(sectionId, { bytes, acceptedAt: now })
     this.acceptedSections.set(key, accepted)
     return successResult(
       HTML_RENDER_SECTION_TOOL_NAME,
       `Section "${sectionId}" is in panel ${panelId}.`
     )
+  }
+
+  private releaseExpiredSections(now: number) {
+    for (const [key, accepted] of this.acceptedSections) {
+      for (const [id, entry] of accepted) {
+        if (now - entry.acceptedAt > ACCEPTED_SECTION_TTL_MS) accepted.delete(id)
+      }
+      if (accepted.size === 0) this.acceptedSections.delete(key)
+    }
   }
 }

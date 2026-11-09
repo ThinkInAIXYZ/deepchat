@@ -84,4 +84,25 @@ describe('AgentHtmlRenderTool', () => {
       expect(() => call(sectionId)).not.toThrow()
     }
   })
+
+  it('releases accepted sections that never reach the database', () => {
+    vi.useFakeTimers()
+    try {
+      const panels = { measurePanel: () => ({ shellBytes: 10, sectionBytes: new Map() }) }
+      const lostTool = new AgentHtmlRenderTool()
+      const call = (sectionId: string) =>
+        lostTool.callSection(
+          { panelId: 'p', sectionId, html: 'x'.repeat(500_000) },
+          'session-1',
+          panels
+        )
+
+      for (const sectionId of ['a', 'b', 'c', 'd']) call(sectionId)
+      expect(() => call('e')).toThrow(/2 MB/)
+      vi.advanceTimersByTime(11 * 60_000)
+      expect(() => call('e')).not.toThrow()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })

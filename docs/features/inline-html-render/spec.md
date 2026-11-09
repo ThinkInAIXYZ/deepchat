@@ -195,6 +195,8 @@ back to the model.
   Section results are stored only after the whole tool batch, so the tool also counts the sections
   it accepted earlier in the process for the 2 MB cap. Each section counts the larger of its
   stored and accepted sizes, since deleting a message can bring back a larger stored version.
+  An accepted size is released once the DB covers it, when the panel is gone, or after 10 minutes
+  (a batch writes its results when it ends, so an older entry was never written).
 
 ## Persistence
 
