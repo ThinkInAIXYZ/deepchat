@@ -13,6 +13,7 @@ export interface DimSessionRuntimeOptions {
   database: SessionDatabase
   host: DimRuntimeSupervisor
   launch(sessionId: string): Promise<JsonValue>
+  prepare?(binding: DimSessionBinding): Promise<void>
   projected(sessionId: string, projection: DimProjection): void
   failed(sessionId: string, error: unknown): void
 }
@@ -182,6 +183,9 @@ export class DimSessionRuntime {
       )
     }
     const captured = binding
+    await this.options.prepare?.(captured)
+    if (this.scopes.get(sessionId) !== scope)
+      throw new Error('dim session closed during preparation')
     const reader = new DimSessionConnection(
       client,
       { sessionId: binding.dimSessionId, branchId: binding.branchId },

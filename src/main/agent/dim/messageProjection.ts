@@ -155,7 +155,7 @@ export function projectDimEvent(
       last.content = (last.content ?? '') + delta
     else blocks.push({ id: event.id, type, content: delta, status: 'loading', timestamp: now })
     changed = true
-  } else if (key === 'tool/call' && Array.isArray(event.data.calls)) {
+  } else if (key === 'step/tool-call' && Array.isArray(event.data.calls)) {
     for (const value of event.data.calls) {
       if (!value || typeof value !== 'object' || Array.isArray(value)) continue
       blocks.push({
@@ -171,9 +171,9 @@ export function projectDimEvent(
       })
     }
     changed = true
-  } else if (key === 'tool/completed' || key === 'tool/result') {
+  } else if (key === 'step/tool-completed' || key === 'step/tool-result') {
     const results =
-      key === 'tool/completed'
+      key === 'step/tool-completed'
         ? [{ call_id: event.data.call_id, result: event.data.result }]
         : event.data.results
     if (Array.isArray(results))

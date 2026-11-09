@@ -10,6 +10,7 @@ import { randomUUID } from 'node:crypto'
 import { DimRuntimeSupervisor } from '@/agent/dim/runtimeSupervisor'
 import { DimSessionRuntime } from '@/agent/dim/sessionRuntime'
 import { dimDatabase } from './fixtures/database'
+import { DimProductGateway, type DimProductToolCall } from '@/agent/dim/productGateway'
 
 // Explicit smoke target: no network requests or runtime downloads during tests.
 it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
@@ -126,6 +127,151 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
       await restored.call('deepchat.host.stop', ref)
     } finally {
       await runtime.stop()
+      await rm(profile, { recursive: true, force: true })
+    }
+  },
+  60_000
+)
+
+it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
+  'executes product tools inside dim and reloads their scoped catalog with cancellation',
+  async () => {
+    const profile = await mkdtemp(path.join(os.tmpdir(), 'dc-dim-tools-'))
+    let version = 'one'
+    let names = ['deepchat_echo', 'deepchat_hold']
+    const calls: DimProductToolCall[] = []
+    let cancelled = false
+    const gateway = new DimProductGateway({
+      resolve: async () => ({
+        version,
+        tools: names.map((name) => ({
+          name,
+          description: 'DeepChat native bridge fixture',
+          inputSchema: { type: 'object' },
+          source: 'extension',
+          risk: 'session'
+        })),
+        execute: async (call, signal) => {
+          calls.push(call)
+          if (call.name === 'deepchat_hold') {
+            await new Promise<void>((resolve) => {
+              if (signal.aborted) resolve()
+              else
+                signal.addEventListener(
+                  'abort',
+                  () => {
+                    cancelled = true
+                    resolve()
+                  },
+                  { once: true }
+                )
+            })
+          }
+          return { content: `product: ${call.arguments.text ?? 'done'}` }
+        }
+      })
+    })
+    const host = new DimRuntimeSupervisor({
+      runtimeRoot: path.resolve('runtime/dim'),
+      profileRoot: profile,
+      nodeExecutable: path.resolve(
+        'runtime/node',
+        ...(process.platform === 'win32' ? ['node.exe'] : ['bin', 'node'])
+      ),
+      profile: 'mock',
+      gatewayAddress: await gateway.start()
+    })
+    try {
+      const client = await host.start()
+      const { agentId } = await client.call<{ agentId: string }>('agent.create', {
+        profile: { name: 'DeepChat tools fixture', description: '', systemPrompt: '' }
+      })
+      const { sessionId } = await client.call<{ sessionId: string }>('deepchat.host.launch', {
+        cwd: profile,
+        agent: agentId,
+        policy: { preset: 'full-access' }
+      })
+      const ref = { sessionId, branchId: 'main' }
+      const send = (text: string) =>
+        client.call('deepchat.host.input', {
+          ...ref,
+          mode: 'queue',
+          submissionId: randomUUID(),
+          rawBlocks: [],
+          content: [{ type: 'text', text }]
+        })
+      await client.call('session.deepchat_tools.refresh', ref)
+      await send('tool:deepchat_echo {"text":"first"}')
+      await client.call('deepchat.host.idle', ref)
+      expect(calls).toHaveLength(1)
+      expect(calls[0]).toMatchObject({
+        ...ref,
+        name: 'deepchat_echo',
+        arguments: { text: 'first' },
+        turnId: expect.any(String),
+        callId: expect.any(String)
+      })
+      const history = await client.call<{
+        events: import('@/agent/dim/sessionConnection').DimEvent[]
+      }>('deepchat.storage.history', { ...ref, limit: 100 })
+      let projected: DimSessionBinding = {
+        sessionId: 'desktop',
+        dimSessionId: sessionId,
+        branchId: 'main',
+        generation: 1,
+        cursor: '0',
+        nextOrderSeq: 1,
+        activeTurnId: null,
+        assistantMessageId: null,
+        status: 'idle'
+      }
+      const transcript = new Map<string, ChatMessageRecord>()
+      for (const event of history.events) {
+        const update = projectDimEvent(projected, event, (id) => transcript.get(id) ?? null)
+        for (const message of update.messages) transcript.set(message.id, message)
+        projected = update.binding
+      }
+      expect(JSON.parse([...transcript.values()][1].content)).toContainEqual(
+        expect.objectContaining({
+          type: 'tool_call',
+          status: 'success',
+          tool_call: expect.objectContaining({
+            name: 'deepchat_echo',
+            response: expect.stringContaining('product: first')
+          })
+        })
+      )
+      version = 'two'
+      names = ['deepchat_changed', 'deepchat_hold']
+      expect(await client.call('session.deepchat_tools.refresh', ref)).toEqual({
+        version,
+        count: 2
+      })
+      await send('tool:deepchat_changed {"text":"second"}')
+      await client.call('deepchat.host.idle', ref)
+      expect(calls.at(-1)?.name).toBe('deepchat_changed')
+      await send('tool:deepchat_hold {}')
+      await expect.poll(() => calls.at(-1)?.name).toBe('deepchat_hold')
+      await client.call('deepchat.host.stop', ref)
+      await client.call('deepchat.host.idle', ref)
+      await expect.poll(() => cancelled).toBe(true)
+      await host.stop()
+      const restored = await host.start()
+      await restored.call('deepchat.host.input', {
+        ...ref,
+        mode: 'queue',
+        submissionId: randomUUID(),
+        rawBlocks: [],
+        content: [{ type: 'text', text: 'tool:deepchat_changed {"text":"restored"}' }]
+      })
+      await restored.call('deepchat.host.idle', ref)
+      expect(calls.at(-1)).toMatchObject({
+        name: 'deepchat_changed',
+        arguments: { text: 'restored' }
+      })
+    } finally {
+      await host.stop()
+      await gateway.stop()
       await rm(profile, { recursive: true, force: true })
     }
   },

@@ -1,6 +1,6 @@
 # DeepChat 以 dim Rust 替换内置 Agent Harness
 
-状态：实施中。已交付 release 安装、两个插件的基础入口、宿主生命周期和本地插件传输；主产品 backend 尚未切换。执行顺序与完成状态见 [plan.md](./plan.md)。
+状态：实施中。已交付 release/插件宿主、持久会话读写核心及产品工具网关；主产品 backend 尚未切换。执行顺序与完成状态见 [plan.md](./plan.md)。
 
 ## 1. 决策与范围
 

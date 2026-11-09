@@ -14,6 +14,7 @@ export interface DimRuntimeOptions {
   // Explicit testing profile; production always uses its private product home.
   profile?: 'product' | 'mock'
   startupTimeoutMs?: number
+  gatewayAddress?: string
 }
 
 export class DimRuntimeSupervisor {
@@ -91,7 +92,7 @@ export class DimRuntimeSupervisor {
           id: 'deepchat-host',
           name: path.join(plugins, 'modules/deepchat-host/index.mjs'),
           provides: {},
-          config: {}
+          config: { gatewayAddress: this.options.gatewayAddress }
         },
         {
           id: 'deepchat-storage',

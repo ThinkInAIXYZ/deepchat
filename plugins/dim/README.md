@@ -25,22 +25,34 @@ for another supported architecture does not retain only the build machine's exec
 ## Current modules
 
 - `deepchat-host` exposes `deepchat.host.capabilities`, `launch`, `input`, `lookup`, `stop`, `idle`
-  and `withdraw`. These delegate to dim's `sessions` service. Inputs keep their submission ID;
+  `withdraw` and `delete`. These delegate to dim's `sessions` service. Inputs keep their submission ID;
   a disconnected caller must query the outcome rather than blindly send again.
+- Branch part `DeepChatDesktopEvents` provides bounded live subscriptions; slow readers catch up from the last committed cursor. Session parts in `deepchat-storage` expose raw timeline query pages and branch identities.
 - `deepchat-storage` exposes `deepchat.storage.capabilities` and bounded `history` reads. Its
   explicit `limit` is 1–200, and the request includes dim's session/branch identity and cursors.
   It uses dim's storage-backed service, never private SQLite tables. This trusted content interface
   is not an Inspector DTO and must not be forwarded wholesale to a renderer.
 
-This first slice does not yet register product tools, bind the queue UI, perform old-session
-migration or expose raw timeline inspection. Those remain tracked in the migration plan.
+Product capabilities use `DimProductGateway`, a private desktop socket/pipe passed to the host
+plugin. Session parts register their schemas and handlers in dim's `toolRegistry`; dim owns tool
+selection, permissions, scheduling, results and cancellation. The gateway resolves the durable
+native identity and current product authorization on every call, checks the catalog version, and
+never retries an effect. Catalog refresh withdraws a scoped service so rutis unloads the previous
+tool part before mounting the new definitions. Connection loss aborts pending product work.
+Native tools, MCP, Skills, agent loops and model requests must not be routed through this gateway.
+
+`DimSessionRuntime` persists the app/native binding and input intent before sending. Its event
+reader applies desktop messages and its cursor in one SQL transaction, without a new Tape. Its
+optional preparation callback mounts product configuration/tools before accepting new input.
+The main application has not switched to this backend. Queue UI, product service wiring and
+old-session migration remain tracked in the migration plan.
 
 ## Native integration check
 
 After installation, run `pnpm run smoke:dim`. It uses the managed standalone Node and real dim
 release, verifies both injected plugins, completes a deterministic mock-model turn through the
 host plugin, checks history and submission lookup through dim, restarts the host and compares
-committed history. A second check boots the product profile and verifies plugin readiness without
+committed history. Other checks verify real SQLite admission and restart, atomic projection recovery, live subscriptions, and actual product tool execution/catalog replacement/cancellation/restart. Another check boots the product profile and verifies plugin readiness without
 logging into an account; it does not make a real provider request. Profiles are temporary.
 
 The transport and installer regression suites run with the ordinary Main tests. Native smoke is

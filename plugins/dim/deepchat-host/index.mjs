@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto'
 import { definePlugin } from '@arcships/rutis'
+import { registerProductTools } from './product-tools.mjs'
 
 export default definePlugin({
   name: 'DeepChatHost',
   inject: ['managementMethods', 'sessions', 'partRegistry', 'callChannel'],
-  async apply(ctx) {
+  async apply(ctx, config) {
     const sessions = ctx.use('sessions')
     const channel = ctx.use('callChannel')
     const watches = new Map()
@@ -52,6 +53,7 @@ export default definePlugin({
       }
     })
     await ctx.use('partRegistry').registerDefinition('branch', 'DeepChatDesktopEvents', observer)
+    if (config.gatewayAddress) await registerProductTools(ctx, config.gatewayAddress)
     const operations = {
       launch: (params) => sessions.launch(params),
       input: (params) => sessions.input(params),
