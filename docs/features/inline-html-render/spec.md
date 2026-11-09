@@ -343,10 +343,11 @@ Sizing, in `HostViewFrame` for every host view:
 - above 1600 px the frame scrolls internally;
 - oscillation lock: the `vh` check only catches one cause of a page
   that grows with its frame; `height: 100%`, percentage layouts, and scripts that size from
-  `innerHeight` loop the same way. Within any 2 s window, if the reported height rises on 5
+  `innerHeight` loop the same way. Within any 2 s window, if the reported height rises on 20
   consecutive reports or changes direction 4 times, keep the current height, stop applying
-  `size-changed`, and let the frame scroll internally. A frame width change clears the lock and
-  measures again.
+  `size-changed`, and let the frame scroll internally. Twenty leaves room for a page that grows
+  while it restores sections or loads charts. A frame width change or a reload clears the lock
+  and measures again.
 
 Theme variables are read from the renderer root with `getComputedStyle` for the tokens in the
 tool description, so the page matches the live app theme, including custom themes. Before sending

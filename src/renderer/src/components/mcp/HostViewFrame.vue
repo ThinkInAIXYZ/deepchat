@@ -27,7 +27,9 @@ const props = withDefaults(
 // example by document.open()) or is stuck, and would otherwise stay an invisible gap.
 const INITIALIZE_TIMEOUT_MS = 10_000
 const OSCILLATION_WINDOW_MS = 2000
-const MAX_CONSECUTIVE_RISES = 5
+// A page restoring many sections or loading charts rises several times in a row; a page whose height
+// feeds back on its frame rises on every report, so it passes this within a second.
+const MAX_CONSECUTIVE_RISES = 20
 const MAX_DIRECTION_CHANGES = 4
 
 const emit = defineEmits<{
@@ -159,6 +161,8 @@ const notify = async (method: string, params: Record<string, unknown>) => {
 const load = async () => {
   window.clearTimeout(initializeTimer)
   initialized = false
+  heightLocked = false
+  sizeHistory = []
   preparing = true
   const seq = ++loadSeq
   try {
