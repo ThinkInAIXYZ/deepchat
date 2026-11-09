@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { realpath } from 'node:fs/promises'
 import type { JsonValue } from '@shared/contracts/json'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
@@ -234,6 +234,57 @@ export class DimScopeTransitions {
     const record = this.options.database.dimScopeChangesTable.get(binding.sessionId)
     if (!record?.through || !this.isStagingScope(binding))
       throw new Error('Native transition has no frozen source')
+    if (record.change.kind === 'fork') {
+      const fork = record.change
+      const owns = () =>
+        this.options.database.dimSessionScopesTable
+          .list(fork.productSessionId)
+          .some(
+            (scope) => scope.dimSessionId === fork.sessionId && scope.branchId === fork.branchId
+          )
+      if (!owns()) throw new Error('Fork source has no desktop owner')
+      const source = await this.content.transcript(
+        { sessionId: fork.sessionId, branchId: fork.branchId },
+        fork.productSessionId,
+        fork.through
+      )
+      if (!owns()) throw new Error('Fork source was deleted during conversion')
+      const target = source.messages.find((message) => message.id === fork.messageId)
+      if (!target) throw new Error('Fork message is absent from its frozen native history')
+      const selected = source.messages.filter(
+        (message) => message.status === 'sent' && message.orderSeq <= target.orderSeq
+      )
+      const ids = new Map(
+        selected.map((message) => [
+          message.id,
+          `dim-fork:${createHash('sha256')
+            .update(JSON.stringify([record.operationId, message.id]))
+            .digest('hex')}`
+        ])
+      )
+      return {
+        formatVersion: 1,
+        productSessionId: binding.sessionId,
+        messages: selected.map((message, index) => ({
+          ...message,
+          id: ids.get(message.id)!,
+          sessionId: binding.sessionId,
+          orderSeq: index + 1
+        })),
+        summary: null,
+        contextFromOrderSeq: 1,
+        pendingInputs: [],
+        excludedContextMessageIds: source.excludedContextMessageIds
+          .filter((id) => ids.has(id))
+          .map((id) => ids.get(id)!),
+        images: Object.fromEntries(
+          Object.entries(source.images)
+            .filter(([id]) => ids.has(id))
+            .map(([id, blocks]) => [ids.get(id)!, blocks])
+        ),
+        source: { ...fork, kind: 'native-fork', operationId: record.operationId }
+      }
+    }
     const source = await this.content.transcript(
       { sessionId: record.source.dimSessionId, branchId: record.source.branchId },
       binding.sessionId,

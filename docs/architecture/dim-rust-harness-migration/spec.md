@@ -68,7 +68,7 @@ alpha.21 的 Rust API 已支持完整 `ModelConfig` 和 `ProviderSecretHost`，�
 
 ## 3. 现状与替换边界
 
-当前入口是 `src/main/app/composition.ts` → `AgentManager` → `deepChatAgentBackend` / `directAcpAgentBackend`。现有 main-host、harness、Tape 合同在迁移上线前继续生效。
+当前入口是 `src/main/app/composition.ts` → `AgentManager` → `deepChatAgentBackend` / `directAcpAgentBackend`。主 composition 现构造 dim backend，旧 harness 不再实例化；遗留源读取与 Direct ACP 产品合同保留，未迁移服务与旧执行器物理移除继续按计划验收。
 
 | 当前所有者 | 目标所有者 | 迁移后的职责 |
 | --- | --- | --- |
@@ -166,7 +166,7 @@ dim 已有 `mcp.catalog/configuration/save/update/remove/inspect`、OAuth 和 Se
 4. DeepChat in-memory MCP、企业身份和尚不兼容的 MCP Apps 等作为明确的桥接能力保留。能迁入 dim 原生 MCP 后移除 adapter；不通过两个 manager 同时连同一 server。
 5. 原有插件的 Skills/Hooks 接入 dim 的对应 owner；保持撤销、更新期间冻结、context 来源、调用次数与预算语义。禁用插件必须撤销新调用和过期授权。
 
-当前已实现 `DimMcp`：通过 `session.mcp_temporary.attach/renew/detach` 将所选配置挂到原生 Session，目录和调用由 dim MCP 持有。DeepChat 只续期桌面授权，更新/撤销先卸载旧绑定；30 秒原生租约在桌面失联时到期。配置与凭据不写入 dim 设置或 Timeline。配置导出保留 DeepChat 的 OAuth/企业身份 owner，通过临时 token 交给原生 transport；in-memory 与产品管理的进程列为兼容桥候选。主 composition、stdio 的桌面环境/运行时打包映射，以及产品服务目录仍待接入，尚未宣布消除旧 MCP 运行图。
+当前已实现 `DimMcp`：通过 `session.mcp_temporary.attach/renew/detach` 将所选配置挂到原生 Session，目录和调用由 dim MCP 持有。DeepChat 只续期桌面授权，更新/撤销先卸载旧绑定；30 秒原生租约在桌面失联时到期。配置与凭据不写入 dim 设置或 Timeline。配置导出保留 DeepChat 的 OAuth/企业身份 owner，通过临时 token 交给原生 transport；in-memory 与产品管理的进程列为兼容桥候选。主 composition 已接入 Native 临时配置、stdio 工具链/环境映射和产品服务目录。显式 CWD/隔离环境及产品管理进程通过产品插件桥接；Direct ACP 和桌面 MCP 管理继续保留其产品 owner，旧执行器清理另行验收。
 
 ### 5.3 deepchat-storage
 

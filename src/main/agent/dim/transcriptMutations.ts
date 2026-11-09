@@ -20,10 +20,7 @@ interface MutationOptions {
 }
 
 /** A product history edit selects a new native generation; it never rewrites native facts. */
-export class DimTranscriptMutations implements Omit<
-  SessionTranscriptMutationPort,
-  'forkSessionFromMessage'
-> {
+export class DimTranscriptMutations implements SessionTranscriptMutationPort {
   private readonly content: DimContent
   constructor(private readonly options: MutationOptions) {
     this.content = new DimContent(options.host)
@@ -37,6 +34,38 @@ export class DimTranscriptMutations implements Omit<
       { kind: 'clear' }
     )
     await this.options.invalidate(sessionId, 1)
+  }
+
+  async forkSessionFromMessage(
+    sourceSessionId: string,
+    targetSessionId: string,
+    messageId: string
+  ): Promise<void> {
+    if (sourceSessionId === targetSessionId) throw new Error('Fork requires a new desktop session')
+    await this.options.prepareHistory(sourceSessionId)
+    const binding = this.options.database.dimSessionBindingsTable.get(sourceSessionId)!
+    const view = await this.content.transcript(
+      { sessionId: binding.dimSessionId, branchId: binding.branchId },
+      sourceSessionId
+    )
+    this.requireMessage(view.messages, messageId)
+    await this.options.prepareHistory(targetSessionId)
+    if ((await this.messages(targetSessionId)).length)
+      throw new Error('Fork target already contains messages')
+    await this.options.transitions.replace(
+      targetSessionId,
+      await this.options.settings.creation(targetSessionId),
+      {
+        kind: 'fork',
+        productSessionId: sourceSessionId,
+        sessionId: binding.dimSessionId,
+        branchId: binding.branchId,
+        through: view.through,
+        messageId
+      }
+    )
+    // A fork starts a separate memory ingestion lineage; no source cursor can authorize it.
+    await this.options.invalidate(targetSessionId, 1)
   }
 
   async prepareRetryMessage(sessionId: string, messageId: string) {

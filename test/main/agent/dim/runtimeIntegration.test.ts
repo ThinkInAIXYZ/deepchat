@@ -13,6 +13,8 @@ import { DimRuntimeSupervisor } from '@/agent/dim/runtimeSupervisor'
 import { DimSessionRuntime } from '@/agent/dim/sessionRuntime'
 import { dimDatabase } from './fixtures/database'
 import { DimProductContext } from '@/agent/dim/productContext'
+import { DimProductTools } from '@/agent/dim/productTools'
+import { TOOL_EXECUTION } from '@shared/types/mcp'
 import {
   DimProductGateway,
   type DimProductToolCall,
@@ -465,31 +467,39 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
       authorize: () => {},
       prepare: (_binding, request, signal) => prepareContext(request, signal)
     })
+    const desktopTools = new DimProductTools({
+      database: grants.data,
+      authorize: () => {},
+      catalog: async () => [
+        {
+          definition: {
+            execution: TOOL_EXECUTION.write,
+            type: 'function',
+            function: {
+              name: 'deepchat_facade_echo',
+              description: `Fixture product capability ${productCatalogVersion}`,
+              parameters: {
+                type: 'object',
+                properties: { text: { type: 'string' } },
+                required: ['text']
+              }
+            },
+            server: { name: 'fixture', icons: '', description: 'Desktop fixture' }
+          },
+          risk: 'session',
+          execute: async (call) => {
+            productToolCalls.push(call)
+            return { content: `product capability: ${call.arguments.text}` }
+          }
+        }
+      ]
+    })
     const gateway = new DimProductGateway({
       resolve: async (nativeId) => {
         if (
           grants.data.dimSessionBindingsTable.getByNative(nativeId)?.sessionId === 'facade-product'
         )
-          return {
-            version: productCatalogVersion,
-            tools: [
-              {
-                name: 'deepchat_facade_echo',
-                description: 'Fixture product capability',
-                inputSchema: {
-                  type: 'object',
-                  properties: { text: { type: 'string' } },
-                  required: ['text']
-                },
-                source: 'extension' as const,
-                risk: 'session' as const
-              }
-            ],
-            execute: async (call) => {
-              productToolCalls.push(call)
-              return { content: `product capability: ${call.arguments.text}` }
-            }
-          }
+          return desktopTools.resolve(nativeId)
         return {
           version: 'empty',
           tools: [],
@@ -1769,6 +1779,48 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
           name: 'deepchat_facade_echo',
           arguments: { text: 'scope-only' }
         })
+        const forkProduct = toAppSessionId('facade-fork')
+        grants.data.newSessionsTable.create(forkProduct, 'deepchat', 'Native fork', profile)
+        await facade.backend.initSession(forkProduct, {
+          providerId: 'desktop-fixture',
+          modelId: 'fixture'
+        })
+        const forkSourceBinding = grants.data.dimSessionBindingsTable.get(facadeId)!
+        const forkSource = await new DimContent(host).transcript(
+          {
+            sessionId: forkSourceBinding.dimSessionId,
+            branchId: forkSourceBinding.branchId
+          },
+          facadeId
+        )
+        const forkMessage = forkSource.messages.findLast((message) => message.status === 'sent')!
+        await facade.mutations.forkSessionFromMessage(facadeId, forkProduct, forkMessage.id)
+        const forkBinding = grants.data.dimSessionBindingsTable.get(forkProduct)!
+        const forkView = await new DimContent(host).transcript(
+          {
+            sessionId: forkBinding.dimSessionId,
+            branchId: forkBinding.branchId
+          },
+          forkProduct
+        )
+        expect(forkView.messages.map((message) => message.content)).toEqual(
+          forkSource.messages
+            .filter(
+              (message) => message.status === 'sent' && message.orderSeq <= forkMessage.orderSeq
+            )
+            .map((message) => message.content)
+        )
+        expect(forkView.messages.length).toBeGreaterThan(0)
+        expect(
+          forkView.messages.every(
+            (message) =>
+              message.sessionId === forkProduct &&
+              !forkSource.messages.some((source) => source.id === message.id)
+          )
+        ).toBe(true)
+        await facade.backend.destroySession(forkProduct)
+        expect(grants.data.dimSessionBindingsTable.get(facadeId)).not.toBeNull()
+
         const memorySource = new DimMemorySource({
           database: grants.data,
           host,
@@ -1816,7 +1868,10 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
             sessionId: facadeBinding.dimSessionId,
             branchId: facadeBinding.branchId
           })
-        ).toMatchObject({ count: 1, version: 'facade-only' })
+        ).toMatchObject({
+          count: 1,
+          version: (await desktopTools.resolve(facadeBinding.dimSessionId)).version
+        })
         await facade.backend.setSessionProjectDir(facadeId, changedDirectory)
         await facade.backend.send(facadeId, { content: { text: 'facade after directory' } })
         await facade.runtime.waitIdle(facadeId)

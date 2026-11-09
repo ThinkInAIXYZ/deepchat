@@ -9,6 +9,14 @@ export type DimHistoryChange =
   | { kind: 'truncate'; fromOrderSeq: number }
   | { kind: 'retry'; fromOrderSeq: number; messageId: string }
   | { kind: 'edit'; messageId: string; expectedContent: string; content: string }
+  | {
+      kind: 'fork'
+      productSessionId: string
+      sessionId: string
+      branchId: string
+      through: string
+      messageId: string
+    }
 
 export interface DimScopeChange {
   sessionId: string

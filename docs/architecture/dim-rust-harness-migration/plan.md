@@ -2,7 +2,7 @@
 
 本文件是唯一执行跟踪表。目标与职责见 [spec.md](./spec.md)。
 
-状态：已交付 release、插件宿主与持久会话读写核心；主产品的 session backend 尚未切换。下列任务是 DeepChat 接入 dim 的实施任务，不是 dim 功能缺口清单。dim 的完整队列直接复用，ACP 保持 DeepChat client 路径，dim 自身 OAuth 不做适配，桌面功能保持原所有者；数据库持续加解密按用户决定移除，只保留旧数据解密迁移。
+状态：主产品 composition 已切换到 dim backend，旧 harness 不再构造；产品插件与辅助文本入口已接线，剩余能力迁移和旧执行器物理清理继续进行。下列任务是 DeepChat 接入 dim 的实施任务，不是 dim 功能缺口清单。dim 的完整队列直接复用，ACP 保持 DeepChat client 路径，dim 自身 OAuth 不做适配，桌面功能保持原所有者；数据库持续加解密按用户决定移除，只保留旧数据解密迁移。
 
 ## P0. 基线与已确认决策
 
@@ -38,7 +38,7 @@
 
 负责边界：`AgentManager`、Session 服务、`DimAgentBackend`、`deepchat-host`。
 
-- [ ] 持久化 appSessionId ↔ dimSessionId/branch/store/runtime 映射；旧内置会话标为待转换，ACP 保留原 backend。
+- [x] 持久化 appSessionId ↔ dimSessionId/branch/store/runtime 映射；旧内置会话标为待转换，ACP 保留原 backend。
 - [ ] `DimAgentBackend` 通过 host 插件实现现有发送、取消、快照、设置与交互 facet；插件内调用 dim service，不导入旧 harness 服务图。
 - [ ] 将队列 list/update/reorder/steer/resume 等 UI 操作直接绑定 dim 原生队列；移除旧 pending pump 的执行职责，不新增 TS 队列或先行改造 dim InputQueue。
 - [ ] 将 dim 事件转换为既有消息块、usage、状态及 typed events，保留 turn/request/tool 身份和错误来源。
@@ -135,7 +135,7 @@
 
 ## P8. 切换与旧执行器移除
 
-- [ ] 开发试用 → 新会话默认 dim → 正式将旧内置会话续聊入口切至 migration；不在后台批量迁移全部旧历史，不对同一输入双执行。
+- [x] 开发试用 → 新会话默认 dim → 正式将旧内置会话续聊入口切至 migration；不在后台批量迁移全部旧历史，不对同一输入双执行。
 - [ ] 观察接入错误、未确认提交、转换失败和延迟；失败恢复原始数据/对应版本，不把已迁移会话静默送回旧执行器。
 - [ ] 切换后删除旧 built-in harness/loop/runtime、pending pump、TS 模型执行及 Tape writer/reconciler；旧会话 reader/migrator 保留，未全部转换不阻塞旧执行器移除。
 - [ ] 保留 Direct ACP client 及真实 desktop 服务；清理 feature flag、无调用者依赖和持续数据库加密入口，legacy 解密 importer 仍支持旧备份。
@@ -157,6 +157,8 @@
 建议按 release/插件骨架、session/队列绑定、产品能力、解密与按需转换、desktop 读取/Inspector、切换清理拆 PR。取消旧版按推测上游缺口估算的 12–20 人周；首个插件端到端切片完成后，依据实际映射与转换工作量估算，不把 ACP/OAuth 重写或 desktop 重做计入。
 
 ## 模块进度
+
+- 模块 29：主 composition 改为 createDimAgent，旧 harness 不再实例化；会话、队列、交互、配置、消息编辑/重试/清空、记忆 context/提取/证据与销毁走 Native owners。持久绑定恢复只附着已接纳的 Native scopes，不在启动时转换旧会话；数据库维护先关闭 Native readers/租约与宿主，恢复后再附着。辅助文本通过 DimAuxiliaryModels 接入 ProviderRuntime 的产品 facade；媒体、向量和特殊推理仍需继续迁移。新产品工具目录直接复用桌面浏览器/记忆/会话引用处理器及产品管理 MCP，不导入旧 AgentToolManager、ToolSurface 或内置文件/进程/搜索/skills/agent/调度工具。标准 stdio MCP 只映射命令、工具链与环境后交给 Rust；显式 CWD/隔离环境走产品兼容桥。原生 fork 固定来源 cutoff、为目标生成独立展示身份并导入 Native owner，持久 mutation intent 支持中断恢复，删除分叉不影响来源。新增 Electron 真实产品会话/重启续聊用例，在虚拟 X11 显示中执行。9 项原生 smoke、64 项入口/工具/模型回归和 100 项产品生命周期回归通过；完整构建和 Electron 真实聊天/重启续聊验收通过；format、i18n、lint、双端 typecheck 与 Memory scope 检查通过。下一阶段处理原生内部 branch/child 的产品作用域、剩余模型/skills/hooks/Inspector、备份及旧代码删除。
 
 - 模块 28：Memory coordinator 改用会话读端口、异步来源和审计端口，不依赖旧 harness registry；保留原注入/提取/分块/失效/排空策略。新增 Native memory 组合和 settled Timeline 来源，读取固定已结束回合，不把活跃回合提前提取；旧代证据通过 dim storage owner 读取。来源 JSON/DTO 同时支持旧数字 Tape 引用与 dim 的不可变视图（u64 字符串、messageId），现有来源界面保留展示。原生 memory audit 走 retirement 共用 lane，持久回执有独立 timeline 地址，不写 Tape、不进模型上下文，桥升为 0.5.0。作用域销毁/失效会取消提取的模型端口并拒绝迟到写入。真实 Rust 验证 settled 来源、关闭代次证据和审计隔离；9 项 native、982 项 Memory 行为、375 项旧入口回归、78 项 Memory 类型门禁通过，分页的 50k 数据夹具在 30s 预算下通过，format/i18n/lint/双端 typecheck 通过。删除要求重新激活 Code Mode 的过时旧用例。Native memory 组合和来源读取仍待主入口接线，Native 子会话/分支的产品能力继承与 Inspector 继续实施。
 

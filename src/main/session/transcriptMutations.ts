@@ -21,7 +21,8 @@ export interface SessionTranscriptMutationDependencies {
   runInTransaction<T>(operation: () => T): T
   native?: {
     owns(sessionId: string): boolean
-    mutations: Omit<SessionTranscriptMutationPort, 'forkSessionFromMessage'>
+    mutations: Omit<SessionTranscriptMutationPort, 'forkSessionFromMessage'> &
+      Partial<Pick<SessionTranscriptMutationPort, 'forkSessionFromMessage'>>
   }
 }
 
@@ -165,6 +166,16 @@ export class SessionTranscriptMutations {
     targetSessionId: string,
     targetMessageId: string
   ): Promise<void> {
+    if (this.dependencies.native?.owns(sourceSessionId)) {
+      const fork = this.dependencies.native.mutations.forkSessionFromMessage
+      if (!fork) throw new Error('Native fork owner is unavailable')
+      return fork.call(
+        this.dependencies.native.mutations,
+        sourceSessionId,
+        targetSessionId,
+        targetMessageId
+      )
+    }
     const target = this.requireMessage(sourceSessionId, targetMessageId)
     const clonedMemoryCursorOrderSeq = this.dependencies.transcript.cloneSentMessagesToSession(
       sourceSessionId,

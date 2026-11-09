@@ -1,4 +1,5 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
+import type { DimAuxiliaryModels } from '@/agent/dim/auxiliaryModels'
 import logger from '@shared/logger'
 import type { LLMResponse } from '@shared/types/provider'
 import type { ChatMessage } from '@shared/types/core/chat-message'
@@ -157,6 +158,41 @@ export class ProviderRuntime
   private readonly acpRuntimeOwner: AcpRuntimeOwner
   private readonly acpSessionPersistence: AcpSessionPersistence
   private shutdownPromise?: Promise<void>
+  private nativeModels?: DimAuxiliaryModels
+
+  /** Desktop catalog administration remains here; production text inference belongs to dim. */
+  setNativeModels(models: DimAuxiliaryModels): void {
+    this.nativeModels = models
+  }
+
+  private async nativeCompletion(
+    providerId: string,
+    modelId: string,
+    messages: ChatMessage[],
+    temperature?: number,
+    maxTokens?: number,
+    signal?: AbortSignal
+  ): Promise<LLMResponse> {
+    const reply = await this.nativeModels!.complete({
+      providerId,
+      modelId,
+      messages,
+      parameters: { temperature, maxTokens },
+      signal
+    })
+    return {
+      content: reply.text,
+      ...(reply.usage
+        ? {
+            totalUsage: {
+              prompt_tokens: reply.usage.promptTokens,
+              completion_tokens: reply.usage.completionTokens,
+              total_tokens: reply.usage.totalTokens
+            }
+          }
+        : {})
+    }
+  }
 
   constructor(
     providerSettings: ProviderSettingsPort,
@@ -542,6 +578,9 @@ export class ProviderRuntime
     temperature?: number,
     maxTokens?: number
   ): Promise<string> {
+    if (this.nativeModels)
+      return (await this.nativeCompletion(providerId, modelId, messages, temperature, maxTokens))
+        .content
     // Record input messages to the large model
     logger.info('generateCompletion', providerId, modelId, temperature, maxTokens, messages)
     const provider = this.getProviderInstance(providerId)
@@ -556,6 +595,14 @@ export class ProviderRuntime
     temperature?: number,
     maxTokens?: number
   ): Promise<LLMResponse> {
+    if (this.nativeModels)
+      return this.nativeCompletion(
+        providerId,
+        modelId,
+        [{ role: 'user', content: text }],
+        temperature,
+        maxTokens
+      )
     const provider = this.getProviderInstance(providerId)
     return provider.summaries(text, modelId, temperature, maxTokens)
   }
@@ -568,6 +615,15 @@ export class ProviderRuntime
     maxTokens?: number,
     options?: Pick<ProviderGenerateTextOptions, 'signal'>
   ): Promise<LLMResponse> {
+    if (this.nativeModels)
+      return this.nativeCompletion(
+        providerId,
+        modelId,
+        [{ role: 'user', content: prompt }],
+        temperature,
+        maxTokens,
+        options?.signal
+      )
     const provider = this.getProviderInstance(providerId)
     return options
       ? provider.generateText(prompt, modelId, temperature, maxTokens, options)
@@ -582,6 +638,24 @@ export class ProviderRuntime
     maxTokens?: number,
     options?: { signal?: AbortSignal; swallowErrors?: boolean }
   ): Promise<string> {
+    if (this.nativeModels) {
+      try {
+        return (
+          await this.nativeCompletion(
+            providerId,
+            modelId,
+            messages,
+            temperature,
+            maxTokens,
+            options?.signal
+          )
+        ).content
+      } catch (error) {
+        options?.signal?.throwIfAborted()
+        if (options?.swallowErrors === false) throw error
+        return ''
+      }
+    }
     const provider = this.getProviderInstance(providerId)
     let response = ''
     const signal = options?.signal

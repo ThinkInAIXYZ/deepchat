@@ -9,6 +9,7 @@ import { ApiEndpointType, ModelType } from '../../../src/shared/model'
 import { AcpRuntimeOwner } from '@/agent/acp/client'
 import { AcpSessionPersistence } from '@/agent/acp/runtime'
 import { DEFAULT_PROVIDERS } from '@/provider/defaults'
+import { DimAuxiliaryModels } from '@/agent/dim/auxiliaryModels'
 import { ProviderInstanceManager } from '@/provider/managers/providerInstanceManager'
 
 const {
@@ -454,6 +455,70 @@ describe('ProviderRuntime Integration Tests', () => {
   describe('Non-stream Completion', () => {
     beforeEach(async () => {
       await providerRuntime.setCurrentProvider('mock-openai-api')
+    })
+
+    it('routes desktop text inference exclusively through the installed native facade', async () => {
+      const complete = vi.fn().mockResolvedValue({
+        text: 'native answer',
+        stopReason: 'end_turn',
+        usage: { promptTokens: 2, completionTokens: 3, totalTokens: 5 }
+      })
+      const legacy = vi.spyOn(
+        providerRuntime.getProviderInstance('mock-openai-api'),
+        'generateText'
+      )
+      providerRuntime.setNativeModels(
+        new DimAuxiliaryModels({
+          models: {
+            admit: async () => ({ providerId: 'native-provider', modelId: 'native-model' })
+          },
+          bridge: { complete }
+        })
+      )
+      const signal = new AbortController().signal
+      await expect(
+        providerRuntime.generateText('mock-openai-api', 'prompt', 'mock-gpt-thinking', 0.2, 128, {
+          signal
+        })
+      ).resolves.toEqual({
+        content: 'native answer',
+        totalUsage: { prompt_tokens: 2, completion_tokens: 3, total_tokens: 5 }
+      })
+      expect(complete).toHaveBeenCalledWith(
+        { providerId: 'native-provider', modelId: 'native-model' },
+        { messages: [{ role: 'user', content: [{ type: 'text', text: 'prompt' }] }] },
+        signal,
+        { temperature: 0.2, maxTokens: 128 }
+      )
+      expect(legacy).not.toHaveBeenCalled()
+    })
+
+    it('propagates native cancellation without falling back to a desktop provider', async () => {
+      const controller = new AbortController()
+      const complete = vi.fn(async () => {
+        controller.abort()
+        throw new Error('native disconnected')
+      })
+      const legacy = vi.spyOn(providerRuntime.getProviderInstance('mock-openai-api'), 'completions')
+      providerRuntime.setNativeModels(
+        new DimAuxiliaryModels({
+          models: {
+            admit: async () => ({ providerId: 'native-provider', modelId: 'native-model' })
+          },
+          bridge: { complete }
+        })
+      )
+      await expect(
+        providerRuntime.generateCompletionStandalone(
+          'mock-openai-api',
+          [{ role: 'user', content: 'prompt' }],
+          'mock-gpt-thinking',
+          0.2,
+          128,
+          { signal: controller.signal }
+        )
+      ).rejects.toThrow()
+      expect(legacy).not.toHaveBeenCalled()
     })
 
     it('should generate completion without streaming', async () => {
