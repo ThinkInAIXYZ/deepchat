@@ -417,7 +417,13 @@ export interface AgentNoProgressToolLoopMetadata {
 export type InteractionResolution = 'cancelled' | 'follow_up' | 'error' | 'pending_input'
 
 export interface MessageMetadata {
-  dim?: { sessionId: string; branchId: string; eventId: string; sequence: string }
+  dim?: {
+    sessionId: string
+    branchId: string
+    eventId: string
+    sequence: string
+    revision?: number
+  }
   acp?: { remoteSessionId: string; turnId?: string; historyDigest?: string }
   runId?: string
   runOutcome?: 'completed' | 'paused' | 'aborted' | 'error'

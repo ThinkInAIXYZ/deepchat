@@ -93,3 +93,32 @@ it('does not apply a slow settings patch to a session whose model changed in the
     max_tokens: 4096
   })
 })
+
+it('updates an existing session context atomically without recreating its row or writing a Tape', async () => {
+  const { data, sqlite, state } = fixture()
+  await state.initSession('session', { providerId: 'old', modelId: 'old' })
+  data.deepchatSessionsTable.updateSummaryState('session', {
+    summaryText: 'retained summary',
+    summaryCursorOrderSeq: 7,
+    summaryUpdatedAt: 123
+  })
+  await state.setSessionAgentContext('session', {
+    agentId: 'new-agent',
+    providerId: 'new-provider',
+    modelId: 'new-model',
+    permissionMode: 'full_access',
+    generationSettings: { maxTokens: 1000, systemPrompt: 'new prompt' }
+  })
+  expect(data.deepchatSessionsTable.get('session')).toMatchObject({
+    provider_id: 'new-provider',
+    model_id: 'new-model',
+    permission_mode: 'full_access',
+    max_tokens: 1000,
+    system_prompt: 'new prompt',
+    summary_text: 'retained summary',
+    summary_cursor_order_seq: 7
+  })
+  expect(sqlite.prepare("SELECT name FROM sqlite_master WHERE name LIKE '%tape%'").all()).toEqual(
+    []
+  )
+})

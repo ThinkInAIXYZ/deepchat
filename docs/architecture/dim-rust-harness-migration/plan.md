@@ -158,6 +158,7 @@
 ## 模块进度
 
 - 模块 1：锁定 alpha.21 六平台 release 与 rutis 0.19.3，新增 `installRuntime:dim`、冻结插件运行时依赖、两个独立插件模块和安装完整性回归。Linux x64 的首次安装、重复安装以及托管 Node 已验证；其他平台尚未执行。
+- 模块 12：新增内置 backend 的 dim 提交 facade、桌面事件发布与设置 controller；把无执行职责的 output/sessionUpdates 移到 shared，ACP 不再从旧 runtime 导入这些视图合同。native Agent profile 按内容身份复用，模型切换/并发设置采用串行配置命令，context/output 上限及 timeout 由 native 配置采用。真实 Runtime 证明 persona/参数/上限进入 Rust 请求，模型切换与并发设置一致，原生事实产生 stream/status/usage 与通知；302 项 ACP/共享视图回归通过。主 composition factory 仍未切换，完整队列/交互/迁移和生命周期 controller 正在继续接线。
 - 模块 11：产品输入的展示信息写入 dim 的非上下文扩展事实，输入本身仍走 Branch.input 并保持 submission 幂等；拒绝 malformed representation 与外部 handover。storage 插件接入完整 committed Timeline 读取（公共 history 会过滤扩展事件），保留 u64 游标与固定 through。桌面消息/附件名称/原文本/引用可从 native 事实重建，输入消费/撤回清理暂存缓存。真实 Runtime.submit、重复提交、Rust HTTP 请求不含展示元数据、重启后清空缓存再重建均已验证。
 - 模块 10：引入产品模型目录适配和持久非密钥 provider grant，现有 provider/model 设置转换为 native provider 与 capability snapshot；密钥仅采用引用。回调按 provider/model 的当前启用状态、连接身份及引用重新授权，支持凭据轮换并在禁用或换地址后拒绝旧授权。真实 Rust HTTP fixture 已改走此目录，SQLite 重开与撤销回归通过。生成参数映射只生成 dim ModelConfig；OAuth 特殊连接、媒体/向量及主 backend 仍在后续接入。
 - 模块 9：新增锁定 alpha.21 source commit 的 Rust 插件装配，设置走 Branch.configure、扩展辅助调用走 native auxiliary_model owner；启用原有 ProviderSecretHost 注入依赖。凭据通过私有网关按引用读取，值不落 native 配置。构建清单核对源码、锁文件、二进制 hash 和桥版本，明确区分官方 release alpha.21 与源码 package alpha.18。Linux x64 的 8 项集成检查通过，含真实 HTTP 参数/取消、凭据引用、重启和 profile 全文件无明文密钥检查。产品 settings/backend 接线与其余平台构建仍待完成。

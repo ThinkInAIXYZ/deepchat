@@ -34,11 +34,18 @@ interface CatalogOptions {
 export class DimModelCatalog {
   constructor(private readonly options: CatalogOptions) {}
 
-  async admit(providerId: string, modelId: string): Promise<DimModelId> {
+  async admit(
+    providerId: string,
+    modelId: string,
+    options?: { timeout?: number }
+  ): Promise<DimModelId> {
     const provider = this.requireProvider(providerId)
     if (!this.options.settings.getModelStatus(providerId, modelId))
       throw new Error('Model is disabled')
-    const config = this.options.settings.getModelConfig(modelId, providerId)
+    const config = {
+      ...this.options.settings.getModelConfig(modelId, providerId),
+      ...(options?.timeout === undefined ? {} : { timeout: options.timeout })
+    }
     const connection = this.connection(provider, modelId, config)
     const capability = this.options.settings.getCapabilitySnapshot({ providerId, modelId })
     const portrait = capability.reasoningPortrait

@@ -15,6 +15,13 @@ import { dimDatabase } from './fixtures/database'
 import { DimProductGateway, type DimProductToolCall } from '@/agent/dim/productGateway'
 import { DimModelBridge } from '@/agent/dim/modelBridge'
 import { DimModelCatalog } from '@/agent/dim/modelCatalog'
+import { DimAgentProfiles } from '@/agent/dim/agentProfiles'
+import { DimSessionSettings } from '@/agent/dim/sessionSettings'
+import { DesktopSessionState } from '@/session/desktopSessionState'
+import { DimDesktopProjection } from '@/agent/dim/desktopProjection'
+import { createDeepChatOutputProjection } from '@/session/outputProjection'
+import { createSessionStatusProjection } from '@/session/sessionStatusProjection'
+import type { SessionEventPublisher } from '@/events/sessionEventRouter'
 import type { ProviderSettingsPort } from '@/provider/settings'
 import type { ModelConfig } from '@shared/types/provider'
 import { DimSessionControls } from '@/agent/dim/sessionControls'
@@ -300,6 +307,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
     const profile = await mkdtemp(path.join(os.tmpdir(), 'dc-dim-provider-'))
     const grants = dimDatabase(path.join(profile, 'desktop.sqlite'))
     let catalog: DimModelCatalog | null = null
+    let nativeSettings: DimSessionSettings | null = null
     let admittedProvider = ''
     let credentialValue = 'fixture-secret-only'
     const gateway = new DimProductGateway({
@@ -359,36 +367,71 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
         }
       }
       if (nativePlugins) {
+        const settings = {
+          getProviderById: () => ({
+            id: 'desktop-fixture',
+            name: configuration.displayName,
+            apiType: 'openai-compatible',
+            apiKey: credentialValue,
+            baseUrl: configuration.connection.baseUrl,
+            enable: true
+          }),
+          getModelStatus: () => true,
+          isKnownModel: () => true,
+          getProviderDbSourceUrl: () => '',
+          supportsAudioInputCapability: () => false,
+          getModelConfig: () =>
+            ({
+              contextLength: 128000,
+              maxTokens: 1024,
+              timeout: 60000,
+              temperature: 0.7,
+              vision: false,
+              functionCall: true,
+              reasoning: false
+            }) as ModelConfig,
+          getProviderModelRouteMetadata: () => undefined,
+          getCapabilitySnapshot: () =>
+            ({
+              supportsAudioInput: false,
+              identity: { providerId: 'desktop-fixture' },
+              mediaSettings: { image: false, video: false },
+              requestPolicy: {
+                temperature: { mode: 'passthrough' },
+                topP: { mode: 'passthrough' },
+                reasoning: { mode: 'passthrough' },
+                legacyThinking: { mode: 'passthrough' }
+              },
+              thinkingBudgetRange: {},
+              supportsReasoningEffort: false,
+              supportsReasoning: false,
+              reasoningPortrait: null
+            }) as ReturnType<ProviderSettingsPort['getCapabilitySnapshot']>
+        }
         catalog = new DimModelCatalog({
-          settings: {
-            getProviderById: () => ({
-              id: 'desktop-fixture',
-              name: configuration.displayName,
-              apiType: 'openai-compatible',
-              apiKey: credentialValue,
-              baseUrl: configuration.connection.baseUrl,
-              enable: true
-            }),
-            getModelStatus: () => true,
-            getModelConfig: () =>
-              ({
-                contextLength: 128000,
-                maxTokens: 1024,
-                vision: false,
-                functionCall: true,
-                reasoning: false
-              }) as ModelConfig,
-            getProviderModelRouteMetadata: () => undefined,
-            getCapabilitySnapshot: () =>
-              ({
-                supportsAudioInput: false,
-                supportsReasoning: false,
-                reasoningPortrait: null
-              }) as ReturnType<ProviderSettingsPort['getCapabilitySnapshot']>
-          },
+          settings,
           models,
           grants: grants.data.dimProviderGrantsTable,
           credential: async () => credentialValue
+        })
+        const state = new DesktopSessionState({
+          database: grants.data,
+          providerSettings: settings,
+          promptSettings: { getDefaultSystemPrompt: async () => 'Native product persona sentinel' }
+        })
+        nativeSettings = new DimSessionSettings({
+          state,
+          database: grants.data,
+          profiles: new DimAgentProfiles(host),
+          models: catalog,
+          controls: new DimSessionControls(host),
+          identity: async () => ({ name: 'Product fixture', description: '', cwd: profile }),
+          configurationChanged: async () => {}
+        })
+        await nativeSettings.initSession('product-ui', {
+          providerId: 'desktop-fixture',
+          modelId: 'fixture',
+          generationSettings: { temperature: 0.23, topP: 0.71, maxTokens: 83, contextLength: 64000 }
         })
       }
       const admit = () =>
@@ -397,10 +440,10 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
       admittedProvider = target.providerId
       expect(await admit()).toEqual(target)
       const client = await host.start()
-      const { sessionId } = await client.call<{ sessionId: string }>('deepchat.host.launch', {
-        cwd: profile,
-        model: target
-      })
+      const launch = nativeSettings
+        ? await nativeSettings.launch('product-ui')
+        : { cwd: profile, model: target }
+      const { sessionId } = await client.call<{ sessionId: string }>('deepchat.host.launch', launch)
       const ref = { sessionId, branchId: 'main' }
       const controls = new DimSessionControls(host)
       const policy = await controls.call<{
@@ -443,13 +486,31 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
         const submissionId = randomUUID()
         grants.data.dimSessionBindingsTable.bind('product-ui', sessionId)
         const failures: unknown[] = []
+        const desktopEvents: Array<{ name: string; payload: unknown }> = []
+        const publishEvent: SessionEventPublisher = (name, payload) => {
+          desktopEvents.push({ name, payload })
+        }
+        let notifications = 0
+        const views = new DimDesktopProjection({
+          publishEvent,
+          output: createDeepChatOutputProjection({ publishEvent, publishSessionUpdate: () => {} }),
+          publishStatus: createSessionStatusProjection({
+            publishEvent,
+            publishSessionUpdate: () => {},
+            sessionUiPort: { refreshSessionUi: () => {} }
+          }),
+          completed: () => {
+            notifications++
+          }
+        })
         const desktop = new DimSessionRuntime({
           database: grants.data,
           host,
           launch: async () => {
             throw new Error('Existing native identity must be reused')
           },
-          projected: () => {},
+          prepare: (binding) => nativeSettings!.prepare(binding),
+          projected: (_id, projection) => views.apply(projection),
           failed: (_id, error) => failures.push(error)
         })
         const accepted = await desktop.submit(
@@ -466,6 +527,20 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
         await desktop.waitIdle('product-ui')
         await desktop.close('product-ui')
         expect(failures).toEqual([])
+        expect(
+          desktopEvents.filter((event) => event.name === 'chat.stream.completed')
+        ).toHaveLength(1)
+        expect(desktopEvents.some((event) => event.name === 'chat.stream.updated')).toBe(true)
+        expect(
+          desktopEvents
+            .filter((event) => event.name === 'sessions.status.changed')
+            .map((event) => (event.payload as { status: string }).status)
+        ).toEqual(['idle', 'generating', 'idle'])
+        expect(notifications).toBe(1)
+        expect(JSON.stringify(requests[0].body)).toContain('Native product persona sentinel')
+        expect(await controls.call('native_settings', ref)).toMatchObject({
+          capabilitySnapshot: { capabilities: { contextWindow: 64000, maxOutputTokens: 83 } }
+        })
         const input = {
           ...ref,
           input: {
@@ -530,6 +605,19 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
       if (nativePlugins) {
         expect(requests[0].body).toMatchObject({ temperature: 0.23, top_p: 0.71, max_tokens: 83 })
         expect(requests[1].body).toMatchObject({ temperature: 0.31, top_p: 0.68, max_tokens: 93 })
+        await nativeSettings!.setSessionModel('product-ui', 'desktop-fixture', 'fixture-2')
+        expect(await controls.call('native_settings', ref)).toMatchObject({ modelId: 'fixture-2' })
+        await nativeSettings!.setSessionModel('product-ui', 'desktop-fixture', 'fixture')
+        await Promise.all([
+          nativeSettings!.updateGenerationSettings('product-ui', { temperature: 0.41 }),
+          nativeSettings!.updateGenerationSettings('product-ui', { temperature: 0.42 })
+        ])
+        expect(await controls.call('native_settings', ref)).toMatchObject({
+          config: { temperature: 0.42 }
+        })
+        expect(await nativeSettings!.getGenerationSettings('product-ui')).toMatchObject({
+          temperature: 0.42
+        })
         await expect(
           controls.call('native_configure', ref, {
             config: { temperature: 0.5 },
@@ -579,6 +667,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
       }
       expect(await admit()).toEqual(target)
       if (nativePlugins) {
+        expect(await nativeSettings!.launch('product-ui')).toEqual(launch)
         const recovered = await (
           await host.start()
         ).call<{ events: DimEvent[] }>('deepchat.storage.history', {

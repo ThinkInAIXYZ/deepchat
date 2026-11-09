@@ -6,6 +6,8 @@ const OPERATIONS = {
   permission: ['session.permission.get', false],
   set_permission: ['session.permission.update', true],
   set_model: ['session.model.update', true],
+  set_agent: ['session.agent.update', true],
+  agent: ['session.agent.get', false],
   refresh_prompt: ['session.prompt.refresh', true],
   context: ['session.context.usage', false],
   compact: ['session.context.compact', true],

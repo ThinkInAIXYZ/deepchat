@@ -11,7 +11,8 @@ import type {
 import {
   resolveSessionGenerationSettings,
   sanitizeGenerationSettings,
-  buildPersistedGenerationSettingsPatch
+  buildPersistedGenerationSettingsPatch,
+  buildPersistedGenerationSettingsReplacement
 } from '@/agent/shared/generationSettings'
 
 export interface DesktopSessionStateOptions {
@@ -123,5 +124,43 @@ export class DesktopSessionState implements SessionStatePort {
     const row = this.options.database.deepchatSessionsTable.get(sessionId)
     if (!row) throw new Error(`Session ${sessionId} not found`)
     return row
+  }
+
+  async setSessionAgentContext(
+    sessionId: string,
+    config: SessionAgentContextUpdate
+  ): Promise<void> {
+    this.require(sessionId)
+    if (this.options.database.dimSessionBindingsTable.get(sessionId)?.status === 'generating')
+      throw new Error('Cannot move a session while it is generating')
+    const settings = await sanitizeGenerationSettings(
+      this.options.providerSettings,
+      this.options.promptSettings,
+      config.providerId,
+      config.modelId,
+      config.generationSettings ?? {}
+    )
+    this.options.database.getDatabase().transaction(() => {
+      this.require(sessionId)
+      if (this.options.database.dimSessionBindingsTable.get(sessionId)?.status === 'generating')
+        throw new Error('Cannot move a session while it is generating')
+      this.options.database.deepchatSessionsTable.updateSessionModel(
+        sessionId,
+        config.providerId,
+        config.modelId
+      )
+      this.options.database.deepchatSessionsTable.updatePermissionMode(
+        sessionId,
+        config.permissionMode
+      )
+      this.options.database.deepchatSessionsTable.updateGenerationSettings(
+        sessionId,
+        buildPersistedGenerationSettingsReplacement(settings)
+      )
+      if (config.projectDir !== undefined)
+        this.options.database.newSessionsTable.update(sessionId, {
+          project_dir: config.projectDir?.trim() || null
+        })
+    })()
   }
 }

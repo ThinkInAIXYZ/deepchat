@@ -1,4 +1,4 @@
-import type { DeepChatOutputPort } from './output'
+import type { DeepChatOutputPort } from '@/agent/shared/output'
 import type { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAgentInstance'
 import { parseMessageMetadata } from '@/session/data/messageContent'
 import type { AcpAsLlmProviderPermissionPort } from '@/provider/ports'

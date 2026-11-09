@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { DeepChatOutputPort } from './output'
+import type { DeepChatOutputPort } from '@/agent/shared/output'
 import type { AssistantMessageBlock } from '@shared/types/agent-interface'
 import type { SessionTranscriptPort } from '@/session/data/contracts'
 import {
@@ -7,7 +7,7 @@ import {
   buildAssistantPreviewMarkdown,
   buildAssistantResponseMarkdown,
   extractWaitingInteraction
-} from './sessionUpdates'
+} from '@/agent/shared/sessionUpdates'
 import { resolveStreamRequestId, type StreamRequestIdRegistry } from './streamRequestId'
 
 export type MessageProjectionTranscript = Pick<

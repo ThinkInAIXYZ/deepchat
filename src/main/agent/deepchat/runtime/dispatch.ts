@@ -74,7 +74,7 @@ import {
   buildAssistantPreviewMarkdown,
   buildAssistantResponseMarkdown,
   extractWaitingInteraction
-} from './sessionUpdates'
+} from '@/agent/shared/sessionUpdates'
 import {
   cacheToolCallImagePreviews,
   extractToolCallImagePreviews

@@ -1,4 +1,8 @@
-import type { AssistantMessageBlock, SessionCompactionState } from '@shared/types/agent-interface'
+import type {
+  AssistantMessageBlock,
+  DeepChatSessionState,
+  SessionCompactionState
+} from '@shared/types/agent-interface'
 import type { DeepChatInternalSessionUpdate } from './sessionUpdates'
 
 export interface DeepChatOutputPort {
@@ -35,4 +39,14 @@ export interface DeepChatOutputPort {
     }
   ): void
   sessionUpdate(update: DeepChatInternalSessionUpdate): void
+}
+
+export interface SessionStatusPublisherPorts {
+  publishStatus(update: {
+    sessionId: string
+    status: DeepChatSessionState['status']
+    updatedAt: number
+    changed: boolean
+    usage?: Record<string, number>
+  }): void
 }

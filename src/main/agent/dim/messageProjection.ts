@@ -59,7 +59,8 @@ export function projectDimEvent(
         sessionId: binding.dimSessionId,
         branchId: binding.branchId,
         eventId: event.id,
-        sequence: String(event.sequence)
+        sequence: String(event.sequence),
+        revision: 0
       }
     }),
     createdAt: now,
@@ -307,7 +308,8 @@ export function projectDimEvent(
         sessionId: binding.dimSessionId,
         branchId: binding.branchId,
         eventId: event.id,
-        sequence: String(event.sequence)
+        sequence: String(event.sequence),
+        revision: (metadata.dim?.revision ?? 0) + 1
       }
     })
     messages.push(message)

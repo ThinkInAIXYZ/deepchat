@@ -35,7 +35,7 @@ import {
   buildSystemPromptWithSkills,
   type SystemPromptBuilderDependencies
 } from '@/agent/deepchat/resources/systemPromptBuilder'
-import type { DeepChatOutputPort } from '@/agent/deepchat/runtime/output'
+import type { DeepChatOutputPort } from '@/agent/shared/output'
 import { createProviderViewManifest } from '@/tape/application/providerViewManifest'
 import type {
   TapeReconciliationPort,

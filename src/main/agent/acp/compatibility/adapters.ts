@@ -1,4 +1,4 @@
-import type { DeepChatOutputPort } from '@/agent/deepchat/runtime/output'
+import type { DeepChatOutputPort } from '@/agent/shared/output'
 import { nanoid } from 'nanoid'
 import type { PermissionRequestPayload } from '@shared/types/core/llm-events'
 import { createStreamEvent } from '@shared/types/core/llm-events'

@@ -1,5 +1,5 @@
 import type { SkillContextTapePort } from '@/tape/application/capabilityAdapters'
-import type { DeepChatOutputPort } from '../runtime/output'
+import type { DeepChatOutputPort } from '@/agent/shared/output'
 import type { PluginContextPort } from '@shared/types/userPlugin'
 import type { ProviderExecutionPort } from '@shared/types/provider'
 import type { SkillMetadataSnapshotPort, SkillServicePort } from '@shared/types/skill'

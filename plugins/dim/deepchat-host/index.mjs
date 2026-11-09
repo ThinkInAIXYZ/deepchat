@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { definePlugin } from '@arcships/rutis'
 import { registerProductTools } from './product-tools.mjs'
 import { registerSessionControls } from './session-controls.mjs'
+import { registerAgentProfiles } from './agent-profiles.mjs'
 
 export default definePlugin({
   name: 'DeepChatHost',
@@ -56,6 +57,7 @@ export default definePlugin({
     await ctx.use('partRegistry').registerDefinition('branch', 'DeepChatDesktopEvents', observer)
     if (config.gatewayAddress) await registerProductTools(ctx, config.gatewayAddress)
     await registerSessionControls(ctx, config.hostAddress, config.profile)
+    await registerAgentProfiles(ctx, config.hostAddress, config.profile)
     const operations = {
       launch: (params) => sessions.launch(params),
       input: (params) => sessions.input(params),

@@ -1,6 +1,6 @@
 import { createRateLimitBlock } from './echo'
 import { createProviderViewManifest, type ProviderViewManifestInput } from '@/tape/application/providerViewManifest'
-import type { DeepChatOutputPort } from './output'
+import type { DeepChatOutputPort } from '@/agent/shared/output'
 import type { PluginContextPort } from '@shared/types/userPlugin'
 import { projectPluginContext } from './pluginContext'
 import type { ProviderModelResolutionPort } from '@/provider/settings'

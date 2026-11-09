@@ -1,4 +1,4 @@
-import type { DeepChatOutputPort } from './output'
+import type { DeepChatOutputPort } from '@/agent/shared/output'
 import type { PluginContextPort } from '@shared/types/userPlugin'
 import type { ProviderModelResolutionPort } from '@/provider/settings'
 import type {

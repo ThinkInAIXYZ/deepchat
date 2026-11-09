@@ -1,4 +1,5 @@
 use dim_agent_capabilities::{
+    host::ModelSelectionHost,
     methods::{Interruption, MethodCall, MethodDecl, RpcError, SessionMethods, params, reply},
     prompt_state::PromptSnapshot,
     timeline_tree::TreeCommands,
@@ -22,12 +23,14 @@ pub fn install(builder: &mut AgentBuilder) {
 struct Settings {
     tree: Key<TreeCommands>,
     methods: Key<SessionMethods>,
+    selection: Key<ModelSelectionHost>,
 }
 impl Settings {
     fn new(names: &Names<'_>) -> rutis::Result<Self> {
         Ok(Self {
             tree: names.key()?,
             methods: names.key()?,
+            selection: names.key()?,
         })
     }
 }
@@ -36,12 +39,17 @@ impl DynPlugin for Settings {
         "DeepChatNativeSettings"
     }
     fn injects(&self) -> Vec<TypeKey> {
-        vec![self.tree.erase(), self.methods.erase()]
+        vec![
+            self.tree.erase(),
+            self.methods.erase(),
+            self.selection.erase(),
+        ]
     }
     fn apply<'a>(&'a self, ctx: &'a Ctx) -> BoxFuture<'a, rutis::Result<Effect>> {
         Box::pin(async move {
             let tree = ctx.require_at(&self.tree)?;
             let methods = ctx.require_at(&self.methods)?;
+            let selection = ctx.require_at(&self.selection)?;
             methods.register(
                 ctx,
                 "session.deepchat_native",
@@ -57,8 +65,9 @@ impl DynPlugin for Settings {
                         Interruption::Report,
                     ),
                 ],
-                Arc::new(move |call, _cancel, _| {
+                Arc::new(move |call, cancel, _| {
                     let tree = tree.clone();
+                    let selection = selection.clone();
                     Box::pin(async move {
                         let MethodCall {
                             method,
@@ -77,6 +86,8 @@ impl DynPlugin for Settings {
                             replace: bool,
                             #[serde(default)]
                             expected_model: Option<ModelId>,
+                            #[serde(default)]
+                            limits: Option<Limits>,
                         }
                         let p: Params = params(value)?;
                         let branch = tree.get(&p.branch_id)?;
@@ -98,6 +109,43 @@ impl DynPlugin for Settings {
                                 "Native model selection changed",
                             ));
                         }
+                        let mut capabilities = current.capability_snapshot;
+                        if let Some(limits) = p.limits {
+                            if limits.context_window == 0 || limits.max_output_tokens == 0 {
+                                return Err(RpcError::invalid(
+                                    "Native model limits must be positive",
+                                ));
+                            }
+                            let baseline = selection
+                                .0
+                                .resolve(
+                                    Some(ModelId {
+                                        provider_id: current.provider_id.clone(),
+                                        model_id: current.model_id.clone(),
+                                    }),
+                                    None,
+                                    cancel,
+                                )
+                                .await
+                                .map_err(|_| {
+                                    RpcError::service(
+                                        "model_unavailable",
+                                        "Cannot resolve native model limits",
+                                    )
+                                })?;
+                            let mut snapshot = baseline.capability_snapshot.ok_or_else(|| {
+                                RpcError::invalid("Native model limits are unavailable")
+                            })?;
+                            snapshot.capabilities.context_window = snapshot
+                                .capabilities
+                                .context_window
+                                .min(limits.context_window);
+                            snapshot.capabilities.max_output_tokens = snapshot
+                                .capabilities
+                                .max_output_tokens
+                                .min(limits.max_output_tokens);
+                            capabilities = Some(snapshot);
+                        }
                         let patch = p.config.ok_or_else(|| {
                             RpcError::invalid("A model configuration patch is required")
                         })?;
@@ -116,7 +164,7 @@ impl DynPlugin for Settings {
                                 model: Some(ModelSelection {
                                     provider_id: current.provider_id,
                                     model_id: current.model_id,
-                                    capability_snapshot: current.capability_snapshot,
+                                    capability_snapshot: capabilities,
                                     metadata: current.metadata,
                                     config: Some(config),
                                 }),
@@ -136,6 +184,13 @@ impl DynPlugin for Settings {
             Ok(Effect::Done)
         })
     }
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct Limits {
+    context_window: u64,
+    max_output_tokens: u64,
 }
 
 /// Merge only fields understood by the pinned native ModelConfig.

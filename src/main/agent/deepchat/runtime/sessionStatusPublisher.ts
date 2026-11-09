@@ -1,15 +1,8 @@
 import type { DeepChatSessionState } from '@shared/types/agent-interface'
 import type { SessionRuntimeScope } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 
-export interface SessionStatusPublisherPorts {
-  publishStatus(update: {
-    sessionId: string
-    status: DeepChatSessionState['status']
-    updatedAt: number
-    changed: boolean
-    usage?: Record<string, number>
-  }): void
-}
+import type { SessionStatusPublisherPorts } from '@/agent/shared/output'
+export type { SessionStatusPublisherPorts } from '@/agent/shared/output'
 
 export class SessionStatusPublisher {
   constructor(private readonly ports: SessionStatusPublisherPorts) {}

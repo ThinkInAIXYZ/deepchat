@@ -8,6 +8,8 @@ export type DimSessionOperation =
   | 'permission'
   | 'set_permission'
   | 'set_model'
+  | 'set_agent'
+  | 'agent'
   | 'refresh_prompt'
   | 'context'
   | 'compact'

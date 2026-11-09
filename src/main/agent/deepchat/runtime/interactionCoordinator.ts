@@ -1,4 +1,4 @@
-import type { DeepChatOutputPort } from './output'
+import type { DeepChatOutputPort } from '@/agent/shared/output'
 import type {
   AssistantMessageBlock,
   ToolInteractionResponse,
