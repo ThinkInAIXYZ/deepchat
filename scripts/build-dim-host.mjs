@@ -58,7 +58,7 @@ for (const name of ['LICENSE', 'NOTICE'])
 await writeFile(
   path.join(destination, 'DEEPCHAT-NATIVE-NOTICE.txt'),
   `DeepChat native dim assembly\nBase: ${lock.sourceCommit}\n` +
-    'Modified Provider assembly to enable the existing ProviderSecretHost dependency.\n' +
+    'Modified Provider assembly to enable ProviderSecretHost and referenced custom headers.\n' +
     'DeepChat adds configuration, auxiliary-model and credential-reference plugins.\n' +
     'Execution implementations are supplied by dim. DeepChat additions: Apache-2.0.\n'
 )

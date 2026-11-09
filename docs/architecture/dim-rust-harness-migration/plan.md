@@ -158,6 +158,8 @@
 
 ## 模块进度
 
+- 模块 26：自定义 HTTP Header 改为不可变不透明引用，调用时通过 ProviderSecretHost 临时读取；Header 轮换/删除撤销旧连接，匿名 provider 的 Header 也有独立准入，原生配置和 Timeline 不存明文。薄桥 0.3.0 在 Provider 装配的两个精确 seam 启用引用解析，loop/驱动不变。新增产品附件准备 facade，保留 OCR/PDF 选择、图片、引用、展示数据和 retry 的历史 representation，阻塞/取消不提交；音频等待 native media 接线，不能静默降级。组合工厂的真实 HTTP 测试改用该输入端口。9 项原生 smoke、额外组合回归与 1092 项 main 回归通过；脚本回归以 umask 022、30s 架构扫描预算通过，format/i18n/lint/双端 typecheck 通过。主 composition 仍待切换。
+
 - 模块 25：抽出附件/引用/用户输入格式化为无执行职责的共享模块，ACP client 不再为此依赖旧 context builder；保留现有 OCR/PDF/文件显示规则，去掉旧 Code Mode 引导。新增辅助模型 facade，先进行产品模型准入，再将 system、文本/图片与工具历史转换为 dim 原生合同，配置默认值和取消边界保留；provider replay 与无效工具参数拒绝恢复。真实 Rust/HTTP 验证辅助调用与参数，3 项合同测试、348 项 context/ACP 回归及 format/i18n/lint/双端 typecheck 通过。主 composition 与音频原生接纳仍待完成。
 
 - 模块 24：原生媒体适配插件从 dim ProviderService 的公开 metadata 重建 UUID→vendor 名称映射，模型连接和全部执行仍委托 dim Modality/MediaAdapter；恢复时坏 provider 不阻塞其他会话。产品模型目录声明媒体操作和非聊天类型，防止图片等模型误进入聊天选择。新增仅提交/等待/取消/读取结果的 DimModality facade，结果有界分片与 SHA 校验，保留未知提交身份和未知取消结果。薄桥版本升为 0.2.0，旧二进制会在 manifest 握手被拒绝。真实 HTTP 验证图片、TTS、转写、幂等、取消、重启后从 dim owner 恢复映射/任务及凭据轮换；9 项原生 smoke 与 1182 项相关 main 回归通过，format/i18n/lint/双端 typecheck 通过。媒体会话/产品辅助调用入口与其他 provider 的完整兼容仍待接线。

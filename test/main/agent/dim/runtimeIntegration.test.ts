@@ -14,6 +14,7 @@ import { DimSessionRuntime } from '@/agent/dim/sessionRuntime'
 import { dimDatabase } from './fixtures/database'
 import { DimProductGateway, type DimProductToolCall } from '@/agent/dim/productGateway'
 import { DimModelBridge } from '@/agent/dim/modelBridge'
+import { DimInputPreparation } from '@/agent/dim/inputPreparation'
 import { DimAuxiliaryModels } from '@/agent/dim/auxiliaryModels'
 import { DimModelCatalog } from '@/agent/dim/modelCatalog'
 import { DimAgentProfiles } from '@/agent/dim/agentProfiles'
@@ -262,7 +263,11 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
 it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
   'uses Rust model owners with native extensions=%s and cancels their HTTP requests',
   async (nativePlugins) => {
-    const requests: Array<{ authorization?: string; body: Record<string, unknown> }> = []
+    const requests: Array<{
+      authorization?: string
+      productHeader?: string
+      body: Record<string, unknown>
+    }> = []
     const conversationRequests = () =>
       requests.filter(
         (item) =>
@@ -322,7 +327,11 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
         res.end(JSON.stringify({ jsonrpc: '2.0', id: body.id, result }))
         return
       }
-      requests.push({ authorization: req.headers.authorization, body })
+      requests.push({
+        authorization: req.headers.authorization,
+        productHeader: req.headers['x-product-secret'] as string | undefined,
+        body
+      })
       const titleRequest = JSON.stringify(body.messages ?? []).includes(
         'Write a short title for this conversation:'
       )
@@ -502,6 +511,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
             name: configuration.displayName,
             apiType: 'openai-compatible',
             apiKey: credentialValue,
+            customHeaders: { 'x-product-secret': 'native-header-secret-sentinel' },
             baseUrl: configuration.connection.baseUrl,
             enable: providerEnabled
           }),
@@ -792,7 +802,12 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
       expect(requests.every((item) => item.authorization === 'Bearer fixture-secret-only')).toBe(
         true
       )
-      if (nativePlugins) credentialValue = 'rotated-native-credential'
+      if (nativePlugins) {
+        expect(
+          requests.every((item) => item.productHeader === 'native-header-secret-sentinel')
+        ).toBe(true)
+        credentialValue = 'rotated-native-credential'
+      }
       const abort = new AbortController()
       const completion = models.complete(
         target,
@@ -812,11 +827,11 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
           for (const entry of await readdir(directory, { withFileTypes: true })) {
             const filename = path.join(directory, entry.name)
             if (entry.isDirectory()) await verifyNoPlaintextCredential(filename)
-            else if (entry.isFile())
-              expect(
-                (await readFile(filename)).includes(Buffer.from('fixture-secret-only')),
-                filename
-              ).toBe(false)
+            else if (entry.isFile()) {
+              const bytes = await readFile(filename)
+              for (const secret of ['fixture-secret-only', 'native-header-secret-sentinel'])
+                expect(bytes.includes(Buffer.from(secret)), filename).toBe(false)
+            }
           }
         }
         await verifyNoPlaintextCredential(path.join(profile, 'dim'))
@@ -1622,11 +1637,15 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
             description: '',
             cwd: grants.data.newSessionsTable.get(id)?.project_dir ?? profile
           }),
-          prepareInput: async (_id, input) => ({
-            content: [{ type: 'text', text: input.text }],
-            representation: { text: input.text, files: [], links: [], search: false, think: false },
-            summary: { status: 'ready', issues: [], suggestedActions: [] }
-          }),
+          prepareInput: new DimInputPreparation({
+            capabilities: () => ({ vision: false, audio: false }),
+            attachments: {
+              prepare: async ({ content }) => ({
+                content,
+                summary: { status: 'ready', issues: [], suggestedActions: [] }
+              })
+            }
+          }).prepare,
           output: createDeepChatOutputProjection({
             publishEvent: () => {},
             publishSessionUpdate: () => {}

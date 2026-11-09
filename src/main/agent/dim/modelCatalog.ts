@@ -122,14 +122,8 @@ export class DimModelCatalog {
       throw new Error('Model is disabled')
     if (fingerprint(this.connection(current, modelId, config)) !== fingerprint(connection))
       throw new Error('Provider connection changed during native configuration')
-    if (
-      connection.credential &&
-      typeof connection.credential === 'object' &&
-      !Array.isArray(connection.credential)
-    ) {
-      const reference = connection.credential.reference
-      if (typeof reference !== 'string')
-        throw new Error('Native provider requires a credential reference')
+    if (connection.credential || Object.values(provider.customHeaders ?? {}).some(Boolean)) {
+      const reference = credentialReference(provider.id)
       this.options.grants.put({
         nativeProviderId: target.providerId,
         providerId,
@@ -148,13 +142,22 @@ export class DimModelCatalog {
   ): Promise<DimCredential> {
     signal.throwIfAborted()
     const grant = this.options.grants.get(nativeProviderId)
-    if (!grant || grant.reference !== reference) throw new Error('Unknown native credential grant')
+    if (!grant) throw new Error('Unknown native credential grant')
     const provider = this.requireProvider(grant.providerId)
     if (!this.options.settings.getModelStatus(grant.providerId, grant.modelId))
       throw new Error('Model is disabled')
     if (fingerprint(this.credentialScope(provider)) !== grant.connectionFingerprint)
       throw new Error('Provider connection was replaced')
-    const value = await this.options.credential(provider, signal)
+    let value: DimCredential
+    if (reference === grant.reference) {
+      value = await this.options.credential(provider, signal)
+    } else {
+      const header = Object.entries(provider.customHeaders ?? {}).find(
+        ([name, value]) => value && headerReference(provider.id, name, value) === reference
+      )
+      if (!header) throw new Error('Unknown native credential grant')
+      value = header[1]
+    }
     signal.throwIfAborted()
     const current = this.requireProvider(grant.providerId)
     if (!this.options.settings.getModelStatus(grant.providerId, grant.modelId))
@@ -238,13 +241,30 @@ export class DimModelCatalog {
         : {
             credential: {
               action: 'set_ref',
-              reference: `deepchat/provider/v1/${encodeURIComponent(provider.id)}`
+              reference: credentialReference(provider.id)
             }
           }),
-      headers: { ...definition?.defaultHeadersPatch, ...provider.customHeaders },
+      headers: {
+        ...definition?.defaultHeadersPatch,
+        ...Object.fromEntries(
+          Object.entries(provider.customHeaders ?? {}).map(([name, value]) => [
+            name,
+            value ? `deepchat-header-ref:v1:${headerReference(provider.id, name, value)}` : ''
+          ])
+        )
+      },
       ...(config.timeout && config.timeout > 0 ? { network: { timeoutMs: config.timeout } } : {})
     }
   }
+}
+
+function credentialReference(providerId: string): string {
+  return `deepchat/provider/v1/${encodeURIComponent(providerId)}`
+}
+function headerReference(providerId: string, name: string, value: string): string {
+  // Rotation creates a different immutable connection and revokes previous grants. Only a
+  // digest is durable; the product's protected credential owner retains the actual value.
+  return `deepchat/header/v1/${encodeURIComponent(providerId)}/${encodeURIComponent(name)}/${fingerprint(value)}`
 }
 
 function dimModality(config: ModelConfig): { kind: string; output?: string; operations: string[] } {

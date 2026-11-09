@@ -25,7 +25,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
       'base64'
     )
     const wave = Buffer.from('RIFF\u0004\u0000\u0000\u0000WAVE')
-    const requests: Array<{ url: string; authorization?: string }> = []
+    const requests: Array<{ url: string; authorization?: string; productHeader?: string }> = []
     let held = false
     let cancelled = false
     let credential = 'native-media-first'
@@ -33,7 +33,11 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
       const chunks: Buffer[] = []
       for await (const chunk of request) chunks.push(Buffer.from(chunk))
       const body = Buffer.concat(chunks)
-      requests.push({ url: request.url!, authorization: request.headers.authorization })
+      requests.push({
+        url: request.url!,
+        authorization: request.headers.authorization,
+        productHeader: request.headers['x-product-secret'] as string | undefined
+      })
       if (request.url === '/v1/images/generations') {
         expect(JSON.parse(body.toString()).prompt).toContain('native image')
         if (JSON.parse(body.toString()).prompt === 'native image hold') {
@@ -90,7 +94,8 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
       apiType: 'openai',
       enable: true,
       baseUrl: `http://127.0.0.1:${(fixture.address() as { port: number }).port}/v1`,
-      apiKey: 'protected-by-product'
+      apiKey: 'protected-by-product',
+      customHeaders: { 'x-product-secret': 'native-media-header-secret' }
     }
     catalog = new DimModelCatalog({
       settings: {
@@ -205,6 +210,9 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
       })
       await wait(restored.task.task_id)
       expect(requests.at(-1)?.authorization).toBe('Bearer native-media-rotated')
+      expect(
+        requests.every((request) => request.productHeader === 'native-media-header-secret')
+      ).toBe(true)
     } finally {
       await host.stop()
       await gateway.stop()

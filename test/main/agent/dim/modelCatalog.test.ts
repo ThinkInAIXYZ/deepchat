@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { expect, it } from 'vitest'
 import { mkdtemp, rm } from 'node:fs/promises'
 import path from 'node:path'
@@ -91,5 +92,82 @@ it('persists non-secret grants, rotates credentials and fences replaced or disab
   } finally {
     db.sqlite.close()
     await rm(directory, { recursive: true, force: true })
+  }
+})
+
+it('keeps custom headers behind immutable grants, including anonymous connections', async () => {
+  const db = dimDatabase()
+  const provider: LLM_PROVIDER = {
+    id: 'ollama',
+    name: 'Local',
+    apiType: 'ollama',
+    baseUrl: 'http://localhost:11434',
+    apiKey: '',
+    enable: true,
+    customHeaders: { 'x-private': 'first-header-secret', 'x-empty': '' }
+  }
+  let connection: Record<string, unknown> = {}
+  let lookups = 0
+  const catalog = new DimModelCatalog({
+    settings: {
+      getProviderById: () => provider,
+      getModelStatus: () => true,
+      getModelConfig: () =>
+        ({ contextLength: 8192, maxTokens: 1024, functionCall: true }) as ModelConfig,
+      getProviderModelRouteMetadata: () => undefined,
+      getCapabilitySnapshot: () =>
+        ({ supportsReasoning: false, supportsAudioInput: false }) as ReturnType<
+          ProviderSettingsPort['getCapabilitySnapshot']
+        >
+    },
+    models: {
+      configure: async (configuration) => {
+        connection = configuration.connection
+        return {
+          providerId: createHash('sha256').update(JSON.stringify(configuration)).digest('hex'),
+          modelId: 'local'
+        }
+      }
+    },
+    grants: db.data.dimProviderGrantsTable,
+    credential: async () => {
+      lookups++
+      throw new Error('Anonymous connection has no API key')
+    }
+  })
+  const signal = new AbortController().signal
+  const reference = () =>
+    (connection.headers as Record<string, string>)['x-private'].replace(
+      'deepchat-header-ref:v1:',
+      ''
+    )
+  try {
+    const first = await catalog.admit(provider.id, 'local')
+    const firstReference = reference()
+    expect(JSON.stringify(connection)).not.toContain('first-header-secret')
+    expect((connection.headers as Record<string, string>)['x-empty']).toBe('')
+    expect(connection.credential).toBeUndefined()
+    expect(await catalog.credential(first.providerId, firstReference, signal)).toBe(
+      'first-header-secret'
+    )
+    provider.customHeaders = { 'x-private': 'second-header-secret' }
+    await expect(catalog.credential(first.providerId, firstReference, signal)).rejects.toThrow(
+      'replaced'
+    )
+    const second = await catalog.admit(provider.id, 'local')
+    expect(second.providerId).not.toBe(first.providerId)
+    expect(await catalog.credential(second.providerId, reference(), signal)).toBe(
+      'second-header-secret'
+    )
+    await expect(catalog.credential(second.providerId, firstReference, signal)).rejects.toThrow(
+      'Unknown'
+    )
+    provider.enable = false
+    await expect(catalog.credential(second.providerId, reference(), signal)).rejects.toThrow(
+      'unavailable'
+    )
+    expect(lookups).toBe(0)
+  } finally {
+    db.sqlite.close()
   }
 })

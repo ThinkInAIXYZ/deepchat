@@ -39,7 +39,8 @@ export interface DimBackendOptions {
   prepareInput(
     sessionId: AppSessionId,
     input: SendMessageInput,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    options?: { preserveResolvedRepresentations?: boolean }
   ): Promise<DimPreparedInput>
   // Configuration adoption and on-demand conversion complete before native admission.
   prepareNative(sessionId: string, context?: StartContext): Promise<void>
@@ -66,7 +67,9 @@ export function createDimSessionBackend(options: DimBackendOptions): DeepChatAge
     signal?.throwIfAborted()
     if (isSendMessageInputEmpty(input)) throw new Error('Message cannot be empty')
     if (!(await state.getSessionState(sessionId))) throw new Error('Session is not initialized')
-    const prepared = await options.prepareInput(sessionId, input, signal)
+    const prepared = await options.prepareInput(sessionId, input, signal, {
+      preserveResolvedRepresentations: context?.preserveResolvedRepresentations
+    })
     if (prepared.summary.status === 'needs_user_action')
       return {
         requestId: null,
