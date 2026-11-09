@@ -22,11 +22,13 @@
 负责边界：runtime packaging、`src/main/agent/dim/` supervisor、插件装载。
 
 - [x] 固定 runtime manifest：release/source commit、六平台包/hash、SDK/rutis/插件运行时版本、插件 digest、存储版本和许可证；接入现有 runtime 安装与离线打包。
-- [ ] 每 profile 启动独立受监督宿主，显式 home/data root，socket/pipe 私有；复用现有进程树、退出和代理/CA 配置。
-- [ ] 装载 `deepchat-host` 与 `deepchat-storage` 两条插件 row；由插件注册 process/Session/branch parts，通过 `ctx.use` 获取 dim services。
-- [ ] 完成最小插件调用：desktop → 插件注册的方法 → dim session service → 插件事件 → desktop。业务边界是插件代码，不经 ACP、不解析 CLI 输出。
+- [x] 每 profile 启动独立受监督宿主，显式 home/data root，socket/pipe 私有；复用现有进程树、退出和代理/CA 配置。
+- [x] 装载 `deepchat-host` 与 `deepchat-storage` 两条 process 插件 row，通过 `ctx.use` 获取 dim `sessions`/management services。
+- [ ] 按产品工具与 timeline 读取需要注册 Session/branch parts；当前基础控制与历史查询使用 process services。
+- [x] 完成最小插件调用：desktop → 插件注册的方法 → dim session service → 插件事件 → desktop。业务边界是插件代码，不经 ACP、不解析 CLI 输出。
 - [ ] 固定 typed `DimPluginClient` 调用合同及版本握手；本地 socket/pipe 仅承载跨进程调用，App Server 公共 RPC 探针不代替插件集成验收。
-- [ ] 验证 loader 生命周期、SDK 匹配、卸载、重启、错误、字节上限和 u64 游标；不预设上游补丁或自建薄 host。
+- [x] 验证基础宿主启停、SDK/版本/profile 匹配、插件 readiness、重启与 u64 无损读取、断线后不盲重试。
+- [ ] 继续覆盖独立插件 reload/撤销、raw timeline 分页与 desktop 生命周期；不预设上游补丁或自建薄 host。
 
 完成条件：官方 release 可离线运行，两个插件可加载并直接调用 dim 服务，桌面能收到真实结果。
 
@@ -155,11 +157,11 @@
 ## 模块进度
 
 - 模块 1：锁定 alpha.21 六平台 release 与 rutis 0.19.3，新增 `installRuntime:dim`、冻结插件运行时依赖、两个独立插件模块和安装完整性回归。Linux x64 的首次安装、重复安装以及托管 Node 已验证；其他平台尚未执行。
-- 模块 2：宿主进程、插件客户端及原生集成验证正在接入，完成后单独提交。主应用尚未接入，P2 队列 UI、P5 migration 等任务保持未完成。
+- 模块 2：实现 `DimRuntimeSupervisor` 与 `DimPluginClient`，使用私有 socket/pipe、受管 Node、版本/profile/readiness 校验、并发启动合并、graceful shutdown 及进程树兜底；新增 `smoke:dim` 原生集成检查。主应用尚未接入，P2 队列 UI、P5 migration 等任务保持未完成。
 
 ## 方案验证记录与 PR 状态
 
-- 基础验证沿用已完成记录：官方 alpha.21 Linux x64 checksum/version、v3 socket、mock Rust loop、input lookup、history 与重启一致性。未验证插件的部分未改标为通过。
+- 官方 alpha.21 Linux x64 的 checksum/version、重复安装、受管 Node、两个实际注入插件的 mock 回合/lookup/history/重启一致性，以及无账号的 product profile 插件启动均已验证。真实 provider、完整插件工具、其他平台和桌面 backend 接线尚未验证。
 - 本次修订已通过文档本地链接、代码围栏、whitespace 与旧缺口标签清理检查；重新运行 `i18n:validate` 通过（23 locales）。
-- 网络变更后依赖和 Electron 原生模块已安装，先前依赖阻塞已解除；当前模块的验证结果在提交时更新。
+- 网络变更后依赖和 Electron 原生模块已安装，先前依赖阻塞已解除；本次所有相关检查均实际执行，未绕过 TLS/校验和。
 - 方案已提交为面向 `dev` 的 [Draft PR #2511](https://github.com/ThinkInAIXYZ/deepchat/pull/2511)，包含修订后的插件集成与按需迁移范围；产品代码尚未迁移。

@@ -1,6 +1,6 @@
 # DeepChat 以 dim Rust 替换内置 Agent Harness
 
-状态：实施 RFC，尚未迁移产品代码。执行顺序与完成状态见 [plan.md](./plan.md)。
+状态：实施中。已交付 release 安装、两个插件的基础入口、宿主生命周期和本地插件传输；主产品 backend 尚未切换。执行顺序与完成状态见 [plan.md](./plan.md)。
 
 ## 1. 决策与范围
 
@@ -17,7 +17,7 @@
 
 这里“DeepChat 管理存储”指产品对数据的生命周期和存放位置有控制权；dim 是自己物理格式的唯一写入者。DeepChat 经注入的 storage 插件查询 dim 内容，继续管理 profile 与桌面数据操作，不替换 dim 底层存储实现。
 
-本轮交付是完整实施方案及可行性证据，产品运行代码尚未迁移。按用户明确的范围落实以下决定：
+当前已开始按模块实现；基础运行模块已完成验证，聊天 UI、队列绑定与旧会话转换仍按计划实施。按用户明确的范围落实以下决定：
 
 - 队列直接复用 dim 的完整实现，DeepChat 只接 UI 和命令，不另建队列或预设上游缺口。
 - ACP 完全由 DeepChat 现有 client 负责；不新增 dim ACP gateway、ExternalAgent 或跨 ACP 委托任务，也不经 ACP 与 dim 通信。
@@ -50,7 +50,9 @@
 - 正常 shutdown、同目录重启后，在相同 `through` 下返回完全一致的 15 个历史事件。
 - v3 提交必须显式带 `branchId`，已验证 `main` 分支；不能套用 v1 参数。
 
-以上证明 release 本地控制、Rust loop 的 mock 执行和持久历史读取可用；**未验证**真实 provider、工具审批、DeepChat 插件加载、完整原始 timeline 查询、崩溃恢复、其他五个平台或 DeepChat 集成。公开 history 事件数量不等于底层全部事实数量。
+后续实施验证已进一步覆盖 `DimRuntimeSupervisor`、`DimPluginClient` 和两个实际注入插件：由 host 插件调用 `sessions` 完成 mock 回合，storage 插件分页读取内容，使用安装器提供的独立 Node，重启后历史及提交身份保持一致。另验证 product profile 的宿主和插件可在没有账号登录的情况下启动。
+
+**未验证**真实 provider、工具审批、完整原始 timeline、异常崩溃恢复、其余五个平台或桌面 backend 切换。product profile 检查仅覆盖插件启动，不代表真实模型请求已验证；公开 history 数量也不等于全部底层事实。
 
 主要上游依据（固定到 release 源码）：
 
