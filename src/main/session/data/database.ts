@@ -1,6 +1,7 @@
 import { DimInputProjectionTable } from './tables/dimInputProjection'
 import { DimInputIntentsTable } from './tables/dimInputIntents'
 import { DimSessionBindingsTable } from './tables/dimSessionBindings'
+import { DimProviderGrantsTable } from './tables/dimProviderGrants'
 import type { CONVERSATION, CONVERSATION_SETTINGS, SQLITE_MESSAGE } from '@shared/types/session'
 import type { DatabaseConnectionProvider } from '@/data/databaseConnection'
 import { ConversationsTable } from './tables/conversations'
@@ -63,6 +64,10 @@ export class SessionDatabase {
 
   get dimInputProjectionTable() {
     return new DimInputProjectionTable(this.getDatabase())
+  }
+
+  get dimProviderGrantsTable() {
+    return new DimProviderGrantsTable(this.getDatabase())
   }
 
   get dimInputIntentsTable() {

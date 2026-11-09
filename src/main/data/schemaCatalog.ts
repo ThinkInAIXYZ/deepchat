@@ -1,6 +1,7 @@
 import { DimInputProjectionTable } from '@/session/data/tables/dimInputProjection'
 import { DimInputIntentsTable } from '@/session/data/tables/dimInputIntents'
 import { DimSessionBindingsTable } from '@/session/data/tables/dimSessionBindings'
+import { DimProviderGrantsTable } from '@/session/data/tables/dimProviderGrants'
 import Database from 'better-sqlite3-multiple-ciphers'
 import { AGENT_MEMORY_SCOPE_ID_MAX_CHARS } from '@shared/types/agent-memory'
 import { ConversationsTable } from '@/session/data/tables/conversations'
@@ -79,6 +80,7 @@ function normalizeDeclaredType(type: string | null | undefined): string | null {
 }
 
 const CATALOG_DEFINITIONS: CatalogDefinition[] = [
+  { name: 'dim_provider_grants', createTable: (db) => new DimProviderGrantsTable(db) },
   { name: 'dim_input_projection', createTable: (db) => new DimInputProjectionTable(db) },
   { name: 'dim_input_intents', createTable: (db) => new DimInputIntentsTable(db) },
   { name: 'dim_session_bindings', createTable: (db) => new DimSessionBindingsTable(db) },
@@ -490,6 +492,7 @@ export function createMainSchemaCatalog(db: Database.Database): MainSchemaCatalo
   const dimInputProjection = new DimInputProjectionTable(db)
   const dimIntents = new DimInputIntentsTable(db)
   const dimBindings = new DimSessionBindingsTable(db)
+  const dimProviderGrants = new DimProviderGrantsTable(db)
   const deepchatSessions = new DeepChatSessionsTable(db)
   const messages = new DeepChatMessagesTable(db)
   const userMessages = new DeepChatUserMessagesTable(db)
@@ -534,6 +537,7 @@ export function createMainSchemaCatalog(db: Database.Database): MainSchemaCatalo
     projects,
     deepchatSessions,
     dimBindings,
+    dimProviderGrants,
     dimIntents,
     dimInputProjection,
     messages,

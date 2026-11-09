@@ -30,6 +30,7 @@ export function dimDatabase(filename = ':memory:') {
     data.dimSessionBindingsTable,
     data.dimInputIntentsTable,
     data.dimInputProjectionTable,
+    data.dimProviderGrantsTable,
     data.deepchatSessionsTable,
     data.newSessionsTable,
     data.deepchatMessagesTable,

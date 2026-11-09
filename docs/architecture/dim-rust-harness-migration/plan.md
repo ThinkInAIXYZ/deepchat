@@ -158,6 +158,7 @@
 ## 模块进度
 
 - 模块 1：锁定 alpha.21 六平台 release 与 rutis 0.19.3，新增 `installRuntime:dim`、冻结插件运行时依赖、两个独立插件模块和安装完整性回归。Linux x64 的首次安装、重复安装以及托管 Node 已验证；其他平台尚未执行。
+- 模块 10：引入产品模型目录适配和持久非密钥 provider grant，现有 provider/model 设置转换为 native provider 与 capability snapshot；密钥仅采用引用。回调按 provider/model 的当前启用状态、连接身份及引用重新授权，支持凭据轮换并在禁用或换地址后拒绝旧授权。真实 Rust HTTP fixture 已改走此目录，SQLite 重开与撤销回归通过。生成参数映射只生成 dim ModelConfig；OAuth 特殊连接、媒体/向量及主 backend 仍在后续接入。
 - 模块 9：新增锁定 alpha.21 source commit 的 Rust 插件装配，设置走 Branch.configure、扩展辅助调用走 native auxiliary_model owner；启用原有 ProviderSecretHost 注入依赖。凭据通过私有网关按引用读取，值不落 native 配置。构建清单核对源码、锁文件、二进制 hash 和桥版本，明确区分官方 release alpha.21 与源码 package alpha.18。Linux x64 的 8 项集成检查通过，含真实 HTTP 参数/取消、凭据引用、重启和 profile 全文件无明文密钥检查。产品 settings/backend 接线与其余平台构建仍待完成。
 - 模块 8：实际停用 Code Mode 的选择入口；遗留 agent/session/model-catalog 的 code 值不再进入执行模式，回退为可用 Agent/Minimal 选项。删除 Code 专属工具分组与权限提示；旧 Code executor 文件随 P8 一并清理，不接到 dim。相关 renderer 与配置兼容回归覆盖该行为。
 - 模块 7：固定 Session 控制命令接入 native owners（队列/原子 withdraw+steer、权限 CAS、模型/上下文、问题/审批、fork），区分 v3 safe-integer 命令与 u64 内容游标。消息只在 dim input/applied 后进入桌面读模型，缓存尚未应用的输入事实；fork/branch 复用事件 ID 时使用作用域消息身份，工具 call ID 按 request 区分。原生队列/权限/fork 与消息顺序回归已加入，完整 backend/队列编辑 UI 仍待接线。

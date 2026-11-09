@@ -12,6 +12,9 @@ import { DimSessionRuntime } from '@/agent/dim/sessionRuntime'
 import { dimDatabase } from './fixtures/database'
 import { DimProductGateway, type DimProductToolCall } from '@/agent/dim/productGateway'
 import { DimModelBridge } from '@/agent/dim/modelBridge'
+import { DimModelCatalog } from '@/agent/dim/modelCatalog'
+import type { ProviderSettingsPort } from '@/provider/settings'
+import type { ModelConfig } from '@shared/types/provider'
 import { DimSessionControls } from '@/agent/dim/sessionControls'
 import { createServer } from 'node:http'
 
@@ -237,7 +240,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
       for await (const data of req) payload += data
       const body = payload ? JSON.parse(payload) : {}
       requests.push({ authorization: req.headers.authorization, body })
-      if (JSON.stringify(body.messages).includes('hold native auxiliary')) {
+      if (JSON.stringify(body.messages ?? []).includes('hold native auxiliary')) {
         res.once('close', () => {
           nativeCancelled = true
         })
@@ -293,6 +296,8 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
     })
     await new Promise<void>((resolve) => fixture.listen(0, '127.0.0.1', resolve))
     const profile = await mkdtemp(path.join(os.tmpdir(), 'dc-dim-provider-'))
+    const grants = dimDatabase(path.join(profile, 'desktop.sqlite'))
+    let catalog: DimModelCatalog | null = null
     let admittedProvider = ''
     let credentialValue = 'fixture-secret-only'
     const gateway = new DimProductGateway({
@@ -303,7 +308,8 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
           throw new Error('No tools')
         }
       }),
-      credential: async (providerId, reference) => {
+      credential: async (providerId, reference, signal) => {
+        if (catalog) return catalog.credential(providerId, reference, signal)
         if (providerId !== admittedProvider || reference !== 'desktop/provider/fixture')
           throw new Error('Unknown credential reference')
         return credentialValue
@@ -350,9 +356,44 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
           }
         }
       }
-      const target = await models.configure(configuration)
+      if (nativePlugins) {
+        catalog = new DimModelCatalog({
+          settings: {
+            getProviderById: () => ({
+              id: 'desktop-fixture',
+              name: configuration.displayName,
+              apiType: 'openai-compatible',
+              apiKey: credentialValue,
+              baseUrl: configuration.connection.baseUrl,
+              enable: true
+            }),
+            getModelStatus: () => true,
+            getModelConfig: () =>
+              ({
+                contextLength: 128000,
+                maxTokens: 1024,
+                vision: false,
+                functionCall: true,
+                reasoning: false
+              }) as ModelConfig,
+            getProviderModelRouteMetadata: () => undefined,
+            getCapabilitySnapshot: () =>
+              ({
+                supportsAudioInput: false,
+                supportsReasoning: false,
+                reasoningPortrait: null
+              }) as ReturnType<ProviderSettingsPort['getCapabilitySnapshot']>
+          },
+          models,
+          grants: grants.data.dimProviderGrantsTable,
+          credential: async () => credentialValue
+        })
+      }
+      const admit = () =>
+        catalog ? catalog.admit('desktop-fixture', 'fixture') : models.configure(configuration)
+      const target = await admit()
       admittedProvider = target.providerId
-      expect(await models.configure(configuration)).toEqual(target)
+      expect(await admit()).toEqual(target)
       const client = await host.start()
       const { sessionId } = await client.call<{ sessionId: string }>('deepchat.host.launch', {
         cwd: profile,
@@ -468,7 +509,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
         }
         await verifyNoPlaintextCredential(path.join(profile, 'dim'))
       }
-      expect(await models.configure(configuration)).toEqual(target)
+      expect(await admit()).toEqual(target)
       expect(
         await models.complete(target, { messages: [{ role: 'user', content: 'after restart' }] })
       ).toMatchObject({ text: 'Rust provider answer' })
@@ -477,6 +518,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
     } finally {
       await host.stop()
       await gateway.stop()
+      grants.sqlite.close()
       fixture.closeAllConnections()
       await new Promise<void>((resolve) => fixture.close(() => resolve()))
       await rm(profile, { recursive: true, force: true })
