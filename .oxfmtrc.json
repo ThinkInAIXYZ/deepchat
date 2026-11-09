@@ -17,6 +17,8 @@
     "docs",
     "resources",
     "runtime",
+    "native/dim-source",
+    "native/**/target",
     "scripts",
     "build",
     "*.yaml",

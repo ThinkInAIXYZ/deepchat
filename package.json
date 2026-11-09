@@ -76,6 +76,7 @@
     "afterSign": "scripts/notarize.js",
     "installRuntime": "node scripts/install-runtime.mjs",
     "installRuntime:dim": "node scripts/install-runtime.mjs --types node,dim",
+    "build:dim-host": "node scripts/build-dim-host.mjs",
     "installRuntime:win:x64": "node scripts/install-runtime.mjs --platform win32 --arch x64",
     "installRuntime:win:arm64": "node scripts/install-runtime.mjs --platform win32 --arch arm64",
     "installRuntime:mac:arm64": "node scripts/install-runtime.mjs --platform darwin --arch arm64",

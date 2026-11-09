@@ -8,6 +8,7 @@ Install the host, standalone Node and plugin runtime from the repository root:
 
 ```sh
 pnpm run installRuntime:dim
+pnpm run build:dim-host
 ```
 
 The installer verifies the six-platform release lock in `resources/dim-runtime-lock.json`, rejects
@@ -91,3 +92,9 @@ only after dim publishes `input/applied`. This cache neither releases input nor 
 `input/consumed`/`input/deleted` remove it. Messages use native session/branch identities so forked
 history never overwrites another conversation when native event IDs are shared. Tool blocks also
 retain the native request identity, because a model may reuse a call ID in another request.
+
+The small [native plugin assembly](../../native/dim-host/README.md) uses the same locked release
+source for settings adoption and credential references not exposed by alpha.21's TS bindings.
+It calls native owners, including auxiliary model execution with arbitrary validated ModelConfig.
+An explicit one-line Provider assembly patch enables its existing secret-store extension. Official
+release smoke checks remain in place. Production wiring and other platform builds are in progress.

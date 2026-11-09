@@ -132,3 +132,26 @@ it('aborts an in-flight product invocation on disconnect without retrying it', a
     await gateway.stop()
   }
 })
+
+it('authorizes credential references separately and redacts owner failures', async () => {
+  const gateway = new DimProductGateway({
+    resolve: async () => {
+      throw new Error('No session catalog expected')
+    },
+    credential: async (providerId, reference) => {
+      if (providerId === 'admitted' && reference === 'known') return 'fixture-credential'
+      throw new Error('Owner error containing fixture-credential')
+    }
+  })
+  try {
+    const address = await gateway.start()
+    expect(
+      await request(address, { kind: 'credential', providerId: 'other', reference: 'known' })
+    ).toEqual({ error: 'Credential reference is unavailable' })
+    expect(
+      await request(address, { kind: 'credential', providerId: 'admitted', reference: 'known' })
+    ).toEqual({ result: 'fixture-credential' })
+  } finally {
+    await gateway.stop()
+  }
+})

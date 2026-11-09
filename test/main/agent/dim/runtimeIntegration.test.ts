@@ -3,7 +3,7 @@ import { projectDimEvent } from '@/agent/dim/messageProjection'
 import type { DimSessionBinding } from '@/session/data/tables/dimSessionBindings'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
 import { expect, it } from 'vitest'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
@@ -227,9 +227,9 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
   60_000
 )
 
-it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
-  'uses the native Rust provider for agent and auxiliary calls without storing credentials in history',
-  async () => {
+it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
+  'uses Rust model owners with native extensions=%s and cancels their HTTP requests',
+  async (nativePlugins) => {
     const requests: Array<{ authorization?: string; body: Record<string, unknown> }> = []
     let nativeCancelled = false
     const fixture = createServer(async (req, res) => {
@@ -293,8 +293,26 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
     })
     await new Promise<void>((resolve) => fixture.listen(0, '127.0.0.1', resolve))
     const profile = await mkdtemp(path.join(os.tmpdir(), 'dc-dim-provider-'))
+    let admittedProvider = ''
+    let credentialValue = 'fixture-secret-only'
+    const gateway = new DimProductGateway({
+      resolve: async () => ({
+        version: 'empty',
+        tools: [],
+        execute: async () => {
+          throw new Error('No tools')
+        }
+      }),
+      credential: async (providerId, reference) => {
+        if (providerId !== admittedProvider || reference !== 'desktop/provider/fixture')
+          throw new Error('Unknown credential reference')
+        return credentialValue
+      }
+    })
     const host = new DimRuntimeSupervisor({
       runtimeRoot: path.resolve('runtime/dim'),
+      nativePlugins,
+      gatewayAddress: nativePlugins ? await gateway.start() : undefined,
       profileRoot: profile,
       nodeExecutable: path.resolve(
         'runtime/node',
@@ -311,7 +329,9 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
           driverKind: 'openai-compatible',
           auth: { type: 'bearer' },
           baseUrl: `http://127.0.0.1:${port}/v1`,
-          credential: { action: 'set', value: 'fixture-secret-only' }
+          credential: nativePlugins
+            ? { action: 'set_ref', reference: 'desktop/provider/fixture' }
+            : { action: 'set', value: 'fixture-secret-only' }
         },
         model: {
           modelId: 'fixture',
@@ -331,6 +351,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
         }
       }
       const target = await models.configure(configuration)
+      admittedProvider = target.providerId
       expect(await models.configure(configuration)).toEqual(target)
       const client = await host.start()
       const { sessionId } = await client.call<{ sessionId: string }>('deepchat.host.launch', {
@@ -356,6 +377,17 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
           policy: policy.policy
         })
       ).rejects.toThrow()
+      if (nativePlugins) {
+        await expect(
+          controls.call('native_configure', ref, { config: { topP: 1.5 } })
+        ).rejects.toThrow()
+        await controls.call('native_configure', ref, {
+          config: { temperature: 0.23, topP: 0.71, maxTokens: 83 }
+        })
+        expect(await controls.call('native_settings', ref)).toMatchObject({
+          config: { temperature: 0.23, topP: 0.71, maxTokens: 83 }
+        })
+      }
       await client.call('deepchat.host.input', {
         ...ref,
         mode: 'queue',
@@ -376,20 +408,44 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
       ).toBe('Rust provider answer')
       expect(JSON.stringify(history)).not.toContain('fixture-secret-only')
       expect(
-        await models.complete(target, {
-          messages: [{ role: 'user', content: 'native auxiliary request' }],
-          maxOutputTokens: 100
-        })
+        await models.complete(
+          target,
+          {
+            messages: [{ role: 'user', content: 'native auxiliary request' }],
+            maxOutputTokens: 100
+          },
+          undefined,
+          nativePlugins ? { temperature: 0.31, topP: 0.68, maxTokens: 93 } : undefined
+        )
       ).toMatchObject({ text: 'Rust provider answer' })
+      if (nativePlugins) {
+        expect(requests[0].body).toMatchObject({ temperature: 0.23, top_p: 0.71, max_tokens: 83 })
+        expect(requests[1].body).toMatchObject({ temperature: 0.31, top_p: 0.68, max_tokens: 93 })
+        await expect(
+          controls.call('native_configure', ref, {
+            config: { temperature: 0.5 },
+            expectedModel: { ...target, modelId: 'replaced' }
+          })
+        ).rejects.toThrow()
+        await controls.call('native_configure', ref, {
+          config: { temperature: 0.4, maxTokens: 83 },
+          replace: true,
+          expectedModel: target
+        })
+        const adopted = await controls.call<{ config: { topP?: number } }>('native_settings', ref)
+        expect(adopted.config.topP).toBeUndefined()
+      }
       expect(requests.filter((item) => item.body.messages)).toHaveLength(2)
       expect(requests.every((item) => item.authorization === 'Bearer fixture-secret-only')).toBe(
         true
       )
+      if (nativePlugins) credentialValue = 'rotated-native-credential'
       const abort = new AbortController()
       const completion = models.complete(
         target,
         { messages: [{ role: 'user', content: 'hold native auxiliary' }] },
-        abort.signal
+        abort.signal,
+        nativePlugins ? {} : undefined
       )
       // Attach the rejection handler before cancelling so it cannot become an unhandled promise.
       const cancelled = expect(completion).rejects.toThrow()
@@ -398,12 +454,29 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
       await cancelled
       await expect.poll(() => nativeCancelled).toBe(true)
       await host.stop()
+      if (nativePlugins) {
+        const verifyNoPlaintextCredential = async (directory: string): Promise<void> => {
+          for (const entry of await readdir(directory, { withFileTypes: true })) {
+            const filename = path.join(directory, entry.name)
+            if (entry.isDirectory()) await verifyNoPlaintextCredential(filename)
+            else if (entry.isFile())
+              expect(
+                (await readFile(filename)).includes(Buffer.from('fixture-secret-only')),
+                filename
+              ).toBe(false)
+          }
+        }
+        await verifyNoPlaintextCredential(path.join(profile, 'dim'))
+      }
       expect(await models.configure(configuration)).toEqual(target)
       expect(
         await models.complete(target, { messages: [{ role: 'user', content: 'after restart' }] })
       ).toMatchObject({ text: 'Rust provider answer' })
+      if (nativePlugins)
+        expect(requests.at(-1)?.authorization).toBe('Bearer rotated-native-credential')
     } finally {
       await host.stop()
+      await gateway.stop()
       fixture.closeAllConnections()
       await new Promise<void>((resolve) => fixture.close(() => resolve()))
       await rm(profile, { recursive: true, force: true })

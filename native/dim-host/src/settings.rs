@@ -1,0 +1,177 @@
+use dim_agent_capabilities::{
+    methods::{Interruption, MethodCall, MethodDecl, RpcError, SessionMethods, params, reply},
+    prompt_state::PromptSnapshot,
+    timeline_tree::TreeCommands,
+};
+use dim_agent_runtime::{AgentBuilder, ConfigureOutcome, ConfigureUpdate, Names};
+use dim_agent_types::{ModelConfig, ModelId, ModelSelection};
+use rutis::Ctx;
+use rutis::host::{BoxFuture, CtxHost, DynPlugin, Effect, Key, TypeKey};
+use serde::Deserialize;
+use serde_json::{Value, json};
+use std::sync::Arc;
+
+pub fn install(builder: &mut AgentBuilder) {
+    builder.require_feature(
+        dim_agent_runtime::Feature::new("DeepChatNativeSettings")
+            .session("DeepChatNativeSettings", |names| {
+                Ok(Box::new(Settings::new(names)?))
+            }),
+    );
+}
+struct Settings {
+    tree: Key<TreeCommands>,
+    methods: Key<SessionMethods>,
+}
+impl Settings {
+    fn new(names: &Names<'_>) -> rutis::Result<Self> {
+        Ok(Self {
+            tree: names.key()?,
+            methods: names.key()?,
+        })
+    }
+}
+impl DynPlugin for Settings {
+    fn name(&self) -> &str {
+        "DeepChatNativeSettings"
+    }
+    fn injects(&self) -> Vec<TypeKey> {
+        vec![self.tree.erase(), self.methods.erase()]
+    }
+    fn apply<'a>(&'a self, ctx: &'a Ctx) -> BoxFuture<'a, rutis::Result<Effect>> {
+        Box::pin(async move {
+            let tree = ctx.require_at(&self.tree)?;
+            let methods = ctx.require_at(&self.methods)?;
+            methods.register(
+                ctx,
+                "session.deepchat_native",
+                vec![
+                    MethodDecl::new(
+                        "session.deepchat_native.settings",
+                        false,
+                        Interruption::Report,
+                    ),
+                    MethodDecl::new(
+                        "session.deepchat_native.configure",
+                        true,
+                        Interruption::Report,
+                    ),
+                ],
+                Arc::new(move |call, _cancel, _| {
+                    let tree = tree.clone();
+                    Box::pin(async move {
+                        let MethodCall {
+                            method,
+                            params: value,
+                            ..
+                        } = call;
+                        #[derive(Deserialize)]
+                        #[serde(rename_all = "camelCase", deny_unknown_fields)]
+                        struct Params {
+                            #[serde(rename = "sessionId")]
+                            _session_id: String,
+                            branch_id: String,
+                            #[serde(default)]
+                            config: Option<ModelConfig>,
+                            #[serde(default)]
+                            replace: bool,
+                            #[serde(default)]
+                            expected_model: Option<ModelId>,
+                        }
+                        let p: Params = params(value)?;
+                        let branch = tree.get(&p.branch_id)?;
+                        let current = branch
+                            .get::<PromptSnapshot>()
+                            .and_then(|state| state.configuration)
+                            .ok_or_else(|| {
+                                RpcError::invalid("No native model configuration is adopted")
+                            })?;
+                        if method.ends_with(".settings") {
+                            return reply(current);
+                        }
+                        if p.expected_model.is_some_and(|target| {
+                            target.provider_id != current.provider_id
+                                || target.model_id != current.model_id
+                        }) {
+                            return Err(RpcError::service(
+                                "configuration_superseded",
+                                "Native model selection changed",
+                            ));
+                        }
+                        let patch = p.config.ok_or_else(|| {
+                            RpcError::invalid("A model configuration patch is required")
+                        })?;
+                        let base = current.config.unwrap_or_default();
+                        let base = if p.replace {
+                            ModelConfig {
+                                max_tokens: base.max_tokens,
+                                ..Default::default()
+                            }
+                        } else {
+                            base
+                        };
+                        let config = merge(base, patch)?;
+                        let outcome = branch
+                            .configure(ConfigureUpdate {
+                                model: Some(ModelSelection {
+                                    provider_id: current.provider_id,
+                                    model_id: current.model_id,
+                                    capability_snapshot: current.capability_snapshot,
+                                    metadata: current.metadata,
+                                    config: Some(config),
+                                }),
+                                ..Default::default()
+                            })
+                            .await?;
+                        if outcome == ConfigureOutcome::Superseded {
+                            return Err(RpcError::service(
+                                "configuration_superseded",
+                                "Native configuration was superseded",
+                            ));
+                        }
+                        reply(json!({"adopted": true}))
+                    })
+                }),
+            )?;
+            Ok(Effect::Done)
+        })
+    }
+}
+
+/// Merge only fields understood by the pinned native ModelConfig.
+pub fn merge(base: ModelConfig, patch: ModelConfig) -> Result<ModelConfig, RpcError> {
+    validate(&patch)?;
+    let mut value = serde_json::to_value(base)
+        .map_err(|_| RpcError::invalid("Cannot encode model configuration"))?;
+    let Value::Object(fields) = serde_json::to_value(patch)
+        .map_err(|_| RpcError::invalid("Cannot encode model configuration"))?
+    else {
+        unreachable!()
+    };
+    for (name, field) in fields {
+        value
+            .as_object_mut()
+            .expect("ModelConfig")
+            .insert(name, field);
+    }
+    let merged = serde_json::from_value(value)
+        .map_err(|_| RpcError::invalid("Invalid model configuration"))?;
+    validate(&merged)?;
+    Ok(merged)
+}
+
+pub fn validate(config: &ModelConfig) -> Result<(), RpcError> {
+    if config
+        .temperature
+        .is_some_and(|value| !value.is_finite() || !(0.0..=2.0).contains(&value))
+        || config
+            .top_p
+            .is_some_and(|value| !value.is_finite() || !(0.0..=1.0).contains(&value))
+        || config
+            .max_tokens
+            .is_some_and(|value| !value.is_finite() || value <= 0.0 || value.fract() != 0.0)
+    {
+        return Err(RpcError::invalid("Invalid generation parameter"));
+    }
+    Ok(())
+}

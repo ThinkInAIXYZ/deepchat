@@ -10,6 +10,7 @@ files:
   - '!src/*'
   - '!test/*'
   - '!vendor/**'
+  - '!native/**'
   - '!docs/*'
   - '!plugins/**'
   - '!runtime/rtk/**'

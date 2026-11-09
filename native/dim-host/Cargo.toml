@@ -1,0 +1,27 @@
+[package]
+name = "deepchat-dim-host"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.98"
+license = "Apache-2.0"
+publish = false
+
+[dependencies]
+dim-app-server = { path = "../dim-source/crates/dim-app-server" }
+dim-agent-runtime = { path = "../dim-source/crates/dim-agent-runtime" }
+dim-agent-types = { path = "../dim-source/crates/dim-agent-types" }
+dim-agent-capabilities = { path = "../dim-source/crates/dim-agent-capabilities" }
+dim-session-title = { path = "../dim-source/crates/dim-session-title" }
+dim-agent-scheduler = { path = "../dim-source/crates/dim-agent-scheduler" }
+dim-goal = { path = "../dim-source/crates/dim-goal" }
+dim-modality = { path = "../dim-source/crates/dim-modality" }
+dim-modality-aimux = { path = "../dim-source/crates/dim-modality-aimux" }
+dim-ocr = { path = "../dim-source/crates/dim-ocr" }
+rutis = "=0.19.3"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.53.3", features = ["net", "io-util", "time"] }
+tokio-util = "0.7.19"
+
+[profile.dev]
+debug = 0

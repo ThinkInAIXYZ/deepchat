@@ -187,6 +187,10 @@ export async function installDimPlugins(target = path.join(root, 'runtime/dim/pl
   )
   await cp(path.join(root, 'plugins/dim'), path.join(target, 'modules'), { recursive: true })
   await cp(dimLockPath, path.join(target, 'runtime-lock.json'))
+  await cp(
+    path.join(root, 'resources/dim-native-host-lock.json'),
+    path.join(target, 'native-host-lock.json')
+  )
   // dim's --js-runtime takes the package directory, not the runner filename.
   const entry = run(
     process.execPath,

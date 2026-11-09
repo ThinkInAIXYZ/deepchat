@@ -1,5 +1,5 @@
 import { spawn, type ChildProcess } from 'node:child_process'
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -15,6 +15,7 @@ export interface DimRuntimeOptions {
   profile?: 'product' | 'mock'
   startupTimeoutMs?: number
   gatewayAddress?: string
+  nativePlugins?: boolean
 }
 
 export class DimRuntimeSupervisor {
@@ -87,6 +88,8 @@ export class DimRuntimeSupervisor {
   }
 
   private async launch(): Promise<DimPluginClient> {
+    if (this.options.nativePlugins && this.options.profile === 'mock')
+      throw new Error('Native product plugins require the product execution profile')
     const { runtimeRoot, profileRoot, nodeExecutable } = this.options
     const plugins = path.resolve(runtimeRoot, 'plugins')
     const lock = JSON.parse(await readFile(path.join(plugins, 'runtime-lock.json'), 'utf8'))
@@ -95,13 +98,47 @@ export class DimRuntimeSupervisor {
     }
     const target = `${process.platform}-${process.arch}`
     if (!lock.artifacts[target]) throw new Error(`Unsupported dim runtime target: ${target}`)
-    const executable = path.resolve(
+    let executable = path.resolve(
       runtimeRoot,
       'releases',
       `${lock.version}-${target}`,
       'bin',
       process.platform === 'win32' ? 'dimcode.exe' : 'dimcode'
     )
+    let native: { serverVersion: string; sourceRevision: string; bridgeVersion: string } | null =
+      null
+    if (this.options.nativePlugins) {
+      const directory = path.resolve(runtimeRoot, 'native', target)
+      const manifest = JSON.parse(await readFile(path.join(directory, 'manifest.json'), 'utf8'))
+      const nativeLock = JSON.parse(
+        await readFile(path.join(plugins, 'native-host-lock.json'), 'utf8')
+      )
+      const name = process.platform === 'win32' ? 'deepchat-dim-host.exe' : 'deepchat-dim-host'
+      if (
+        manifest.schemaVersion !== 1 ||
+        manifest.target !== target ||
+        manifest.executable !== name ||
+        manifest.baseRelease !== lock.version ||
+        manifest.sourceRevision !== lock.sourceCommit ||
+        nativeLock.schemaVersion !== 1 ||
+        nativeLock.baseRelease !== lock.version ||
+        nativeLock.sourceRevision !== lock.sourceCommit ||
+        manifest.serverVersion !== nativeLock.serverVersion ||
+        manifest.bridgeVersion !== nativeLock.bridgeVersion ||
+        manifest.cargoLockSha256 !== nativeLock.cargoLockSha256 ||
+        manifest.assemblyPatch?.path !== nativeLock.assemblyPatch.path ||
+        manifest.assemblyPatch?.sha256 !== nativeLock.assemblyPatch.sha256 ||
+        manifest.apiVersion !== nativeLock.apiVersion ||
+        manifest.apiVersion !== lock.pluginApiVersion
+      )
+        throw new Error('Invalid native dim plugin host manifest')
+      executable = path.join(directory, name)
+      const digest = createHash('sha256')
+        .update(await readFile(executable))
+        .digest('hex')
+      if (digest !== manifest.sha256) throw new Error('Native dim plugin host checksum mismatch')
+      native = manifest
+    }
     const runtimeEntry = JSON.parse(
       await readFile(path.join(plugins, 'runtime-entry.json'), 'utf8')
     )
@@ -150,7 +187,8 @@ export class DimRuntimeSupervisor {
       { mode: 0o600 }
     )
     this.address = address
-    this.identity = lock
+    const identity = native ? { ...lock, version: native.serverVersion, native } : lock
+    this.identity = identity
     const args = [
       'app-server',
       '--home',
@@ -167,6 +205,8 @@ export class DimRuntimeSupervisor {
     ]
     if (this.options.profile === 'mock') args.push('--mock-model')
     else args.push('--product-home', home)
+    if (native && this.options.gatewayAddress)
+      args.push('--deepchat-gateway', this.options.gatewayAddress)
     const child = spawn(executable, args, {
       stdio: ['ignore', 'ignore', 'ignore'],
       windowsHide: true
@@ -185,7 +225,7 @@ export class DimRuntimeSupervisor {
       })
     })
     try {
-      return await this.attach(address, lock)
+      return await this.attach(address, identity)
     } catch (error) {
       await this.terminate()
       throw error
@@ -194,7 +234,12 @@ export class DimRuntimeSupervisor {
 
   private async attach(
     address: string,
-    lock: { version: string; protocolVersion: number; pluginApiVersion: number }
+    lock: {
+      version: string
+      protocolVersion: number
+      pluginApiVersion: number
+      native?: { sourceRevision: string; bridgeVersion: string }
+    }
   ): Promise<DimPluginClient> {
     let client: DimPluginClient | null = null
     const deadline = Date.now() + (this.options.startupTimeoutMs ?? 30_000)
@@ -258,6 +303,21 @@ export class DimRuntimeSupervisor {
             await delay(30)
           }
         }
+      }
+      if (lock.native) {
+        const capability = await client.call<{
+          plugin: string
+          apiVersion: number
+          sourceRevision: string
+          bridgeVersion: string
+        }>('deepchat.native.capabilities')
+        if (
+          capability.plugin !== 'deepchat-native' ||
+          capability.apiVersion !== lock.pluginApiVersion ||
+          capability.sourceRevision !== lock.native.sourceRevision ||
+          capability.bridgeVersion !== lock.native.bridgeVersion
+        )
+          throw new Error('Native dim plugin provenance mismatch')
       }
       this.connection = client
       client.once('disconnected', () => {

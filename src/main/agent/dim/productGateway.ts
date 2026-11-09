@@ -41,6 +41,11 @@ export interface DimProductGatewayOptions {
   // Resolve through the durable native-to-product binding and current product authorization.
   // Only capabilities that dim does not implement belong in this catalog.
   resolve(nativeSessionId: string): Promise<DimProductCapabilitySet>
+  credential?(
+    providerId: string,
+    reference: string,
+    signal: AbortSignal
+  ): Promise<string | { accessKeyId: string; secretAccessKey: string; sessionToken?: string }>
 }
 
 const MAX_FRAME = 16 * 1024 * 1024
@@ -191,6 +196,24 @@ export class DimProductGateway {
     request: Record<string, unknown>,
     signal: AbortSignal
   ): Promise<JsonValue> {
+    if (request.kind === 'credential') {
+      if (
+        !this.options.credential ||
+        typeof request.providerId !== 'string' ||
+        !request.providerId ||
+        typeof request.reference !== 'string' ||
+        !request.reference ||
+        request.reference.length > 4096
+      )
+        throw new Error('Credential reference is unavailable')
+      try {
+        const value = await this.options.credential(request.providerId, request.reference, signal)
+        signal.throwIfAborted()
+        return value
+      } catch {
+        throw new Error('Credential reference is unavailable')
+      }
+    }
     if (typeof request.sessionId !== 'string' || !request.sessionId)
       throw new Error('Product capability requires a native session')
     if (request.kind !== 'catalog' && request.kind !== 'execute')

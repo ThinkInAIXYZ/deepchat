@@ -17,6 +17,13 @@ export interface DimAuxiliaryRequest {
   messages: JsonObject[]
   maxOutputTokens?: number
 }
+export interface DimModelParameters {
+  temperature?: number
+  topP?: number
+  maxTokens?: number
+  reasoning?: JsonObject
+  providerOptions?: JsonObject
+}
 export interface DimAuxiliaryReply {
   text: string
   stopReason: 'end_turn' | 'max_tokens' | 'stop_sequence'
@@ -43,7 +50,8 @@ export class DimModelBridge {
   async complete(
     model: DimModelId,
     request: DimAuxiliaryRequest,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    config?: DimModelParameters
   ): Promise<DimAuxiliaryReply> {
     signal?.throwIfAborted()
     const client = await this.host.openConnection()
@@ -52,8 +60,8 @@ export class DimModelBridge {
     try {
       signal?.throwIfAborted()
       return await client.call(
-        'deepchat.model.complete',
-        { model, request } as unknown as JsonValue,
+        config ? 'deepchat.native.complete' : 'deepchat.model.complete',
+        { model, request, ...(config ? { config } : {}) } as unknown as JsonValue,
         30 * 60 * 1000
       )
     } catch (error) {
