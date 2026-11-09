@@ -318,10 +318,21 @@ export class DeepChatAssistantBlocksTable extends BaseTable {
          FROM deepchat_assistant_blocks b
          JOIN deepchat_messages m ON m.id = b.message_id
          WHERE m.session_id = ? AND b.block_type = 'tool_call' AND b.status = 'success'
-           AND b.tool_name IN (?, ?)
+           AND (
+             (b.tool_name = ? AND CASE WHEN json_valid(b.extra_json)
+               THEN json_extract(b.extra_json, '$.toolCallExtra.htmlRender.panelId') END = ?)
+             OR (b.tool_name = ? AND CASE WHEN json_valid(b.tool_params)
+               THEN json_extract(b.tool_params, '$.panelId') END = ?)
+           )
          ORDER BY m.order_seq, b.block_index`
       )
-      .all(sessionId, HTML_RENDER_TOOL_NAME, HTML_RENDER_SECTION_TOOL_NAME) as Array<{
+      .all(
+        sessionId,
+        HTML_RENDER_TOOL_NAME,
+        panelId,
+        HTML_RENDER_SECTION_TOOL_NAME,
+        panelId
+      ) as Array<{
       tool_name: string
       tool_params: string | null
       extra_json: string | null
