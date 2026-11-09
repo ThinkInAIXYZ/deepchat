@@ -1,3 +1,4 @@
+import { DimInputProjectionTable } from './tables/dimInputProjection'
 import { DimInputIntentsTable } from './tables/dimInputIntents'
 import { DimSessionBindingsTable } from './tables/dimSessionBindings'
 import type { CONVERSATION, CONVERSATION_SETTINGS, SQLITE_MESSAGE } from '@shared/types/session'
@@ -58,6 +59,10 @@ export class SessionDatabase {
 
   get newSessionsTable() {
     return new NewSessionsTable(this.getDatabase())
+  }
+
+  get dimInputProjectionTable() {
+    return new DimInputProjectionTable(this.getDatabase())
   }
 
   get dimInputIntentsTable() {

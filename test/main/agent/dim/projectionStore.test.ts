@@ -27,18 +27,19 @@ it('projects terminal conversation state without creating a Tape and ignores rep
     binding,
     event(1, 'input', 'message', { user: { content: [{ type: 'text', text: 'hello' }] } })
   )
-  projection.apply(binding, event(2, 'turn', 'start', { turn_id: 'turn' }))
+  projection.apply(binding, event(2, 'input', 'applied', { input_id: 'event-1' }))
+  projection.apply(binding, event(3, 'turn', 'start', { turn_id: 'turn' }))
   projection.apply(
     binding,
-    event(3, 'step', 'text', { turn_id: 'turn', request_id: 'req', delta: 'answer' })
+    event(4, 'step', 'text', { turn_id: 'turn', request_id: 'req', delta: 'answer' })
   )
   projection.apply(
     binding,
-    event(4, 'turn', 'end', { turn_id: 'turn', status: 'completed', reason: 'end_turn' })
+    event(5, 'turn', 'end', { turn_id: 'turn', status: 'completed', reason: 'end_turn' })
   )
-  projection.apply(binding, event(3, 'step', 'text', { turn_id: 'turn', delta: 'answer' }))
+  projection.apply(binding, event(4, 'step', 'text', { turn_id: 'turn', delta: 'answer' }))
   expect(data.dimSessionBindingsTable.get('app')).toMatchObject({
-    cursor: '4',
+    cursor: '5',
     status: 'idle',
     nextOrderSeq: 3
   })
@@ -47,8 +48,8 @@ it('projects terminal conversation state without creating a Tape and ignores rep
   expect(JSON.parse(messages[1].content)).toMatchObject([{ content: 'answer', status: 'success' }])
   expect(JSON.parse(messages[1].metadata).dim).toMatchObject({
     sessionId: 'native',
-    eventId: 'event-4',
-    sequence: '4'
+    eventId: 'event-5',
+    sequence: '5'
   })
   expect(sqlite.prepare("SELECT name FROM sqlite_master WHERE name LIKE '%tape%'").all()).toEqual(
     []
@@ -98,7 +99,7 @@ it('commits input acceptance with its projection and retains only an immutable r
     user: { content: [{ type: 'text', text: 'hello' }] }
   })
   sqlite.exec(
-    "CREATE TRIGGER refuse_user BEFORE INSERT ON deepchat_user_messages BEGIN SELECT RAISE(ABORT, 'fixture failure'); END"
+    "CREATE TRIGGER refuse_user BEFORE INSERT ON dim_input_projection BEGIN SELECT RAISE(ABORT, 'fixture failure'); END"
   )
   expect(() => projection.apply(binding, message)).toThrow('fixture failure')
   expect(data.dimInputIntentsTable.get('submission')!.state).toBe('sending')
@@ -116,4 +117,60 @@ it('commits input acceptance with its projection and retains only an immutable r
   expect(() => data.dimInputIntentsTable.begin({ ...intent, payload: { content: [] } })).toThrow(
     'already bound'
   )
+})
+
+it('keeps queued input out of the transcript until dim applies it, preserving conversation order', () => {
+  const { data, binding, projection } = database()
+  projection.apply(
+    binding,
+    event(1, 'input', 'message', {
+      user: { content: [{ type: 'text', text: 'first' }] },
+      mode: 'queue'
+    })
+  )
+  projection.apply(binding, event(2, 'input', 'applied', { input_id: 'event-1' }))
+  projection.apply(binding, event(3, 'turn', 'start', { turn_id: 'first' }))
+  projection.apply(
+    binding,
+    event(4, 'input', 'message', {
+      user: { content: [{ type: 'text', text: 'second' }] },
+      mode: 'queue'
+    })
+  )
+  expect(data.deepchatMessagesTable.getBySession('app').map((message) => message.role)).toEqual([
+    'user',
+    'assistant'
+  ])
+  projection.apply(
+    binding,
+    event(5, 'turn', 'end', { turn_id: 'first', status: 'completed', reason: 'end_turn' })
+  )
+  projection.apply(binding, event(6, 'input', 'applied', { input_id: 'event-4' }))
+  projection.apply(binding, event(7, 'turn', 'start', { turn_id: 'second' }))
+  expect(data.deepchatMessagesTable.getBySession('app').map((message) => message.role)).toEqual([
+    'user',
+    'assistant',
+    'user',
+    'assistant'
+  ])
+  projection.apply(binding, event(8, 'input', 'consumed', { input_id: 'event-4' }))
+  expect(data.dimInputProjectionTable.get('app', 'event-4')).toBeNull()
+})
+
+it('projects copied native event IDs into separate fork and branch message identities', () => {
+  const { data, binding, projection } = database()
+  const fork = data.dimSessionBindingsTable.bind('fork', 'native-fork')
+  const branch = data.dimSessionBindingsTable.bind('branch', 'native', 'branch-2')
+  for (const scope of [binding, fork, branch]) {
+    projection.apply(
+      scope,
+      event(1, 'input', 'message', {
+        user: { content: [{ type: 'text', text: 'shared history' }] }
+      })
+    )
+    projection.apply(scope, event(2, 'input', 'applied', { input_id: 'event-1' }))
+  }
+  const rows = ['app', 'fork', 'branch'].map((id) => data.deepchatMessagesTable.getBySession(id)[0])
+  expect(new Set(rows.map((message) => message.id)).size).toBe(3)
+  expect(rows.every((message) => JSON.parse(message.content).text === 'shared history')).toBe(true)
 })

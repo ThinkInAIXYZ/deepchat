@@ -25,22 +25,27 @@ export class DimProjectionStore {
         binding.generation !== scope.generation
       )
         throw new Error('Stale dim session binding')
-      const projection = projectDimEvent(binding, event, (id) => {
-        const row = this.database.deepchatMessagesTable.get(id)
-        if (!row) return null
-        return {
-          id: row.id,
-          sessionId: row.session_id,
-          orderSeq: row.order_seq,
-          role: row.role,
-          content: row.content,
-          status: row.status,
-          isContextEdge: row.is_context_edge,
-          metadata: row.metadata,
-          createdAt: row.created_at,
-          updatedAt: row.updated_at
-        } as ChatMessageRecord
-      })
+      const projection = projectDimEvent(
+        binding,
+        event,
+        (id) => {
+          const row = this.database.deepchatMessagesTable.get(id)
+          if (!row) return null
+          return {
+            id: row.id,
+            sessionId: row.session_id,
+            orderSeq: row.order_seq,
+            role: row.role,
+            content: row.content,
+            status: row.status,
+            isContextEdge: row.is_context_edge,
+            metadata: row.metadata,
+            createdAt: row.created_at,
+            updatedAt: row.updated_at
+          } as ChatMessageRecord
+        },
+        (inputId) => this.database.dimInputProjectionTable.get(sessionId, inputId)
+      )
       if (projection.binding === binding) return projection
       if (
         event.type === 'input' &&
@@ -60,6 +65,10 @@ export class DimProjectionStore {
           })
         }
       }
+      for (const input of projection.inputEvents ?? [])
+        this.database.dimInputProjectionTable.put(sessionId, input)
+      for (const inputId of projection.consumedInputs ?? [])
+        this.database.dimInputProjectionTable.delete(sessionId, inputId)
       if (projection.retractions) this.applier.applyRetractions(projection.retractions)
       for (const message of projection.messages) this.applier.applyRecord(message)
       this.database.dimSessionBindingsTable.advance(binding, projection.binding)

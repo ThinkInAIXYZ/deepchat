@@ -11,6 +11,8 @@ export interface DimProjection {
   binding: DimSessionBinding
   messages: ChatMessageRecord[]
   retractions?: string[]
+  inputEvents?: DimEvent[]
+  consumedInputs?: string[]
   completed?: { requestId: string; messageId: string; error?: string }
 }
 
@@ -18,7 +20,8 @@ export interface DimProjection {
 export function projectDimEvent(
   binding: DimSessionBinding,
   event: DimEvent,
-  readMessage: (id: string) => ChatMessageRecord | null
+  readMessage: (id: string) => ChatMessageRecord | null,
+  readInput: (id: string) => DimEvent | null
 ): DimProjection {
   if (dimSequence(event.sequence) <= dimSequence(binding.cursor)) return { binding, messages: [] }
   const next = { ...binding, cursor: String(event.sequence) }
@@ -63,16 +66,32 @@ export function projectDimEvent(
     updatedAt: now
   })
   if (key === 'input/deleted' && typeof event.data.input_id === 'string') {
-    result.retractions = [event.data.input_id]
+    result.retractions = [dimUserMessageId(binding, event.data.input_id)]
+    result.consumedInputs = [event.data.input_id]
     return result
   }
-  if (
-    key === 'input/message' &&
-    event.data.user &&
-    typeof event.data.user === 'object' &&
-    !Array.isArray(event.data.user)
-  ) {
-    const content = Array.isArray(event.data.user.content) ? event.data.user.content : []
+  if (key === 'input/message') {
+    result.inputEvents = [event]
+    return result
+  }
+  if (key === 'input/consumed' && typeof event.data.input_id === 'string') {
+    result.consumedInputs = [event.data.input_id]
+    const original = readMessage(dimUserMessageId(binding, event.data.input_id))
+    if (original) {
+      const metadata = JSON.parse(original.metadata) as MessageMetadata
+      if (metadata.inputReceipt) {
+        metadata.inputReceipt = { ...metadata.inputReceipt, readAt: now, delivery: 'applied' }
+        messages.push({ ...original, metadata: JSON.stringify(metadata), updatedAt: now })
+      }
+    }
+    return result
+  }
+  if (key === 'input/applied' && typeof event.data.input_id === 'string') {
+    const input = readInput(event.data.input_id)
+    const nativeUser = input?.data.user
+    if (!input || !nativeUser || typeof nativeUser !== 'object' || Array.isArray(nativeUser))
+      return result
+    const content = Array.isArray(nativeUser.content) ? nativeUser.content : []
     const text = content
       .flatMap((item) =>
         item &&
@@ -105,12 +124,24 @@ export function projectDimEvent(
         })
       }
     }
-    messages.push(createMessage(event.id, 'user', JSON.stringify(user), 'sent'))
+    const record = createMessage(
+      dimUserMessageId(binding, input.id),
+      'user',
+      JSON.stringify(user),
+      'sent'
+    )
+    record.createdAt = input.create_at
+    if (input.data.mode === 'steer')
+      record.metadata = JSON.stringify({
+        ...JSON.parse(record.metadata),
+        inputReceipt: { mode: 'steer', readAt: null, delivery: 'applied' }
+      })
+    messages.push(record)
     return result
   }
   if (key === 'turn/start' && turnId) {
     next.activeTurnId = turnId
-    next.assistantMessageId = `dim:${binding.dimSessionId}:${turnId}`
+    next.assistantMessageId = `dim:${binding.dimSessionId}:${binding.branchId}:${turnId}`
     next.status = 'generating'
     const message = createMessage(next.assistantMessageId, 'assistant', '[]', 'pending')
     message.metadata = JSON.stringify({ ...JSON.parse(message.metadata), runId: turnId })
@@ -159,8 +190,9 @@ export function projectDimEvent(
     for (const value of event.data.calls) {
       if (!value || typeof value !== 'object' || Array.isArray(value)) continue
       blocks.push({
-        id: String(value.id),
+        id: `${event.data.request_id}:${value.id}`,
         type: 'tool_call',
+        extra: { dimRequestId: String(event.data.request_id) },
         status: 'loading',
         timestamp: now,
         tool_call: {
@@ -179,7 +211,11 @@ export function projectDimEvent(
     if (Array.isArray(results))
       for (const value of results) {
         if (!value || typeof value !== 'object' || Array.isArray(value)) continue
-        const block = blocks.find((candidate) => candidate.tool_call?.id === value.call_id)
+        const block = blocks.find(
+          (candidate) =>
+            candidate.tool_call?.id === value.call_id &&
+            candidate.extra?.dimRequestId === event.data.request_id
+        )
         if (!block?.tool_call) continue
         const toolResult = value.result
         block.tool_call.response = JSON.stringify(toolResult)
@@ -247,4 +283,11 @@ export function projectDimEvent(
     messages.push(message)
   }
   return result
+}
+
+export function dimUserMessageId(
+  binding: Pick<DimSessionBinding, 'dimSessionId' | 'branchId'>,
+  inputId: string
+): string {
+  return `dim:${binding.dimSessionId}:${binding.branchId}:${inputId}`
 }

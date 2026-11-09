@@ -12,6 +12,7 @@ import { DimSessionRuntime } from '@/agent/dim/sessionRuntime'
 import { dimDatabase } from './fixtures/database'
 import { DimProductGateway, type DimProductToolCall } from '@/agent/dim/productGateway'
 import { DimModelBridge } from '@/agent/dim/modelBridge'
+import { DimSessionControls } from '@/agent/dim/sessionControls'
 import { createServer } from 'node:http'
 
 // Explicit smoke target: no network requests or runtime downloads during tests.
@@ -136,6 +137,97 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
 )
 
 it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
+  'controls the Rust queue, withdrawal/steer and fork through the injected host plugin',
+  async () => {
+    const profile = await mkdtemp(path.join(os.tmpdir(), 'dc-dim-queue-'))
+    const host = new DimRuntimeSupervisor({
+      runtimeRoot: path.resolve('runtime/dim'),
+      profileRoot: profile,
+      nodeExecutable: path.resolve(
+        'runtime/node',
+        ...(process.platform === 'win32' ? ['node.exe'] : ['bin', 'node'])
+      ),
+      profile: 'mock'
+    })
+    try {
+      const client = await host.start()
+      const controls = new DimSessionControls(host)
+      const { sessionId } = await client.call<{ sessionId: string }>('deepchat.host.launch', {
+        cwd: profile,
+        policy: { preset: 'read-only', allowedTools: ['wait', 'echo'], disallowedTools: [] }
+      })
+      const ref = { sessionId, branchId: 'main' }
+      const send = (text: string) =>
+        client.call<{ inputId: string }>('deepchat.host.input', {
+          ...ref,
+          mode: 'queue',
+          submissionId: randomUUID(),
+          rawBlocks: [],
+          content: [{ type: 'text', text }]
+        })
+      await send('tool:wait {"millis":60000}')
+      await expect
+        .poll(async () => {
+          const history = await client.call<{ events: Array<{ name: string }> }>(
+            'deepchat.storage.history',
+            { ...ref, limit: 100 }
+          )
+          return history.events.some((event) => event.name === 'tool-call')
+        })
+        .toBe(true)
+      const second = await send('second held')
+      const third = await send('third held')
+      const queue = await controls.call<{ inputs: Array<{ inputId: string; applied: boolean }> }>(
+        'queue',
+        ref
+      )
+      expect(
+        queue.inputs.filter((input) => [second.inputId, third.inputId].includes(input.inputId))
+      ).toHaveLength(2)
+      expect(
+        queue.inputs
+          .filter((input) => [second.inputId, third.inputId].includes(input.inputId))
+          .every((input) => !input.applied)
+      ).toBe(true)
+      const withdrawn = await controls.call<{ status: string; steer: { inputId: string } }>(
+        'withdraw',
+        ref,
+        {
+          inputId: second.inputId,
+          steer: { content: [{ type: 'text', text: 'native steer replacement' }] }
+        }
+      )
+      expect(withdrawn.status).toBe('deleted')
+      expect(withdrawn.steer.inputId).toBeTruthy()
+      expect(await controls.call('withdraw', ref, { inputId: third.inputId })).toMatchObject({
+        status: 'deleted'
+      })
+      await client.call('deepchat.host.stop', ref)
+      await client.call('deepchat.host.idle', ref)
+      const remaining = await controls.call<{ inputs: Array<{ inputId: string }> }>('queue', ref)
+      expect(
+        remaining.inputs.some((input) => [second.inputId, third.inputId].includes(input.inputId))
+      ).toBe(false)
+      await send('settle the continuation')
+      await client.call('deepchat.host.idle', ref)
+      const history = await client.call<{ through: number }>('deepchat.storage.history', {
+        ...ref,
+        limit: 100
+      })
+      const fork = await controls.call<{ sessionId: string }>('fork', ref, {
+        at: String(history.through)
+      })
+      expect(fork.sessionId).toBeTruthy()
+      expect(fork.sessionId).not.toBe(sessionId)
+    } finally {
+      await host.stop()
+      await rm(profile, { recursive: true, force: true })
+    }
+  },
+  60_000
+)
+
+it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
   'uses the native Rust provider for agent and auxiliary calls without storing credentials in history',
   async () => {
     const requests: Array<{ authorization?: string; body: Record<string, unknown> }> = []
@@ -246,6 +338,24 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
         model: target
       })
       const ref = { sessionId, branchId: 'main' }
+      const controls = new DimSessionControls(host)
+      const policy = await controls.call<{
+        version: number
+        policy: { preset: string; allowedTools: string[]; disallowedTools: string[] }
+      }>('permission', ref)
+      await controls.call('set_permission', ref, {
+        expectedVersion: String(policy.version),
+        policy: { ...policy.policy, preset: 'workspace-write' }
+      })
+      expect(await controls.call('permission', ref)).toMatchObject({
+        policy: { preset: 'workspace-write' }
+      })
+      await expect(
+        controls.call('set_permission', ref, {
+          expectedVersion: String(policy.version),
+          policy: policy.policy
+        })
+      ).rejects.toThrow()
       await client.call('deepchat.host.input', {
         ...ref,
         mode: 'queue',
@@ -395,8 +505,16 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
         status: 'idle'
       }
       const transcript = new Map<string, ChatMessageRecord>()
+      const inputCache = new Map<string, import('@/agent/dim/sessionConnection').DimEvent>()
       for (const event of history.events) {
-        const update = projectDimEvent(projected, event, (id) => transcript.get(id) ?? null)
+        const update = projectDimEvent(
+          projected,
+          event,
+          (id) => transcript.get(id) ?? null,
+          (id) => inputCache.get(id) ?? null
+        )
+        for (const input of update.inputEvents ?? []) inputCache.set(input.id, input)
+        for (const id of update.consumedInputs ?? []) inputCache.delete(id)
         for (const message of update.messages) transcript.set(message.id, message)
         projected = update.binding
       }
@@ -566,6 +684,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
         status: 'idle'
       }
       const messages = new Map<string, ChatMessageRecord>()
+      const inputCache = new Map<string, import('@/agent/dim/sessionConnection').DimEvent>()
       const failures: unknown[] = []
       let failOnce = false
       const consume = (event: import('@/agent/dim/sessionConnection').DimEvent) => {
@@ -573,7 +692,14 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
           failOnce = false
           throw new Error('projection temporarily unavailable')
         }
-        const projection = projectDimEvent(binding, event, (id) => messages.get(id) ?? null)
+        const projection = projectDimEvent(
+          binding,
+          event,
+          (id) => messages.get(id) ?? null,
+          (id) => inputCache.get(id) ?? null
+        )
+        for (const input of projection.inputEvents ?? []) inputCache.set(input.id, input)
+        for (const id of projection.consumedInputs ?? []) inputCache.delete(id)
         for (const message of projection.messages) messages.set(message.id, message)
         binding = projection.binding
       }

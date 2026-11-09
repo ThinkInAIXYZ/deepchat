@@ -124,7 +124,11 @@ export class DimRuntimeSupervisor {
           id: 'deepchat-host',
           name: path.join(plugins, 'modules/deepchat-host/index.mjs'),
           provides: {},
-          config: { gatewayAddress: this.options.gatewayAddress }
+          config: {
+            gatewayAddress: this.options.gatewayAddress,
+            hostAddress: address,
+            profile: this.options.profile ?? 'product'
+          }
         },
         {
           id: 'deepchat-storage',

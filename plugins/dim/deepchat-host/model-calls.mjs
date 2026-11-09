@@ -1,73 +1,9 @@
-import { createConnection } from 'node:net'
+import { withNativeClient } from './native-client.mjs'
 import { createHash } from 'node:crypto'
 import { definePlugin } from '@arcships/rutis'
 
 // alpha.21 exposes model execution as a service, and provider editing as native management
 // methods. Keep that small configuration boundary here; never delegate a model call to desktop.
-async function withProvider(address, work) {
-  const socket = createConnection(address)
-  let nextId = 0
-  let buffer = Buffer.alloc(0)
-  const pending = new Map()
-  const close = () => {
-    for (const call of pending.values()) {
-      clearTimeout(call.timer)
-      call.reject(new Error('Native provider connection ended'))
-    }
-    pending.clear()
-    socket.destroy()
-  }
-  const call = (method, params) =>
-    new Promise((resolve, reject) => {
-      if (!['hello', 'provider.management', 'provider.create'].includes(method))
-        return reject(new Error('Unknown provider operation'))
-      const id = ++nextId
-      const timer = setTimeout(() => {
-        close()
-        reject(new Error('Native provider operation timed out'))
-      }, 30000)
-      pending.set(id, { resolve, reject, timer })
-      socket.write(JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\n')
-    })
-  socket.on('data', (data) => {
-    buffer = Buffer.concat([buffer, data])
-    if (buffer.length > 16 * 1024 * 1024) return close()
-    let end
-    while ((end = buffer.indexOf(10)) >= 0) {
-      const line = buffer.subarray(0, end).toString('utf8')
-      buffer = buffer.subarray(end + 1)
-      try {
-        const reply = JSON.parse(line)
-        const task = pending.get(reply.id)
-        if (!task) continue
-        pending.delete(reply.id)
-        clearTimeout(task.timer)
-        if (reply.error)
-          task.reject(
-            Object.assign(new Error(reply.error.message), { code: reply.error.data?.appError })
-          )
-        else task.resolve(reply.result)
-      } catch {
-        close()
-        return
-      }
-    }
-  })
-  socket.on('error', close)
-  socket.on('close', close)
-  try {
-    const hello = await call('hello', {
-      protocolVersion: 3,
-      clientKind: 'other',
-      clientName: 'DeepChat provider plugin'
-    })
-    if (hello.protocolVersion !== 3 || hello.daemonProfile.kind !== 'product')
-      throw new Error('Invalid native provider host')
-    return await work(call)
-  } finally {
-    close()
-  }
-}
 
 function canonical(value) {
   if (Array.isArray(value)) return value.map(canonical)
@@ -109,33 +45,37 @@ export default definePlugin({
       if (admitted.has(id)) return { providerId: id, modelId: params.model.modelId }
       if (configuring.has(id)) return configuring.get(id)
       if (configuring.size >= 64) throw new Error('Too many model configurations in progress')
-      const task = withProvider(config.hostAddress, async (call) => {
-        const view = await call('provider.management', { providerId: id }).catch((error) => {
-          if (error.code !== 'provider_not_found') throw error
-          return { providers: [], errors: [] }
-        })
-        if (view.errors.length) throw new Error('Native provider configuration cannot be read')
-        const existing = view.providers.find((provider) => provider.providerId === id)
-        if (!existing) {
-          await call('provider.create', {
-            providerId: id,
-            displayName: params.displayName,
-            connection: params.connection,
-            models: [params.model],
-            enabled: true
+      const task = withNativeClient(
+        config.hostAddress,
+        { profile: 'product', methods: ['provider.management', 'provider.create'] },
+        async (call) => {
+          const view = await call('provider.management', { providerId: id }).catch((error) => {
+            if (error.code !== 'provider_not_found') throw error
+            return { providers: [], errors: [] }
           })
-        } else if (
-          existing.credentialAuthority !== 'static' ||
-          !existing.enabled ||
-          existing.connection?.driverKind !== params.connection.driverKind ||
-          existing.connection?.baseUrl !== params.connection.baseUrl ||
-          !existing.models?.some((item) => item.model.modelId === params.model.modelId)
-        ) {
-          throw new Error('Native product provider identity has conflicting configuration')
+          if (view.errors.length) throw new Error('Native provider configuration cannot be read')
+          const existing = view.providers.find((provider) => provider.providerId === id)
+          if (!existing) {
+            await call('provider.create', {
+              providerId: id,
+              displayName: params.displayName,
+              connection: params.connection,
+              models: [params.model],
+              enabled: true
+            })
+          } else if (
+            existing.credentialAuthority !== 'static' ||
+            !existing.enabled ||
+            existing.connection?.driverKind !== params.connection.driverKind ||
+            existing.connection?.baseUrl !== params.connection.baseUrl ||
+            !existing.models?.some((item) => item.model.modelId === params.model.modelId)
+          ) {
+            throw new Error('Native product provider identity has conflicting configuration')
+          }
+          admitted.add(id)
+          return { providerId: id, modelId: params.model.modelId }
         }
-        admitted.add(id)
-        return { providerId: id, modelId: params.model.modelId }
-      })
+      )
       configuring.set(id, task)
       try {
         return await task

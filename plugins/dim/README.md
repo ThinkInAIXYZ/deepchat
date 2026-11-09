@@ -77,3 +77,17 @@ lifecycle; wiring desktop credential policy and all provider settings remains pa
 Each auxiliary call owns a separate local connection. Abort closes that connection; the plugin
 combines the connection's close signal with its own lifetime and asks the Rust owner to cancel
 and join that invocation. Accepted agent input is governed by its durable submission receipt.
+
+## Session controls and queue projection
+
+`deepchat.session.*` exposes a fixed set of native commands for queue reads, atomic
+withdraw-with-steer, permissions, model/context, questions/approvals and fork. These are explicit
+operations rather than an arbitrary method relay. Native owner validation is preserved. The
+release's v3 commands accept JSON safe-integer cursors; the plugin validates decimal desktop
+cursors before conversion. Content history continues to use the lossless u64 service boundary.
+
+A queued input is cached for projection after `input/message`, and becomes a desktop message
+only after dim publishes `input/applied`. This cache neither releases input nor decides its order;
+`input/consumed`/`input/deleted` remove it. Messages use native session/branch identities so forked
+history never overwrites another conversation when native event IDs are shared. Tool blocks also
+retain the native request identity, because a model may reuse a call ID in another request.

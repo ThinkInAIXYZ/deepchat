@@ -652,4 +652,3 @@ function sanitizeToolContinuationMessages(messages: ChatMessage[]): ChatMessage[
 
   return sanitized
 }
-
