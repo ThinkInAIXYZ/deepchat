@@ -11,6 +11,8 @@ import { DimRuntimeSupervisor } from '@/agent/dim/runtimeSupervisor'
 import { DimSessionRuntime } from '@/agent/dim/sessionRuntime'
 import { dimDatabase } from './fixtures/database'
 import { DimProductGateway, type DimProductToolCall } from '@/agent/dim/productGateway'
+import { DimModelBridge } from '@/agent/dim/modelBridge'
+import { createServer } from 'node:http'
 
 // Explicit smoke target: no network requests or runtime downloads during tests.
 it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
@@ -127,6 +129,173 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
       await restored.call('deepchat.host.stop', ref)
     } finally {
       await runtime.stop()
+      await rm(profile, { recursive: true, force: true })
+    }
+  },
+  60_000
+)
+
+it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
+  'uses the native Rust provider for agent and auxiliary calls without storing credentials in history',
+  async () => {
+    const requests: Array<{ authorization?: string; body: Record<string, unknown> }> = []
+    let nativeCancelled = false
+    const fixture = createServer(async (req, res) => {
+      let payload = ''
+      for await (const data of req) payload += data
+      const body = payload ? JSON.parse(payload) : {}
+      requests.push({ authorization: req.headers.authorization, body })
+      if (JSON.stringify(body.messages).includes('hold native auxiliary')) {
+        res.once('close', () => {
+          nativeCancelled = true
+        })
+        res.writeHead(200, { 'Content-Type': 'text/event-stream' })
+        res.flushHeaders()
+        return
+      }
+      if (req.url?.endsWith('/models')) {
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ data: [{ id: 'fixture' }] }))
+        return
+      }
+      if (body.stream) {
+        res.writeHead(200, { 'Content-Type': 'text/event-stream' })
+        for (const chunk of [
+          {
+            choices: [
+              {
+                index: 0,
+                delta: { role: 'assistant', content: 'Rust provider answer' },
+                finish_reason: null
+              }
+            ]
+          },
+          {
+            choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
+            usage: { prompt_tokens: 7, completion_tokens: 3, total_tokens: 10 }
+          }
+        ])
+          res.write(
+            `data: ${JSON.stringify({ id: 'fixture-call', object: 'chat.completion.chunk', model: 'fixture', created: 0, ...chunk })}\n\n`
+          )
+        res.end('data: [DONE]\n\n')
+      } else {
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(
+          JSON.stringify({
+            id: 'fixture-call',
+            object: 'chat.completion',
+            model: 'fixture',
+            created: 0,
+            choices: [
+              {
+                index: 0,
+                message: { role: 'assistant', content: 'Rust provider answer' },
+                finish_reason: 'stop'
+              }
+            ],
+            usage: { prompt_tokens: 7, completion_tokens: 3, total_tokens: 10 }
+          })
+        )
+      }
+    })
+    await new Promise<void>((resolve) => fixture.listen(0, '127.0.0.1', resolve))
+    const profile = await mkdtemp(path.join(os.tmpdir(), 'dc-dim-provider-'))
+    const host = new DimRuntimeSupervisor({
+      runtimeRoot: path.resolve('runtime/dim'),
+      profileRoot: profile,
+      nodeExecutable: path.resolve(
+        'runtime/node',
+        ...(process.platform === 'win32' ? ['node.exe'] : ['bin', 'node'])
+      )
+    })
+    try {
+      const port = (fixture.address() as { port: number }).port
+      const models = new DimModelBridge(host)
+      const configuration = {
+        key: 'desktop/fixture',
+        displayName: 'Local native provider',
+        connection: {
+          driverKind: 'openai-compatible',
+          auth: { type: 'bearer' },
+          baseUrl: `http://127.0.0.1:${port}/v1`,
+          credential: { action: 'set', value: 'fixture-secret-only' }
+        },
+        model: {
+          modelId: 'fixture',
+          displayName: 'Fixture',
+          status: 'active',
+          capabilities: {
+            modalities: ['text'],
+            toolCalling: true,
+            streaming: true,
+            structuredOutput: false,
+            vision: false,
+            audio: false,
+            reasoning: false,
+            contextWindow: 128000,
+            maxOutputTokens: 1024
+          }
+        }
+      }
+      const target = await models.configure(configuration)
+      expect(await models.configure(configuration)).toEqual(target)
+      const client = await host.start()
+      const { sessionId } = await client.call<{ sessionId: string }>('deepchat.host.launch', {
+        cwd: profile,
+        model: target
+      })
+      const ref = { sessionId, branchId: 'main' }
+      await client.call('deepchat.host.input', {
+        ...ref,
+        mode: 'queue',
+        submissionId: randomUUID(),
+        rawBlocks: [],
+        content: [{ type: 'text', text: 'native agent request' }]
+      })
+      await client.call('deepchat.host.idle', ref)
+      const history = await client.call<{
+        events: Array<{ type: string; name: string; data: { delta?: string } }>
+      }>('deepchat.storage.history', { ...ref, limit: 100 })
+      expect(
+        history.events
+          .filter((event) => event.name === 'text')
+          .map((event) => event.data.delta ?? '')
+          .join(''),
+        JSON.stringify(history.events.filter((event) => event.type === 'turn'))
+      ).toBe('Rust provider answer')
+      expect(JSON.stringify(history)).not.toContain('fixture-secret-only')
+      expect(
+        await models.complete(target, {
+          messages: [{ role: 'user', content: 'native auxiliary request' }],
+          maxOutputTokens: 100
+        })
+      ).toMatchObject({ text: 'Rust provider answer' })
+      expect(requests.filter((item) => item.body.messages)).toHaveLength(2)
+      expect(requests.every((item) => item.authorization === 'Bearer fixture-secret-only')).toBe(
+        true
+      )
+      const abort = new AbortController()
+      const completion = models.complete(
+        target,
+        { messages: [{ role: 'user', content: 'hold native auxiliary' }] },
+        abort.signal
+      )
+      // Attach the rejection handler before cancelling so it cannot become an unhandled promise.
+      const cancelled = expect(completion).rejects.toThrow()
+      await expect.poll(() => requests.filter((item) => item.body.messages).length).toBe(3)
+      abort.abort()
+      await cancelled
+      await expect.poll(() => nativeCancelled).toBe(true)
+      await host.stop()
+      expect(await models.configure(configuration)).toEqual(target)
+      expect(
+        await models.complete(target, { messages: [{ role: 'user', content: 'after restart' }] })
+      ).toMatchObject({ text: 'Rust provider answer' })
+    } finally {
+      await host.stop()
+      fixture.closeAllConnections()
+      await new Promise<void>((resolve) => fixture.close(() => resolve()))
       await rm(profile, { recursive: true, force: true })
     }
   },

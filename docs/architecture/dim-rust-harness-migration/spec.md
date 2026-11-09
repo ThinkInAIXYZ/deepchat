@@ -19,6 +19,7 @@
 
 当前已开始按模块实现；基础运行模块已完成验证，聊天 UI、队列绑定与旧会话转换仍按计划实施。按用户明确的范围落实以下决定：
 
+- Code Mode 按用户决定暂时不可用，等待 dim 原生实现；不迁移 DeepChat 旧 Code Mode、ToolSearch 或 programmatic dispatch。dim 有同等功能的内置工具直接替换 DeepChat 对应工具，插件只注入剩余产品能力。
 - 队列直接复用 dim 的完整实现，DeepChat 只接 UI 和命令，不另建队列或预设上游缺口。
 - ACP 完全由 DeepChat 现有 client 负责；不新增 dim ACP gateway、ExternalAgent 或跨 ACP 委托任务，也不经 ACP 与 dim 通信。
 - 旧会话在首次续聊前 migration，转换为 dim 的会话内容；历史浏览不触发 agent 执行或全量迁移。

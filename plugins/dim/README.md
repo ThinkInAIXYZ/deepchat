@@ -40,6 +40,9 @@ native identity and current product authorization on every call, checks the cata
 never retries an effect. Catalog refresh withdraws a scoped service so rutis unloads the previous
 tool part before mounting the new definitions. Connection loss aborts pending product work.
 Native tools, MCP, Skills, agent loops and model requests must not be routed through this gateway.
+Code Mode is temporarily disabled during migration; the previous Code Mode, ToolSearch and
+programmatic dispatch are not ported. Equivalent DeepChat built-in tools are removed in favor of
+dim's own tools.
 
 `DimSessionRuntime` persists the app/native binding and input intent before sending. Its event
 reader applies desktop messages and its cursor in one SQL transaction, without a new Tape. Its
@@ -57,3 +60,20 @@ logging into an account; it does not make a real provider request. Profiles are 
 
 The transport and installer regression suites run with the ordinary Main tests. Native smoke is
 explicit so ordinary tests neither download runtimes nor require an installed Rust executable.
+
+## Native model calls
+
+The host plugin's `model-calls.mjs` is a separate process row in product profiles. It calls dim's
+`auxiliaryModel` service for standalone completions and only native provider management methods
+for configuration. The pinned release exposes provider editing as management methods rather
+than a cross-language editing service, so this row uses the private local host endpoint for the
+fixed `provider.management` / `provider.create` operations. It exposes no arbitrary RPC relay.
+
+`DimModelBridge` configures immutable native connection/model identities, then uses them in agent
+launches and auxiliary requests. Credentials go through the native provider's configuration
+boundary, never plugin row configuration or timeline content. These identities do not alter
+native OAuth accounts. Retained native provider records and credentials follow dim's store
+lifecycle; wiring desktop credential policy and all provider settings remains part of integration.
+Each auxiliary call owns a separate local connection. Abort closes that connection; the plugin
+combines the connection's close signal with its own lifetime and asks the Rust owner to cancel
+and join that invocation. Accepted agent input is governed by its durable submission receipt.

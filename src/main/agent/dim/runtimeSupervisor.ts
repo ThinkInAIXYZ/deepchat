@@ -20,6 +20,7 @@ export interface DimRuntimeOptions {
 export class DimRuntimeSupervisor {
   private process: ChildProcess | null = null
   private connection: DimPluginClient | null = null
+  private readonly scopedConnections = new Set<DimPluginClient>()
   private starting: Promise<DimPluginClient> | null = null
   private stopping: Promise<void> | null = null
   private socketDirectory: string | null = null
@@ -60,6 +61,31 @@ export class DimRuntimeSupervisor {
     return stopping
   }
 
+  /** A caller-owned connection: closing it cancels only its own auxiliary calls. */
+  async openConnection(): Promise<DimPluginClient> {
+    await this.start()
+    const client = await DimPluginClient.connect(this.address!)
+    try {
+      const hello = await client.call<{
+        serverVersion: string
+        protocolVersion: number
+        daemonProfile: { kind: string }
+      }>('hello', { protocolVersion: 3, clientKind: 'other', clientName: 'DeepChat auxiliary' })
+      if (
+        hello.serverVersion !== this.identity?.version ||
+        hello.protocolVersion !== 3 ||
+        hello.daemonProfile.kind !== (this.options.profile ?? 'product')
+      )
+        throw new Error('dim auxiliary host identity mismatch')
+      this.scopedConnections.add(client)
+      client.once('disconnected', () => this.scopedConnections.delete(client))
+      return client
+    } catch (error) {
+      client.close()
+      throw error
+    }
+  }
+
   private async launch(): Promise<DimPluginClient> {
     const { runtimeRoot, profileRoot, nodeExecutable } = this.options
     const plugins = path.resolve(runtimeRoot, 'plugins')
@@ -85,6 +111,12 @@ export class DimRuntimeSupervisor {
     const home = path.resolve(profileRoot, 'dim')
     await mkdir(home, { recursive: true, mode: 0o700 })
     const rowsFile = path.join(home, 'deepchat-plugin-rows.json')
+    let address: string
+    if (process.platform === 'win32') address = `\\\\.\\pipe\\deepchat-dim-${randomUUID()}`
+    else {
+      this.socketDirectory = await mkdtemp(path.join(os.tmpdir(), 'dc-dim-'))
+      address = path.join(this.socketDirectory, 'host.sock')
+    }
     await writeFile(
       rowsFile,
       JSON.stringify([
@@ -99,16 +131,20 @@ export class DimRuntimeSupervisor {
           name: path.join(plugins, 'modules/deepchat-storage/index.mjs'),
           provides: {},
           config: {}
-        }
+        },
+        ...(this.options.profile === 'mock'
+          ? []
+          : [
+              {
+                id: 'deepchat-model',
+                name: path.join(plugins, 'modules/deepchat-host/model-calls.mjs'),
+                provides: {},
+                config: { hostAddress: address }
+              }
+            ])
       ]),
       { mode: 0o600 }
     )
-    let address: string
-    if (process.platform === 'win32') address = `\\\\.\\pipe\\deepchat-dim-${randomUUID()}`
-    else {
-      this.socketDirectory = await mkdtemp(path.join(os.tmpdir(), 'dc-dim-'))
-      address = path.join(this.socketDirectory, 'host.sock')
-    }
     this.address = address
     this.identity = lock
     const args = [
@@ -188,7 +224,11 @@ export class DimRuntimeSupervisor {
       ) {
         throw new Error('dim host version mismatch')
       }
-      for (const plugin of ['host', 'storage']) {
+      for (const plugin of [
+        'host',
+        'storage',
+        ...(this.options.profile === 'mock' ? [] : ['model'])
+      ]) {
         while (true) {
           if (Date.now() >= deadline) throw new Error(`dim ${plugin} plugin did not become ready`)
           try {
@@ -228,6 +268,7 @@ export class DimRuntimeSupervisor {
 
   private async shutdown(): Promise<void> {
     if (this.starting) await this.starting.catch(() => {})
+    for (const connection of this.scopedConnections) connection.close()
     let client = this.connection
     if (!client && this.process && this.exitCode === null && this.address && this.identity) {
       client = await this.attach(this.address, this.identity).catch(() => null)
