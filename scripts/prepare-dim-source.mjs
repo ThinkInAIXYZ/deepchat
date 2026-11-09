@@ -63,7 +63,8 @@ const current = await readFile(path.join(directory, filename), 'utf8')
 if (current !== original && current !== assembled && current !== expected)
   throw new Error('Pinned dim provider source has unexpected changes')
 const assemblyFile = 'crates/dim-agent-runtime/src/assembly.rs'
-git(['diff', '--exit-code', '--', '.', `:!${filename}`, `:!${assemblyFile}`])
+const secretsFile = 'crates/dim-app-server/src/provider/secrets.rs'
+git(['diff', '--exit-code', '--', '.', `:!${filename}`, `:!${assemblyFile}`, `:!${secretsFile}`])
 if (current !== expected) await writeFile(path.join(directory, filename), expected)
 // Add an explicit host-value replacement to the builder's assembly API. It changes no
 // existing registration behavior; product plugins can replace the stock IdentityContext
@@ -102,10 +103,28 @@ if (assemblyCurrent !== assemblyOriginal && assemblyCurrent !== assemblyExpected
   throw new Error('Pinned dim assembly source has unexpected changes')
 if (assemblyCurrent !== assemblyExpected)
   await writeFile(path.join(directory, assemblyFile), assemblyExpected)
+// An anonymous connection can still have an explicit product admission reference.
+// Resolve that reference through the public host, then let StaticAuth::Anonymous
+// continue to produce no authorization header. Unreferenced dim connections keep
+// their existing behavior.
+const secretsOriginal = git(['show', `HEAD:${secretsFile}`]) + '\n'
+const secretsNeedle = 'if *auth == StaticAuth::Anonymous {'
+if (secretsOriginal.split(secretsNeedle).length !== 2)
+  throw new Error('Native anonymous reference extension seam changed')
+const secretsExpected = secretsOriginal.replace(
+  secretsNeedle,
+  'if *auth == StaticAuth::Anonymous && credential.is_none() {'
+)
+const secretsCurrent = await readFile(path.join(directory, secretsFile), 'utf8')
+if (secretsCurrent !== secretsOriginal && secretsCurrent !== secretsExpected)
+  throw new Error('Pinned dim secret source has unexpected changes')
+if (secretsCurrent !== secretsExpected)
+  await writeFile(path.join(directory, secretsFile), secretsExpected)
 export const nativeSource = {
   sourceRevision: lock.sourceCommit,
   assemblyPatch: { path: filename, sha256: createHash('sha256').update(expected).digest('hex') },
   extensionPatches: [
-    { path: assemblyFile, sha256: createHash('sha256').update(assemblyExpected).digest('hex') }
+    { path: assemblyFile, sha256: createHash('sha256').update(assemblyExpected).digest('hex') },
+    { path: secretsFile, sha256: createHash('sha256').update(secretsExpected).digest('hex') }
   ]
 }

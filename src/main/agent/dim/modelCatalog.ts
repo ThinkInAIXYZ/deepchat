@@ -122,7 +122,7 @@ export class DimModelCatalog {
       throw new Error('Model is disabled')
     if (fingerprint(this.connection(current, modelId, config)) !== fingerprint(connection))
       throw new Error('Provider connection changed during native configuration')
-    if (connection.credential || Object.values(provider.customHeaders ?? {}).some(Boolean)) {
+    if (connection.credential) {
       const reference = credentialReference(provider.id)
       this.options.grants.put({
         nativeProviderId: target.providerId,
@@ -150,7 +150,10 @@ export class DimModelCatalog {
       throw new Error('Provider connection was replaced')
     let value: DimCredential
     if (reference === grant.reference) {
-      value = await this.options.credential(provider, signal)
+      // Acknowledgement only: Anonymous never places this value in provider HTTP.
+      value = isAnonymous(provider)
+        ? 'deepchat-admission-v1'
+        : await this.options.credential(provider, signal)
     } else {
       const header = Object.entries(provider.customHeaders ?? {}).find(
         ([name, value]) => value && headerReference(provider.id, name, value) === reference
@@ -186,7 +189,7 @@ export class DimModelCatalog {
 
   private connection(provider: LLM_PROVIDER, modelId: string, config: ModelConfig): JsonObject {
     const definition = resolveAiSdkProviderDefinition(provider)
-    const anonymous = provider.apiType === 'ollama' || provider.id === 'ollama'
+    const anonymous = isAnonymous(provider)
     if (!definition && !anonymous)
       throw new Error('Provider needs a native product connection adapter')
     const kind = definition
@@ -236,14 +239,10 @@ export class DimModelCatalog {
       driverKind: driver,
       auth,
       baseUrl,
-      ...(anonymous
-        ? {}
-        : {
-            credential: {
-              action: 'set_ref',
-              reference: credentialReference(provider.id)
-            }
-          }),
+      credential: {
+        action: 'set_ref',
+        reference: credentialReference(provider.id)
+      },
       headers: {
         ...definition?.defaultHeadersPatch,
         ...Object.fromEntries(
@@ -256,6 +255,10 @@ export class DimModelCatalog {
       ...(config.timeout && config.timeout > 0 ? { network: { timeoutMs: config.timeout } } : {})
     }
   }
+}
+
+function isAnonymous(provider: LLM_PROVIDER): boolean {
+  return provider.apiType === 'ollama' || provider.id === 'ollama'
 }
 
 function credentialReference(providerId: string): string {

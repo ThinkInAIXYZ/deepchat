@@ -60,6 +60,7 @@ await writeFile(
   path.join(destination, 'DEEPCHAT-NATIVE-NOTICE.txt'),
   `DeepChat native dim assembly\nBase: ${lock.sourceCommit}\n` +
     'Modified Provider assembly to enable ProviderSecretHost and referenced custom headers.\n' +
+    'Resolves explicitly referenced product admission for anonymous connections.\n' +
     'Adds an explicit Session host-value replacement to the builder assembly API.\n' +
     'DeepChat adds configuration, auxiliary-model, context and credential-reference plugins.\n' +
     'Execution implementations are supplied by dim. DeepChat additions: Apache-2.0.\n'

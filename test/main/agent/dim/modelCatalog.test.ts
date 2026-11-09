@@ -146,7 +146,13 @@ it('keeps custom headers behind immutable grants, including anonymous connection
     const firstReference = reference()
     expect(JSON.stringify(connection)).not.toContain('first-header-secret')
     expect((connection.headers as Record<string, string>)['x-empty']).toBe('')
-    expect(connection.credential).toBeUndefined()
+    expect(connection.credential).toEqual({
+      action: 'set_ref',
+      reference: 'deepchat/provider/v1/ollama'
+    })
+    expect(await catalog.credential(first.providerId, 'deepchat/provider/v1/ollama', signal)).toBe(
+      'deepchat-admission-v1'
+    )
     expect(await catalog.credential(first.providerId, firstReference, signal)).toBe(
       'first-header-secret'
     )

@@ -158,6 +158,8 @@
 
 ## 模块进度
 
+- 模块 33：Ollama 匿名连接也持久化产品准入引用，经公开 ProviderSecretHost 在每次请求重新检查启停、模型状态与连接指纹；确认值不会成为 HTTP header，API key owner 不参与匿名请求。锁定源码仅将 secrets.rs 的 Anonymous 早返回限定为“未声明引用”，保持无引用的 dim 原有行为，hash 记入 extensionPatches；桥升为 0.8.0。独立真实 Rust fixture 绕过后续 TS admission，证明缓存连接拒绝禁用 provider、禁用模型及替换地址，重启后仍检查，实际 HTTP 无 Authorization/准入值且不调用 API key owner。最终 10 项 Rust smoke、39 项目录/provider/安装回归、应用主进程构建、Electron 聊天/重启续聊、格式、i18n、lint 和双端 typecheck 均通过。
+
 - 模块 32：知识库/记忆使用的 embeddings 与维度探测已接入 Native Rust 插件。连接通过公开 ModalityConnectionHost 按声明的 embedding.embed 授权，实际请求、重试和取消使用 dim 锁定的 Aimux；产品只分装有界传输页。Rust 遵守模型批量上限，并只在明确的 HTTP 400 批量拒绝后缩小批次；文本过长不重送，结果顺序/维度/有限值和响应大小有界。保持维度失败 DTO 与取消语义，生产入口不回退 TS embedding provider。真实 HTTP fixture 覆盖 35 条结果、供应商批量拒绝、维度、长文本拒绝及取消；39 项 provider/目录/辅助回归与 37 项 dim 单元回归通过。完整回归中并发资源争用暴露旧长用例 120s 预算和新增请求启动默认等待过短，原生长用例隔离复验 86s 通过；smoke 文件改为串行，新等待显式采用跨进程预算。最终 9 项 Rust smoke、Electron 真实聊天/重启续聊、format/i18n/lint、双端 typecheck 和 Memory scope 检查均通过。桥 0.7.0，不新增上游补丁；视频和特殊 provider 兼容、工具/子会话、Inspector、备份及旧执行器物理删除继续实施。
 
 - 模块 31：桌面图片生成、TTS 与独立 ASR facade 接入 Native Modality；保留现有配置合并、产品限流和结果 DTO，实际 HTTP、任务排队、文件与取消由 dim Rust 持有。结果通过公开任务文件分块读取并核对 hash，不读取 Native 私有数据库。Native admission 结果未知时保留 clientTaskId 并直接报错，不重送或回退 TS provider。真实 HTTP fixture 验证尺寸、质量、背景、格式、voice/speed、转写、任务取消和重启恢复；36 项相关单元回归通过。视频、向量与旧聊天音频转写兼容仍需后续接入，不能把本模块计为全部模型迁移完成。
