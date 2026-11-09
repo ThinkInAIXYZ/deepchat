@@ -120,7 +120,10 @@ const htmlRenderSectionSchema = z.strictObject({
 - Exposure: both tools are `user-configurable`, Agent mode only. That reuses both existing
   switches with no new setting: the per-agent tool toggle in agent settings (`disabledAgentTools`)
   and the per-session override (`updateSessionDisabledAgentTools`), so a user can turn them on or
-  off for one conversation. They start enabled (open question 2) and are toggled one by one: with
+  off for one conversation. They are opt-in, like `cronjob`: both names are in
+  `DEFAULT_DISABLED_AGENT_TOOLS`, and a one-time step (`htmlRenderToolsSeeded`) adds them to the
+  disabled list of existing agents without touching other tools. Conversations created before
+  the upgrade keep the tool list they started with. The tools are toggled one by one: with
   only `html_render` disabled, `html_render_section` stays listed but every call fails for lack of
   a panel. They are grouped with the `agent-core` tools, so the settings and session tool lists
   need no new group label.
@@ -230,10 +233,11 @@ iframe src = sandboxUrl ──────────────────�
 AppBridge: sandbox-resource-ready(html) ─────────────────────────────▶ inner iframe doc.write
                                   ◀──── ui/initialize (from bootstrap) ─
 AppBridge returns hostContext (theme, displayMode, locale, platform)
+mcp.apps.readHtmlRenderSections ─▶ main reads sections from the DB
 dc/html-render/sections (all sections) ──────────────────────────────▶ insert after DOMContentLoaded
                                   ◀──── ui/notifications/size-changed ──
 frame height = content height
-section list changes ──▶ dc/html-render/sections (all sections) ───▶ insert, replace or remove
+section blocks change ─▶ readHtmlRenderSections ─▶ dc/html-render/sections ─▶ insert, replace or remove
                                   ◀──── dc/html-render/script-error ───  first uncaught page error
 ```
 
@@ -241,8 +245,11 @@ section list changes ──▶ dc/html-render/sections (all sections) ───�
 
 - New route `mcp.apps.prepareHtmlRender` (`{conversationId, messageId, blockId}`), conversation
   windows only (same `RouteContext` rule as the other `mcp.apps.*` routes). It returns the
-  `McpHostPreparedView` shape that `mcp.apps.prepareHostView` (infographic) returns. Release and link opening reuse `mcp.apps.releaseView` and
-  `mcp.apps.openLink`. The renderer never sends HTML; main reads it from the DB.
+  `McpHostPreparedView` shape that `mcp.apps.prepareHostView` (infographic) returns. Release
+  reuses `mcp.apps.releaseView`. The renderer never sends HTML; main reads it from the DB.
+- New route `mcp.apps.readHtmlRenderSections` (same input). Main resolves the shell's `panelId`
+  from the same block and returns the latest version of each section of that panel in the
+  conversation, in first-appearance order (`deepchatAssistantBlocks.listHtmlRenderSections`).
 - `McpAppHost.prepareHtmlRenderView` reads the block through `readHtmlRenderSource` (message must
   belong to the conversation; block must be a successful `html_render` call with a descriptor),
   injects the bootstrap (`src/main/htmlRender/document.ts`), and calls the existing
@@ -252,8 +259,8 @@ section list changes ──▶ dc/html-render/sections (all sections) ───�
   `McpAppDescriptor | null`, with a `title` and a per-instance `libraries` map. An html_render page
   is a second host-owned view; unlike infographic, its document comes from the DB rather than a
   fixed template, so it keeps its own route. Every MCP action (tool calls, resources, prompts, messages, model context)
-  goes through `assertLiveInstance`, which rejects `null`. `openLink` skips the server binding
-  check for `null` and keeps the consent prompt. Nothing on disk changes.
+  goes through `assertLiveInstance`, which rejects `null`, and so does `openLink`: outbound links
+  are disabled for host views in this change. Nothing on disk changes.
 - Fixed CSP for this source: the existing `buildMcpAppContentSecurityPolicy` with no
   `resourceDomains`. That allows `'self'`, inline code and `data:`/`blob:`; `connect-src`,
   `frame-src`, `object-src` and `form-action` stay `'none'`. No remote host is allowed, so pages
@@ -282,8 +289,7 @@ work unchanged:
   a `ResizeObserver` callback and on `load`. Do not defer through `requestAnimationFrame`, and do
   not hide the frame with `visibility: hidden` while preparing (use `opacity: 0`): Chromium
   throttles rendering in hidden cross-origin frames, so the first size report never arrives;
-- turns clicks on `http(s)` links into `ui/open-link` (host-owned confirmation already exists);
-  in-page `#` anchors keep their default, and any other link click is cancelled;
+- cancels link clicks, except in-page `#` anchors;
 - answers `ui/resource-teardown` and `ping` so host teardown does not wait for the 500 ms cap;
 - on `dc/html-render/sections` (`{sections: [{id, html}]}`, the whole list each time), waits for
   `DOMContentLoaded` so libraries in the shell `<head>` are defined, then for each new or changed
@@ -309,8 +315,8 @@ details, none of which apply here.
 
 The frame itself is `HostViewFrame`, the host-view frame infographic blocks use (#2504). It takes a
 `prepare` function, so infographic calls `mcp.apps.prepareHostView` and html_render calls
-`mcp.apps.prepareHtmlRender`, and owns what both need: the `AppBridge` with only `openLinks` and no
-server handlers, the unmount → teardown (500 ms cap) → `releaseView` sequence, sizing, the
+`mcp.apps.prepareHtmlRender`, and owns what both need: the `AppBridge` with no host
+capabilities and no server handlers, the unmount → teardown (500 ms cap) → `releaseView` sequence, sizing, the
 initialization timeout, and `reload()`. Sandbox instances expire 30 minutes after they are
 prepared, so `reload()` prepares a fresh instance, restarts the initialization timeout, and releases
 the old instance; the old frame does not reconnect while the new one is being prepared. html_render adds
@@ -355,11 +361,12 @@ tool description, so the page matches the live app theme, including custom theme
 (the app's own `--chart-*` tokens are single-hue blues and unused). No global CSS changes. Canvas
 and SVG charts bake colors at draw time, so a light/dark switch reloads the frame.
 
-Sections: `ChatPage` provides the sections of every panel, collected from successful
-`html_render_section` blocks in the displayed messages (`htmlRenderSections.ts`, parses cached by
-params). `HtmlRenderView` sends its panel's list after `initialized` and whenever it changes; a
-reload or theme switch sends it again to the new page. Pagination loads newest messages first, so
-when a shell is displayed, every later section is too.
+Sections: `HtmlRenderView` reads its panel's sections from main after `initialized` and sends them
+to the page; a reload or theme switch does this again for the new page, so reopening the chat
+restores the panel from the DB. `ChatPage` provides only a change signal per panel, the list of
+successful `html_render_section` blocks in the displayed messages (`htmlRenderSections.ts`).
+When it changes, the view reads again after 700 ms, because the stream shows a block as successful
+up to 600 ms before writing it to the DB.
 
 The tool row of both tools shows the title or section id read from the partial params and, while
 the call is running, the size generated so far.
@@ -372,26 +379,25 @@ the existing `mcp-app` render item.
 
 - Untrusted HTML runs only on `mcp-app://<token>`; never `v-html` or app-origin `srcdoc`
   (AGENTS.md).
-- The renderer cannot choose the shell HTML. Main resolves it from the persisted block, owned by
-  the calling window's conversation. Section HTML comes from the renderer's copy of successful
-  section blocks and goes only into that sandbox, the same place the shell goes.
+- The renderer cannot choose any page HTML. Main resolves the shell and the sections from
+  persisted blocks of the calling window's conversation; the renderer passes only the block
+  reference.
 - No network requests (`connect-src 'none'`), no forms, no frames, no device permissions, no remote
   scripts, styles, fonts or images.
 - `/lib` serves only names in the instance's `libraries` map.
 - With the bootstrap's link handler suppressed, scripted clicks on `_top`, `_blank`, `_parent` and
-  `_self` links, `window.open`, `fetch` and remote images all fail; the main-process window-open
-  handler is never reached. A page stuck in a loop blocks only its own frame process.
+  `_self` links, `top.location` and `location` assignment, `window.open`, `fetch` and remote images
+  all fail; the main-process window-open handler is never reached. A page stuck in a loop blocks only its own frame process.
   `test/e2e/specs/47-html-render-isolation.smoke.spec.ts` checks these against a real build.
-- An html_render instance cannot reach any MCP server action; only link opening is wired.
-- Links open only after the existing host-owned confirmation.
+- An html_render instance cannot reach any MCP server action or open links.
 - Existing registry limits apply: 64 instances per process, 32 per WebContents, 30-minute token
   TTL.
 
 ## Compatibility
 
 - MCP App persistence, routes, and behavior are unchanged. The nullable descriptor, title and
-  `/lib/<name>` serving came with host views in #2504; this change adds one route, the
-  html_render libraries map, and link opening for host-owned views.
+  `/lib/<name>` serving came with host views in #2504; this change adds two routes and the
+  html_render libraries map.
 - Conversations without the tool are unaffected. Disabling the tool hides it from the model; past
   renders still display.
 - Exporters show the tool block as today (title from params). HTML export is a follow-up.
@@ -410,9 +416,9 @@ the existing `mcp-app` render item.
 - `<script src="/lib/echarts.js">` loads with the network off; any remote script is rejected by the
   tool and blocked by CSP.
 - A shell plus sections shows the shell first and each section when its call succeeds; resending a
-  `sectionId` replaces that section; after reload the panel shows all sections.
+  `sectionId` replaces that section; after reopening the chat the panel shows the same sections.
 - A section for a `panelId` from another conversation returns a tool error.
-- Clicking an external link asks for confirmation before opening the system browser.
+- Clicking a link in the page opens nothing.
 - The renderer route rejects a block that is not a successful `html_render` call.
 - A page far below the viewport does not prepare a sandbox until scrolled near.
 - A page that never initializes shows the load error after 10 s, and the chat stays responsive.
@@ -422,8 +428,6 @@ the existing `mcp-app` render item.
 
 1. Bundled library set. Decided for now: ECharts only (about 1 MB in the installer). Adding a
    library is one map entry plus the file.
-2. Initial state of the tool. Currently enabled by default; adding it to
-   `DEFAULT_DISABLED_AGENT_TOOLS` is a one-line change if maintainers prefer opt-in.
 
 ## Follow-ups (not in this change)
 
@@ -435,6 +439,7 @@ the existing `mcp-app` render item.
   from MCP tools called inside `run_code`. `html_render` avoids it by being direct; MCP Apps in
   Code Mode need their own fix.
 - Save as `.html` and include renders in conversation export.
+- Outbound links through the host consent flow, which today requires a server-bound instance.
 
 ## Rejected Alternatives
 
