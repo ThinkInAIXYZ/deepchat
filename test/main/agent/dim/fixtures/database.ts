@@ -28,11 +28,14 @@ export function dimDatabase(filename = ':memory:') {
   const data = new SessionDatabase({ getDatabase: () => adapter })
   for (const table of [
     data.dimSessionBindingsTable,
+    data.dimSessionImportsTable,
     data.dimInputIntentsTable,
     data.dimInputProjectionTable,
     data.dimProviderGrantsTable,
     data.deepchatSessionsTable,
     data.newSessionsTable,
+    data.newSessionActiveSkillsTable,
+    data.newSessionDisabledAgentToolsTable,
     data.deepchatMessagesTable,
     data.deepchatAssistantBlocksTable,
     data.deepchatUserMessagesTable,

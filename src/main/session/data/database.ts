@@ -1,4 +1,5 @@
 import { DimInputProjectionTable } from './tables/dimInputProjection'
+import { DimSessionImportsTable } from './tables/dimSessionImports'
 import { DimInputIntentsTable } from './tables/dimInputIntents'
 import { DimSessionBindingsTable } from './tables/dimSessionBindings'
 import { DimProviderGrantsTable } from './tables/dimProviderGrants'
@@ -64,6 +65,9 @@ export class SessionDatabase {
 
   get dimInputProjectionTable() {
     return new DimInputProjectionTable(this.getDatabase())
+  }
+  get dimSessionImportsTable() {
+    return new DimSessionImportsTable(this.getDatabase())
   }
 
   get dimProviderGrantsTable() {

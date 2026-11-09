@@ -5,7 +5,7 @@
   "serverVersion": "0.1.0-alpha.18",
   "bridgeVersion": "0.1.0",
   "apiVersion": 1,
-  "cargoLockSha256": "bc8f2568acc96c276d52274d67faac7e88ca65548ecceefc00be9f2980d0a931",
+  "cargoLockSha256": "5b11876101689fd158b54321e0dd8b6cd8214f6c2841fcefb0ceef65007a784e",
   "assemblyPatch": {
     "path": "crates/dim-app-server/src/provider.rs",
     "sha256": "5c7c11fa43782ef06c3826e6b6c4235904675f3a5c04dfd1a918e289b69db0fc"

@@ -7,12 +7,14 @@ import type {
 import type { DimSessionBinding } from '@/session/data/tables/dimSessionBindings'
 import { dimSequence, type DimEvent } from './sessionConnection'
 import { dimQuestions } from '@shared/dimQuestions'
+import { projectDimHistory } from './historyImport'
 
 export interface DimProjection {
   event?: DimEvent
   binding: DimSessionBinding
   messages: ChatMessageRecord[]
   retractions?: string[]
+  resetTranscript?: boolean
   inputEvents?: DimEvent[]
   consumedInputs?: string[]
   completed?: { requestId: string; messageId: string; error?: string }
@@ -31,6 +33,19 @@ export function projectDimEvent(
   const result: DimProjection = { binding: next, messages, event }
   const key = `${event.type}/${event.name}`
   const now = event.create_at
+  if (key === 'deepchat/history-chunk') {
+    result.inputEvents = [event]
+    return result
+  }
+  if (key === 'deepchat/history-sealed') {
+    const imported = projectDimHistory(binding, event, readInput)
+    result.messages = imported.messages
+    result.consumedInputs = imported.keys
+    result.resetTranscript = true
+    for (const message of imported.messages)
+      next.nextOrderSeq = Math.max(next.nextOrderSeq, message.orderSeq + 1)
+    return result
+  }
   const source = event.data.source
   const sourceTurnId =
     source &&
@@ -105,6 +120,12 @@ export function projectDimEvent(
   }
   if (key === 'input/applied' && typeof event.data.input_id === 'string') {
     const input = readInput(event.data.input_id)
+    if (
+      input?.data.mode === 'append' &&
+      typeof input.data.submission_id === 'string' &&
+      input.data.submission_id.startsWith('history:')
+    )
+      return result
     const nativeUser = input?.data.user
     if (!input || !nativeUser || typeof nativeUser !== 'object' || Array.isArray(nativeUser))
       return result

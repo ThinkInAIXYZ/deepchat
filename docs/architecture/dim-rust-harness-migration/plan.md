@@ -157,6 +157,8 @@
 
 ## 模块进度
 
+- 模块 16：新增 Rust history import 插件，非上下文快照分块逐块/整体 SHA-256 校验，通过 Branch.input 的 Append 模式提供历史上下文，完成标记前阻止产品新输入。桌面只持久导入身份/进度，未知回执通过 native status 恢复；完成后不再读取 legacy 来源。导入快照可重建现有消息/附件/引用/metadata 读模型，旧待确认交互退为历史，保留原消息 ID 且防止跨产品会话覆盖。初次接纳时保留相同消息的 legacy sidecar。真实 Rust 验证损坏分块拒绝、中途退出后恢复、Unicode 分块、导入不调用模型/不重放工具、首次新回合，以及丢失缓存和桌面回执后的 native 重建。8 项 native 和 952 项 dim/session/schema/install 回归通过，format/lint/typecheck 通过。主 factory、有效 legacy Tape 来源选择、legacy 队列/图片准备及 mutation/目录变化的 rollover 继续接线。
+
 - 模块 15：新增 storage 插件的固定边界最新事件读取，context usage/manual compact 委托 native owner；compaction 快照与事件保留原生 session/branch/event/u64 字符串位置，Tape 专属 evidence 字段为空。固定 through 的读取与读途中 generation 检查防止混合或过期快照；桌面投影新增 committed-event 观察口。真实 Rust 验证 context 上限、占用、手动压缩成功及未转换会话的被动读取。8 项 native 通过；session/contracts/dim 的 930 项先通过，发现一项旧 Code Mode 预期与已批准的停用行为相反，更新后该 9 项 table suite 全通过（合计 931 项）。format/lint/typecheck 通过。
 
 - 模块 14：桌面会话改走原生 session.create（sessions.launch 是非交互委托入口），ask_user 的 1–4 题、多选和自定义答案直接提交 native question.respond；审批直接交给 native approval.respond，取消由原生事实清除等待卡片。通过 Permission advisor 表达 DeepChat 默认模式的 mutating-tool consent，Rust 继续决定准入、确认后执行与取消；修正 full-access preset 名称。交互界面复用原控件，新增 native 批次表单，不移植旧 question executor。真实 HTTP 模型 fixture 验证原生提问、非法答案拒绝、多选/自定义、write 审批及取消；8 项 native、489 项 main、7 项 renderer 通过，format/i18n/lint/typecheck 通过。

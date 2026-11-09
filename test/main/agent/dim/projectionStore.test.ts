@@ -3,6 +3,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { dimDatabase } from './fixtures/database'
 import { DimProjectionStore } from '@/agent/dim/projectionStore'
 import type { DimEvent } from '@/agent/dim/sessionConnection'
+import { dimHistoryPlan } from '@/agent/dim/historyImport'
 
 vi.unmock('fs')
 vi.unmock('node:fs')
@@ -173,4 +174,70 @@ it('projects copied native event IDs into separate fork and branch message ident
   const rows = ['app', 'fork', 'branch'].map((id) => data.deepchatMessagesTable.getBySession(id)[0])
   expect(new Set(rows.map((message) => message.id)).size).toBe(3)
   expect(rows.every((message) => JSON.parse(message.content).text === 'shared history')).toBe(true)
+})
+
+it('refuses an imported message ID owned by another session and rolls back the view reset', () => {
+  const { data, binding, projection } = database()
+  for (const [id, sessionId] of [
+    ['target-before', 'app'],
+    ['foreign-id', 'other']
+  ])
+    data.deepchatMessagesTable.insert({
+      id,
+      sessionId,
+      orderSeq: 1,
+      role: 'user',
+      content: JSON.stringify({ text: id, files: [], links: [], search: false, think: false }),
+      status: 'sent'
+    })
+  const plan = dimHistoryPlan({
+    formatVersion: 1,
+    productSessionId: 'app',
+    summary: null,
+    messages: [
+      {
+        id: 'foreign-id',
+        sessionId: 'app',
+        orderSeq: 1,
+        role: 'user',
+        content: JSON.stringify({
+          text: 'imported',
+          files: [],
+          links: [],
+          search: false,
+          think: false
+        }),
+        status: 'sent',
+        metadata: '{}',
+        isContextEdge: 0,
+        createdAt: 1,
+        updatedAt: 1
+      }
+    ]
+  })
+  for (const [index, payload] of plan.chunks.entries())
+    projection.apply(
+      binding,
+      event(index + 1, 'deepchat', 'history-chunk', {
+        migrationId: plan.migrationId,
+        index,
+        payload
+      })
+    )
+  expect(() =>
+    projection.apply(
+      binding,
+      event(plan.chunks.length + 1, 'deepchat', 'history-sealed', {
+        migrationId: plan.migrationId,
+        productSessionId: 'app',
+        digest: plan.digest,
+        chunks: plan.chunks.length,
+        messages: 1
+      })
+    )
+  ).toThrow('another product session')
+  expect(data.deepchatMessagesTable.get('foreign-id')?.session_id).toBe('other')
+  expect(data.deepchatMessagesTable.get('target-before')?.session_id).toBe('app')
+  expect(data.dimSessionBindingsTable.get('app')?.cursor).toBe(String(plan.chunks.length))
+  expect(data.dimInputProjectionTable.get('app', `history:${plan.migrationId}:0`)).not.toBeNull()
 })

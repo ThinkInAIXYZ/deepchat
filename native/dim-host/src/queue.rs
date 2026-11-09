@@ -1,15 +1,14 @@
 //! Desktop queue controls. InputQueue still owns release/withdrawal and Branch owns admission.
 //! The journal only completes an interrupted edit/reorder; it never drives turns.
+use crate::facts::*;
 use crate::inputs::{DeepChatInputMetadata, validate_representation};
 use dim_agent_capabilities::{
     input_queue::{InputQueue, Withdrawal},
     methods::{Interruption, MethodDecl, RpcError, SessionMethods, params, reply},
     timeline_tree::TreeCommands,
 };
-use dim_agent_runtime::{AgentBuilder, Feature, Names, QueryOutput, Timeline, TimelineQuery};
-use dim_agent_types::{
-    AgentEvent, EventKind, ExtensionEvent, InputMessageData, InputMode, InputWithdrawData,
-};
+use dim_agent_runtime::{AgentBuilder, Feature, Names};
+use dim_agent_types::{AgentEvent, EventKind, InputMessageData, InputMode, InputWithdrawData};
 use rutis::Ctx;
 use rutis::host::{BoxFuture, CtxHost, DynPlugin, Effect, Key, TypeKey};
 use serde::{Deserialize, Serialize};
@@ -45,54 +44,6 @@ fn conflict() -> RpcError {
         "The native queue changed; refresh before editing",
     )
 }
-fn field(path: &str) -> Value {
-    json!({"kind":"field", "path":path})
-}
-fn equal(path: &str, value: Value) -> Value {
-    json!({"op":"compare", "left":field(path), "comparison":"eq", "right":{"kind":"value","value":value}})
-}
-fn one_of(path: &str, values: Value) -> Value {
-    json!({"op":"in","value":field(path),"values":values})
-}
-fn and(conditions: Vec<Value>) -> Value {
-    json!({"op":"and","conditions":conditions})
-}
-async fn events(timeline: &Timeline, filter: Value) -> Result<Vec<Arc<AgentEvent>>, RpcError> {
-    let mut query: TimelineQuery = serde_json::from_value(json!({
-        "scope":"branch", "through":timeline.committed(), "include_publishing":true,
-        "query":{"filter":filter,"select":{"kind":"events"}}, "page":{"limit":128}
-    }))
-    .map_err(|_| invalid("Invalid queue query"))?;
-    let mut found = Vec::new();
-    loop {
-        let page = timeline.query(query.clone()).await?;
-        let QueryOutput::Events { events } = page.result else {
-            return Err(invalid("Queue query did not return events"));
-        };
-        found.extend(events.into_iter().map(|entry| entry.event));
-        if found.len() > 4096 {
-            return Err(invalid("Queue control read exceeds its bound"));
-        }
-        let Some(next) = page.next else {
-            break;
-        };
-        query.page.as_mut().expect("paged queue query").after = Some(next);
-    }
-    Ok(found)
-}
-fn extension(name: &str) -> Value {
-    equal("kind", json!(format!("deepchat/{name}")))
-}
-fn append(timeline: &Timeline, name: &str, data: Value) -> Result<(), RpcError> {
-    timeline.append(
-        EventKind::Extension(
-            ExtensionEvent::new("deepchat", name, data).map_err(RpcError::invalid)?,
-        )
-        .into(),
-    )?;
-    Ok(())
-}
-
 /// A query projection of the native queue, including applied inputs until consumed.
 async fn pending(metadata: &DeepChatInputMetadata) -> Result<Vec<Arc<AgentEvent>>, RpcError> {
     events(&metadata.timeline, and(vec![

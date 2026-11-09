@@ -128,6 +128,7 @@ impl DynPlugin for Inputs {
                     let metadata = branch.service::<DeepChatInputMetadata>()?;
                     let _lane = metadata.lane.lock().await;
                     crate::queue::recover(&tree, &value.branch_id, &metadata).await?;
+                    crate::migration::check_ready(&metadata).await?;
                     if let Some(event) = branch.lookup(&submission).await? {
                         return reply(json!({"inputId": event.id, "sequence": event.sequence}));
                     }

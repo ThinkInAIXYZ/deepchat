@@ -432,6 +432,8 @@ export interface MessageMetadata {
     eventId: string
     sequence: string
     revision?: number
+    imported?: boolean
+    source?: DimTimelinePosition
   }
   acp?: { remoteSessionId: string; turnId?: string; historyDigest?: string }
   runId?: string

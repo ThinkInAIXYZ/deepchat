@@ -29,6 +29,14 @@ import { DimQueue } from '@/agent/dim/queue'
 import { DimInteractions } from '@/agent/dim/interactions'
 import { DimContext } from '@/agent/dim/context'
 import { DimContent } from '@/agent/dim/content'
+import { DimLegacyMigration } from '@/agent/dim/legacyMigration'
+import { dimLegacySnapshot } from '@/agent/dim/legacyMigration'
+import {
+  dimHistoryPlan,
+  dimHistoryHash,
+  normalizeDimImportedMessage
+} from '@/agent/dim/historyImport'
+import { TranscriptProjectionApplier } from '@/session/data/transcriptProjection'
 import type { AssistantMessageBlock } from '@shared/types/agent-interface'
 import type { ServerResponse } from 'node:http'
 import { createServer } from 'node:http'
@@ -973,6 +981,233 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
           }
         })
         await desktop.close('product-ui')
+        // An interrupted, checksummed legacy import resumes before the first native turn.
+        const legacyProduct = 'legacy-product'
+        grants.data.newSessionsTable.create(legacyProduct, 'deepchat', 'Legacy session', profile)
+        await nativeSettings!.initSession(legacyProduct, {
+          providerId: 'desktop-fixture',
+          modelId: 'fixture',
+          generationSettings: { maxTokens: 83, contextLength: 64000 }
+        })
+        const legacyText = '历史🐳'.repeat(70000)
+        const oldMessages: ChatMessageRecord[] = [
+          {
+            id: 'legacy-user',
+            sessionId: legacyProduct,
+            orderSeq: 1,
+            role: 'user',
+            content: JSON.stringify({
+              text: 'Legacy original message',
+              files: [
+                { name: 'legacy.pdf', path: '/old/cache/document.pdf', type: 'application/pdf' }
+              ],
+              links: [],
+              search: false,
+              think: false
+            }),
+            status: 'sent',
+            isContextEdge: 0,
+            metadata: JSON.stringify({ legacyAnnotation: legacyText }),
+            createdAt: 1234,
+            updatedAt: 1234
+          },
+          {
+            id: 'legacy-assistant',
+            sessionId: legacyProduct,
+            orderSeq: 2,
+            role: 'assistant',
+            content: JSON.stringify([
+              {
+                id: 'legacy-write',
+                type: 'tool_call',
+                tool_call: {
+                  id: 'old-call',
+                  name: 'write',
+                  params: JSON.stringify({
+                    path: 'legacy-never-run.txt',
+                    content: 'must not execute'
+                  }),
+                  response: 'legacy-tool-result'
+                },
+                status: 'success',
+                timestamp: 1234
+              }
+            ]),
+            status: 'sent',
+            isContextEdge: 0,
+            metadata: '{}',
+            createdAt: 1234,
+            updatedAt: 1234
+          },
+          {
+            id: 'legacy-pending',
+            sessionId: legacyProduct,
+            orderSeq: 3,
+            role: 'assistant',
+            content: JSON.stringify([
+              {
+                id: 'legacy-question',
+                type: 'action',
+                action_type: 'question_request',
+                status: 'pending',
+                timestamp: 1234,
+                tool_call: { id: 'old-question', name: 'question' },
+                extra: { needsUserAction: true }
+              }
+            ]),
+            status: 'pending',
+            isContextEdge: 0,
+            metadata: '{}',
+            createdAt: 1234,
+            updatedAt: 1234
+          }
+        ]
+        const applier = new TranscriptProjectionApplier(grants.data)
+        for (const message of oldMessages) applier.applyRecord(message)
+        const native = await host.start()
+        const legacyCreated = await native.call<{ sessionId: string }>(
+          'deepchat.host.launch',
+          await nativeSettings!.launch(legacyProduct)
+        )
+        const legacyBinding = grants.data.dimSessionBindingsTable.bind(
+          legacyProduct,
+          legacyCreated.sessionId,
+          'main',
+          4
+        )
+        const legacyRef = { sessionId: legacyCreated.sessionId, branchId: 'main' }
+        const snapshot = dimLegacySnapshot(
+          legacyProduct,
+          oldMessages.map(normalizeDimImportedMessage),
+          'Prior summary retained'
+        )
+        const historyPlan = dimHistoryPlan(snapshot)
+        expect(historyPlan.chunks.length).toBeGreaterThan(1)
+        grants.data.dimSessionImportsTable.begin(legacyBinding, historyPlan)
+        const manifest = {
+          migrationId: historyPlan.migrationId,
+          productSessionId: legacyProduct,
+          digest: historyPlan.digest,
+          chunks: historyPlan.chunks.length
+        }
+        await native.call('session.deepchat_migration.begin', {
+          ...legacyRef,
+          migrationId: historyPlan.migrationId,
+          manifest
+        })
+        await expect(
+          native.call('session.deepchat_migration.chunk', {
+            ...legacyRef,
+            migrationId: historyPlan.migrationId,
+            index: 0,
+            payload: historyPlan.chunks[0],
+            checksum: '0'.repeat(64)
+          })
+        ).rejects.toThrow('Invalid history chunk')
+        await native.call('session.deepchat_migration.chunk', {
+          ...legacyRef,
+          migrationId: historyPlan.migrationId,
+          index: 0,
+          payload: historyPlan.chunks[0],
+          checksum: dimHistoryHash(historyPlan.chunks[0])
+        })
+        await expect(
+          native.call('session.deepchat_inputs.submit', {
+            ...legacyRef,
+            input: {
+              submission_id: randomUUID(),
+              mode: 'queue',
+              user: { content: [{ type: 'text', text: 'must wait for import' }] }
+            },
+            representation: {
+              text: 'must wait for import',
+              files: [],
+              links: [],
+              search: false,
+              think: false
+            }
+          })
+        ).rejects.toMatchObject({ data: { appError: 'migration_incomplete' } })
+        await host.stop()
+        let sourceReads = 0
+        const migration = new DimLegacyMigration({
+          database: grants.data,
+          host,
+          snapshot: async () => {
+            sourceReads++
+            if (sourceReads > 1) throw new Error('Committed history must be read only through dim')
+            return dimLegacySnapshot(legacyProduct, oldMessages, 'Prior summary retained')
+          }
+        })
+        const importFailures: unknown[] = []
+        const importedRuntime = new DimSessionRuntime({
+          database: grants.data,
+          host,
+          launch: async () => {
+            throw new Error('Reuse the interrupted native import')
+          },
+          prepare: async (binding) => {
+            await nativeSettings!.prepare(binding)
+            await migration.prepare(binding)
+          },
+          projected: () => {},
+          failed: (_id, error) => importFailures.push(error)
+        })
+        const callsBeforeImport = conversationRequests().length
+        await importedRuntime.open(legacyProduct)
+        await importedRuntime.waitIdle(legacyProduct)
+        expect(conversationRequests()).toHaveLength(callsBeforeImport)
+        expect(sourceReads).toBe(1)
+        expect(grants.data.dimSessionImportsTable.get(legacyBinding)).toMatchObject({
+          sealed: true
+        })
+        const importedRows = grants.data.deepchatMessagesTable.getBySession(legacyProduct)
+        expect(importedRows.map((row) => row.id)).toEqual(oldMessages.map((message) => message.id))
+        expect(JSON.parse(importedRows[0].content)).toMatchObject({
+          text: 'Legacy original message',
+          files: [{ name: 'legacy.pdf' }]
+        })
+        expect(importedRows[2].status).toBe('error')
+        expect(JSON.parse(importedRows[0].metadata).legacyAnnotation).toBe(legacyText)
+        expect(JSON.parse(importedRows[2].content)[0]).toMatchObject({
+          status: 'error',
+          extra: { needsUserAction: false }
+        })
+        await expect(readFile(path.join(profile, 'legacy-never-run.txt'))).rejects.toMatchObject({
+          code: 'ENOENT'
+        })
+        await importedRuntime.submit(legacyProduct, [
+          { type: 'text', text: 'first native continuation' }
+        ])
+        await importedRuntime.waitIdle(legacyProduct)
+        expect(JSON.stringify(conversationRequests().at(-1)!.body)).toContain('legacy-tool-result')
+        expect(JSON.stringify(conversationRequests().at(-1)!.body)).toContain(
+          'first native continuation'
+        )
+        expect(grants.data.deepchatMessagesTable.getBySession(legacyProduct)).toHaveLength(5)
+        await importedRuntime.close(legacyProduct)
+        await host.stop()
+        // Lose the desktop receipt and cache. The native seal recovers both without legacy reads.
+        grants.data
+          .getDatabase()
+          .prepare('UPDATE dim_session_imports SET sealed_cursor=NULL WHERE session_id=?')
+          .run(legacyProduct)
+        applier.applyRetractions(grants.data.deepchatMessagesTable.getIdsBySession(legacyProduct))
+        grants.data.dimSessionBindingsTable.delete(legacyProduct)
+        grants.data.dimSessionBindingsTable.bind(legacyProduct, legacyCreated.sessionId)
+        await importedRuntime.open(legacyProduct)
+        await importedRuntime.waitIdle(legacyProduct)
+        expect(sourceReads).toBe(1)
+        expect(grants.data.deepchatMessagesTable.getBySession(legacyProduct)).toHaveLength(5)
+        expect(
+          JSON.parse(grants.data.deepchatMessagesTable.get('legacy-user')!.metadata)
+            .legacyAnnotation
+        ).toBe(legacyText)
+        expect(importFailures).toEqual([])
+        await expect(readFile(path.join(profile, 'legacy-never-run.txt'))).rejects.toMatchObject({
+          code: 'ENOENT'
+        })
+        await importedRuntime.close(legacyProduct)
         await host.stop()
         const restored = await host.start()
         expect(await restored.call('session.deepchat_queue.mutate', { ...ref, plan })).toEqual(
@@ -989,7 +1224,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
       await rm(profile, { recursive: true, force: true })
     }
   },
-  60_000
+  120_000
 )
 
 it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(

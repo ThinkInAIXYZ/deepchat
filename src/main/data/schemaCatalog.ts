@@ -1,4 +1,5 @@
 import { DimInputProjectionTable } from '@/session/data/tables/dimInputProjection'
+import { DimSessionImportsTable } from '@/session/data/tables/dimSessionImports'
 import { DimInputIntentsTable } from '@/session/data/tables/dimInputIntents'
 import { DimSessionBindingsTable } from '@/session/data/tables/dimSessionBindings'
 import { DimProviderGrantsTable } from '@/session/data/tables/dimProviderGrants'
@@ -80,6 +81,7 @@ function normalizeDeclaredType(type: string | null | undefined): string | null {
 }
 
 const CATALOG_DEFINITIONS: CatalogDefinition[] = [
+  { name: 'dim_session_imports', createTable: (db) => new DimSessionImportsTable(db) },
   { name: 'dim_provider_grants', createTable: (db) => new DimProviderGrantsTable(db) },
   { name: 'dim_input_projection', createTable: (db) => new DimInputProjectionTable(db) },
   { name: 'dim_input_intents', createTable: (db) => new DimInputIntentsTable(db) },
@@ -490,6 +492,7 @@ export function createMainSchemaCatalog(db: Database.Database): MainSchemaCatalo
   const sessions = new NewSessionsTable(db)
   const projects = new NewProjectsTable(db)
   const dimInputProjection = new DimInputProjectionTable(db)
+  const dimSessionImports = new DimSessionImportsTable(db)
   const dimIntents = new DimInputIntentsTable(db)
   const dimBindings = new DimSessionBindingsTable(db)
   const dimProviderGrants = new DimProviderGrantsTable(db)
@@ -540,6 +543,7 @@ export function createMainSchemaCatalog(db: Database.Database): MainSchemaCatalo
     dimProviderGrants,
     dimIntents,
     dimInputProjection,
+    dimSessionImports,
     messages,
     userMessages,
     userMessageFiles,

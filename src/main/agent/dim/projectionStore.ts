@@ -73,12 +73,27 @@ export class DimProjectionStore {
             input.name === 'input-representation' &&
             typeof input.data.submissionId === 'string'
             ? `submission:${input.data.submissionId}`
-            : input.id
+            : input.type === 'deepchat' && input.name === 'history-chunk'
+              ? `history:${input.data.migrationId}:${input.data.index}`
+              : input.id
         )
       for (const inputId of projection.consumedInputs ?? [])
         this.database.dimInputProjectionTable.delete(sessionId, inputId)
       if (projection.retractions) this.applier.applyRetractions(projection.retractions)
-      for (const message of projection.messages) this.applier.applyRecord(message)
+      if (projection.resetTranscript) {
+        const retained = new Set(projection.messages.map((message) => message.id))
+        this.applier.applyRetractions(
+          this.database.deepchatMessagesTable
+            .getIdsBySession(sessionId)
+            .filter((id) => !retained.has(id))
+        )
+      }
+      for (const message of projection.messages) {
+        const existing = this.database.deepchatMessagesTable.get(message.id)
+        if (existing && existing.session_id !== sessionId)
+          throw new Error('Native projection message belongs to another product session')
+        this.applier.applyRecord(message)
+      }
       this.database.dimSessionBindingsTable.advance(binding, projection.binding)
       return projection
     })()

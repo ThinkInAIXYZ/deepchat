@@ -148,6 +148,7 @@ export class DimSessionRuntime {
           'invalid_params',
           'session_invalid_input',
           'input_blocked',
+          'migration_incomplete',
           'rejected',
           'session_closed',
           'branch_missing',

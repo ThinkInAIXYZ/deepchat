@@ -20,6 +20,7 @@ interface ProjectionOptions {
   publishStatus: SessionStatusPublisherPorts['publishStatus']
   completed(sessionId: string): void
   committed?(sessionId: string, event: DimEvent): void
+  reset?(sessionId: string): void
 }
 
 /** Publishes desktop views of committed native facts. It cannot advance execution. */
@@ -32,6 +33,7 @@ export class DimDesktopProjection {
     const { binding, messages, completed } = projection
     const sessionId = binding.sessionId
     if (projection.event) this.options.committed?.(sessionId, projection.event)
+    if (projection.resetTranscript) this.options.reset?.(sessionId)
     const previous = this.observedStatus.get(sessionId)
     this.observedStatus.set(sessionId, binding.status)
     if (previous !== binding.status)
