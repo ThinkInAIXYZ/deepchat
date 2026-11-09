@@ -24,6 +24,9 @@ export class DimRuntimeSupervisor {
   private socketDirectory: string | null = null
   private exited: Promise<void> | null = null
   private exitCode: number | null = null
+  private address: string | null = null
+  private identity: { version: string; protocolVersion: number; pluginApiVersion: number } | null =
+    null
 
   constructor(private readonly options: DimRuntimeOptions) {}
 
@@ -31,9 +34,10 @@ export class DimRuntimeSupervisor {
     if (this.stopping) return this.stopping.then(() => this.start())
     if (this.starting) return this.starting
     if (this.connection) return Promise.resolve(this.connection)
-    if (this.process && this.exitCode === null)
-      return Promise.reject(new Error('dim connection was lost; stop the host before restarting'))
-    const starting = this.terminate().then(() => this.launch())
+    const starting =
+      this.process && this.exitCode === null
+        ? this.attach(this.address!, this.identity!)
+        : this.terminate().then(() => this.launch())
     this.starting = starting
     void starting
       .finally(() => {
@@ -104,6 +108,8 @@ export class DimRuntimeSupervisor {
       this.socketDirectory = await mkdtemp(path.join(os.tmpdir(), 'dc-dim-'))
       address = path.join(this.socketDirectory, 'host.sock')
     }
+    this.address = address
+    this.identity = lock
     const args = [
       'app-server',
       '--home',
@@ -137,6 +143,18 @@ export class DimRuntimeSupervisor {
         resolve()
       })
     })
+    try {
+      return await this.attach(address, lock)
+    } catch (error) {
+      await this.terminate()
+      throw error
+    }
+  }
+
+  private async attach(
+    address: string,
+    lock: { version: string; protocolVersion: number; pluginApiVersion: number }
+  ): Promise<DimPluginClient> {
     let client: DimPluginClient | null = null
     const deadline = Date.now() + (this.options.startupTimeoutMs ?? 30_000)
     try {
@@ -203,14 +221,17 @@ export class DimRuntimeSupervisor {
       return client
     } catch (error) {
       client?.close()
-      await this.terminate()
       throw error
     }
   }
 
   private async shutdown(): Promise<void> {
     if (this.starting) await this.starting.catch(() => {})
-    const client = this.connection
+    let client = this.connection
+    if (!client && this.process && this.exitCode === null && this.address && this.identity) {
+      client = await this.attach(this.address, this.identity).catch(() => null)
+    }
+    const wasRunning = this.process !== null && this.exitCode === null
     this.connection = null
     let graceful = false
     try {
@@ -225,7 +246,7 @@ export class DimRuntimeSupervisor {
       client?.close()
       await this.terminate()
     }
-    if (!graceful && client) throw new Error('dim did not complete graceful shutdown')
+    if (!graceful && wasRunning) throw new Error('dim did not complete graceful shutdown')
   }
 
   private async terminate(): Promise<void> {
@@ -238,5 +259,7 @@ export class DimRuntimeSupervisor {
     this.process = null
     if (this.socketDirectory) await rm(this.socketDirectory, { recursive: true, force: true })
     this.socketDirectory = null
+    this.address = null
+    this.identity = null
   }
 }

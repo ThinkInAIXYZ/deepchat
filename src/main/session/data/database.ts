@@ -1,3 +1,5 @@
+import { DimInputIntentsTable } from './tables/dimInputIntents'
+import { DimSessionBindingsTable } from './tables/dimSessionBindings'
 import type { CONVERSATION, CONVERSATION_SETTINGS, SQLITE_MESSAGE } from '@shared/types/session'
 import type { DatabaseConnectionProvider } from '@/data/databaseConnection'
 import { ConversationsTable } from './tables/conversations'
@@ -56,6 +58,14 @@ export class SessionDatabase {
 
   get newSessionsTable() {
     return new NewSessionsTable(this.getDatabase())
+  }
+
+  get dimInputIntentsTable() {
+    return new DimInputIntentsTable(this.getDatabase())
+  }
+
+  get dimSessionBindingsTable() {
+    return new DimSessionBindingsTable(this.getDatabase())
   }
 
   get deepchatSessionsTable() {

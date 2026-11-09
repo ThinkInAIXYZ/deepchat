@@ -2,7 +2,7 @@
 
 本文件是唯一执行跟踪表。目标与职责见 [spec.md](./spec.md)。
 
-状态：已开始实施，先交付 release 安装与插件基础模块；主产品的 session backend 尚未切换。下列任务是 DeepChat 接入 dim 的实施任务，不是 dim 功能缺口清单。dim 的完整队列直接复用，ACP 保持 DeepChat client 路径，dim 自身 OAuth 不做适配，桌面功能保持原所有者；数据库持续加解密按用户决定移除，只保留旧数据解密迁移。
+状态：已交付 release、插件宿主与持久会话读写核心；主产品的 session backend 尚未切换。下列任务是 DeepChat 接入 dim 的实施任务，不是 dim 功能缺口清单。dim 的完整队列直接复用，ACP 保持 DeepChat client 路径，dim 自身 OAuth 不做适配，桌面功能保持原所有者；数据库持续加解密按用户决定移除，只保留旧数据解密迁移。
 
 ## P0. 基线与已确认决策
 
@@ -24,7 +24,7 @@
 - [x] 固定 runtime manifest：release/source commit、六平台包/hash、SDK/rutis/插件运行时版本、插件 digest、存储版本和许可证；接入现有 runtime 安装与离线打包。
 - [x] 每 profile 启动独立受监督宿主，显式 home/data root，socket/pipe 私有；复用现有进程树、退出和代理/CA 配置。
 - [x] 装载 `deepchat-host` 与 `deepchat-storage` 两条 process 插件 row，通过 `ctx.use` 获取 dim `sessions`/management services。
-- [ ] 按产品工具与 timeline 读取需要注册 Session/branch parts；当前基础控制与历史查询使用 process services。
+- [x] 为实时事件注册 branch part，为原生 timeline query/branch 读取注册 Session part；产品工具部分继续在 P3 实施。
 - [x] 完成最小插件调用：desktop → 插件注册的方法 → dim session service → 插件事件 → desktop。业务边界是插件代码，不经 ACP、不解析 CLI 输出。
 - [ ] 固定 typed `DimPluginClient` 调用合同及版本握手；本地 socket/pipe 仅承载跨进程调用，App Server 公共 RPC 探针不代替插件集成验收。
 - [x] 验证基础宿主启停、SDK/版本/profile 匹配、插件 readiness、重启与 u64 无损读取、断线后不盲重试。
@@ -42,7 +42,7 @@
 - [ ] `DimAgentBackend` 通过 host 插件实现现有发送、取消、快照、设置与交互 facet；插件内调用 dim service，不导入旧 harness 服务图。
 - [ ] 将队列 list/update/reorder/steer/resume 等 UI 操作直接绑定 dim 原生队列；移除旧 pending pump 的执行职责，不新增 TS 队列或先行改造 dim InputQueue。
 - [ ] 将 dim 事件转换为既有消息块、usage、状态及 typed events，保留 turn/request/tool 身份和错误来源。
-- [ ] 实现稳定 submission intent、未知提交结果查询、重连补页、去重、projection cursor 与 generation fencing；确认丢失时不盲目重发。
+- [x] 实现稳定 submission intent、未知提交结果查询、重连补页、去重、projection cursor 与 generation fencing；确认丢失时不盲目重发。
 - [ ] 多窗口/CLI/Remote 复用现有产品入口；ACP 的认证、终端、扩展和取消保持原路径，只做回归，不新增 dim ACP 接口或跨 ACP 委托。
 
 完成条件：现有聊天 UI 可多轮、取消、操作队列和重启恢复；执行和队列状态只由 dim 持有，Direct ACP 不经过 dim。
@@ -157,6 +157,7 @@
 ## 模块进度
 
 - 模块 1：锁定 alpha.21 六平台 release 与 rutis 0.19.3，新增 `installRuntime:dim`、冻结插件运行时依赖、两个独立插件模块和安装完整性回归。Linux x64 的首次安装、重复安装以及托管 Node 已验证；其他平台尚未执行。
+- 模块 3：原生事件订阅、有界补页与 raw timeline query；持久 app/native binding 与 submission intent；消息、工具、审批与 usage 的 SQL 读模型投影。消息和 cursor 同事务提交，旧 reader 被替换后禁止写入；断线可重连同一执行进程，accepted input 不重发。真实 release + SQLite 验证重启后身份/历史/提交幂等，投影失败回滚与恢复。完整桌面 backend、工具配置与迁移仍在后续任务。
 - 模块 2：实现 `DimRuntimeSupervisor` 与 `DimPluginClient`，使用私有 socket/pipe、受管 Node、版本/profile/readiness 校验、并发启动合并、graceful shutdown 及进程树兜底；新增 `smoke:dim` 原生集成检查。主应用尚未接入，P2 队列 UI、P5 migration 等任务保持未完成。
 
 ## 方案验证记录与 PR 状态
@@ -164,4 +165,4 @@
 - 官方 alpha.21 Linux x64 的 checksum/version、重复安装、受管 Node、两个实际注入插件的 mock 回合/lookup/history/重启一致性，以及无账号的 product profile 插件启动均已验证。真实 provider、完整插件工具、其他平台和桌面 backend 接线尚未验证。
 - 本次修订已通过文档本地链接、代码围栏、whitespace 与旧缺口标签清理检查；重新运行 `i18n:validate` 通过（23 locales）。
 - 网络变更后依赖和 Electron 原生模块已安装，先前依赖阻塞已解除；本次所有相关检查均实际执行，未绕过 TLS/校验和。
-- 方案已提交为面向 `dev` 的 [Draft PR #2511](https://github.com/ThinkInAIXYZ/deepchat/pull/2511)，包含修订后的插件集成与按需迁移范围；产品代码尚未迁移。
+- 方案已提交为面向 `dev` 的 [Draft PR #2511](https://github.com/ThinkInAIXYZ/deepchat/pull/2511)，包含修订后的插件集成与按需迁移范围；会话持久读写核心已实现，主产品入口尚未切换。
