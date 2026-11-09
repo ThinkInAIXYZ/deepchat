@@ -157,6 +157,8 @@
 
 ## 模块进度
 
+- 模块 13：队列 UI controller 直接读取 native Timeline，编辑/排序/删除/steer 通过 Rust 插件调用 InputQueue.withdraw 与 Branch.inputs；扩展事实只保存控制日志和展示信息，不建立第二个执行队列。操作身份支持重复请求，分阶段日志在 branch 加载和后续提交前恢复；已开始输入返回冲突，恢复只重送确认撤回的输入。真实 Rust + 阻塞 HTTP fixture 验证排序、编辑、删除、steer、重复命令及重启后去重；8 项 native 集成和 18 项 dim/desktop 状态回归通过，format/lint/双端 typecheck 通过。附件准备阻塞的产品草稿处理与主 factory 仍在后续接线。
+
 - 模块 1：锁定 alpha.21 六平台 release 与 rutis 0.19.3，新增 `installRuntime:dim`、冻结插件运行时依赖、两个独立插件模块和安装完整性回归。Linux x64 的首次安装、重复安装以及托管 Node 已验证；其他平台尚未执行。
 - 模块 12：新增内置 backend 的 dim 提交 facade、桌面事件发布与设置 controller；把无执行职责的 output/sessionUpdates 移到 shared，ACP 不再从旧 runtime 导入这些视图合同。native Agent profile 按内容身份复用，模型切换/并发设置采用串行配置命令，context/output 上限及 timeout 由 native 配置采用。真实 Runtime 证明 persona/参数/上限进入 Rust 请求，模型切换与并发设置一致，原生事实产生 stream/status/usage 与通知；302 项 ACP/共享视图回归通过。主 composition factory 仍未切换，完整队列/交互/迁移和生命周期 controller 正在继续接线。
 - 模块 11：产品输入的展示信息写入 dim 的非上下文扩展事实，输入本身仍走 Branch.input 并保持 submission 幂等；拒绝 malformed representation 与外部 handover。storage 插件接入完整 committed Timeline 读取（公共 history 会过滤扩展事件），保留 u64 游标与固定 through。桌面消息/附件名称/原文本/引用可从 native 事实重建，输入消费/撤回清理暂存缓存。真实 Runtime.submit、重复提交、Rust HTTP 请求不含展示元数据、重启后清空缓存再重建均已验证。

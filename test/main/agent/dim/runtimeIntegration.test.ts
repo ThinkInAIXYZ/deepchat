@@ -25,6 +25,8 @@ import type { SessionEventPublisher } from '@/events/sessionEventRouter'
 import type { ProviderSettingsPort } from '@/provider/settings'
 import type { ModelConfig } from '@shared/types/provider'
 import { DimSessionControls } from '@/agent/dim/sessionControls'
+import { DimQueue } from '@/agent/dim/queue'
+import type { ServerResponse } from 'node:http'
 import { createServer } from 'node:http'
 
 // Explicit smoke target: no network requests or runtime downloads during tests.
@@ -244,11 +246,20 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
   async (nativePlugins) => {
     const requests: Array<{ authorization?: string; body: Record<string, unknown> }> = []
     let nativeCancelled = false
+    let holdQueue = false
+    let heldQueueResponse: ServerResponse | null = null
     const fixture = createServer(async (req, res) => {
       let payload = ''
       for await (const data of req) payload += data
       const body = payload ? JSON.parse(payload) : {}
       requests.push({ authorization: req.headers.authorization, body })
+      if (holdQueue) {
+        holdQueue = false
+        heldQueueResponse = res
+        res.writeHead(200, { 'Content-Type': 'text/event-stream' })
+        res.flushHeaders()
+        return
+      }
       if (JSON.stringify(body.messages ?? []).includes('hold native auxiliary')) {
         res.once('close', () => {
           nativeCancelled = true
@@ -691,6 +702,88 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
       ).toMatchObject({ text: 'Rust provider answer' })
       if (nativePlugins)
         expect(requests.at(-1)?.authorization).toBe('Bearer rotated-native-credential')
+      if (nativePlugins) {
+        const current = await host.start()
+        const send = (text: string) =>
+          current.call<{ inputId: string }>('session.deepchat_inputs.submit', {
+            ...ref,
+            input: {
+              submission_id: randomUUID(),
+              mode: 'queue',
+              user: { content: [{ type: 'text', text }] }
+            },
+            representation: { text, files: [], links: [], search: false, think: false }
+          })
+        holdQueue = true
+        await send('hold the native queue fixture')
+        await expect.poll(() => Boolean(heldQueueResponse)).toBe(true)
+        const a = await send('queue A')
+        const b = await send('queue B')
+        const c = await send('queue C')
+        const queue = new DimQueue({
+          database: grants.data,
+          host,
+          runtime: new DimSessionRuntime({
+            database: grants.data,
+            host,
+            launch: async () => {
+              throw new Error('Reuse the existing binding')
+            },
+            projected: () => {},
+            failed: () => {}
+          }),
+          prepareNative: async () => {},
+          setProjectDir: async () => {},
+          prepareInput: async (_id, input) => ({
+            content: [{ type: 'text', text: input.text }],
+            representation: { text: input.text, files: [], links: [], search: false, think: false },
+            summary: { status: 'ready', issues: [] }
+          })
+        })
+        expect((await queue.listPendingInputs('product-ui')).map((item) => item.id)).toEqual([
+          a.inputId,
+          b.inputId,
+          c.inputId
+        ])
+        const moved = await queue.moveQueuedInput('product-ui', c.inputId, 0)
+        expect(moved.map((item) => item.payload.text)).toEqual(['queue C', 'queue A', 'queue B'])
+        const edited = await queue.updateQueuedInput('product-ui', moved[1].id, {
+          text: 'edited queue A'
+        })
+        expect(
+          (await queue.listPendingInputs('product-ui')).map((item) => item.payload.text)
+        ).toEqual(['queue C', 'edited queue A', 'queue B'])
+        expect(edited.id).not.toBe(a.inputId)
+        await queue.deletePendingInput('product-ui', moved[0].id)
+        const pending = await queue.listPendingInputs('product-ui')
+        const plan = {
+          operationId: randomUUID(),
+          sources: [pending[1].id],
+          order: [],
+          replacement: null
+        }
+        const deleted = await current.call('session.deepchat_queue.mutate', { ...ref, plan })
+        expect(await current.call('session.deepchat_queue.mutate', { ...ref, plan })).toEqual(
+          deleted
+        )
+        await expect(queue.deletePendingInput('product-ui', pending[1].id)).rejects.toThrow(
+          'already started'
+        )
+        const steered = await queue.steerPendingInput('product-ui', edited.id)
+        expect(steered.mode).toBe('steer')
+        const response = heldQueueResponse as unknown as ServerResponse
+        response.end(
+          `data: ${JSON.stringify({ id: 'held', object: 'chat.completion.chunk', model: 'fixture', created: 0, choices: [{ index: 0, delta: { role: 'assistant', content: 'queue held response' }, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`
+        )
+        await current.call('deepchat.host.idle', ref)
+        expect(await queue.listPendingInputs('product-ui')).toEqual([])
+        await host.stop()
+        const restored = await host.start()
+        expect(await restored.call('session.deepchat_queue.mutate', { ...ref, plan })).toEqual(
+          deleted
+        )
+        expect(await queue.listPendingInputs('product-ui')).toEqual([])
+      }
     } finally {
       await host.stop()
       await gateway.stop()

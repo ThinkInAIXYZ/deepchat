@@ -25,7 +25,7 @@ type CoreMethods =
   | 'cancelGenerationByEventId'
   | 'cleanupSession'
 type StartContext = NonNullable<Parameters<DeepChatAgentBackendPort['processMessage']>[2]>
-interface PreparedInput {
+export interface DimPreparedInput {
   content: JsonValue[]
   representation: JsonValue
   summary: AttachmentPreparationSummary
@@ -40,7 +40,7 @@ export interface DimBackendOptions {
     sessionId: AppSessionId,
     input: SendMessageInput,
     signal?: AbortSignal
-  ): Promise<PreparedInput>
+  ): Promise<DimPreparedInput>
   // Configuration adoption and on-demand conversion complete before native admission.
   prepareNative(sessionId: string, context?: StartContext): Promise<void>
   closed(sessionId: string): void

@@ -30,9 +30,9 @@ pub fn install(builder: &mut AgentBuilder) {
     );
 }
 
-struct DeepChatInputMetadata {
-    timeline: Arc<Timeline>,
-    lane: Mutex<()>,
+pub(crate) struct DeepChatInputMetadata {
+    pub(crate) timeline: Arc<Timeline>,
+    pub(crate) lane: Mutex<()>,
 }
 impl PublicService for DeepChatInputMetadata {}
 struct InputMetadataPlugin {
@@ -81,7 +81,7 @@ struct Submit {
     representation: Value,
 }
 
-fn validate_representation(value: &Value) -> Result<(), RpcError> {
+pub(crate) fn validate_representation(value: &Value) -> Result<(), RpcError> {
     let valid = value.get("text").is_some_and(Value::is_string)
         && value.get("search").is_some_and(Value::is_boolean)
         && value.get("think").is_some_and(Value::is_boolean)
@@ -127,6 +127,7 @@ impl DynPlugin for Inputs {
                     let branch = tree.get(&value.branch_id)?;
                     let metadata = branch.service::<DeepChatInputMetadata>()?;
                     let _lane = metadata.lane.lock().await;
+                    crate::queue::recover(&tree, &value.branch_id, &metadata).await?;
                     if let Some(event) = branch.lookup(&submission).await? {
                         return reply(json!({"inputId": event.id, "sequence": event.sequence}));
                     }
