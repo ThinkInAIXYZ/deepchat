@@ -1,6 +1,7 @@
 mod facts;
 mod inputs;
 mod migration;
+mod media;
 mod models;
 mod permissions;
 mod product_tools;
@@ -14,7 +15,7 @@ fn install(builder: &mut dim_agent_runtime::AgentBuilder) {
     dim_session_title::install(builder);
     dim_agent_scheduler::install(builder);
     dim_goal::install(builder);
-    dim_modality_aimux::install(builder);
+    media::install(builder);
     dim_modality::install_with(
         builder,
         dim_modality::InstallOptions {

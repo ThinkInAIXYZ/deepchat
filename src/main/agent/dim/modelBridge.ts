@@ -44,7 +44,13 @@ export class DimModelBridge {
 
   async configure(config: DimModelConfiguration): Promise<DimModelId> {
     const client = await this.host.start()
-    return client.call('deepchat.model.configure', config as unknown as JsonValue)
+    const target = await client.call<DimModelId>(
+      'deepchat.model.configure',
+      config as unknown as JsonValue
+    )
+    if (this.host.usesNativePlugins)
+      await client.call('deepchat.native_media.refresh', { providerId: target.providerId })
+    return target
   }
 
   async complete(

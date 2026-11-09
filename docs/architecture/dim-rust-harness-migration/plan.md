@@ -73,6 +73,7 @@
 - [ ] 既有 MCP/插件兼容：in-memory server、MCP Apps、企业身份、知识库和 CUA 经插件注入；保留 consent、撤销、更新与参数/结果语义。作为正常接入实现，不列为 dim 缺失能力。
 - [ ] 模型：将现有设置及连接参数通过插件交给 dim；会话和辅助模型请求都在 Rust 执行，不回调旧 TypeScript Provider。
 - [ ] 辅助调用：标题、摘要、翻译、记忆提取、embedding/rerank、媒体等接入 dim 对应 model/auxiliary/modality；desktop 保留展示、索引与非模型服务。
+- [ ] 图片/视频/TTS 会话与辅助媒体入口直接路由 dim Modality；非聊天模型不能作为聊天 loop 的模型选择，原会话及展示身份保留。当前已验证媒体任务原生执行，产品 backend 路由仍待接线。
 - [ ] OAuth：dim 自身登录、账号和 refresh 不做适配或迁移，不新增统一认证层；其他凭据/配置按能力所有者，通过插件正常交互，不能进入 timeline 或普通 row config。
 - [ ] Context/Skills/Hooks：dim 负责提示词、上下文、压缩、预算和撤销，产品 context/hook 通过插件接入；不由 TS 拼 provider 请求。
 - [ ] 原生 subagent/branch/collaboration 直接用 dim；ACP 完全由 DeepChat 原有实现处理，不规划 ExternalAgent、dim ACP gateway 或 ACP-as-provider 的 dim 迁移。
@@ -156,6 +157,8 @@
 建议按 release/插件骨架、session/队列绑定、产品能力、解密与按需转换、desktop 读取/Inspector、切换清理拆 PR。取消旧版按推测上游缺口估算的 12–20 人周；首个插件端到端切片完成后，依据实际映射与转换工作量估算，不把 ACP/OAuth 重写或 desktop 重做计入。
 
 ## 模块进度
+
+- 模块 24：原生媒体适配插件从 dim ProviderService 的公开 metadata 重建 UUID→vendor 名称映射，模型连接和全部执行仍委托 dim Modality/MediaAdapter；恢复时坏 provider 不阻塞其他会话。产品模型目录声明媒体操作和非聊天类型，防止图片等模型误进入聊天选择。新增仅提交/等待/取消/读取结果的 DimModality facade，结果有界分片与 SHA 校验，保留未知提交身份和未知取消结果。薄桥版本升为 0.2.0，旧二进制会在 manifest 握手被拒绝。真实 HTTP 验证图片、TTS、转写、幂等、取消、重启后从 dim owner 恢复映射/任务及凭据轮换；9 项原生 smoke 与 1182 项相关 main 回归通过，format/i18n/lint/双端 typecheck 通过。媒体会话/产品辅助调用入口与其他 provider 的完整兼容仍待接线。
 
 - 模块 23：组合工厂接入原生 MCP 临时绑定与桌面授权续期，配置撤销/凭据轮换/Session 更代时卸载旧绑定，不转发 MCP 工具调用到 Node。新增选中配置导出与临时 OAuth token 解析，in-memory/产品管理进程明确保留兼容入口；stdio 环境与主 composition 仍待接线。删除 JS 工具目录重载实现，改用 Session scoped Rust ToolProvider，目录无效时撤回，禁止覆盖原生工具，ToolHandler 复用私有产品授权网关；等原生 ToolBinding 的公共 PromptSnapshot 采用全部当前 source 后再返回，解决目录更新后立即提交的竞态。真实 Rust 验证目录替换、原生工具同名拒绝、取消、MCP 凭据轮换/禁用、共存和宿主重启；8 项原生集成与 1179 项 dim/session/MCP/installer 回归通过，format/i18n/lint/双端 typecheck 通过。
 

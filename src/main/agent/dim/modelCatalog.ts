@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import type { JsonValue } from '@shared/contracts/json'
 import type { LLM_PROVIDER, ModelConfig } from '@shared/types/provider'
 import type { SessionGenerationSettings } from '@shared/types/agent-interface'
+import { ModelType } from '@shared/model'
 import type { ProviderSettingsPort } from '@/provider/settings'
 import type { DimProviderGrantsTable } from '@/session/data/tables/dimProviderGrants'
 import { resolveAiSdkProviderDefinition } from '@/provider/providerRegistry'
@@ -67,16 +68,19 @@ export class DimModelCatalog {
     const connection = this.connection(provider, modelId, config)
     const capability = this.options.settings.getCapabilitySnapshot({ providerId, modelId })
     const portrait = capability.reasoningPortrait
+    const modality = dimModality(config)
     const model: JsonObject & { modelId: string } = {
       modelId,
       displayName: modelId,
       status: 'active',
       capabilities: {
-        modalities: [
-          'text',
-          ...(config.vision ? ['image'] : []),
-          ...(capability.supportsAudioInput ? ['audio'] : [])
-        ],
+        modalities: modality.output
+          ? [modality.output]
+          : [
+              'text',
+              ...(config.vision ? ['image'] : []),
+              ...(capability.supportsAudioInput ? ['audio'] : [])
+            ],
         toolCalling: config.functionCall,
         streaming: true,
         structuredOutput: true,
@@ -88,6 +92,19 @@ export class DimModelCatalog {
       },
       metadata: {
         metadataSource: 'deepchat',
+        ...(modality.operations.length || (config.type && config.type !== ModelType.Chat)
+          ? {
+              raw: {
+                type: modality.kind,
+                modalityCapabilities: modality.operations,
+                deepchatMediaVendors: [
+                  provider.capabilityProviderId,
+                  provider.id,
+                  provider.apiType
+                ].filter((name): name is string => !!name)
+              }
+            }
+          : {}),
         reasoning: {
           ...(portrait ? JSON.parse(JSON.stringify(portrait)) : {}),
           supported: capability.supportsReasoning
@@ -227,6 +244,26 @@ export class DimModelCatalog {
       headers: { ...definition?.defaultHeadersPatch, ...provider.customHeaders },
       ...(config.timeout && config.timeout > 0 ? { network: { timeoutMs: config.timeout } } : {})
     }
+  }
+}
+
+function dimModality(config: ModelConfig): { kind: string; output?: string; operations: string[] } {
+  switch (config.type) {
+    case ModelType.ImageGeneration:
+      return {
+        kind: 'image-generation',
+        output: 'image',
+        operations: ['image.generate', 'image.edit']
+      }
+    case ModelType.VideoGeneration:
+      return { kind: 'video-generation', output: 'video', operations: ['video.generate'] }
+    case ModelType.TTS:
+      return { kind: 'tts', output: 'audio', operations: ['speech.synthesize'] }
+    default:
+      return {
+        kind: config.type ?? 'chat',
+        operations: config.speechRecognition ? ['speech.transcribe'] : []
+      }
   }
 }
 
