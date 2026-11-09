@@ -67,4 +67,21 @@ describe('AgentHtmlRenderTool', () => {
 
     expect(() => call('e', 'x'.repeat(200_000))).toThrow(/2 MB/)
   })
+
+  it('measures from the database alone once it covers the accepted sections', () => {
+    let stored = new Map<string, number>()
+    const panels = { measurePanel: () => ({ shellBytes: 10, sectionBytes: stored }) }
+    const pruningTool = new AgentHtmlRenderTool()
+    const call = (sectionId: string, html = 'x'.repeat(500_000)) =>
+      pruningTool.callSection({ panelId: 'p', sectionId, html }, 'session-1', panels)
+
+    for (const sectionId of ['a', 'b', 'c']) call(sectionId)
+    stored = new Map(['a', 'b', 'c'].map((id) => [id, 500_000]))
+    call('small', 'x')
+    stored = new Map()
+
+    for (const sectionId of ['d', 'e', 'f', 'g']) {
+      expect(() => call(sectionId)).not.toThrow()
+    }
+  })
 })
