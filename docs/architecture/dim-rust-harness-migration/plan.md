@@ -157,4 +157,4 @@
 - 基础验证沿用已完成记录：官方 alpha.21 Linux x64 checksum/version、v3 socket、mock Rust loop、input lookup、history 与重启一致性。未验证插件的部分未改标为通过。
 - 本次修订已通过文档本地链接、代码围栏、whitespace 与旧缺口标签清理检查；重新运行 `i18n:validate` 通过（23 locales）。
 - 完整质量门禁仍受既有依赖安装阻塞：缺少 oxfmt/i18n-check/typescript/tsc；先前 frozen install 被 cdn.sheetjs.com 网络策略 403 阻塞。本轮不改产品代码。
-- 方案分支已推送；Draft PR 创建此前被 api.github.com 的网络策略 403 阻塞，不能声称 PR 已存在。修订同时更新分支及待发布 PR 描述。
+- 方案已提交为面向 `dev` 的 [Draft PR #2511](https://github.com/ThinkInAIXYZ/deepchat/pull/2511)，包含修订后的插件集成与按需迁移范围；产品代码尚未迁移。
