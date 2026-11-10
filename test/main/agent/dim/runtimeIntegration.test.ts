@@ -618,6 +618,12 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
     })
     const host = new DimRuntimeSupervisor({
       runtimeRoot: path.resolve('runtime/dim'),
+      diagnostic:
+        process.env.DEEPCHAT_DIM_DIAGNOSTICS === '1'
+          ? (event) => {
+              process.stderr.write(`[dim lifecycle] ${JSON.stringify(event)}\n`)
+            }
+          : undefined,
       nativePlugins,
       contextBridge: nativePlugins,
       gatewayAddress: nativePlugins ? await gateway.start() : undefined,
@@ -1399,7 +1405,20 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
           }
         ]
         await desktop.submit('product-ui', [{ type: 'text', text: 'native approval fixture' }])
-        await expect.poll(() => pendingAction()?.block.action_type).toBe('tool_call_permission')
+        await expect
+          .poll(() => ({
+            action: pendingAction()?.block.action_type,
+            pendingFixtureTools: nextTools?.map((tool) => tool.name),
+            lastRequest: {
+              stream: requests.at(-1)?.body.stream,
+              tools: (requests.at(-1)?.body.tools as unknown[] | undefined)?.length,
+              lastMessage: (
+                JSON.stringify((requests.at(-1)?.body.messages as unknown[] | undefined)?.at(-1)) ??
+                ''
+              ).slice(0, 2048)
+            }
+          }))
+          .toMatchObject({ action: 'tool_call_permission' })
         const approval = pendingAction()!
         await interactions.respondToolInteraction(
           'product-ui',
@@ -2470,11 +2489,16 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
   'executes product tools inside dim and reloads their scoped catalog with cancellation',
   async () => {
     const profile = await mkdtemp(path.join(os.tmpdir(), 'dc-dim-tools-'))
+    let lastRequestSummary = ''
     const fixture = createServer(async (request, response) => {
       let payload = ''
       for await (const chunk of request) payload += chunk
       const body = JSON.parse(payload)
       const last = body.messages?.at(-1)
+      lastRequestSummary = JSON.stringify({ role: last?.role, content: last?.content }).slice(
+        0,
+        2048
+      )
       const title = JSON.stringify(body.messages).includes(
         'Write a short title for this conversation:'
       )
@@ -2555,6 +2579,12 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
     })
     const host = new DimRuntimeSupervisor({
       runtimeRoot: path.resolve('runtime/dim'),
+      diagnostic:
+        process.env.DEEPCHAT_DIM_DIAGNOSTICS === '1'
+          ? (event) => {
+              process.stderr.write(`[dim lifecycle] ${JSON.stringify(event)}\n`)
+            }
+          : undefined,
       profileRoot: profile,
       nodeExecutable: path.resolve(
         'runtime/node',
@@ -2672,7 +2702,9 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
       await client.call('deepchat.host.idle', ref)
       expect(calls.at(-1)?.name).toBe('deepchat_changed')
       await send('tool:deepchat_hold {}')
-      await expect.poll(() => calls.at(-1)?.name).toBe('deepchat_hold')
+      await expect
+        .poll(() => ({ name: calls.at(-1)?.name, request: lastRequestSummary }))
+        .toMatchObject({ name: 'deepchat_hold' })
       await client.call('deepchat.host.stop', ref)
       await client.call('deepchat.host.idle', ref)
       await expect.poll(() => cancelled).toBe(true)

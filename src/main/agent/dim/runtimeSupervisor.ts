@@ -7,6 +7,16 @@ import { setTimeout as delay } from 'node:timers/promises'
 import { terminateProcessTree } from '../shared/process/processTree'
 import { DimPluginClient, DimMethodError, DimConnectionError } from './pluginClient'
 
+export interface DimRuntimeDiagnostic {
+  phase: string
+  elapsedMs: number
+  pid: number | null
+  exitCode: number | null
+  scopes: number
+  detail?: string
+  stderr?: string
+}
+
 export interface DimRuntimeOptions {
   runtimeRoot: string
   profileRoot: string
@@ -17,6 +27,7 @@ export interface DimRuntimeOptions {
   gatewayAddress?: string
   nativePlugins?: boolean
   contextBridge?: boolean
+  diagnostic?(event: DimRuntimeDiagnostic): void
 }
 
 export interface DimStopOptions {
@@ -27,6 +38,23 @@ export class DimRuntimeSupervisor {
   private process: ChildProcess | null = null
   private connection: DimPluginClient | null = null
   private readonly scopedConnections = new Set<DimPluginClient>()
+  private startedAt = 0
+  private stderrTail = ''
+
+  private diagnose(phase: string, detail?: string): void {
+    try {
+      this.options.diagnostic?.({
+        phase,
+        elapsedMs: this.startedAt ? Date.now() - this.startedAt : 0,
+        pid: this.process?.pid ?? null,
+        exitCode: this.exitCode,
+        scopes: this.scopedConnections.size,
+        ...(detail ? { detail, stderr: this.stderrTail } : {})
+      })
+    } catch {
+      // Diagnostics must not interrupt native ownership or shutdown.
+    }
+  }
   private starting: Promise<DimPluginClient> | null = null
   private stopping: Promise<void> | null = null
   private maintenance: Promise<void> | null = null
@@ -291,11 +319,17 @@ export class DimRuntimeSupervisor {
       args.push('--deepchat-gateway', this.options.gatewayAddress)
     if (this.options.contextBridge) args.push('--deepchat-context')
     const child = spawn(executable, args, {
-      stdio: ['ignore', 'ignore', 'ignore'],
+      stdio: ['ignore', 'ignore', this.options.diagnostic ? 'pipe' : 'ignore'],
       windowsHide: true
     })
     this.process = child
     this.exitCode = null
+    this.startedAt = Date.now()
+    this.stderrTail = ''
+    child.stderr?.on('data', (chunk: Buffer) => {
+      this.stderrTail = (this.stderrTail + chunk.toString()).slice(-32768)
+    })
+    this.diagnose('spawned')
     this.exited = new Promise((resolve) => {
       child.once('error', () => {
         this.exitCode = -1
@@ -303,6 +337,7 @@ export class DimRuntimeSupervisor {
       })
       child.once('exit', (code) => {
         this.exitCode = code ?? -1
+        this.diagnose('exited')
         this.connection?.close()
         resolve()
       })
@@ -442,6 +477,7 @@ export class DimRuntimeSupervisor {
 
   private async shutdown(): Promise<void> {
     if (this.starting) await this.starting.catch(() => {})
+    this.diagnose('shutdown requested')
     for (const connection of this.scopedConnections) connection.close()
     let client = this.connection
     if (!client && this.process && this.exitCode === null && this.address && this.identity) {
@@ -450,26 +486,46 @@ export class DimRuntimeSupervisor {
     const wasRunning = this.process !== null && this.exitCode === null
     this.connection = null
     let graceful = false
+    let failed = false
+    let shutdownFailure: unknown
     try {
       if (client) {
         await client.call('daemon.shutdown', {}, 10_000)
+        this.diagnose('shutdown acknowledged')
         graceful = await Promise.race([
           this.exited!.then(() => this.exitCode === 0),
           delay(10_000, undefined, { ref: false }).then(() => false)
         ])
       }
-    } finally {
-      client?.close()
-      await this.terminate()
+      if (!graceful && wasRunning) throw new Error('dim did not complete graceful shutdown')
+    } catch (error) {
+      failed = true
+      shutdownFailure = error
+      this.diagnose('shutdown failed', error instanceof Error ? error.message : String(error))
     }
-    if (!graceful && wasRunning) throw new Error('dim did not complete graceful shutdown')
+    client?.close()
+    try {
+      await this.terminate()
+    } catch (error) {
+      if (failed)
+        throw new AggregateError(
+          [shutdownFailure, error],
+          'dim shutdown and process cleanup failed'
+        )
+      throw error
+    }
+    if (failed) throw shutdownFailure
+    this.diagnose('shutdown completed')
   }
 
   private async terminate(): Promise<void> {
     const child = this.process
     if (child && this.exitCode === null) {
-      if (!(await terminateProcessTree(child)))
+      this.diagnose('forced termination requested')
+      if (!(await terminateProcessTree(child))) {
+        this.diagnose('forced termination failed', 'dim process tree did not terminate')
         throw new Error('dim process tree did not terminate')
+      }
       await this.exited
     }
     this.process = null

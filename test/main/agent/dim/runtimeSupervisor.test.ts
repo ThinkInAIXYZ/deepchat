@@ -1,5 +1,13 @@
 import { expect, it, vi } from 'vitest'
 import { DimRuntimeSupervisor } from '@/agent/dim/runtimeSupervisor'
+import { terminateProcessTree } from '@/agent/shared/process/processTree'
+import { setTimeout as delay } from 'node:timers/promises'
+
+vi.mock('@/agent/shared/process/processTree', () => ({ terminateProcessTree: vi.fn() }))
+vi.mock('node:timers/promises', async (original) => {
+  const timers = await original<typeof import('node:timers/promises')>()
+  return { ...timers, setTimeout: vi.fn(timers.setTimeout) }
+})
 
 function host() {
   return new DimRuntimeSupervisor({
@@ -67,3 +75,41 @@ it('does not expose files to the callback unless native shutdown completed succe
   await Promise.all([stopped, waiting])
   expect(work).not.toHaveBeenCalled()
 })
+
+it.each(['request rejected', 'exit unconfirmed'] as const)(
+  'preserves both native shutdown and cleanup errors when %s',
+  async (failure) => {
+    const owner = host()
+    const primary = new Error('Native shutdown acknowledgement lost')
+    const close = vi.fn()
+    const client = {
+      call:
+        failure === 'request rejected'
+          ? vi.fn().mockRejectedValue(primary)
+          : vi.fn().mockResolvedValue({}),
+      close
+    }
+    // Establish an admitted child whose shutdown/exit outcome is controlled by
+    // the external RPC and process owners. No real process or profile is touched.
+    Object.assign(owner, {
+      connection: client,
+      process: { pid: 42 },
+      exitCode: null,
+      exited: new Promise(() => {})
+    })
+    vi.mocked(terminateProcessTree).mockResolvedValueOnce(false)
+    if (failure === 'exit unconfirmed') vi.mocked(delay).mockResolvedValueOnce(undefined)
+    const work = vi.fn(async () => {})
+    const stopped = owner.withStopped(work).catch((error: unknown) => error)
+    const error = await stopped
+    expect(error).toBeInstanceOf(AggregateError)
+    expect((error as AggregateError).errors).toEqual([
+      failure === 'request rejected'
+        ? primary
+        : expect.objectContaining({ message: 'dim did not complete graceful shutdown' }),
+      expect.objectContaining({ message: 'dim process tree did not terminate' })
+    ])
+    expect(work).not.toHaveBeenCalled()
+    expect(close).toHaveBeenCalledOnce()
+  }
+)

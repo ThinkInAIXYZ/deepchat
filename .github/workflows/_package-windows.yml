@@ -115,6 +115,8 @@ jobs:
           arch: ${{ inputs.arch }}
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          DEEPCHAT_DIM_DIAGNOSTICS: '1'
+          RUST_LOG: 'warn'
 
       - name: Install and verify DuckDB VSS
         run: |
