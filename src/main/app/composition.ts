@@ -187,6 +187,7 @@ import { DimRuntimeSupervisor } from '@/agent/dim/runtimeSupervisor'
 import { DimProductGateway } from '@/agent/dim/productGateway'
 import { DimProductTools } from '@/agent/dim/productTools'
 import { DimProductContext } from '@/agent/dim/productContext'
+import { DimSkillContext } from '@/agent/dim/skillContext'
 import { DimModelCatalog, dimModelParameters } from '@/agent/dim/modelCatalog'
 import { DimModelBridge } from '@/agent/dim/modelBridge'
 import { DimEmbeddingModels } from '@/agent/dim/embeddingModels'
@@ -2144,12 +2145,23 @@ export async function createMainProcessControl(dependencies: {
       }
     })
   })
+  const dimSkills = new DimSkillContext({
+    skills: skillService,
+    session: (id) => appSessionService.get(id)
+  })
   dimContext = new DimProductContext({
     database: sessionData.database,
     content: new DimContent(dimHost),
     resolve: dimScopes.context,
     authorize: authorizeDimScope,
-    prepare: dimMemory.contribute
+    prepare: async (binding, request, signal) => {
+      const skills = await dimSkills.contribute(binding, signal)
+      const memory = await dimMemory.contribute(binding, request, signal)
+      return {
+        messages: [...skills.messages, ...memory.messages],
+        receipts: [...(skills.receipts ?? []), ...(memory.receipts ?? [])]
+      }
+    }
   })
   dimAgent = createDimAgent({
     database: sessionData.database,

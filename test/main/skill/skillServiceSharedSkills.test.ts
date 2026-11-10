@@ -14,6 +14,7 @@ import type {
   StoredSkillManagementState
 } from '@shared/types/skillManagement'
 import { resolveAgentSkillsRoot } from '@/skill/agentSkillRoots'
+import { DimSkillContext } from '@/agent/dim/skillContext'
 
 vi.unmock('fs')
 vi.unmock('node:fs')
@@ -255,6 +256,20 @@ describe('SkillService shared Skills', () => {
       ).success
     ).toBe(false)
     await service.setActiveSkills('a', ['review'])
+    const context = new DimSkillContext({
+      skills: service,
+      session: (id) => sessions.find((row) => row.id === id)
+    })
+    const contribution = await context.contribute(
+      { sessionId: 'a' } as never,
+      new AbortController().signal
+    )
+    expect(JSON.stringify(contribution.messages)).toContain('# Project A')
+    expect(JSON.stringify(contribution.messages)).not.toContain('# Global review')
+    expect(JSON.stringify(contribution.messages)).toContain('dim exec')
+    expect(contribution.receipts).toMatchObject([
+      { source: 'deepchat/skills', selected: [{ name: 'review', skillRoot: rootA }] }
+    ])
     await service.deleteSkill('review', ['writer'])
     expect(await service.getActiveSkills('a')).toEqual(['review'])
     expect(fs.existsSync(path.join(rootA, 'SKILL.md'))).toBe(true)

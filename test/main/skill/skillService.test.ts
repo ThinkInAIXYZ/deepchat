@@ -1168,7 +1168,7 @@ describe('SkillService', () => {
         'Relative paths mentioned by this skill are relative to the skill root unless stated otherwise.'
       )
       expect(content?.content).toContain(
-        'When this skill needs script execution, prefer `skill_run` over `exec`.'
+        'Run scripts with the native command tool from their listed skill root; inspect files with the native file tool.'
       )
     })
 
@@ -1289,7 +1289,7 @@ describe('SkillService', () => {
 
       expect(second).toEqual(first)
       expect(first.identity).toMatchObject({ agentId: 'deepchat', skillName: 'test-skill' })
-      expect(first.builderVersion).toBe('skill-effective-content-v3')
+      expect(first.builderVersion).toBe('skill-effective-content-v4')
       expect(first.renderedManifestHash).toMatch(/^[a-f0-9]{64}$/)
       expect(first.scriptInventoryHash).toMatch(/^[a-f0-9]{64}$/)
       expect(first.executionPackage).toEqual({

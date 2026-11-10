@@ -158,6 +158,8 @@
 
 ## 模块进度
 
+- 模块 52：DeepChat 私有 Agent/项目技能的已选择内容，通过独立 DimSkillContext 接入 Native PrepareContext；产品 owner 校验当前分配、项目覆盖、选择和文件根，并在异步读取后重验 Agent/目录及选择快照，收据保存内容 hash。默认/项目技能发现、read、exec 继续属于 dim，不恢复 Node 技能执行器。旧 skill_run 指引替换为原生工具指引，内容 builder 升 v4。真实 Rust 用例完成已选技能注入、Native read + exec 执行技能脚本及 Timeline 收据（8s）；538 项技能/上下文回归通过。桌面验收发现整份未选目录占满固定上下文，修正为仅注入已选技能，并加入无选择时不读取/注入私有目录的回归；主进程构建、ACP/Native 两项联合验收通过（40s）。格式/i18n/lint/双端 typecheck 通过；Native smoke 脚本新增独立技能用例，现为 13 项。私有技能的原生目录注册、环境与策略兼容仍继续实施。
+
 - 验证批次 51：按当前模块重新生成 schema 3 架构基线，全量 main 8312 项通过、18 项跳过，唯一失败为模块 44 已移除物理表访问后遗留的 databaseSecurity Tape 边界豁免。删除该过期豁免后 46 项 Tape 边界用例全部通过，没有放宽存储边界。Memory scope（78 classified/3 exempt）和 78 项类型门禁通过。后续产品接线继续进行，最终全量仍在完成剩余模块后复跑。
 
 - 模块 50：聊天音频通过插件输入准备接入 Native auxiliary owner：公开的 MIME-bearing file source 在辅助请求中由 Aimux 转换为真实音频，先提取与用户问题相关的音频证据，再交给 dim Agent；保留原附件展示/追溯。实际测试确认当前 Native Agent image policy 会过滤音频，因此禁止直接把辅助音频形状交给 Agent，未修改 SDK 的该策略。音频准备截断、取消、会话/模型/目录/代次变化时不接纳输入；使用音频聊天模型的独立转写也走原生辅助调用，专用 ASR 继续 Native Modality。32 项相关回归通过，真实 Rust 用例覆盖原始音频 auxiliary、Agent 证据/工具、fork/retry/迁移与重启（112s），主进程构建、Electron 草稿/模型测试/CLI/聊天/重启/引用/Inspector 联合验收通过（31s）。格式/i18n/lint/双端 typecheck 通过。没有新增 SDK 补丁；大体积音频的文件传输仍待补齐，不将该模块计为全部媒体兼容完成。
