@@ -1,3 +1,4 @@
+mod archive;
 mod context;
 mod embeddings;
 mod facts;
@@ -25,6 +26,7 @@ static GATEWAY: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new()
 static PAYLOAD_ROOT: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
 
 fn install(builder: &mut dim_agent_runtime::AgentBuilder) {
+    archive::install(builder);
     dim_session_title::install(builder);
     dim_agent_scheduler::install(builder);
     dim_goal::install(builder);

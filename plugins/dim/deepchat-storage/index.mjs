@@ -83,14 +83,20 @@ export default definePlugin({
     )
     await ctx.use('managementMethods').register(
       'deepchat.storage',
-      ['capabilities', 'history', 'scope', 'seed_title', 'rename_title', 'readiness'].map(
-        (name) => ({
-          name: `deepchat.storage.${name}`,
-          mutating: name === 'seed_title' || name === 'rename_title',
-          interruption: 'report',
-          progress: false
-        })
-      ),
+      [
+        'capabilities',
+        'history',
+        'scope',
+        'seed_title',
+        'rename_title',
+        'readiness',
+        'archive_catalog'
+      ].map((name) => ({
+        name: `deepchat.storage.${name}`,
+        mutating: name === 'seed_title' || name === 'rename_title',
+        interruption: 'report',
+        progress: false
+      })),
       async ({ method, params }) => {
         if (method === 'deepchat.storage.capabilities') {
           return {
@@ -99,9 +105,25 @@ export default definePlugin({
               plugin: 'deepchat-storage',
               apiVersion: 1,
               operations: config.rawHistory
-                ? ['history', 'scope', 'seed_title', 'rename_title', 'readiness']
+                ? ['history', 'scope', 'seed_title', 'rename_title', 'readiness', 'archive_catalog']
                 : ['history']
             }
+          }
+        }
+        if (method === 'deepchat.storage.archive_catalog') {
+          if (!config.rawHistory)
+            return { code: 'unsupported', message: 'Native archive owner is unavailable' }
+          return {
+            kind: 'value',
+            value: await withNativeClient(
+              config.hostAddress,
+              {
+                profile: config.profile,
+                methods: ['deepchat.native_archive.catalog'],
+                timeoutMs: 120000
+              },
+              (call) => call('deepchat.native_archive.catalog', params)
+            )
           }
         }
         if (

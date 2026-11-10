@@ -83,6 +83,7 @@ if (
 const assemblyFile = 'crates/dim-agent-runtime/src/assembly.rs'
 const secretsFile = 'crates/dim-app-server/src/provider/secrets.rs'
 const servicesFile = 'crates/dim-app-server/src/lib.rs'
+const recordsFile = 'crates/dim-app-server/src/agent_records.rs'
 git([
   'diff',
   '--exit-code',
@@ -91,7 +92,8 @@ git([
   `:!${filename}`,
   `:!${assemblyFile}`,
   `:!${secretsFile}`,
-  `:!${servicesFile}`
+  `:!${servicesFile}`,
+  `:!${recordsFile}`
 ])
 if (current !== expected) await writeFile(path.join(directory, filename), expected)
 // Add an explicit host-value replacement to the builder's assembly API. It changes no
@@ -158,17 +160,39 @@ if (
   servicesOriginal.split(indexExport).length !== 2
 )
   throw new Error('Native session activity export seam changed')
-const servicesExpected = servicesOriginal
+const servicesPrevious = servicesOriginal
   .replace(indexImport, 'use agents::AgentsPlugin;')
   .replace(
     indexExport,
     'pub use agents::{AgentIndex, SessionPermissions, SessionRef, SessionsError};'
   )
+const servicesExpected = servicesPrevious.replace(
+  'pub use agents::{AgentIndex, SessionPermissions, SessionRef, SessionsError};',
+  'pub use agent_records::{AgentRecord, AgentRecords, SessionOwner};\n' +
+    'pub use agents::{AgentIndex, SessionPermissions, SessionRef, SessionsError};'
+)
 const servicesCurrent = await readFile(path.join(directory, servicesFile), 'utf8')
-if (servicesCurrent !== servicesOriginal && servicesCurrent !== servicesExpected)
+if (
+  servicesCurrent !== servicesOriginal &&
+  servicesCurrent !== servicesPrevious &&
+  servicesCurrent !== servicesExpected
+)
   throw new Error('Pinned dim service exports have unexpected changes')
 if (servicesCurrent !== servicesExpected)
   await writeFile(path.join(directory, servicesFile), servicesExpected)
+const recordsOriginal = git(['show', `HEAD:${recordsFile}`]) + '\n'
+let recordsExpected = recordsOriginal
+for (const name of ['AgentRecord', 'AgentRecords', 'SessionOwner']) {
+  const before = `pub(crate) struct ${name}${name === 'AgentRecords' ? '(' : ' {'}`
+  if (recordsOriginal.split(before).length !== 2)
+    throw new Error('Native ownership API export seam changed')
+  recordsExpected = recordsExpected.replace(before, before.replace('pub(crate)', 'pub'))
+}
+const recordsCurrent = await readFile(path.join(directory, recordsFile), 'utf8')
+if (recordsCurrent !== recordsOriginal && recordsCurrent !== recordsExpected)
+  throw new Error('Pinned dim ownership exports have unexpected changes')
+if (recordsCurrent !== recordsExpected)
+  await writeFile(path.join(directory, recordsFile), recordsExpected)
 export const nativeSource = {
   sourceRevision: lock.sourceCommit,
   storeFormat: Number(
@@ -180,6 +204,7 @@ export const nativeSource = {
   extensionPatches: [
     { path: assemblyFile, sha256: createHash('sha256').update(assemblyExpected).digest('hex') },
     { path: secretsFile, sha256: createHash('sha256').update(secretsExpected).digest('hex') },
-    { path: servicesFile, sha256: createHash('sha256').update(servicesExpected).digest('hex') }
+    { path: servicesFile, sha256: createHash('sha256').update(servicesExpected).digest('hex') },
+    { path: recordsFile, sha256: createHash('sha256').update(recordsExpected).digest('hex') }
   ]
 }

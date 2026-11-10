@@ -81,3 +81,10 @@ admission to ModalityTasks. Native task records determine retention, terminal
 cleanup and restart recovery. Recovery completes before orphan cleanup; uncertain
 admission never triggers an automatic resubmission. Cleanup observers are joined
 at unload. A scoped caller protects input preparation from idle backup shutdown.
+
+`deepchat.storage.archive_catalog` reads a closed profile's paginated ownership,
+Agent profiles, creation configuration, titles, file ownership and grants through
+native storage owners. It opens a read-only snapshot without restoring Agents.
+The pinned assembly re-exports the existing AgentRecords/AgentRecord/SessionOwner
+types; it adds no schema or storage queries outside those owners. This catalog is
+the preflight boundary for canonical incremental transfer and portable files.

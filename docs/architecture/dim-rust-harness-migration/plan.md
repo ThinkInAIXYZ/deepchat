@@ -160,6 +160,8 @@
 
 ## 模块进度
 
+- 模块 69：storage 插件新增关闭 profile 的分页归属目录读取，使用 Native AgentRecords/SessionStore 读取 Agent 配置、会话创建配置/父关系、标题、文件归属和权限；只读打开快照，不恢复 Agent 或访问私有表。SDK 仅公开已有归属 owner 类型，无 schema/loop/model/queue 改动，桥 0.19.0。实际三个关闭会话分页、原 Agent/标题/CWD、错误边界、源 DB hash 不变与零模型请求用例通过（9s）；34 项相关回归及双端类型/格式/i18n/lint 通过。release 构建、完整 Native 8 文件 20 项回归（134s）、主进程构建及 Electron 聊天/CLI/备份恢复/重启/Inspector 联合验收（31s）通过。macOS 子会话 CWD 回归改比较物理路径，保留目录身份验证。增量合并写入与附件搬迁继续实施。
+
 - 模块 68：Vertex 通过独立认证桥复用 Google Auth 的服务账号/应用默认凭据及刷新，API Key 继续已有 owner；新增直接依赖与已有传递版本一致的 google-auth-library 10.9.1，不执行 Node 推理。公开配置投影只包含认证方式、区域/项目/版本与地址，按现有 SDK 规则保留 Express/custom-prefix，支持 standard/global/us/eu 路由；私钥不进入 Native 配置。Native 使用 Gemini driver 和 bearer/x-goog-api-key，scope 变化生成新连接并拒绝旧授权。1110 项供应商/凭据/配置回归、双端类型及格式/i18n/lint 通过；两种实际 Vertex Native 连接的流式/完成、禁用、重启、草稿、项目换代联合通过（19s）。主进程构建及 Electron 聊天/CLI/备份恢复/重启/Inspector 联合验收通过（29s）。没有新增 SDK 补丁或桥版本变化。
 
 - 模块 67：新增仅负责认证的产品凭据桥。AWS 显式 key/session token、Profile 与默认凭据链由既有 AWS SDK 认证 owner 提供，刷新与过期仍交给该 owner；不在 Node 执行模型或 SigV4。空 Bedrock 地址按区域生成 Native 支持的官方端点，签名/请求使用 dim 原生 driver。Copilot 复用 DeepChat 登录 token exchange，向 Native 连接只提供短期 Copilot token，并保留集成 Header；缓存按 OAuth 身份隔离，处理过期、旋转与取消，错误不回传秘密。AWS Profile/区域与 Copilot client scope 进入不可变 Native 配置引用，准入前后重验，旧 owner 在重新准入后也不能借用新作用域。1100 项供应商/授权回归与双端类型、格式/i18n/lint 通过；四种 Native 连接分别实际通过，包含 Copilot 流式、禁用/地址变化/重启、草稿清理、client scope 换代拒绝旧连接及 profile 无明文 token。Native Bedrock 配置准入通过，没有向 AWS 发送推理。最终 Copilot 联合复验 8s，主进程最终构建及实际 Electron 联合验收（29s）通过。Vertex 与 ChatGPT/Codex 产品凭据接线继续实施，dim 自身 OAuth 不适配。

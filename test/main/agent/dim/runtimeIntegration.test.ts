@@ -2262,7 +2262,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
         expect(child.binding.sessionId).toBe(facadeId)
         expect(child.ref.sessionId).not.toBe(leaderBinding.dimSessionId)
         expect(child.ref.branchId).toBe('main')
-        expect(child.description.cwd).toBe(changedDirectory)
+        expect(await realpath(child.description.cwd)).toBe(await realpath(changedDirectory))
         await expect
           .poll(() =>
             requests.some((request) => {
