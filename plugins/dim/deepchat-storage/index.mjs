@@ -83,9 +83,9 @@ export default definePlugin({
     )
     await ctx.use('managementMethods').register(
       'deepchat.storage',
-      ['capabilities', 'history', 'scope'].map((name) => ({
+      ['capabilities', 'history', 'scope', 'seed_title'].map((name) => ({
         name: `deepchat.storage.${name}`,
-        mutating: false,
+        mutating: name === 'seed_title',
         interruption: 'report',
         progress: false
       })),
@@ -96,22 +96,25 @@ export default definePlugin({
             value: {
               plugin: 'deepchat-storage',
               apiVersion: 1,
-              operations: config.rawHistory ? ['history', 'scope'] : ['history']
+              operations: config.rawHistory ? ['history', 'scope', 'seed_title'] : ['history']
             }
           }
         }
-        if (method === 'deepchat.storage.scope') {
+        if (method === 'deepchat.storage.scope' || method === 'deepchat.storage.seed_title') {
           if (!config.rawHistory)
             return { code: 'unsupported', message: 'Native scope owner is unavailable' }
+          const operation = method.endsWith('.seed_title')
+            ? 'deepchat.native_scope.seed_title'
+            : 'deepchat.native_scope.describe'
           return {
             kind: 'value',
             value: await withNativeClient(
               config.hostAddress,
               {
                 profile: config.profile,
-                methods: ['deepchat.native_scope.describe']
+                methods: [operation]
               },
-              (call) => call('deepchat.native_scope.describe', params)
+              (call) => call(operation, params)
             )
           }
         }

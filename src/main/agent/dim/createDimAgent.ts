@@ -22,6 +22,7 @@ import { DimInteractions } from './interactions'
 import { DimQueue } from './queue'
 import { DimTranscriptMutations } from './transcriptMutations'
 import { DimMcp, type DimMcpServer } from './mcp'
+import { DimTitles } from './titles'
 import { createDimSessionBackend, type DimBackendOptions } from './backend'
 
 interface DimAgentOptions {
@@ -45,6 +46,7 @@ interface DimAgentOptions {
   beginDestroy(sessionId: string): void | Promise<void>
   finishDestroy(sessionId: string): void
   deleteLegacyMetadata(sessionId: string): void
+  titleChanged(sessionId: string, title: string): void
 }
 
 /** One composition of native owners behind the existing desktop backend contract. */
@@ -55,6 +57,12 @@ export function createDimAgent(options: DimAgentOptions) {
   const controls = new DimSessionControls(host)
   const content = new DimContent(host)
   const profiles = new DimAgentProfiles(host)
+  const titles = new DimTitles({
+    database,
+    host,
+    project: options.titleChanged,
+    failed: options.failed
+  })
   const mcp = new DimMcp({
     host,
     isCurrent: (binding) => {
@@ -82,7 +90,13 @@ export function createDimAgent(options: DimAgentOptions) {
   const migration = new DimLegacyMigration({
     database,
     host,
-    snapshot: (binding) => options.legacy.snapshot(binding.sessionId)
+    snapshot: async (binding) => {
+      const snapshot = await options.legacy.snapshot(binding.sessionId)
+      const title = database.newSessionsTable.get(binding.sessionId)?.title
+      if (snapshot.messages.length && title?.trim())
+        await titles.seed(binding, { text: title, source: 'manual' })
+      return snapshot
+    }
   })
   const views = new DimDesktopProjection({
     output: options.output,
@@ -101,6 +115,8 @@ export function createDimAgent(options: DimAgentOptions) {
     launch: (id) => settings.launch(id, true),
     // A reader can hydrate and convert historical content without granting model execution.
     prepare: (binding) => migration.prepare(binding),
+    opened: (binding) => titles.open(binding),
+    closed: (id) => titles.close(id),
     projected: (_id, projection) => views.apply(projection),
     failed: options.failed
   })
@@ -108,7 +124,13 @@ export function createDimAgent(options: DimAgentOptions) {
     views.apply({ binding, messages, resetTranscript: true })
     options.publishEvent('sessions.updated', { sessionIds: [binding.sessionId], reason: 'updated' })
   }
-  const transitions = new DimScopeTransitions({ database, host, runtime, installed })
+  const transitions = new DimScopeTransitions({
+    database,
+    host,
+    runtime,
+    installed,
+    preserveTitle: (source, target, change) => titles.preserve(source, target, change)
+  })
   const prepareHistory = async (sessionId: string): Promise<void> => {
     await transitions.recover(sessionId)
     await runtime.open(sessionId)
@@ -223,5 +245,18 @@ export function createDimAgent(options: DimAgentOptions) {
       compactSession: context.compactSession
     }
   })
-  return { backend, runtime, settings, mutations, transitions, mcp, prepareNative, prepareHistory }
+  return {
+    backend,
+    runtime,
+    settings,
+    mutations,
+    transitions,
+    mcp,
+    prepareNative,
+    prepareHistory,
+    rename: async (sessionId: string, title: string) => {
+      await prepareHistory(sessionId)
+      await titles.rename(sessionId, title)
+    }
+  }
 }

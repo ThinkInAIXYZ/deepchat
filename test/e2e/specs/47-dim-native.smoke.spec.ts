@@ -185,6 +185,23 @@ test('desktop chat uses persistent native dim sessions @smoke', async ({ app, la
       'false'
     )
     const sessionId = await getActiveSessionId(app.page)
+    await expect
+      .poll(async () =>
+        app.page.evaluate(async (id) => {
+          const page = await window.deepchat.invoke('sessions.listLightweight', {})
+          return page.items.find((session) => session.id === id)?.title
+        }, sessionId)
+      )
+      .toBe('NATIVE_DIM_DESKTOP_REPLY')
+    const renamed = await app.page.evaluate(
+      (id) =>
+        window.deepchat.invoke('sessions.rename', {
+          sessionId: id,
+          title: 'NATIVE_MANUAL_TITLE'
+        }),
+      sessionId
+    )
+    expect(renamed.session.title).toBe('NATIVE_MANUAL_TITLE')
     const firstPage = await app.page.evaluate(
       (id) => window.deepchat.invoke('sessions.listMessagesPage', { sessionId: id }),
       sessionId
@@ -216,6 +233,11 @@ test('desktop chat uses persistent native dim sessions @smoke', async ({ app, la
     const sidebar = reopened.page.getByTestId('window-sidebar-toggle')
     if ((await sidebar.getAttribute('aria-expanded')) === 'false') await sidebar.click()
     await openSessionById(reopened.page, sessionId)
+    const restoredTitle = await reopened.page.evaluate(async (id) => {
+      const page = await window.deepchat.invoke('sessions.listLightweight', {})
+      return page.items.find((session) => session.id === id)?.title
+    }, sessionId)
+    expect(restoredTitle).toBe('NATIVE_MANUAL_TITLE')
     await expect(getAssistantMessages(reopened.page).last()).toContainText(
       'NATIVE_DIM_DESKTOP_REPLY'
     )

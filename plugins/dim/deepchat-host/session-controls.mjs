@@ -15,6 +15,7 @@ const OPERATIONS = {
   answer: ['session.question.respond', true],
   approval: ['approval.respond', true],
   fork: ['session.fork', true],
+  rename: ['session.rename', true],
   close: ['session.close', true]
 }
 

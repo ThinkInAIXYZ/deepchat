@@ -2240,6 +2240,10 @@ export async function createMainProcessControl(dependencies: {
     publishEvent: publishDeepchatEvent,
     completed: notifySessionCompleted,
     committed: dimMemory.observe,
+    titleChanged: (sessionId, title) => {
+      appSessionService.update(sessionId, { title })
+      publishDeepchatEvent('sessions.updated', { sessionIds: [sessionId], reason: 'updated' })
+    },
     failed: (sessionId, error) =>
       logger.error('[dim] Desktop projection failed', { sessionId, error }),
     mcpServers: async (binding) => (await dimMcpConfiguration(binding.sessionId)).servers,
@@ -2396,14 +2400,20 @@ export async function createMainProcessControl(dependencies: {
     messages: createLivePort(() => sessionData.database.deepchatMessagesTable),
     searchResults: createLivePort(() => sessionData.database.deepchatMessageSearchResultsTable),
     traces: createLivePort(() => sessionData.database.deepchatMessageTracesTable),
-    usesAgentTitle: (sessionId) =>
-      !!acpRuntimeOwner.peek()?.sessionController.getSession(toAppSessionId(sessionId))?.extensions
-        ?.sessionTitle,
-    onTitleRenamed: async (sessionId, agentId) => {
+    usesAgentTitle: (sessionId) => {
+      const session = appSessionService.get(sessionId)
+      return (
+        (!!session && agentManager.resolveBackend(session.agentId).kind === 'deepchat') ||
+        !!acpRuntimeOwner.peek()?.sessionController.getSession(toAppSessionId(sessionId))
+          ?.extensions?.sessionTitle
+      )
+    },
+    onTitleRenamed: async (sessionId, agentId, title) => {
       if (agentManager.resolveBackend(agentId).kind === 'acp')
         await acpRuntimeOwner
           .getOrCreate()
           .sessionController.markTitleManual(toAppSessionId(sessionId), agentId)
+      else await dimAgent.rename(sessionId, title)
     },
     titles: providerRuntime,
     agentConfig: {

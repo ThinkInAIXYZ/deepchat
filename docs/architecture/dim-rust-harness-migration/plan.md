@@ -158,6 +158,8 @@
 
 ## 模块进度
 
+- 模块 55：自动标题使用 dim SessionTitle/SessionStore，桌面不再重复等待首回合或调用辅助标题模型。独立私有 v3 会话订阅先 attach 再读 metadata；通知仅使 storage 插件读取失效，不伪造 Timeline 事件或周期轮询。手动改名调用原生 session.rename，产品投影同步标题及搜索索引；旧会话与各代切换以原生 owner 初始 revision CAS 保留名称和来源，幂等重试不能覆盖后续手动标题。绑定换代、关闭中的异步连接和通知撤销有回归。桥升 0.13.0，无新增 SDK 补丁。919 项相关回归、实际 Rust 技能/记忆/标题及关闭代复制用例（11s）、ACP/Native 两项 Electron（41s）通过；格式/i18n/lint/双端类型与主进程构建通过。桌面首轮在业务开始前遭遇 CDP promise 被回收，修复夹具：初始化检查在 DOM 就绪后、已登记进程清理的 try/catch 内执行，避免失败后遗留 Electron。桥 0.13.0 的完整 13 项 Native smoke 串行通过（231s），覆盖队列、MCP、子任务、权限、媒体及历史恢复。标题模型偏好与超长手动改名兼容仍继续核对。
+
 - 模块 54：Memory 视图查询接通 Native storage 插件，按产品 Agent 与各代持久归属读取原生审计，不创建 Tape 或触发模型；旧 Tape 记录继续只读合并。用户消息由 input/consumed 事实关联真实 turn，按消息查询在固定水位的 canonical transcript 上解析身份；原生记录返回 nullable entryId 与无损 Timeline 坐标。分页按原生位置降序且固定 through，存储插件将声明的 sequence 比较操作数无损转为 u64；继承分支不冒充当前 owner，异步和最终返回前检查撤权。153 项相关回归、实际 Rust 技能/记忆联合用例（8s）、ACP/Native 两项 Electron（47s）通过；Memory scope/type 79 项、格式/i18n/lint/双端类型与主进程构建通过。
 
 - 模块 53：被动 Trace manifest 与嵌套执行审计查询改为只读旧归档，不再为 Native 消息初始化 Tape。有 Native 绑定而内容插件未接线时，会话引用显式失败，不降级到旧 Tape 或触发初始化。新增实际 SQLite 回归验证两类诊断零 Tape 写入，以及缺少 Native owner 时选择/读取均拒绝；53 项会话/引用/原子性回归通过。格式/i18n/lint/双端 typecheck 与主进程构建通过；Electron 首轮在启动未处理异常后卡住清理，保留日志并清理该测试进程后，同代码独立复验（含模型测试、CLI、聊天/重启、引用和 Inspector）34s 通过。

@@ -42,7 +42,7 @@
 
 [Release 资源](https://github.com/arcships/dim/releases/tag/v0.1.0-alpha.21) 包含 macOS/Linux/Windows 的 x64/arm64 原生包、manifest 和 SHA256SUMS。实际二进制报告 `0.1.0-alpha.21`；该 tag 的 Cargo/npm 源模板仍含 `alpha.18`，因此**必须联合校验二进制版本、manifest、源码 commit、插件 SDK 和能力，不只读 package.json**。
 
-alpha.21 的 Rust API 已支持完整 `ModelConfig` 和 `ProviderSecretHost`，但当前 TS 插件绑定没有导出这两个入口。因此保留官方 release 安装与回归，同时通过同一 release 的锁定源码装配 `native/dim-host`：增加设置和辅助模型插件；显式启用 stock Provider 的现有凭据引用依赖，并让自定义 Header 的不透明引用通过同一 ProviderSecretHost 在请求时解析；匿名连接如声明产品准入引用，也通过此公开 owner 在每次请求检查当前启停/模型/连接身份，认证模式仍是 Anonymous，不向供应商发送确认值（源码准备脚本精确核对 Provider 装配、Header 引用与匿名引用检查的变更，并拒绝其余 tracked 文件变更）。另在 builder 装配 API 增加显式 per-Session host factory，使用原生 SessionIdentity 替换默认 IdentityContext，让产品插件实现公开 PrepareContext；其独立源码 hash 记入 extensionPatches。原生 context 仍校验固定历史前缀并负责预算/压缩，不修改 loop、队列、context 或模型驱动实现。当前桥版本 0.9.0，包含 Session 产品 ToolProvider、媒体 provider 名称适配和向量插件；媒体任务/连接/驱动复用 dim，向量经过公开非聊天连接 owner 后由同一锁定源码内的 Aimux 执行。二进制 manifest 记录 release、真实 server version、source commit、Cargo.lock/hash 和装配变更 hash，启动再核对插件 provenance。待官方 release 直接暴露这些扩展口后，可移除这个装配例外。
+alpha.21 的 Rust API 已支持完整 `ModelConfig` 和 `ProviderSecretHost`，但当前 TS 插件绑定没有导出这两个入口。因此保留官方 release 安装与回归，同时通过同一 release 的锁定源码装配 `native/dim-host`：增加设置和辅助模型插件；显式启用 stock Provider 的现有凭据引用依赖，并让自定义 Header 的不透明引用通过同一 ProviderSecretHost 在请求时解析；匿名连接如声明产品准入引用，也通过此公开 owner 在每次请求检查当前启停/模型/连接身份，认证模式仍是 Anonymous，不向供应商发送确认值（源码准备脚本精确核对 Provider 装配、Header 引用与匿名引用检查的变更，并拒绝其余 tracked 文件变更）。另在 builder 装配 API 增加显式 per-Session host factory，使用原生 SessionIdentity 替换默认 IdentityContext，让产品插件实现公开 PrepareContext；其独立源码 hash 记入 extensionPatches。原生 context 仍校验固定历史前缀并负责预算/压缩，不修改 loop、队列、context 或模型驱动实现。当前桥版本 0.13.0，包含 Session 产品 ToolProvider、媒体 provider 名称适配和向量插件；媒体任务/连接/驱动复用 dim，向量经过公开非聊天连接 owner 后由同一锁定源码内的 Aimux 执行。二进制 manifest 记录 release、真实 server version、source commit、Cargo.lock/hash 和装配变更 hash，启动再核对插件 provenance。待官方 release 直接暴露这些扩展口后，可移除这个装配例外。
 
 已在临时独立目录执行 release 的 `dimcode app-server --mock-model --home … --unix … --no-ws`：
 
@@ -187,6 +187,8 @@ dim 已有 `mcp.catalog/configuration/save/update/remove/inspect`、OAuth 和 Se
 模型调用、请求构造、流、重试和 usage 全部交给 dim Rust。DeepChat 的模型设置 UI、产品预设和相关配置通过 `deepchat-host` 注入到 dim 对应 services；桥只做参数、身份和结果映射，不调用旧 TypeScript Provider。
 
 主对话之外的标题、摘要、翻译、建议、记忆提取、embedding/rerank、图像/语音模型工作，同样经插件调用 dim 的 model/auxiliary/modality 能力。非模型的知识索引、向量存储和系统服务仍属于产品，通过插件提供工具或资源。
+
+自动标题由 dim SessionTitle 生成并经 SessionStore 持久化；桌面关闭重复的辅助标题任务。独立的私有 v3 会话订阅只把 SessionStore 通知当作失效信号，再通过 storage 插件读取标题与无损 revision；初始化先订阅再读，关闭释放订阅。手动改名走原生 session.rename。旧标题与各代切换通过 storage 插件调用公共 SessionStore 的初始 revision CAS，只在未设置标题时保留原文及来源，恢复重试不能覆盖后续人工名称。
 
 **dim 自身 OAuth 不适配、不迁移账号、不重实现登录或 token refresh，也不要求 DeepChat 统一其账号系统。** 其他 DeepChat 配置、凭据引用、工具和能力通过插件交互，沿用实际能力所有者的认证。对 settings 和 provider 的验收是插件参数与结果是否正确，不预先规划重写各家 provider 或新增通用 credential resolver。
 

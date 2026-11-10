@@ -14,6 +14,8 @@ export interface DimSessionRuntimeOptions {
   host: DimRuntimeSupervisor
   launch(sessionId: string): Promise<JsonValue>
   prepare?(binding: DimSessionBinding): Promise<void>
+  opened?(binding: DimSessionBinding): Promise<void>
+  closed?(sessionId: string): Promise<void>
   projected(sessionId: string, projection: DimProjection): void
   failed(sessionId: string, error: unknown): void
 }
@@ -230,6 +232,7 @@ export class DimSessionRuntime {
     this.readers.delete(sessionId)
     this.scopes.delete(sessionId)
     if (reader) await (await reader.catch(() => null))?.reader.close()
+    await this.options.closed?.(sessionId)
   }
   async stop(): Promise<void> {
     for (const id of this.readers.keys()) await this.close(id)
@@ -274,6 +277,9 @@ export class DimSessionRuntime {
         if (this.scopes.get(sessionId) !== scope) return
         this.readers.delete(sessionId)
         this.scopes.delete(sessionId)
+        void this.options
+          .closed?.(sessionId)
+          .catch((error) => this.options.failed(sessionId, error))
         this.options.failed(sessionId, error)
       },
       binding.cursor
@@ -282,11 +288,15 @@ export class DimSessionRuntime {
       await reader.start()
       if (this.scopes.get(sessionId) !== scope)
         throw new Error('dim desktop session closed during hydration')
+      await this.options.opened?.(captured)
+      if (this.scopes.get(sessionId) !== scope)
+        throw new Error('dim desktop session closed while attaching metadata')
       for (const intent of this.options.database.dimInputIntentsTable.pending(sessionId))
         await this.reconcile(intent)
       return { reader, binding: captured, scope }
     } catch (error) {
       await reader.close()
+      await this.options.closed?.(sessionId)
       throw error
     }
   }

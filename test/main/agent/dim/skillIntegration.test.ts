@@ -12,6 +12,7 @@ import { DimModelBridge } from '@/agent/dim/modelBridge'
 import { DimContent } from '@/agent/dim/content'
 import { DimMemorySource } from '@/agent/dim/memorySource'
 import { DimMemoryViews } from '@/agent/dim/memoryViews'
+import { DimTitles } from '@/agent/dim/titles'
 import { dimDatabase } from './fixtures/database'
 
 it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
@@ -28,6 +29,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
     let context!: DimProductContext
     let modelRequests = 0
     let observedInstructions = false
+    let titles: DimTitles | undefined
     const fixture = createServer(async (request, response) => {
       const chunks: Buffer[] = []
       for await (const chunk of request) chunks.push(Buffer.from(chunk))
@@ -151,7 +153,17 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
       })
       const ref = { sessionId: created.sessionId, branchId: 'main' }
       database.data.newSessionsTable.create('desktop-private', 'private-agent', 'Private', profile)
-      database.data.dimSessionBindingsTable.bind('desktop-private', ref.sessionId, ref.branchId)
+      const binding = database.data.dimSessionBindingsTable.bind(
+        'desktop-private',
+        ref.sessionId,
+        ref.branchId
+      )
+      titles = new DimTitles({
+        database: database.data,
+        host,
+        project: (id, title) => database.data.newSessionsTable.update(id, { title })
+      })
+      await titles.open(binding)
       await client.call('deepchat.host.input', {
         ...ref,
         mode: 'queue',
@@ -162,6 +174,38 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
       await client.call('deepchat.host.idle', ref, 60_000)
       expect(observedInstructions).toBe(true)
       expect(modelRequests).toBe(3)
+      await expect
+        .poll(() => database.data.newSessionsTable.get('desktop-private')?.title, {
+          timeout: 10_000
+        })
+        .toBe('Native skill complete')
+      await titles.rename('desktop-private', 'Manual title from desktop')
+      await titles.seed(binding, { text: 'Late migration seed', source: 'auto' })
+      expect(database.data.newSessionsTable.get('desktop-private')?.title).toBe(
+        'Manual title from desktop'
+      )
+      const titleScope = await client.call<{ title: { text: string; source: string } }>(
+        'deepchat.storage.scope',
+        { sessionId: ref.sessionId }
+      )
+      expect(titleScope.title).toEqual({ text: 'Manual title from desktop', source: 'manual' })
+      const carried = await client.call<{ sessionId: string }>('deepchat.host.launch', {
+        cwd: profile,
+        model: { ...model },
+        policy: { preset: 'full-access', allowedTools: [], disallowedTools: [] }
+      })
+      database.data.newSessionsTable.create('desktop-carried', 'private-agent', 'Carry', profile)
+      const target = database.data.dimSessionBindingsTable.bind(
+        'desktop-carried',
+        carried.sessionId
+      )
+      await titles.preserve(binding, target, { kind: 'clear' })
+      await client.call('deepchat.session.close', { sessionId: carried.sessionId })
+      expect(
+        await client.call('deepchat.storage.scope', { sessionId: carried.sessionId })
+      ).toMatchObject({
+        title: { text: 'Manual title from desktop', source: 'manual' }
+      })
       const history = await new DimContent(host).transcript(ref, 'desktop-private')
       expect(JSON.stringify(history.messages)).toContain('Native skill complete')
       const user = history.messages.find((message) => message.role === 'user')!
@@ -207,6 +251,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
         raw.events.filter((event) => event.type === 'step' && event.name === 'tool-call')
       ).toHaveLength(2)
     } finally {
+      await titles?.close('desktop-private')
       await host.stop()
       await gateway.stop()
       database.sqlite.close()

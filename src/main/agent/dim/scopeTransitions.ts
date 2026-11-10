@@ -25,6 +25,11 @@ interface TransitionOptions {
   host: DimRuntimeSupervisor
   runtime: DimSessionRuntime
   installed(binding: DimSessionBinding, messages: ChatMessageRecord[]): void
+  preserveTitle?(
+    source: Pick<DimSessionBinding, 'dimSessionId'>,
+    target: DimSessionBinding,
+    change: DimHistoryChange
+  ): Promise<void>
 }
 
 /** Product lifecycle only: dim imports context, owns content and executes all subsequent turns. */
@@ -197,6 +202,7 @@ export class DimScopeTransitions {
       assistantMessageId: null,
       status: 'idle'
     }
+    await this.options.preserveTitle?.(record.source, staging, record.change)
     await this.migration.prepare(staging)
     const view = await this.content.transcript(
       { sessionId: staging.dimSessionId, branchId: staging.branchId },

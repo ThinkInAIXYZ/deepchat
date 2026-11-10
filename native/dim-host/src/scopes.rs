@@ -5,7 +5,10 @@ use dim_agent_capabilities::{
     timeline_tree::TreeCommands,
 };
 use dim_agent_runtime::{AgentBuilder, Feature, QueryOutput, TimelineQuery};
-use dim_app_server::{methods::ManagementMethods, storage::SessionStore};
+use dim_app_server::{
+    methods::ManagementMethods,
+    storage::{MetadataError, SessionStore, Title},
+};
 use rutis::Ctx;
 use rutis::host::{BoxFuture, CtxHost, DynPlugin, Effect, Key, TypeKey};
 use serde::Deserialize;
@@ -36,6 +39,12 @@ struct StoredScope {
 struct Address {
     session_id: String,
 }
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SeedTitle {
+    session_id: String,
+    title: Title,
+}
 impl DynPlugin for StoredScope {
     fn name(&self) -> &str {
         "DeepChatStoredScope"
@@ -47,9 +56,29 @@ impl DynPlugin for StoredScope {
         Box::pin(async move {
             let owner = ctx.require::<SessionStore>()?;
             ctx.require_at(&self.methods)?.register(ctx,"deepchat.native_scope",vec![
-                MethodDecl::new("deepchat.native_scope.describe",false,Interruption::Report)
+                MethodDecl::new("deepchat.native_scope.describe",false,Interruption::Report),
+                MethodDecl::new("deepchat.native_scope.seed_title",true,Interruption::Report)
             ],Arc::new(move|call,cancel,_| {
                 let owner=owner.clone();Box::pin(async move {
+                    if call.method.ends_with(".seed_title") {
+                        let seed:SeedTitle=params(call.params)?;
+                        if seed.session_id.is_empty() || seed.title.text.trim().is_empty()
+                            || seed.title.text.len()>64*1024 {
+                            return Err(RpcError::invalid("Invalid migrated title"));
+                        }
+                        // The owner CAS makes recovery idempotent. Migration never overwrites
+                        // an existing title, including a concurrently generated or manual one.
+                        owner.creation_record(&seed.session_id).await?;
+                        let stored=owner.metadata(&seed.session_id).await
+                            .map_err(|_|RpcError::service("scope_unavailable","Native title metadata is unavailable"))?;
+                        if stored.revision == 0 {
+                            match owner.set_title(&seed.session_id,0,Some(seed.title)).await {
+                                Ok(_) | Err(MetadataError::Conflict) => {},
+                                Err(_) => return Err(RpcError::service("storage_failed","Cannot preserve migrated title")),
+                            }
+                        }
+                        return reply(json!({}));
+                    }
                     let address:Address=params(call.params)?;
                     if address.session_id.is_empty(){return Err(RpcError::invalid("Missing native scope"));}
                     let read=async {

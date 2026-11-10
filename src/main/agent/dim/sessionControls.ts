@@ -17,6 +17,7 @@ export type DimSessionOperation =
   | 'answer'
   | 'approval'
   | 'fork'
+  | 'rename'
   | 'close'
   | 'native_settings'
   | 'native_identity'

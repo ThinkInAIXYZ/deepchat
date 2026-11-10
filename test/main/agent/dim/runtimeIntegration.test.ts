@@ -1940,6 +1940,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
           publishEvent: () => {},
           completed: () => {},
           committed: () => {},
+          titleChanged: (id, title) => grants.data.newSessionsTable.update(id, { title }),
           failed: (_id, error) => importFailures.push(error),
           mcpServers: async () =>
             mcpEnabled
