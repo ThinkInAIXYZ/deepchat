@@ -113,6 +113,7 @@
 - [ ] Inspector 使用新的来源无关 identity/cursor；保留 legacy reader 与 dim timeline reader，复用 Panel/Timeline/Row/DetailPane、虚拟化、过滤、follow/pause、选择和脱敏导出。
 - [ ] 修改依赖 Tape entryId/incarnation 的数据层与关联，按真实 dim branch/event/turn/request/tool 身份读取；列表 metadata-only，详情按需加载。
 - [x] 冷 Native profile 与产品 SQL 同窗口备份，v3 文件 manifest/流式传输和覆盖恢复；保留 Native 只读附件权限。
+- [x] 持久导入日志与启动前恢复：未提交回滚 SQL/Native，提交后仅清理；验证损坏快照与目录交换中断。
 - [ ] 备份、同步、删除、恢复由现有 desktop coordinator 管理；经插件取得内容/附件闭包，保留现有一致性和冲突流程，不直接合并活跃 dim 数据库。
 - [ ] 迁移后的内容使用未加密存储，旧加密备份恢复调用 P5a。持续加密不再列为兼容目标。
 - [ ] 新内置会话停止写 Tape；legacy Tape/trace 保留只读。涉及 ACP 历史关联的共享 Tape 依赖只做产品 metadata 解耦，不改变 ACP client 执行。
@@ -158,6 +159,8 @@
 建议按 release/插件骨架、session/队列绑定、产品能力、解密与按需转换、desktop 读取/Inspector、切换清理拆 PR。取消旧版按推测上游缺口估算的 12–20 人周；首个插件端到端切片完成后，依据实际映射与转换工作量估算，不把 ACP/OAuth 重写或 desktop 重做计入。
 
 ## 模块进度
+
+- 模块 60：覆盖/增量导入统一使用持久事务日志，变更前在 profile 内保存产品 SQL/WAL 与设置原件及 SHA-256；Native staging 的 prepared/swapping/installed/rolling-back/restored 阶段先持久化再交换目录。启动在设置、SQL 与 Native owner 构造前恢复：未提交事务校验全部原件后回滚两侧，已提交事务保留新数据并完成清理；中断回滚可重复执行，原先不存在的配置恢复为不存在，快照损坏/越界或恢复异常保留文件并拒绝启动。提交先 flush 当前数据再持久化 commit，完成通知在提交后发送；备份 ZIP 也以 0600 创建并在发布前 flush 文件/目录。删去旧临时目录备份/回滚路径。备份遇 Native 短暂发布则在 30 秒内等候空闲，期间恢复读者、不取消任务；实际 Rust 用例验证后台 exec 跨两次尝试仍运行，显式 stop 后才复制（9s）。5 项持久中断场景与 136 项相关回归通过；最终 36 项数据/持久性回归复验通过。真实 Electron 将 SQL/设置变为不可读并留下未提交 Native 交换，再启动自动恢复，原标题、消息身份及续聊保留（46s）；ACP/Native 两项联合通过（约 75s）。修复测试夹具以真实聊天根节点识别主窗口，避免把临时启动窗口交给用例；保留失败 trace，应用日志证明此前已完成初始化。格式/i18n/lint/双端类型与主进程构建通过，无 Native SDK/执行实现变更。Native 增量/实时同步、跨目录附件与大型归档兼容仍继续实施。
 
 - 模块 59：桌面备份格式升 v3，包含受管 dim profile 的不透明文件闭包（含 WAL、附件、命令/媒体输出），不解析 Native SQLite；v1/v2 legacy 包继续可导入。备份先暂停桌面 reader/标题订阅，保留提交 scope；等待现有 hydration 完成后进入共用空闲停机屏障，同窗口收集 Native clone 和产品 SQL，再恢复读者并离线流式打包。复制与 manifest 校验保留 Native 0400 不可变附件及执行位，只授予 owner 权限；拒绝符号链接、越界/重复路径、格式身份不匹配及散列损坏。导入改为有界流式解压；覆盖恢复先验证全部 Native 文件，再同盘 staging/目录交换，产品失败时回滚两侧；Native 回滚异常保留恢复目录/SQL 快照并阻止运行期重新启动宿主。SDK store format 从锁定源码公开常量核对进安装 manifest，不改 Native 执行代码。131 项 sync/生命周期/文件回归和新增恢复栅栏用例通过，最后 7 项权限/交换/栅栏用例复验通过；实际 Electron 验证备份、修改、覆盖恢复、重启续聊，消息身份及原标题保留，数据设置/Native 两项联合通过（52s）。格式/i18n/lint/双端类型、Native 装配及主进程构建通过。Native 增量导入暂显式拒绝，跨目录附件重定位、跨进程中断恢复及增量/实时同步继续实施，不将 P6 标为完成。
 

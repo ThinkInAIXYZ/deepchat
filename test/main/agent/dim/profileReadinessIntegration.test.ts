@@ -1,11 +1,17 @@
-import { expect, it } from 'vitest'
+import { expect, it, vi } from 'vitest'
 import { createServer, type ServerResponse } from 'node:http'
-import { mkdtemp, readdir, rm } from 'node:fs/promises'
+import { mkdtemp, rm } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { DimRuntimeSupervisor } from '@/agent/dim/runtimeSupervisor'
 import { DimModelBridge } from '@/agent/dim/modelBridge'
+import { DimProfileBackups } from '@/agent/dim/profileBackups'
+import { DimSessionRuntime } from '@/agent/dim/sessionRuntime'
+import { dimDatabase } from './fixtures/database'
+
+vi.unmock('fs')
+vi.unmock('node:fs')
 
 it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
   'keeps an internal native title request alive while profile capture is refused',
@@ -172,18 +178,53 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
         )
       ).rejects.toMatchObject({ data: { appError: 'daemon_busy' } })
       expect(copied).toBe(false)
-      await client.call('session.exec.stop', { ...ref, taskId: taskId! })
-      await expect
-        .poll(async () => (await client.call<{ idle: boolean }>('deepchat.storage.readiness')).idle)
-        .toBe(true)
-      await host.withStopped(
-        async () => {
-          await readdir(path.join(profile, 'dim', 'rust'))
+      const database = dimDatabase()
+      try {
+        const desktop = new DimSessionRuntime({
+          database: database.data,
+          host,
+          launch: async () => {
+            throw new Error('Snapshot must not launch an agent')
+          },
+          projected: () => {},
+          failed: (_id, error) => {
+            throw error
+          }
+        })
+        const attempts = vi.spyOn(desktop, 'withSuspendedReaders')
+        const capturing = new DimProfileBackups({
+          runtimeRoot: path.resolve('runtime/dim'),
+          profileRoot: profile,
+          temporaryRoot: os.tmpdir(),
+          host,
+          readers: () => desktop
+        }).capture(async () => {
           copied = true
-        },
-        { ifIdle: true }
-      )
-      expect(copied).toBe(true)
+          return 'product boundary'
+        })
+        void capturing.catch(() => {})
+        await expect.poll(() => attempts.mock.calls.length).toBeGreaterThanOrEqual(2)
+        expect(copied).toBe(false)
+        expect(await client.call('deepchat.storage.readiness')).toMatchObject({
+          idle: false,
+          sessions: true
+        })
+        await client.call('session.exec.stop', { ...ref, taskId: taskId! })
+        const snapshot = await capturing
+        try {
+          expect(snapshot.value).toBe('product boundary')
+          expect(copied).toBe(true)
+          expect(
+            (await snapshot.profile.manifest()).files.some(
+              (file) => file.path === 'rust/dimcode.sqlite'
+            )
+          ).toBe(true)
+        } finally {
+          await snapshot.profile.dispose()
+        }
+      } finally {
+        database.sqlite.close()
+      }
     } finally {
       observer?.close()
       if (agent && !agent.writableEnded) reply(agent, 'cleanup')

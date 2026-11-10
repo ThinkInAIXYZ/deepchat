@@ -1,7 +1,11 @@
-import { chmod, copyFile, mkdir, mkdtemp, readFile, rename, rm } from 'node:fs/promises'
+import { chmod, copyFile, mkdir, mkdtemp, open, readFile, rename, rm } from 'node:fs/promises'
 import path from 'node:path'
+import { setTimeout as delay } from 'node:timers/promises'
+import { DimMethodError } from './pluginClient'
 import type { DimRuntimeSupervisor } from './runtimeSupervisor'
 import type { DimSessionRuntime } from './sessionRuntime'
+import { syncDirectory } from '../../data/durableFile'
+import { profileExists, recoverDimProfile, writeDimProfileRecovery } from './profileRecovery'
 import {
   captureDimProfile,
   validateDimProfile,
@@ -11,6 +15,7 @@ import {
 } from './profileSnapshot'
 
 export interface PreparedDimProfile {
+  readonly recoveryDirectory: string
   install(): Promise<{ commit(): Promise<void>; rollback(): Promise<void> }>
   dispose(): Promise<void>
 }
@@ -59,24 +64,42 @@ export class DimProfileBackups implements SyncNativeProfilePort {
   }
 
   async capture<T>(collect: () => Promise<T>): Promise<{ value: T; profile: DimProfileSnapshot }> {
-    return this.options.readers().withSuspendedReaders(() =>
-      this.options.host.withStopped(
-        async () => {
-          const profile = await captureDimProfile(
-            path.join(this.options.profileRoot, 'dim'),
-            this.options.temporaryRoot,
-            await this.identity()
+    const deadline = Date.now() + 30_000
+    for (;;) {
+      try {
+        return await this.options.readers().withSuspendedReaders(() =>
+          this.options.host.withStopped(
+            async () => {
+              const profile = await captureDimProfile(
+                path.join(this.options.profileRoot, 'dim'),
+                this.options.temporaryRoot,
+                await this.identity()
+              )
+              try {
+                return { value: await collect(), profile }
+              } catch (error) {
+                await profile.dispose()
+                throw error
+              }
+            },
+            { ifIdle: true }
           )
-          try {
-            return { value: await collect(), profile }
-          } catch (error) {
-            await profile.dispose()
-            throw error
-          }
-        },
-        { ifIdle: true }
-      )
-    )
+        )
+      } catch (error) {
+        const data = error instanceof DimMethodError ? error.data : null
+        if (
+          !data ||
+          typeof data !== 'object' ||
+          Array.isArray(data) ||
+          data.appError !== 'daemon_busy' ||
+          Date.now() >= deadline
+        )
+          throw error
+        // Background owners may still be publishing just after the UI turn ends. Retry only
+        // cold-profile admission; restore observers and keep every native task alive meanwhile.
+        await delay(500, undefined, { ref: false })
+      }
+    }
   }
 
   async prepareRestore(directory: string, value: unknown): Promise<PreparedDimProfile> {
@@ -97,37 +120,65 @@ export class DimProfileBackups implements SyncNativeProfilePort {
     }
     try {
       await mkdir(next, { mode: 0o700 })
+      const directories = new Set([next])
       for (const file of manifest.files) {
         const output = path.join(next, file.path)
         await mkdir(path.dirname(output), { recursive: true, mode: 0o700 })
         await copyFile(path.join(directory, file.path), output)
+        await chmod(output, 0o600)
+        const handle = await open(output, 'r+')
+        try {
+          await handle.sync()
+        } finally {
+          await handle.close()
+        }
         await chmod(output, file.mode)
+        for (
+          let parent = path.dirname(output);
+          parent.startsWith(next);
+          parent = path.dirname(parent)
+        )
+          directories.add(parent)
       }
+      for (const directory of [...directories].sort((a, b) => b.length - a.length))
+        await syncDirectory(directory)
+      await writeDimProfileRecovery(container, {
+        version: 1,
+        phase: 'prepared',
+        hadPrevious: false
+      })
       return {
+        recoveryDirectory: path.basename(container),
         dispose,
         // The caller already holds the common cold-profile/database maintenance barrier.
         install: async () => {
           if (state !== 'staged') throw new Error('Native restore was already consumed')
           state = 'swapping'
-          let replaced = false
           try {
-            await rename(target, previous)
-            replaced = true
-          } catch (error) {
-            if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-              state = 'staged'
-              throw error
-            }
-          }
-          try {
-            await rename(next, target)
-          } catch (error) {
+            const replaced = await profileExists(target)
+            await writeDimProfileRecovery(container, {
+              version: 1,
+              phase: 'swapping',
+              hadPrevious: replaced
+            })
             if (replaced) {
-              try {
-                await rename(previous, target)
-              } catch (rollbackError) {
-                throw new DimProfileRecoveryError(container, rollbackError)
-              }
+              await rename(target, previous)
+              await syncDirectory(container)
+              await syncDirectory(this.options.profileRoot)
+            }
+            await rename(next, target)
+            await syncDirectory(this.options.profileRoot)
+            await syncDirectory(container)
+            await writeDimProfileRecovery(container, {
+              version: 1,
+              phase: 'installed',
+              hadPrevious: replaced
+            })
+          } catch (error) {
+            try {
+              await recoverDimProfile(this.options.profileRoot, path.basename(container))
+            } catch (rollbackError) {
+              throw new DimProfileRecoveryError(container, rollbackError)
             }
             state = 'staged'
             throw error
@@ -140,8 +191,7 @@ export class DimProfileBackups implements SyncNativeProfilePort {
             },
             rollback: async () => {
               try {
-                await rm(target, { recursive: true, force: true })
-                if (replaced) await rename(previous, target)
+                await recoverDimProfile(this.options.profileRoot, path.basename(container))
               } catch (error) {
                 throw new DimProfileRecoveryError(container, error)
               }

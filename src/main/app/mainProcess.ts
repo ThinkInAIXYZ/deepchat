@@ -20,6 +20,7 @@ import { ProviderDatabase } from '@/provider/data/database'
 import { McpDatabase } from '@/mcp/data/database'
 import { AgentDatabase } from '@/agent/data/database'
 import { mainLogger, setMainLoggingEnabled } from '@/logging'
+import { SyncImportRecovery } from '../sync/importRecovery'
 
 export type { MainProcessControl } from './composition'
 
@@ -36,6 +37,7 @@ export async function startMainProcess(
 
   try {
     electronApp.setAppUserModelId('com.wefonk.deepchat')
+    await SyncImportRecovery.recover(app.getPath('userData'))
     const settingsStore = createSettingsStore()
     setMainLoggingEnabled(settingsStore.get<boolean>('loggingEnabled') ?? false)
     const secretStore = new SecretStore(settingsStore)

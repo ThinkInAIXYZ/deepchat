@@ -2,8 +2,13 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import path from 'node:path'
 import { createServer } from 'node:http'
-import { readFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
+import os from 'node:os'
 import { unzipSync } from 'fflate'
+import { SyncImportRecovery } from '../../../src/main/sync/importRecovery'
+import { DimProfileBackups } from '../../../src/main/agent/dim/profileBackups'
+import { captureDimProfile } from '../../../src/main/agent/dim/profileSnapshot'
+import type { DimRuntimeSupervisor } from '../../../src/main/agent/dim/runtimeSupervisor'
 import { test, expect } from '../fixtures/electronApp'
 import {
   getActiveSessionId,
@@ -286,9 +291,39 @@ test('desktop chat uses persistent native dim sessions @smoke', async ({ app, la
     expect(restoredMessages.messages.map((message) => message.id)).toEqual(
       firstPage.messages.map((message) => message.id)
     )
-    await app.close()
+    expect(await app.close()).toBe('graceful')
+    // Leave an uncommitted import on disk, as if the process exited after the directory swap.
+    // Startup must recover it before settings/SQL load; canonical Native bytes stay opaque.
+    const lock = JSON.parse(
+      await readFile(path.resolve('runtime/dim/plugins/native-host-lock.json'), 'utf8')
+    )
+    const cold = await captureDimProfile(path.join(app.userDataDir, 'dim'), os.tmpdir(), {
+      sourceRevision: lock.sourceRevision,
+      bridgeVersion: lock.bridgeVersion,
+      storeFormat: lock.storeFormat
+    })
+    try {
+      const prepared = await new DimProfileBackups({
+        runtimeRoot: path.resolve('runtime/dim'),
+        profileRoot: app.userDataDir,
+        temporaryRoot: os.tmpdir(),
+        host: {} as DimRuntimeSupervisor,
+        readers: () => {
+          throw new Error('Offline recovery fixture must not start readers')
+        }
+      }).prepareRestore(cold.directory, await cold.manifest())
+      await SyncImportRecovery.begin(app.userDataDir, prepared.recoveryDirectory)
+      await prepared.install()
+      await writeFile(path.join(app.userDataDir, 'app_db/agent.db'), 'INTERRUPTED_IMPORT')
+      await writeFile(path.join(app.userDataDir, 'app-settings.json'), '{')
+    } finally {
+      await cold.dispose()
+    }
     const reopened = await launchApp()
     await waitForAppReady(reopened.page)
+    await expect(
+      readFile(path.join(app.userDataDir, 'sync-import-recovery.json'))
+    ).rejects.toMatchObject({ code: 'ENOENT' })
     const sidebar = reopened.page.getByTestId('window-sidebar-toggle')
     if ((await sidebar.getAttribute('aria-expanded')) === 'false') await sidebar.click()
     await openSessionById(reopened.page, sessionId)
