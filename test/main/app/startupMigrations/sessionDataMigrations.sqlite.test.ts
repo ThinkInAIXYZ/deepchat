@@ -201,6 +201,11 @@ describeIfSqlite('disabled Agent tool capability cleanup SQLite integration', ()
         createdAt: 50,
         updatedAt: 100
       })
+      sessions.create('unsorted', 'deepchat', 'Unsorted', '/work/app', {
+        disabledAgentTools: ['read'],
+        createdAt: 55,
+        updatedAt: 105
+      })
       sessions.create('acp-session', 'acp-agent', 'ACP', '/work/app', {
         disabledAgentTools: [],
         createdAt: 60,
@@ -235,7 +240,8 @@ describeIfSqlite('disabled Agent tool capability cleanup SQLite integration', ()
           listAgents: vi.fn(async () => [
             { id: 'deepchat', type: 'deepchat' },
             { id: 'acp-agent', type: 'acp' }
-          ])
+          ]),
+          getDeepChatAgentConfig: vi.fn(async () => null)
         } as never,
         untracked: <T>(write: () => T) => store.untracked(write)
       }
@@ -246,7 +252,16 @@ describeIfSqlite('disabled Agent tool capability cleanup SQLite integration', ()
       expect(sessions.getDisabledAgentTools('pre-upgrade')).toEqual(seeded)
       expect(sessions.get('pre-upgrade')?.disabled_agent_tools).toBe(JSON.stringify(seeded))
       expect(sessions.get('pre-upgrade')?.updated_at).toBe(100)
+      expect(sessions.getDisabledAgentTools('unsorted')).toEqual([
+        HTML_RENDER_TOOL_NAME,
+        HTML_RENDER_SECTION_TOOL_NAME,
+        'read'
+      ])
       expect(sessions.getDisabledAgentTools('acp-session')).toEqual([])
+      expect(countSyncChanges()).toBe(syncChangesBefore)
+      expect(syncRevision()).toBe(syncRevisionBefore)
+
+      await runDisabledAgentToolCapabilityCleanupMigration(dependencies as never)
       expect(countSyncChanges()).toBe(syncChangesBefore)
       expect(syncRevision()).toBe(syncRevisionBefore)
 

@@ -562,10 +562,13 @@ export async function runHtmlRenderSessionToolsSeedMigration({
       if (agent.type !== 'deepchat') continue
       for (const { id } of listSessionIds.all(agent.id)) {
         const current = sqlitePresenter.newSessionsTable.getDisabledAgentTools(id)
-        const disabledAgentTools = Array.from(
-          new Set([...current, ...HTML_RENDER_AGENT_TOOL_NAMES])
-        )
-        if (disabledAgentTools.length === current.length) continue
+        // Normalized order keeps the background capability cleanup from rewriting this list later
+        // as a tracked sync change.
+        const disabledAgentTools = normalizeDisabledAgentTools([
+          ...current,
+          ...HTML_RENDER_AGENT_TOOL_NAMES
+        ])
+        if (areStringArraysEqual(current, disabledAgentTools)) continue
         updateSessionDisabledTools.run(JSON.stringify(disabledAgentTools), id)
         sqlitePresenter.newSessionDisabledAgentToolsTable.replaceForSession(id, disabledAgentTools)
       }
