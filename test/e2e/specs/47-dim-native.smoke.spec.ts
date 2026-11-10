@@ -1,3 +1,6 @@
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
+import path from 'node:path'
 import { createServer } from 'node:http'
 import { test, expect } from '../fixtures/electronApp'
 import {
@@ -129,6 +132,34 @@ test('desktop chat uses persistent native dim sessions @smoke', async ({ app, la
     )
     expect(catalog.tools.map((tool) => tool.function.name)).not.toContain('deepchat_question')
     expect(requests).toHaveLength(0)
+    const checked = await app.page.evaluate(
+      (providerId) =>
+        window.deepchat.invoke('providers.testConnection', {
+          providerId,
+          modelId: 'dim-desktop-fixture'
+        }),
+      providerId
+    )
+    expect(checked).toEqual({ isOk: true, errorMsg: null })
+    const cli = await promisify(execFile)(
+      process.execPath,
+      [
+        path.resolve('out/cli/deepchat.mjs'),
+        'model',
+        'invoke',
+        '--provider',
+        providerId,
+        '--model',
+        'dim-desktop-fixture',
+        '--prompt',
+        'NATIVE_CLI_INPUT',
+        '--jsonl'
+      ],
+      { env: { ...process.env, DEEPCHAT_E2E_USER_DATA_DIR: app.userDataDir }, timeout: 30_000 }
+    )
+    expect(cli.stdout).toContain('text_delta')
+    expect(cli.stdout).toContain('NATIVE_DIM_DESKTOP_REPLY')
+    expect(cli.stdout).toContain('stop')
     await sendMessage(app.page, 'NATIVE_DIM_FIRST_INPUT')
     await expect(getAssistantMessages(app.page)).toHaveCount(1)
     await expect(getAssistantMessages(app.page).last()).toContainText('NATIVE_DIM_DESKTOP_REPLY')

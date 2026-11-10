@@ -182,6 +182,7 @@ export class DimModelCatalog {
       apiType: provider.apiType,
       baseUrl: provider.baseUrl,
       openaiAuthMode: provider.openaiAuthMode ?? 'api-key',
+      anonymous: isAnonymous(provider),
       copilotClientId: provider.copilotClientId ?? '',
       customHeaders: provider.customHeaders ?? {}
     }
@@ -190,7 +191,7 @@ export class DimModelCatalog {
   private connection(provider: LLM_PROVIDER, modelId: string, config: ModelConfig): JsonObject {
     const definition = resolveAiSdkProviderDefinition(provider)
     const anonymous = isAnonymous(provider)
-    if (!definition && !anonymous)
+    if (!definition && !anonymous && !isOllama(provider))
       throw new Error('Provider needs a native product connection adapter')
     const kind = definition
       ? resolveProviderTransport(
@@ -225,7 +226,7 @@ export class DimModelCatalog {
               ? { type: 'aws_bedrock' }
               : { type: 'bearer' }
     let baseUrl = provider.baseUrl.replace(/\/+$/, '')
-    if (anonymous) baseUrl = baseUrl.replace(/\/(api|v1)$/, '') + '/v1'
+    if (isOllama(provider)) baseUrl = baseUrl.replace(/\/(api|v1)$/, '') + '/v1'
     const url = new URL(baseUrl)
     if (
       !['http:', 'https:'].includes(url.protocol) ||
@@ -257,8 +258,16 @@ export class DimModelCatalog {
   }
 }
 
-function isAnonymous(provider: LLM_PROVIDER): boolean {
+function isOllama(provider: LLM_PROVIDER): boolean {
   return provider.apiType === 'ollama' || provider.id === 'ollama'
+}
+function isAnonymous(provider: LLM_PROVIDER): boolean {
+  return (
+    !provider.apiKey &&
+    provider.openaiAuthMode !== 'chatgpt' &&
+    (isOllama(provider) ||
+      ['openai', 'openai-completions', 'openai-responses'].includes(provider.apiType ?? 'openai'))
+  )
 }
 
 function credentialReference(providerId: string): string {
@@ -292,7 +301,18 @@ function dimModality(config: ModelConfig): { kind: string; output?: string; oper
   }
 }
 
-export function dimModelParameters(settings: SessionGenerationSettings): DimModelParameters {
+export function dimModelParameters(
+  settings: Pick<
+    SessionGenerationSettings,
+    | 'temperature'
+    | 'maxTokens'
+    | 'topP'
+    | 'reasoningEffort'
+    | 'thinkingBudget'
+    | 'reasoningVisibility'
+    | 'forceInterleavedThinkingCompat'
+  >
+): DimModelParameters {
   const reasoning: JsonObject = {
     ...(settings.reasoningEffort ? { effort: settings.reasoningEffort } : {}),
     ...(settings.thinkingBudget && settings.thinkingBudget > 0

@@ -12,7 +12,7 @@ use rutis::Ctx;
 use rutis::host::{BoxFuture, CtxHost, DynPlugin, Effect, Key, TypeKey};
 use serde::Deserialize;
 use serde_json::json;
-use std::{future::pending, sync::Arc, time::Instant};
+use std::{future::pending, sync::{Arc, atomic::{AtomicU64, Ordering}}, time::Instant};
 
 pub const SOURCE_REVISION: &str = "0423b321abc923900525d79d030fd690110f91c4";
 
@@ -64,10 +64,13 @@ impl DynPlugin for Models {
             let selection = ctx.require_at(&self.selection)?;
             let connection = ctx.require_at(&self.connection)?;
             let host = ctx.require_at(&self.host)?;
+            let mut streaming = MethodDecl::new("deepchat.native.stream", false, Interruption::Report);
+            streaming.progress = true;
             methods.register(ctx, "deepchat.native", vec![
+                streaming,
                 MethodDecl::new("deepchat.native.capabilities", false, Interruption::Report),
                 MethodDecl::new("deepchat.native.complete", false, Interruption::Report),
-            ], Arc::new(move |call, cancel, _| {
+            ], Arc::new(move |call, cancel, progress| {
                 let (selection, connection, host) = (selection.clone(), connection.clone(), host.clone());
                 Box::pin(async move {
                     if call.method.ends_with(".capabilities") {
@@ -75,9 +78,11 @@ impl DynPlugin for Models {
                             "apiVersion": 1, "plugin": "deepchat-native",
                             "sourceRevision": SOURCE_REVISION,
                             "bridgeVersion": env!("CARGO_PKG_VERSION"),
-                            "features": ["generation-settings", "auxiliary-model", "credential-references", "native-media-providers", "native-product-tools", "product-context", "native-memory-audit", "native-scope", "native-embeddings", "anonymous-admission", "delegated-product-tools", "native-tool-catalog"]
+                            "features": ["generation-settings", "auxiliary-model", "credential-references", "native-media-providers", "native-product-tools", "product-context", "native-memory-audit", "native-scope", "native-embeddings", "anonymous-admission", "delegated-product-tools", "native-tool-catalog", "native-model-stream"]
                         }));
                     }
+                    let streaming = call.method.ends_with(".stream");
+                    let count = Arc::new(AtomicU64::new(0));
                     let input: Complete = params(call.params)?;
                     auxiliary_model::check(&input.request)
                         .map_err(|_| RpcError::invalid("Invalid auxiliary request"))?;
@@ -94,11 +99,19 @@ impl DynPlugin for Models {
                             .map_err(|_| RpcError::service("model_unavailable", "Native model selection failed"))?;
                         let config = super::settings::merge(selected.config.unwrap_or_default(), input.config)?;
                         let started = Instant::now();
-                        let result = auxiliary_model::complete(&host, connection.0.as_ref(), AuxiliaryTarget {
+                        let target = AuxiliaryTarget {
                             model: input.model.clone(), config, capability_snapshot: selected.capability_snapshot,
-                        }, input.request, &run_cancel).await;
+                        };
+                        let result = if streaming {
+                            super::model_stream::run(&host, connection.0.as_ref(), target, input.request, &run_cancel, progress, count.clone()).await
+                        } else {
+                            auxiliary_model::complete(&host, connection.0.as_ref(), target, input.request, &run_cancel).await
+                        };
                         auxiliary_model::record(&input.model, started, result.as_ref());
-                        reply(result.map_err(|_| RpcError::service("model_failed", "Native auxiliary model request failed"))?)
+                        let value = result.map_err(|_| RpcError::service("model_failed", "Native auxiliary model request failed"))?;
+                        if streaming {
+                            reply(json!({"reply":value, "eventCount":count.load(Ordering::SeqCst).to_string()}))
+                        } else { reply(value) }
                     };
                     tokio::pin!(operation);
                     tokio::select! {

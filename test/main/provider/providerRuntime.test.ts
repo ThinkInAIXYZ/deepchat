@@ -496,6 +496,48 @@ describe('ProviderRuntime Integration Tests', () => {
       expect(legacy).not.toHaveBeenCalled()
     })
 
+    it('uses native streaming and model tests without invoking the desktop provider', async () => {
+      const legacy = vi.spyOn(providerRuntime.getProviderInstance('mock-openai-api'), 'coreStream')
+      const completions = vi.spyOn(
+        providerRuntime.getProviderInstance('mock-openai-api'),
+        'completions'
+      )
+      const complete = vi.fn().mockResolvedValue({ text: 'checked', stopReason: 'end_turn' })
+      const stream = vi.fn(async function* () {
+        yield { type: 'text' as const, content: 'native chunk' }
+        yield { type: 'stop' as const, stop_reason: 'complete' as const }
+      })
+      providerRuntime.setNativeModels(
+        new DimAuxiliaryModels({
+          models: { admit: async () => ({ providerId: 'native', modelId: 'native-model' }) },
+          bridge: { complete, stream }
+        })
+      )
+      const events = []
+      for await (const event of providerRuntime.streamChat(
+        'mock-openai-api',
+        [{ role: 'user', content: 'prompt' }],
+        'mock-gpt-thinking',
+        mockProviderSettings.getModelConfig('mock-gpt-thinking', 'mock-openai-api'),
+        0.2,
+        128,
+        []
+      ))
+        events.push(event)
+      expect(events).toEqual([
+        { type: 'text', content: 'native chunk' },
+        { type: 'stop', stop_reason: 'complete' }
+      ])
+      await expect(providerRuntime.check('mock-openai-api', 'mock-gpt-thinking')).resolves.toEqual({
+        isOk: true,
+        errorMsg: null
+      })
+      expect(stream).toHaveBeenCalledOnce()
+      expect(complete).toHaveBeenCalledOnce()
+      expect(legacy).not.toHaveBeenCalled()
+      expect(completions).not.toHaveBeenCalled()
+    })
+
     it('keeps ACP auxiliary calls on the desktop ACP client', async () => {
       mockProviderSettings.getProviderById = vi
         .fn()

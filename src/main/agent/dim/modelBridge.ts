@@ -1,3 +1,4 @@
+import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import type { JsonValue } from '@shared/contracts/json'
 import type { DimRuntimeSupervisor } from './runtimeSupervisor'
 
@@ -78,6 +79,103 @@ export class DimModelBridge {
     }
   }
 
+  /** One caller connection per stream keeps cancellation and notices scoped to this invocation. */
+  async *stream(
+    model: DimModelId,
+    request: DimAuxiliaryRequest,
+    signal?: AbortSignal,
+    config?: DimModelParameters
+  ): AsyncGenerator<LLMCoreStreamEvent> {
+    signal?.throwIfAborted()
+    const client = await this.host.openConnection()
+    const pending: Array<{ event: LLMCoreStreamEvent; bytes: number }> = []
+    let bytes = 0
+    let received = 0
+    let done = false
+    let failure: unknown
+    let wake: (() => void) | undefined
+    const notify = () => {
+      wake?.()
+      wake = undefined
+    }
+    const cancel = () => {
+      client.close()
+      notify()
+    }
+    const notice = (message: { method: string; params: unknown }) => {
+      if (message.method !== 'management.progress') return
+      const progress = message.params as
+        | { method?: string; data?: { sequence?: unknown; event?: unknown } }
+        | undefined
+      if (progress?.method !== 'deepchat.native.stream') return
+      const data = progress.data
+      if (data?.sequence !== String(received + 1) || !isModelDelta(data.event)) {
+        failure = new Error('Native model stream lost or received an invalid event')
+        cancel()
+        return
+      }
+      received++
+      const event = data.event
+      const size = Buffer.byteLength(JSON.stringify(event))
+      if (bytes + size > 4 * 1024 * 1024) {
+        failure = new Error('Native model stream consumer exceeded its buffer limit')
+        cancel()
+        return
+      }
+      pending.push({ event, bytes: size })
+      bytes += size
+      notify()
+    }
+    client.on('notification', notice)
+    signal?.addEventListener('abort', cancel, { once: true })
+    let operation: Promise<unknown> | undefined
+    try {
+      signal?.throwIfAborted()
+      operation = client
+        .call<{ eventCount: string }>(
+          'deepchat.native.stream',
+          {
+            model,
+            request,
+            config: config ?? {}
+          } as unknown as JsonValue,
+          30 * 60 * 1000
+        )
+        .then(
+          (reply) => {
+            if (reply.eventCount !== String(received))
+              failure = new Error('Native model stream lost its final progress events')
+            done = true
+            notify()
+          },
+          (error: unknown) => {
+            failure ??= error
+            done = true
+            notify()
+          }
+        )
+      while (true) {
+        signal?.throwIfAborted()
+        const next = pending.shift()
+        if (next) {
+          bytes -= next.bytes
+          yield next.event
+          continue
+        }
+        if (failure) throw failure
+        if (done) return
+        await new Promise<void>((resolve) => {
+          wake = resolve
+        })
+      }
+    } finally {
+      signal?.removeEventListener('abort', cancel)
+      client.off('notification', notice)
+      client.close()
+      await operation
+    }
+  }
+
   async complete(
     model: DimModelId,
     request: DimAuxiliaryRequest,
@@ -103,4 +201,17 @@ export class DimModelBridge {
       client.close()
     }
   }
+}
+
+function isModelDelta(value: unknown): value is LLMCoreStreamEvent {
+  if (!value || typeof value !== 'object') return false
+  const event = value as Record<string, unknown>
+  if (event.type === 'text') return typeof event.content === 'string'
+  if (event.type === 'reasoning') return typeof event.reasoning_content === 'string'
+  if (event.type === 'stop') return ['complete', 'max_tokens'].includes(String(event.stop_reason))
+  if (event.type !== 'usage' || !event.usage || typeof event.usage !== 'object') return false
+  const usage = event.usage as Record<string, unknown>
+  return ['prompt_tokens', 'completion_tokens', 'total_tokens'].every(
+    (name) => typeof usage[name] === 'number' && Number.isFinite(usage[name]) && usage[name] >= 0
+  )
 }

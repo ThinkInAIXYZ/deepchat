@@ -11,9 +11,13 @@ import { DimProductGateway } from '@/agent/dim/productGateway'
 import { DimRuntimeSupervisor } from '@/agent/dim/runtimeSupervisor'
 import { dimDatabase } from './fixtures/database'
 
-it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
-  'reauthorizes cached anonymous connections without putting product admission in HTTP',
-  async () => {
+it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
+  { apiType: 'ollama', apiKey: '' },
+  { apiType: 'openai-completions', apiKey: '' },
+  { apiType: 'ollama', apiKey: 'ollama-cloud-key' }
+])(
+  'reauthorizes cached $apiType connections with key=$apiKey without leaking product admission',
+  async ({ apiType, apiKey }) => {
     let calls = 0
     let grants = 0
     let apiKeyLookups = 0
@@ -23,7 +27,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
       for await (const chunk of request) body += chunk
       calls++
       expect(request.url).toBe('/v1/chat/completions')
-      expect(request.headers.authorization).toBeUndefined()
+      expect(request.headers.authorization).toBe(apiKey ? `Bearer ${apiKey}` : undefined)
       expect(JSON.stringify({ headers: request.headers, body })).not.toContain(
         'deepchat-admission-v1'
       )
@@ -37,12 +41,12 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
     const profile = await mkdtemp(path.join(os.tmpdir(), 'dc-dim-anonymous-'))
     const database = dimDatabase()
     const provider = {
-      id: 'ollama',
+      id: 'local-fixture',
       name: 'Local',
-      apiType: 'ollama',
-      apiKey: '',
+      apiType,
+      apiKey,
       enable: true,
-      baseUrl: `http://127.0.0.1:${(fixture.address() as { port: number }).port}`
+      baseUrl: `http://127.0.0.1:${(fixture.address() as { port: number }).port}/v1`
     }
     let catalog!: DimModelCatalog
     const gateway = new DimProductGateway({
@@ -93,7 +97,8 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
       grants: database.data.dimProviderGrantsTable,
       credential: async () => {
         apiKeyLookups++
-        throw new Error('Local connection has no API key')
+        if (!apiKey) throw new Error('Local connection has no API key')
+        return apiKey
       }
     })
     try {
@@ -107,7 +112,18 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
           undefined,
           {}
         )
-      expect((await complete()).text).toBe('anonymous native answer')
+      const streamed = []
+      for await (const event of bridge.stream(model, {
+        messages: [{ role: 'user', content: 'local input' }]
+      }))
+        streamed.push(event)
+      expect(
+        streamed
+          .filter((event) => event.type === 'text')
+          .map((event) => event.content)
+          .join('')
+      ).toBe('anonymous native answer')
+      expect(streamed.at(-1)).toEqual({ type: 'stop', stop_reason: 'complete' })
       expect(calls).toBe(1)
       provider.enable = false
       await expect(complete()).rejects.toThrow()
@@ -124,7 +140,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
       expect((await complete()).text).toBe('anonymous native answer')
       expect(calls).toBe(2)
       expect(grants).toBeGreaterThanOrEqual(5)
-      expect(apiKeyLookups).toBe(0)
+      expect(apiKeyLookups).toBe(apiKey ? 2 : 0)
     } finally {
       await host.stop()
       await gateway.stop()

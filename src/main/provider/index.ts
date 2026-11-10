@@ -1,8 +1,10 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
 import type { DimAuxiliaryModels } from '@/agent/dim/auxiliaryModels'
 import type { DimEmbeddingModels } from '@/agent/dim/embeddingModels'
+import { dimModelParameters } from '@/agent/dim/modelCatalog'
 import type { DimMediaModels } from '@/agent/dim/mediaModels'
 import logger from '@shared/logger'
+import { resolveAiSdkProviderDefinition } from './providerRegistry'
 import type { LLMResponse } from '@shared/types/provider'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
@@ -466,6 +468,17 @@ export class ProviderRuntime
     tools: MCPToolDefinition[],
     options?: ProviderStreamOptions
   ): AsyncGenerator<LLMCoreStreamEvent> {
+    if (this.nativeModels && this.providerSettings.getProviderById(providerId)?.apiType !== 'acp') {
+      if (tools.length)
+        throw new Error('Agent tools must be dispatched by the native session owner')
+      return this.nativeModels.stream({
+        providerId,
+        modelId,
+        messages,
+        parameters: dimModelParameters({ ...modelConfig, temperature, maxTokens }),
+        signal: options?.signal
+      })
+    }
     return this.getProviderInstance(providerId).coreStream(
       messages,
       modelId,
@@ -611,7 +624,12 @@ export class ProviderRuntime
       return this.nativeCompletion(
         providerId,
         modelId,
-        [{ role: 'user', content: text }],
+        [
+          {
+            role: 'user',
+            content: `Please provide a concise summary of the following content. Return only the summary.\n\n${text}`
+          }
+        ],
         temperature,
         maxTokens
       )
@@ -1091,14 +1109,29 @@ export class ProviderRuntime
     modelId?: string
   ): Promise<{ isOk: boolean; errorMsg: string | null }> {
     try {
+      const configured = this.providerSettings.getProviderById(providerId)
+      if (this.nativeModels && configured && configured.apiType !== 'acp' && !modelId) {
+        const definition = resolveAiSdkProviderDefinition(configured)
+        if (definition?.checkStrategy === 'generate-text') modelId = definition.checkModelId
+      }
       const provider = this.getProviderInstance(providerId)
 
-      // 如果提供了modelId，使用completions方法进行测试
+      // Explicit model tests follow the same native inference boundary as production calls.
       if (modelId) {
         try {
           const testMessage = [{ role: 'user' as const, content: 'hi' }]
           const response: LLMResponse | null = await Promise.race([
-            provider.completions(testMessage, modelId, 0.1, 10),
+            this.nativeModels &&
+            this.providerSettings.getProviderById(providerId)?.apiType !== 'acp'
+              ? this.nativeCompletion(
+                  providerId,
+                  modelId,
+                  testMessage,
+                  0.1,
+                  10,
+                  AbortSignal.timeout(60_000)
+                )
+              : provider.completions(testMessage, modelId, 0.1, 10),
             new Promise<null>((resolve) => setTimeout(() => resolve(null), 60000))
           ])
           // 检查响应是否有效

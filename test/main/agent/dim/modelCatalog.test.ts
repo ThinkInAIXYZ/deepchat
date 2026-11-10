@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { expect, it } from 'vitest'
+import { expect, it, vi } from 'vitest'
 import { mkdtemp, rm } from 'node:fs/promises'
 import path from 'node:path'
 import os from 'node:os'
@@ -177,3 +177,67 @@ it('keeps custom headers behind immutable grants, including anonymous connection
     db.sqlite.close()
   }
 })
+
+it.each([
+  { apiType: 'ollama', apiKey: '', auth: 'anonymous' },
+  { apiType: 'ollama', apiKey: 'cloud-key', auth: 'bearer' },
+  { apiType: 'openai-completions', apiKey: '', auth: 'anonymous' }
+])(
+  'adopts $apiType credentials with $auth and fences authentication changes',
+  async ({ apiType, apiKey, auth }) => {
+    const db = dimDatabase()
+    const provider = {
+      id: 'local-fixture',
+      name: 'Local',
+      enable: true,
+      apiType,
+      apiKey,
+      baseUrl: 'http://127.0.0.1:11434/v1'
+    } as LLM_PROVIDER
+    const credential = vi.fn(async () => provider.apiKey)
+    const configure = vi.fn(async () => ({ providerId: 'native', modelId: 'fixture' }))
+    const catalog = new DimModelCatalog({
+      settings: {
+        getProviderById: () => provider,
+        getModelStatus: () => true,
+        getModelConfig: () =>
+          ({
+            contextLength: 8192,
+            maxTokens: 1024,
+            functionCall: false,
+            vision: false,
+            reasoning: false
+          }) as ModelConfig,
+        getProviderModelRouteMetadata: () => undefined,
+        getCapabilitySnapshot: () =>
+          ({
+            supportsAudioInput: false,
+            supportsReasoning: false,
+            reasoningPortrait: null
+          }) as ReturnType<ProviderSettingsPort['getCapabilitySnapshot']>
+      },
+      models: { configure },
+      grants: db.data.dimProviderGrantsTable,
+      credential
+    })
+    try {
+      await catalog.admit(provider.id, 'fixture')
+      expect(configure).toHaveBeenCalledWith(
+        expect.objectContaining({
+          connection: expect.objectContaining({ auth: { type: auth }, baseUrl: provider.baseUrl })
+        })
+      )
+      const reference = 'deepchat/provider/v1/local-fixture'
+      expect(await catalog.credential('native', reference, new AbortController().signal)).toBe(
+        apiKey || 'deepchat-admission-v1'
+      )
+      expect(credential).toHaveBeenCalledTimes(apiKey ? 1 : 0)
+      provider.apiKey = apiKey ? '' : 'new-key'
+      await expect(
+        catalog.credential('native', reference, new AbortController().signal)
+      ).rejects.toThrow('replaced')
+    } finally {
+      db.sqlite.close()
+    }
+  }
+)

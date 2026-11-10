@@ -6,6 +6,7 @@ mod inputs;
 mod media;
 mod memory;
 mod migration;
+mod model_stream;
 mod models;
 mod permissions;
 mod product_tools;

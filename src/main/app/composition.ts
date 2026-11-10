@@ -187,7 +187,7 @@ import { DimRuntimeSupervisor } from '@/agent/dim/runtimeSupervisor'
 import { DimProductGateway } from '@/agent/dim/productGateway'
 import { DimProductTools } from '@/agent/dim/productTools'
 import { DimProductContext } from '@/agent/dim/productContext'
-import { DimModelCatalog } from '@/agent/dim/modelCatalog'
+import { DimModelCatalog, dimModelParameters } from '@/agent/dim/modelCatalog'
 import { DimModelBridge } from '@/agent/dim/modelBridge'
 import { DimEmbeddingModels } from '@/agent/dim/embeddingModels'
 import { DimAuxiliaryModels } from '@/agent/dim/auxiliaryModels'
@@ -1055,7 +1055,14 @@ export async function createMainProcessControl(dependencies: {
       return provider.apiKey
     }
   })
-  const dimAuxiliary = new DimAuxiliaryModels({ models: dimModels, bridge: dimModelBridge })
+  const dimAuxiliary = new DimAuxiliaryModels({
+    models: dimModels,
+    bridge: dimModelBridge,
+    parameters: (providerId, modelId) => {
+      const config = providerSettings.getModelConfig(modelId, providerId)
+      return dimModelParameters({ ...config, temperature: config.temperature ?? 0.7 })
+    }
+  })
   providerRuntime = new ProviderRuntime(
     providerSettings,
     desktopSettings,

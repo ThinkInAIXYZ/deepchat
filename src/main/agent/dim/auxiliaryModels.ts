@@ -1,3 +1,4 @@
+import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import type { ChatMessage, ChatMessageContent } from '@shared/types/core/chat-message'
 import type { JsonValue } from '@shared/contracts/json'
 import type { DimModelCatalog } from './modelCatalog'
@@ -9,9 +10,16 @@ import type {
 } from './modelBridge'
 
 type JsonObject = { [key: string]: JsonValue }
+interface AuxiliaryInput {
+  providerId: string
+  modelId: string
+  messages: ChatMessage[]
+  parameters?: DimModelParameters
+  signal?: AbortSignal
+}
 interface AuxiliaryOptions {
   models: Pick<DimModelCatalog, 'admit'>
-  bridge: Pick<DimModelBridge, 'complete'>
+  bridge: Pick<DimModelBridge, 'complete'> & Partial<Pick<DimModelBridge, 'stream'>>
   parameters?(providerId: string, modelId: string): DimModelParameters
 }
 
@@ -19,13 +27,18 @@ interface AuxiliaryOptions {
 export class DimAuxiliaryModels {
   constructor(private readonly options: AuxiliaryOptions) {}
 
-  async complete(input: {
-    providerId: string
-    modelId: string
-    messages: ChatMessage[]
-    parameters?: DimModelParameters
-    signal?: AbortSignal
-  }): Promise<DimAuxiliaryReply> {
+  async complete(input: AuxiliaryInput): Promise<DimAuxiliaryReply> {
+    const { model, request, parameters } = await this.prepare(input)
+    return this.options.bridge.complete(model, request, input.signal, parameters)
+  }
+
+  async *stream(input: AuxiliaryInput): AsyncGenerator<LLMCoreStreamEvent> {
+    if (!this.options.bridge.stream) throw new Error('Native model streaming is unavailable')
+    const { model, request, parameters } = await this.prepare(input)
+    yield* this.options.bridge.stream(model, request, input.signal, parameters)
+  }
+
+  private async prepare(input: AuxiliaryInput) {
     input.signal?.throwIfAborted()
     const request = dimAuxiliaryRequest(input.messages)
     const model = await this.options.models.admit(input.providerId, input.modelId)
@@ -40,7 +53,7 @@ export class DimAuxiliaryModels {
             )
           }
         : undefined
-    return this.options.bridge.complete(model, request, input.signal, parameters)
+    return { model, request, parameters }
   }
 }
 

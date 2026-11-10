@@ -1,6 +1,6 @@
 [package]
 name = "deepchat-dim-host"
-version = "0.10.0"
+version = "0.11.0"
 edition = "2024"
 rust-version = "1.98"
 license = "Apache-2.0"
@@ -21,6 +21,7 @@ dim-goal = { path = "../dim-source/crates/dim-goal" }
 dim-modality = { path = "../dim-source/crates/dim-modality" }
 dim-modality-aimux = { path = "../dim-source/crates/dim-modality-aimux" }
 dim-ocr = { path = "../dim-source/crates/dim-ocr" }
+futures-util = "0.3"
 rutis = "=0.19.3"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

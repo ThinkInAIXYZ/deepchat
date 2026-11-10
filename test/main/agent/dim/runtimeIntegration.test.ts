@@ -355,6 +355,17 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
         res.flushHeaders()
         return
       }
+      if (JSON.stringify(body.messages ?? []).includes('native streaming hold')) {
+        nativeCancelled = false
+        res.once('close', () => {
+          nativeCancelled = true
+        })
+        res.writeHead(200, { 'Content-Type': 'text/event-stream' })
+        res.write(
+          `data: ${JSON.stringify({ id: 'native-stream', object: 'chat.completion.chunk', created: 0, model: 'fixture', choices: [{ index: 0, delta: { content: 'NATIVE_PARTIAL_STREAM' }, finish_reason: null }] })}\n\n`
+        )
+        return
+      }
       if (JSON.stringify(body.messages ?? []).includes('hold native auxiliary')) {
         res.once('close', () => {
           nativeCancelled = true
@@ -1022,6 +1033,49 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
       abort.abort()
       await cancelled
       await expect.poll(() => nativeCancelled).toBe(true)
+      if (nativePlugins) {
+        const events = []
+        for await (const event of models.stream(
+          target,
+          {
+            messages: [{ role: 'user', content: 'native streaming complete' }]
+          },
+          undefined,
+          { temperature: 0.27, maxTokens: 99 }
+        ))
+          events.push(event)
+        expect(
+          events
+            .filter((event) => event.type === 'text')
+            .map((event) => event.content)
+            .join('')
+        ).toBe('Rust provider answer')
+        expect(events).toContainEqual(expect.objectContaining({ type: 'usage' }))
+        expect(events.at(-1)).toEqual({ type: 'stop', stop_reason: 'complete' })
+        expect(requests.at(-1)?.body).toMatchObject({
+          temperature: 0.27,
+          max_tokens: 99,
+          stream: true
+        })
+        const stopping = new AbortController()
+        const stream = models.stream(
+          target,
+          {
+            messages: [{ role: 'user', content: 'native streaming hold' }]
+          },
+          stopping.signal
+        )
+        // A delta arrives while HTTP is still open, proving this is a native live stream.
+        expect(await stream.next()).toMatchObject({
+          value: { type: 'text', content: 'NATIVE_PARTIAL_STREAM' },
+          done: false
+        })
+        const next = stream.next()
+        const cancelledStream = expect(next).rejects.toThrow()
+        stopping.abort()
+        await cancelledStream
+        await expect.poll(() => nativeCancelled).toBe(true)
+      }
       await host.stop()
       if (nativePlugins) {
         const verifyNoPlaintextCredential = async (directory: string): Promise<void> => {
