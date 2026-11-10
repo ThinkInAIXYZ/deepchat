@@ -86,6 +86,8 @@ const servicesFile = 'crates/dim-app-server/src/lib.rs'
 const recordsFile = 'crates/dim-app-server/src/agent_records.rs'
 const ownedFilesFile = 'crates/dim-app-server/src/storage/files.rs'
 const sessionStoreFile = 'crates/dim-app-server/src/storage/timeline.rs'
+const mcpFile = 'crates/dim-app-server/src/mcp.rs'
+const temporaryMcpFile = 'crates/dim-app-server/src/mcp/temporary.rs'
 git([
   'diff',
   '--exit-code',
@@ -97,7 +99,9 @@ git([
   `:!${servicesFile}`,
   `:!${recordsFile}`,
   `:!${ownedFilesFile}`,
-  `:!${sessionStoreFile}`
+  `:!${sessionStoreFile}`,
+  `:!${mcpFile}`,
+  `:!${temporaryMcpFile}`
 ])
 if (current !== expected) await writeFile(path.join(directory, filename), expected)
 // Add an explicit host-value replacement to the builder's assembly API. It changes no
@@ -217,6 +221,60 @@ for (const [filename, extensions] of [
   if (current !== expected) await writeFile(path.join(directory, filename), expected)
   filePatches.push({ path: filename, sha256: createHash('sha256').update(expected).digest('hex') })
 }
+// A public MCP owner factory primes its native catalogue during resource acquisition.
+// Connection updates and execution remain with the existing MCP binding and tool provider.
+const mcpOriginal = git(['show', `HEAD:${temporaryMcpFile}`]) + '\n'
+let mcpExpected = mcpOriginal
+for (const [before, after] of [
+  [
+    'servers: input.servers.clone(), tools, lifecycle, ready, changed: changed.clone()',
+    'servers: input.servers.clone(), tools, lifecycle, ready, changed: changed.clone(), initial: false'
+  ],
+  ['    changed: Arc<Notify>,\n}', '    changed: Arc<Notify>,\n    initial: bool,\n}'],
+  [
+    '            let (ready, changed, ctx, session) = (',
+    `            let initial = if self.initial {
+                let lists = try_join_all(connections.iter().map(|(_, connection)| connection.tools(&stop)))
+                    .await.map_err(|_| ErrorKind::PluginFailed("Initial MCP catalogue is unavailable".into()))?;
+                publish_binding(ctx, self.session, &prefix, &connections, &lists, &sets, &stop)
+                    .map_err(|_| ErrorKind::PluginFailed("Initial MCP catalogue publication failed".into()))?;
+                Some(lists)
+            } else { None };
+            let (ready, changed, ctx, session) = (`
+  ],
+  [
+    '                    let mut previous = None;',
+    '                    let mut previous = initial;'
+  ],
+  [
+    `                        let next = connections.iter().zip(&lists).map(|((id,connection),tools)| Arc::new(ToolSourceSet {
+                            key: format!("{prefix}:{id}"), version: uuid::Uuid::new_v4().to_string(),
+                            tools: tools.iter().map(|tool| contribution(id,tool,connection.clone(),stop.clone())).collect(),
+                        })).collect();
+                        *sets.lock().unwrap() = next;
+                        ctx.emit(ToolProviderChanged { name: tool_provider_changes(session) }).map_err(|_| failed())?;`,
+    '                        publish_binding(&ctx, session, &prefix, &connections, &lists, &sets, &stop)?;'
+  ]
+]) {
+  if (mcpExpected.split(before).length !== 2)
+    throw new Error('Native MCP owner factory seam changed')
+  mcpExpected = mcpExpected.replace(before, after)
+}
+mcpExpected +=
+  '\n' + (await readFile(path.join(root, 'resources/dim-sdk/mcp-initial-binding.rs'), 'utf8'))
+const mcpExportsOriginal = git(['show', `HEAD:${mcpFile}`]) + '\n'
+const mcpExportsExpected = mcpExportsOriginal + '\npub use temporary::mount_initial_binding;\n'
+const mcpPatches = []
+for (const [filename, original, expected] of [
+  [temporaryMcpFile, mcpOriginal, mcpExpected],
+  [mcpFile, mcpExportsOriginal, mcpExportsExpected]
+]) {
+  const current = await readFile(path.join(directory, filename), 'utf8')
+  if (current !== original && current !== expected)
+    throw new Error('Pinned native MCP owner has unexpected changes')
+  if (current !== expected) await writeFile(path.join(directory, filename), expected)
+  mcpPatches.push({ path: filename, sha256: createHash('sha256').update(expected).digest('hex') })
+}
 export const nativeSource = {
   sourceRevision: lock.sourceCommit,
   storeFormat: Number(
@@ -230,6 +288,7 @@ export const nativeSource = {
     { path: secretsFile, sha256: createHash('sha256').update(secretsExpected).digest('hex') },
     { path: servicesFile, sha256: createHash('sha256').update(servicesExpected).digest('hex') },
     { path: recordsFile, sha256: createHash('sha256').update(recordsExpected).digest('hex') },
-    ...filePatches
+    ...filePatches,
+    ...mcpPatches
   ]
 }

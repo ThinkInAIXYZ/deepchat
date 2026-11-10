@@ -160,6 +160,8 @@
 
 ## 模块进度
 
+- 模块 74：原生内部子会话经 storage parent link 核验当前桌面归属，从私有网关取得已选 MCP 配置；会话级插件只管理配置授权与原生资源 view，连接、发现、工具贡献、调用、取消与动态发布复用 dim MCP owner。新增固定 hash 的原生工厂在 Session 资源取得阶段准备首个目录；普通 temporary attach 仍等待 Session activated，不修改原有行为。后续更新仍由原生 worker 负责，配置撤销/变更关闭旧资源，授权续期和连接清理在 close 时 join。桥 0.24.0；20 项网关/归属/MCP/打包回归与 Rust check 通过，真实子 agent 首轮目录/工具调用/撤销联合用例通过（DEV 122s）；release 构建、完整 Native 20 项（221s）及双端类型/门禁通过；Electron 聊天/CLI/增量导入/覆盖恢复/故障回滚/重启联合验收通过（43s）。
+
 - 模块 73：v3 Native profile 增量导入已接通。独立空 profile 的 storage 插件在 disposable staging 经 Native owners 合并，已有身份逐事件/trace/原子批次核对共享前缀后追加兼容尾部；分叉、创建记录或归属冲突拒绝安装，已有目标标题保留。原始备份只校验，查询使用工作副本。SQL 导入前校验绑定/归档 scopes 引用的全部 Native 会话确实在目标 owner 目录中；原有 journal 同时保护 SQL 与 Native 的安装、回滚和重启恢复。已有产品绑定/消息/Inspector 缓存保留本地游标并从 canonical tail 重建，另行保留导入旧代的只读归属，避免占用未来活动 generation。实际 Rust 重复合并/尾部追加/分叉拒绝、真正 prepareMerge/安装/重启/附件 GC/恢复后模型续聊与源备份完整性通过（41s）；37 项导入与恢复回归、共享 Native 身份游标回归通过。桥 0.23.0 release 构建、完整 Native 20 项（158s）、双端类型/门禁与 Electron 增量导入保留当前标题和消息、覆盖恢复、故障回滚、重启续聊（35s）通过。实时同步继续实施。
 
 - 模块 65 runner 实测修正：Linux x64/ARM64 的 Native、实际打包、包内无网络 dim 与 OCR 均通过，安装包体积门禁发现旧 1.1.0-beta.4 基线不含 Rust runtime。x64 新增 dim 组件 gzip 77,296,084 字节，安装包实际增长 145.02 MiB，归档 138.51 MiB；据此显式记录 80 MiB 的新增组件预期，原有 90/112 MiB 剩余波动预算与 dim 独立 84 MiB 上限保留。macOS ARM64 的 Native/离线 dim 通过后，OCR 揭示未签名 verification 应用内的共享 Node 被重签，无法使用 enclosing-app seal；verification 现保留原 Node 分发字节与签名，distribution 仍重签并校验所属团队。Windows x64 原生 19/20 通过，仅问题弹窗投影断言失败：保留原 5s 断言，补 Native 问题/事件种类诊断，不输出请求正文与凭据。Rust 编译缓存改在 smoke 前保存，避免单个运行时断言丢弃已完成构建；每次仍重新 build --locked 并完整验收。

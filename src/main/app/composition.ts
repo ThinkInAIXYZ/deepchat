@@ -1030,6 +1030,16 @@ export async function createMainProcessControl(dependencies: {
   const dimGateway = new DimProductGateway({
     resolve: (id) => dimTools.resolve(id),
     context: (request, signal) => dimContext.prepare(request, signal),
+    mcp: async (id, signal) => {
+      const scope = await dimScopes.owner(id, signal)
+      authorizeDimScope(scope.binding)
+      scope.assertCurrent()
+      const configuration = await dimMcpConfiguration(scope.binding.sessionId)
+      scope.assertCurrent()
+      authorizeDimScope(scope.binding)
+      scope.assertCurrent()
+      return configuration.servers
+    },
     credential: (id, reference, signal) => dimModels.credential(id, reference, signal)
   })
   const nativeRuntimeRoot = app.isPackaged

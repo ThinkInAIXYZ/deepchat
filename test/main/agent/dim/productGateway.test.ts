@@ -2,6 +2,38 @@ import { expect, it } from 'vitest'
 import { createConnection } from 'node:net'
 import { DimProductGateway } from '@/agent/dim/productGateway'
 
+it('resolves MCP configuration only for an authorized native owner', async () => {
+  let reads = 0
+  const gateway = new DimProductGateway({
+    resolve: async () => {
+      throw new Error('MCP configuration must not execute a product tool')
+    },
+    mcp: async (id, signal) => {
+      signal.throwIfAborted()
+      reads++
+      if (id !== 'authorized-child') throw new Error('Unknown native owner')
+      return { fixture: { type: 'http', url: 'https://example.test/mcp', headers: {} } }
+    }
+  })
+  const address = await gateway.start()
+  try {
+    expect(await request(address, { kind: 'mcp', sessionId: '' })).toMatchObject({
+      error: expect.any(String)
+    })
+    expect(reads).toBe(0)
+    expect(await request(address, { kind: 'mcp', sessionId: 'foreign' })).toEqual({
+      error: 'Unknown native owner'
+    })
+    expect(await request(address, { kind: 'mcp', sessionId: 'authorized-child' })).toEqual({
+      result: {
+        servers: { fixture: { type: 'http', url: 'https://example.test/mcp', headers: {} } }
+      }
+    })
+  } finally {
+    await gateway.stop()
+  }
+})
+
 function request(address: string, value: object): Promise<unknown> {
   return new Promise((resolve, reject) => {
     const socket = createConnection(address)

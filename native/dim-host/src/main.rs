@@ -4,6 +4,7 @@ mod archive_outputs;
 mod archive_rebase;
 mod archive_timeline;
 mod archive_transfer;
+mod child_mcp;
 mod context;
 mod embeddings;
 mod facts;
@@ -48,6 +49,7 @@ fn install(builder: &mut dim_agent_runtime::AgentBuilder) {
     settings::install(builder);
     permissions::install(builder);
     product_tools::install(builder);
+    child_mcp::install(builder);
     models::install(builder);
     embeddings::install(builder);
     secrets::install(builder);

@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto'
 import os from 'node:os'
 import path from 'node:path'
 import type { JsonValue } from '@shared/contracts/json'
+import type { DimMcpServer } from './mcp'
 
 type JsonObject = { [key: string]: JsonValue }
 
@@ -56,6 +57,7 @@ export interface DimProductGatewayOptions {
   // Only capabilities that dim does not implement belong in this catalog.
   resolve(nativeSessionId: string): Promise<DimProductCapabilitySet>
   context?(request: DimProductContextRequest, signal: AbortSignal): Promise<DimProductContextReply>
+  mcp?(sessionId: string, signal: AbortSignal): Promise<Record<string, DimMcpServer>>
   credential?(
     providerId: string,
     reference: string,
@@ -211,6 +213,17 @@ export class DimProductGateway {
     request: Record<string, unknown>,
     signal: AbortSignal
   ): Promise<JsonValue> {
+    if (request.kind === 'mcp') {
+      if (
+        typeof request.sessionId !== 'string' ||
+        !request.sessionId ||
+        request.sessionId.length > 4096
+      )
+        throw new Error('MCP configuration requires a native session')
+      const servers = (await this.options.mcp?.(request.sessionId, signal)) ?? {}
+      signal.throwIfAborted()
+      return { servers: servers as unknown as JsonValue }
+    }
     if (request.kind === 'credential') {
       if (
         !this.options.credential ||

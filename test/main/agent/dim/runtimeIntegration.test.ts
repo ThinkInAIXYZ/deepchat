@@ -398,6 +398,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
           )
         ) {
           if (childToolPhase === 0) {
+            expect(JSON.stringify(body.tools)).toContain('Native MCP migration fixture')
             expect(
               body.tools.some(
                 (tool: { function: { name: string } }) =>
@@ -422,6 +423,12 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
                 }
               }
             ]
+          } else if (childToolPhase === 2) {
+            const tool = body.tools.find((item: { function: { description?: string } }) =>
+              item.function.description?.includes('Native MCP migration fixture')
+            )
+            expect(tool).toBeDefined()
+            nextTools = [{ id: randomUUID(), name: tool.function.name, arguments: {} }]
           }
           childToolPhase++
         }
@@ -553,6 +560,19 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
       ]
     })
     const gateway = new DimProductGateway({
+      mcp: async (id, signal) => {
+        const scope = await new DimScopes({ database: grants.data, host }).owner(id, signal)
+        scope.assertCurrent()
+        return mcpEnabled
+          ? {
+              fixture: {
+                type: 'http',
+                url: `http://127.0.0.1:${(fixture.address() as { port: number }).port}/native-mcp`,
+                headers: { Authorization: `Bearer ${mcpToken}` }
+              }
+            }
+          : {}
+      },
       resolve: async (nativeId) => {
         const binding = grants.data.dimSessionBindingsTable.getByNative(nativeId)
         if (binding?.sessionId === 'facade-product') return desktopTools.resolve(nativeId)
@@ -2245,6 +2265,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
         expect(conversationRequests()).toHaveLength(beforeBlockedContext)
         // dim's own agent tool creates and runs the member. The desktop authorizes its
         // immutable native parent link; it never creates, schedules or calls the child model.
+        mcpEnabled = true
         await facade.backend.setPermissionMode(facadeId, 'full_access')
         const leaderBinding = grants.data.dimSessionBindingsTable.get(facadeId)!
         const nativeModel = await new DimSessionControls(host).call<{
@@ -2329,6 +2350,21 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
             { timeout: 10_000 }
           )
           .toBe('native child approved by policy')
+        await expect.poll(() => mcpCalls.length, { timeout: 10_000 }).toBe(3)
+        expect(mcpCalls.at(-1)).toBe('Bearer native-mcp-rotated')
+        mcpEnabled = false
+        await vi.waitFor(
+          async () => {
+            const definitions = await (
+              await host.start()
+            ).call('session.deepchat_tools.catalog', {
+              sessionId: child.ref.sessionId,
+              branchId: child.ref.branchId
+            })
+            expect(JSON.stringify(definitions)).not.toContain('Native MCP migration fixture')
+          },
+          { timeout: 15_000, interval: 100 }
+        )
         await (await host.start()).call('deepchat.host.delete', { sessionId: child.ref.sessionId })
         await facade.runtime.waitIdle(facadeId)
         grants.data.newSessionsTable.updateDisabledAgentTools(facadeId, ['exec'])

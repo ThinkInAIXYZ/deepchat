@@ -117,3 +117,20 @@ SQLite read-only snapshots may create WAL/SHM companions, so transfer consumers
 read a disposable working copy after validating an immutable archive closure.
 The storage coordinator has an empty private home and no desktop gateway; it
 opens only the staged store and does not restore Agents or invoke models.
+
+Internal agent Sessions inherit their current desktop owner's selected MCP servers
+through the private gateway after native parent-link authorization. A Session-scoped
+plugin owns only this selection and its authorization renewal; native MCP owns
+connections, catalogues, calls, cancellation and dynamic tool publication. Revoked
+or changed selections unload their native resource view. Closing joins renewal
+work and connection cleanup.
+
+The hashed `mount_initial_binding` SDK factory primes the existing native MCP
+catalogue while acquiring Session resources, before the first ToolBinding snapshot.
+The ordinary temporary-binding API still waits for Session publication; it cannot
+serve this initialization boundary. Both paths use the same native contributions
+and update worker. No MCP execution loop or transport is copied into DeepChat.
+
+This bridge owns I/O resources at Session scope. Native ToolBinding records adopted
+configuration and native ToolExecutor records call results. The bridge writes no
+new facts, schema, inputs, model requests or permission decisions.
