@@ -1,6 +1,6 @@
 # DeepChat 以 dim Rust 替换内置 Agent Harness
 
-状态：当前实现合同，本地整体验收完成。主产品内置 backend 已切换为 dim Rust，旧 Harness、Node 模型执行器与重复内置工具已删除；保留 Direct ACP client、只读旧历史与按需转换器。最后恢复补强已推送；当前 head 的六平台 CI 正在核验，发现的 Windows 全局退出预算问题单独修复并验证，不以旧版本结果代替。执行与验证记录见 [plan.md](./plan.md)。
+状态：当前实现合同，内置 backend 已切换为 dim Rust，旧 Harness、Node 模型执行器和重复工具已删除；Direct ACP client、只读旧历史与按需转换保留。最新 dev 的 OpenLLM 与 HTML 可视化已合入，完整 main、renderer 和桌面联合验收通过；最终应用代码的六平台打包继续核验。执行与验证记录见 [plan.md](./plan.md)。
 
 ## 1. 决策与范围
 
@@ -36,6 +36,7 @@
 | 桌面、CLI、Remote、计划任务 | 现有产品入口经 AgentManager 调用 dim backend；外部 agent 仍走独立 ACP client。 |
 | 内置 loop、队列、模型、上下文与压缩 | 锁定的 dim Rust owner；Node 负责配置与授权，不执行模型。 |
 | 原生默认工具、MCP、Skills、hooks | dim 原生实现；产品专有能力经 `deepchat-host` 和受限能力网关注入。 |
+| HTML 可视化 | 默认关闭的产品工具经 Native ToolProvider 执行；原文和 section 经 storage 插件读取，scope 与派生源身份控制旧页面失效。 |
 | 内容、事件与附件 | `deepchat-storage` 调用原生 SessionStore、TimelineStore、FileStorage；不查询 Native SQLite 表。 |
 | 产品元数据与只读投影 | DeepChat 的 `app_db/agent.db`；内置内容的事实源位于 `<userData>/dim/rust`。 |
 | 备份与恢复 | 冷 Native 快照与产品 SQL 同窗口采集，使用清单、校验、目录安装与恢复日志。 |

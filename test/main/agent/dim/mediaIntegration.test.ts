@@ -43,6 +43,20 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
 ])(
   'runs $label through native dim owners',
   async ({ desktopVendors, mediaChat }) => {
+    const started = Date.now()
+    let stage = 'setup'
+    const mark = (name: string) => {
+      stage = name
+      if (process.env.DEEPCHAT_DIM_DIAGNOSTICS === '1')
+        process.stderr.write(
+          `[dim media] ${JSON.stringify({ case: mediaChat ? 'chat' : desktopVendors ? 'vendors' : 'standard', stage, elapsedMs: Date.now() - started })}\n`
+        )
+    }
+    const diagnostic =
+      process.env.DEEPCHAT_DIM_DIAGNOSTICS === '1'
+        ? (event: unknown) =>
+            process.stderr.write(`[dim media lifecycle] ${JSON.stringify({ stage, event })}\n`)
+        : undefined
     const png = Buffer.from(
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
       'base64'
@@ -343,6 +357,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
       mediaInput: (request, signal) => scopes.mediaInput(request, signal)
     })
     const host = new DimRuntimeSupervisor({
+      diagnostic,
       runtimeRoot: path.resolve('runtime/dim'),
       profileRoot: profile,
       nodeExecutable: path.resolve(
@@ -427,7 +442,9 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
       return done
     }
     try {
+      mark('host startup')
       let client = await host.start()
+      mark('host ready')
       if (mediaChat) {
         const artifacts: Array<{ fileId: string; sha256: string; bytes: number }> = []
         // A media model is selected by an Agent-local native host. The real model
@@ -438,6 +455,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
           ['sora-2', 'native video', 'video/mp4'],
           ['tts-1', 'native speech large', 'audio/wav']
         ]) {
+          mark(`${modelId}/${text}: prepare`)
           const alias = await catalog.admit(provider.id, modelId, { session: true })
           const created = await client.call<{ sessionId: string }>('deepchat.host.launch', {
             cwd: profile,
@@ -514,6 +532,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
             expect(await readdir(host.payloadRoot)).toEqual([])
             artifacts.push({ fileId, bytes: stored.bytes, sha256: stored.sha256 })
           }
+          mark(`${modelId}/${text}: submit`)
           await client.call('deepchat.host.input', {
             ...ref,
             mode: 'queue',
@@ -522,6 +541,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
             content: [{ type: 'text', text }]
           })
           await client.call('deepchat.host.idle', ref)
+          mark(`${modelId}/${text}: idle`)
           const page = await new DimContent(host).events(
             ref,
             [
@@ -578,7 +598,9 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
           expect(hash.digest('hex')).toBe(metadata.sha256)
           if (text === 'native speech large') expect(metadata.bytes).toBe(largeWave.length)
           artifacts.push({ fileId: file.fileId, bytes: metadata.bytes, sha256: metadata.sha256 })
+          mark(`${modelId}/${text}: files verified`)
           if (modelId === 'gpt-image-1') {
+            mark('image: historical feedback, queue, cancellation and fork')
             const vision = await catalog.admit(provider.id, 'vision-chat')
             await controls.call('set_model', ref, { ...vision })
             await client.call('deepchat.host.input', {
@@ -696,6 +718,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
             })
           }
         }
+        mark('conversation media: cold restart')
         await host.stop()
         client = await host.start()
         const recoveredVideos = await media.list({ category: 'video', limit: 100 })
@@ -709,8 +732,10 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
         const identity = JSON.parse(
           await readFile(path.resolve('runtime/dim/plugins/native-host-lock.json'), 'utf8')
         )
+        mark('conversation media: capture archive')
         const snapshot = await captureDimProfile(path.join(profile, 'dim'), os.tmpdir(), identity)
         const target = new DimRuntimeSupervisor({
+          diagnostic,
           runtimeRoot: path.resolve('runtime/dim'),
           profileRoot: path.join(profile, 'receiver'),
           nativePlugins: true,
@@ -721,6 +746,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
         })
         try {
           const manifest = await snapshot.manifest()
+          mark('conversation media: merge archive')
           await target.withStopped(async () => {
             const prepared = await new DimProfileBackups({
               runtimeRoot: path.resolve('runtime/dim'),
@@ -738,6 +764,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
               await prepared.dispose()
             }
           })
+          mark('conversation media: verify restored files')
           const restored = new DimMediaFiles(target)
           for (const artifact of artifacts) {
             expect(await restored.describe(artifact.fileId)).toMatchObject({
@@ -762,6 +789,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
             receiver.call('modality.task.status', { task_id: before.tasks[0].task_id })
           ).rejects.toThrow()
         } finally {
+          mark('conversation media: close receiver')
           await target.stop()
           await snapshot.dispose()
         }
@@ -1212,6 +1240,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
         requests.every((request) => request.productHeader === 'native-media-header-secret')
       ).toBe(true)
     } finally {
+      mark('final cleanup')
       await host.stop()
       await gateway.stop()
       database.sqlite.close()

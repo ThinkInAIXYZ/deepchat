@@ -41,7 +41,7 @@ interface BuildWorkflowJob {
   permissions: Record<string, string>
   strategy: {
     'fail-fast': boolean
-    matrix: { arch: string[] }
+    matrix: { arch: string[] | string }
   }
   uses: string
   with: Record<string, unknown>
@@ -75,7 +75,9 @@ interface RegressionWorkflow {
       inputs: Record<string, { required: boolean; type: string }>
       secrets: Record<string, { required: boolean }>
     }
-    workflow_dispatch: Record<string, never>
+    workflow_dispatch: {
+      inputs: Record<string, { type: string; default: string; options: string[] }>
+    }
     schedule: Array<{ cron: string }>
   }
   permissions: Record<string, string>
@@ -164,9 +166,7 @@ describe('native package reusable workflows', () => {
   it('owns the fixed runner mapping and a shared immutable input contract', () => {
     for (const definition of Object.values(reusableWorkflows)) {
       const workflow = readWorkflow<ReusableWorkflow>(definition.name)
-      expect(Object.keys(workflow.on.workflow_call.inputs)).toEqual(
-        Object.keys(commonInputs)
-      )
+      expect(Object.keys(workflow.on.workflow_call.inputs)).toEqual(Object.keys(commonInputs))
       expect(workflow.on.workflow_call.inputs).toMatchObject(commonInputs)
       expect(workflow.permissions).toEqual({ contents: 'read' })
       expect(workflow.env).toMatchObject({
@@ -179,9 +179,7 @@ describe('native package reusable workflows', () => {
       expect(workflow.jobs.package.steps[0]).toMatchObject({
         name: 'Validate immutable source input'
       })
-      expect(workflow.jobs.package.steps[0].run).toContain(
-        '^[a-f0-9]{40}$'
-      )
+      expect(workflow.jobs.package.steps[0].run).toContain('^[a-f0-9]{40}$')
     }
   })
 
@@ -205,9 +203,7 @@ describe('native package reusable workflows', () => {
     expect(readWorkflowSource(reusableWorkflows.windows.name)).not.toContain(
       'DEEPCHAT_APPLE_NOTARY_'
     )
-    expect(readWorkflowSource(reusableWorkflows.linux.name)).not.toContain(
-      'DEEPCHAT_APPLE_NOTARY_'
-    )
+    expect(readWorkflowSource(reusableWorkflows.linux.name)).not.toContain('DEEPCHAT_APPLE_NOTARY_')
   })
 
   it('keeps target dependency installation frozen and ordered after install:sharp', () => {
@@ -293,7 +289,7 @@ describe('native package reusable workflows', () => {
   it('derives macOS distribution evidence and disables identity discovery for verification', () => {
     const source = readWorkflowSource(reusableWorkflows.macos.name)
     const workflow = readWorkflow<ReusableWorkflow>(reusableWorkflows.macos.name)
-    expect(source).toContain("if [[ \"${PACKAGE_PURPOSE}\" == 'distribution' ]]")
+    expect(source).toContain('if [[ "${PACKAGE_PURPOSE}" == \'distribution\' ]]')
     expect(source).toContain(
       "CSC_IDENTITY_AUTO_DISCOVERY: ${{ inputs.artifact-purpose == 'verification' && 'false' || '' }}"
     )
@@ -303,9 +299,9 @@ describe('native package reusable workflows', () => {
     expect(source).toContain(
       'plugin:bundle -- --name cua --platform darwin --arch "${TARGET_ARCH}" --purpose "${PACKAGE_PURPOSE}"'
     )
-    expect(getStep(workflow, 'Create package manifest and verify distribution evidence').run).toContain(
-      'scripts/ci/package-manifest.mjs'
-    )
+    expect(
+      getStep(workflow, 'Create package manifest and verify distribution evidence').run
+    ).toContain('scripts/ci/package-manifest.mjs')
     expect(source).not.toContain('signed:')
   })
 
@@ -319,9 +315,7 @@ describe('native package reusable workflows', () => {
       'DEEPCHAT_APPLE_NOTARY_TEAM_ID',
       'DEEPCHAT_APPLE_NOTARY_PASSWORD'
     ]
-    const emptyCredentials = Object.fromEntries(
-      credentialNames.map((name) => [name, ''])
-    )
+    const emptyCredentials = Object.fromEntries(credentialNames.map((name) => [name, '']))
     const runValidation = (
       purpose: 'distribution' | 'verification',
       credentials: Record<string, string>
@@ -362,9 +356,7 @@ describe('native package reusable workflows', () => {
   it('removes Apple credentials from the verification package process', () => {
     const workflow = readWorkflow<ReusableWorkflow>(reusableWorkflows.macos.name)
     const script = getStep(workflow, 'Build and package macOS').run!
-    const temporaryDirectory = fs.mkdtempSync(
-      path.join(os.tmpdir(), 'deepchat-package-workflow-')
-    )
+    const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-package-workflow-'))
     const fakeBinDirectory = path.join(temporaryDirectory, 'bin')
     const fakePnpmPath = path.join(fakeBinDirectory, 'pnpm')
     const credentialNames = [
@@ -413,9 +405,7 @@ fi
       for (const name of credentialNames) {
         expect(verificationEnvironment).toContain(`${name}=unset`)
       }
-      expect(verificationEnvironment).toContain(
-        'CSC_IDENTITY_AUTO_DISCOVERY=set:false'
-      )
+      expect(verificationEnvironment).toContain('CSC_IDENTITY_AUTO_DISCOVERY=set:false')
 
       const distributionCapture = path.join(temporaryDirectory, 'distribution.txt')
       const distribution = runBashStep(script, {
@@ -494,23 +484,19 @@ describe('Build Application caller', () => {
 describe('Package Regression caller', () => {
   const workflow = readWorkflow<RegressionWorkflow>('package-regression.yml')
   const source = readWorkflowSource('package-regression.yml')
-  const packageJobNames: PackageJobName[] = [
-    'package-windows',
-    'package-linux',
-    'package-macos'
-  ]
+  const packageJobNames: PackageJobName[] = ['package-windows', 'package-linux', 'package-macos']
 
   it('supports reusable, manual, and daily six-target verification', () => {
     expect(workflow.on.workflow_call.inputs).toMatchObject({
       'source-sha': { required: true, type: 'string' }
     })
-    expect(workflow.on.workflow_dispatch).toEqual({})
+    expect(workflow.on.workflow_dispatch.inputs).toMatchObject({
+      platform: { type: 'choice', default: 'all', options: ['all', 'windows', 'linux', 'macos'] },
+      arch: { type: 'choice', default: 'all', options: ['all', 'x64', 'arm64'] }
+    })
     expect(workflow.on.schedule).toEqual([{ cron: '37 18 * * *' }])
     expect(workflow.permissions).toEqual({ contents: 'read' })
-    expect(Object.keys(workflow.jobs)).toEqual([
-      ...packageJobNames,
-      'scheduled-status'
-    ])
+    expect(Object.keys(workflow.jobs)).toEqual([...packageJobNames, 'scheduled-status'])
 
     const expectedUses: Record<PackageJobName, string> = {
       'package-windows': './.github/workflows/_package-windows.yml',
@@ -522,8 +508,13 @@ describe('Package Regression caller', () => {
       expect(job.permissions).toEqual({ contents: 'read' })
       expect(job.strategy).toEqual({
         'fail-fast': false,
-        matrix: { arch: ['x64', 'arm64'] }
+        matrix: {
+          arch: "${{ fromJSON(inputs.arch == 'arm64' && '[\"arm64\"]' || inputs.arch == 'x64' && '[\"x64\"]' || '[\"x64\",\"arm64\"]') }}"
+        }
       })
+      expect(job.if).toBe(
+        `github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == '${name.slice('package-'.length)}'`
+      )
       expect(job.uses).toBe(expectedUses[name])
       expect(job.with).toEqual({
         'source-sha': '${{ inputs.source-sha || github.sha }}',
@@ -575,9 +566,7 @@ describe('Package Regression caller', () => {
     const script = statusStep.run!
     const issueTitle = statusStep.env?.ISSUE_TITLE
     if (!issueTitle) throw new Error('Missing scheduled regression issue title')
-    const temporaryDirectory = fs.mkdtempSync(
-      path.join(os.tmpdir(), 'deepchat-regression-status-')
-    )
+    const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-regression-status-'))
     const fakeBinDirectory = path.join(temporaryDirectory, 'bin')
     const fakeGhPath = path.join(fakeBinDirectory, 'gh')
     fs.mkdirSync(fakeBinDirectory)
@@ -636,16 +625,11 @@ done
     }
 
     try {
-      const firstFailure = runStatus(
-        { windows: 'failure', linux: 'success', macos: 'success' },
-        ''
-      )
+      const firstFailure = runStatus({ windows: 'failure', linux: 'success', macos: 'success' }, '')
       expect(firstFailure.result.status, firstFailure.result.stderr).toBe(0)
       expect(firstFailure.calls).toContain('ARG:issue\nARG:list\n')
       expect(firstFailure.calls).toContain('ARG:--state\nARG:open\n')
-      expect(firstFailure.calls).toContain(
-        `ARG:--search\nARG:"${issueTitle}" in:title\n`
-      )
+      expect(firstFailure.calls).toContain(`ARG:--search\nARG:"${issueTitle}" in:title\n`)
       expect(firstFailure.calls).toContain('ARG:--json\nARG:number,title\n')
       expect(firstFailure.calls).toContain(
         'ARG:--jq\nARG:.[] | select(.title == env.ISSUE_TITLE) | .number\n'
@@ -664,10 +648,7 @@ done
       expect(repeatedFailure.calls).toContain('ARG:issue\nARG:comment\nARG:42\n')
       expect(repeatedFailure.calls).not.toContain('ARG:issue\nARG:create\n')
 
-      const recovery = runStatus(
-        { windows: 'success', linux: 'success', macos: 'success' },
-        '42'
-      )
+      const recovery = runStatus({ windows: 'success', linux: 'success', macos: 'success' }, '42')
       expect(recovery.result.status, recovery.result.stderr).toBe(0)
       expect(recovery.calls).toContain('ARG:issue\nARG:close\nARG:42\n')
       expect(recovery.calls).toContain('ARG:--reason\nARG:completed\n')
@@ -721,9 +702,7 @@ describe('Release caller and publication boundary', () => {
     expect(Object.keys(workflow.jobs['package-windows'].secrets!)).toEqual(
       Object.keys(commonSecrets)
     )
-    expect(Object.keys(workflow.jobs['package-linux'].secrets!)).toEqual(
-      Object.keys(commonSecrets)
-    )
+    expect(Object.keys(workflow.jobs['package-linux'].secrets!)).toEqual(Object.keys(commonSecrets))
     expect(Object.keys(workflow.jobs['package-macos'].secrets!)).toEqual([
       ...Object.keys(commonSecrets),
       'DEEPCHAT_CSC_LINK',
@@ -760,9 +739,7 @@ describe('Release caller and publication boundary', () => {
       (step) => step.name === 'Assemble fail-closed release assets'
     )
     expect(assembly?.run).toContain('scripts/ci/assemble-release.mjs')
-    const upload = assemble.steps!.find(
-      (step) => step.name === 'Upload verified release assets'
-    )
+    const upload = assemble.steps!.find((step) => step.name === 'Upload verified release assets')
     expect(upload?.with).toMatchObject({
       name: 'deepchat-release-assets',
       path: 'release-assets/',

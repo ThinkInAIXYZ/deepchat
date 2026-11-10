@@ -297,6 +297,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
     let heldQueueResponse: ServerResponse | null = null
     let nextTools: Array<{ id: string; name: string; arguments: object }> | null = null
     const answeredQuestions = new Set<string>()
+    const toolFlushWaiters = new Map<string, () => void>()
     let mcpEnabled = false
     let mcpToken = 'native-mcp-first'
     let nextMcpCall = false
@@ -444,7 +445,11 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
           res.end(
             `data: ${JSON.stringify({ id: 'native-tools', object: 'chat.completion.chunk', model: 'fixture', created: 0, choices: [{ index: 0, delta: { role: 'assistant', tool_calls: tools.map((tool, index) => ({ index, id: tool.id, type: 'function', function: { name: tool.name, arguments: JSON.stringify(tool.arguments) } })) }, finish_reason: 'tool_calls' }] })}\n\ndata: [DONE]\n\n`,
             () => {
-              for (const tool of tools) if (tool.name === 'ask_user') answeredQuestions.add(tool.id)
+              for (const tool of tools) {
+                if (tool.name === 'ask_user') answeredQuestions.add(tool.id)
+                toolFlushWaiters.get(tool.id)?.()
+                toolFlushWaiters.delete(tool.id)
+              }
             }
           )
           return
@@ -1404,21 +1409,37 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
             arguments: { path: 'native-consent.txt', content: 'Written by dim' }
           }
         ]
+        const approvalResponseFlushed = new Promise<void>((resolve) => {
+          toolFlushWaiters.set('native-write', resolve)
+        })
         await desktop.submit('product-ui', [{ type: 'text', text: 'native approval fixture' }])
-        await expect
-          .poll(() => ({
-            action: pendingAction()?.block.action_type,
-            pendingFixtureTools: nextTools?.map((tool) => tool.name),
-            lastRequest: {
-              stream: requests.at(-1)?.body.stream,
-              tools: (requests.at(-1)?.body.tools as unknown[] | undefined)?.length,
-              lastMessage: (
-                JSON.stringify((requests.at(-1)?.body.messages as unknown[] | undefined)?.at(-1)) ??
-                ''
-              ).slice(0, 2048)
-            }
-          }))
-          .toMatchObject({ action: 'tool_call_permission' })
+        // Assert projection latency only after the model fixture has actually sent the call.
+        // The enclosing test's deadline still bounds model preparation and transport.
+        await approvalResponseFlushed
+        const approvalState = () => ({
+          action: pendingAction()?.block.action_type,
+          pendingFixtureTools: nextTools?.map((tool) => tool.name),
+          lastRequest: {
+            stream: requests.at(-1)?.body.stream,
+            tools: (requests.at(-1)?.body.tools as unknown[] | undefined)?.length,
+            lastMessage: (
+              JSON.stringify((requests.at(-1)?.body.messages as unknown[] | undefined)?.at(-1)) ??
+              ''
+            ).slice(0, 2048)
+          }
+        })
+        try {
+          await expect.poll(approvalState).toMatchObject({ action: 'tool_call_permission' })
+        } catch (cause) {
+          throw new Error(
+            JSON.stringify({
+              message: 'Native approval projection did not arrive',
+              ...approvalState(),
+              permission: await controls.call('permission', ref)
+            }),
+            { cause }
+          )
+        }
         const approval = pendingAction()!
         await interactions.respondToolInteraction(
           'product-ui',
