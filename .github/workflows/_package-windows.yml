@@ -155,14 +155,17 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $PSNativeCommandUseErrorActionPreference = $true
           $runtimeDirectory = [IO.Path]::GetFullPath("dist/$env:UNPACKED_DIRECTORY/resources/app.asar.unpacked/runtime")
+          $runnerNode = ([string](node -p 'process.execPath')).Trim()
           $programs = @(
-            [string](node -p 'process.execPath'),
-            "$runtimeDirectory/node/node.exe",
-            "$runtimeDirectory/dim/native/win32-$env:TARGET_ARCH/deepchat-dim-host.exe"
+            [IO.Path]::GetFullPath($runnerNode)
+            [IO.Path]::GetFullPath("$runtimeDirectory/node/node.exe")
+            [IO.Path]::GetFullPath("$runtimeDirectory/dim/native/win32-$env:TARGET_ARCH/deepchat-dim-host.exe")
           )
           $rules = @()
           try {
             foreach ($program in $programs) {
+              if (-not [IO.File]::Exists($program)) { throw "Missing offline runtime executable: $program" }
+              Write-Host "Blocking outbound network for packaged dim smoke: $program"
               $name = "DeepChat-Dim-Offline-$([guid]::NewGuid())"
               New-NetFirewallRule -DisplayName $name -Direction Outbound -Program $program -Action Block | Out-Null
               $rules += $name
