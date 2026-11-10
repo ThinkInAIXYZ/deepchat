@@ -68,7 +68,10 @@ export class SessionReferences {
   constructor(
     private readonly database: Pick<
       SessionDatabase,
-      'getDatabase' | 'deepchatSearchDocumentsTable' | 'sessionReferenceEpochsTable'
+      | 'getDatabase'
+      | 'deepchatSearchDocumentsTable'
+      | 'sessionReferenceEpochsTable'
+      | 'dimSessionBindingsTable'
     >,
     private readonly tape: TapeSessionReferenceReader,
     private readonly initializeTape: (sessionId: string) => Promise<unknown>
@@ -95,7 +98,7 @@ export class SessionReferences {
 
   async resolve(sessionId: string, expectedIncarnation?: string): Promise<SessionReference> {
     this.requireRegularSession(sessionId)
-    if (this.native?.has(sessionId)) {
+    if (this.hasNativeSource(sessionId)) {
       const epoch = this.nativeIdentity(sessionId)
       if (expectedIncarnation && expectedIncarnation !== epoch)
         throw new Error('Session reference is stale because the source session was reset.')
@@ -136,7 +139,7 @@ export class SessionReferences {
       .get(callerSessionId)
     if (!caller) throw new Error('read_session is available only in regular DeepChat sessions.')
     const session = this.requireRegularSession(input.sessionId)
-    const hasNativeSource = this.native?.has(input.sessionId) === true
+    const hasNativeSource = this.hasNativeSource(input.sessionId)
     const tapeIncarnationId = hasNativeSource
       ? this.nativeIdentity(input.sessionId)
       : this.tape.getSessionReferenceIdentity(input.sessionId)
@@ -168,6 +171,13 @@ export class SessionReferences {
     }
     if (input.action === 'context') return this.readContext(source, input)
     return this.readPage(source, input)
+  }
+
+  private hasNativeSource(sessionId: string): boolean {
+    const available = this.native?.has(sessionId) === true
+    if (this.database.dimSessionBindingsTable.get(sessionId) && !available)
+      throw new Error('Native session content owner is unavailable')
+    return available
   }
 
   private nativeIdentity(sessionId: string): string {

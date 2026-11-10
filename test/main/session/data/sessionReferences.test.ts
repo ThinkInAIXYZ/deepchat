@@ -3,6 +3,8 @@ import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SessionReferences } from '@/session/data/sessionReferences'
 import { SessionDatabase } from '@/session/data/database'
+import { DimSessionBindingsTable } from '@/session/data/tables/dimSessionBindings'
+import { DimSessionScopesTable } from '@/session/data/tables/dimSessionScopes'
 import { createSessionDataFromDatabase } from '@/session/data'
 import { DeepChatMessagesTable } from '@/session/data/tables/deepchatMessages'
 import { DeepChatSearchDocumentsTable } from '@/session/data/tables/deepchatSearchDocuments'
@@ -46,6 +48,8 @@ describeIfNativeSqlite('SessionReferences', () => {
     new NewSessionsTable(db).createTable()
     new DeepChatSessionsTable(db).createTable()
     new DeepChatTapeEntriesTable(db).createTable()
+    new DimSessionBindingsTable(db).createTable()
+    new DimSessionScopesTable(db).createTable()
     messages = new DeepChatMessagesTable(db)
     messages.createTable()
     search = new DeepChatSearchDocumentsTable(db)
@@ -163,6 +167,34 @@ describeIfNativeSqlite('SessionReferences', () => {
   beforeEach(() => {
     addSession('caller')
     addSession('source')
+  })
+
+  it('never initializes Tape for passive trace and nested audit inspection', async () => {
+    database.dimSessionBindingsTable.bind('source', 'native-source')
+    const data = createSessionDataFromDatabase(database, {
+      publishMessagesChanged() {},
+      publishPendingInputsChanged() {}
+    })
+    await expect(data.tape.listMessageViewManifests('source', 'native-message')).resolves.toEqual(
+      []
+    )
+    await expect(
+      data.tape.listNestedExecutionAuditForMessage('source', 'native-message')
+    ).resolves.toMatchObject({ state: 'available', operations: [] })
+    expect(database.deepchatTapeEntriesTable.getBySession('source')).toEqual([])
+  })
+
+  it('requires a native content owner before reference selection or reads', async () => {
+    database.dimSessionBindingsTable.bind('source', 'native-source')
+    incarnations.delete('source')
+    await expect(reader.resolve('source')).rejects.toThrow(
+      'Native session content owner is unavailable'
+    )
+    await expect(
+      reader.read('source', { sessionId: 'source', action: 'messages' })
+    ).rejects.toThrow('Native session content owner is unavailable')
+    expect(incarnations.has('source')).toBe(false)
+    expect(database.deepchatTapeEntriesTable.getBySession('source')).toEqual([])
   })
 
   it('initializes an absent Tape only during explicit selection, never during model reads', async () => {

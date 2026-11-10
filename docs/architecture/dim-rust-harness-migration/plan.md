@@ -158,6 +158,8 @@
 
 ## 模块进度
 
+- 模块 53：被动 Trace manifest 与嵌套执行审计查询改为只读旧归档，不再为 Native 消息初始化 Tape。有 Native 绑定而内容插件未接线时，会话引用显式失败，不降级到旧 Tape 或触发初始化。新增实际 SQLite 回归验证两类诊断零 Tape 写入，以及缺少 Native owner 时选择/读取均拒绝；53 项会话/引用/原子性回归通过。格式/i18n/lint/双端 typecheck 与主进程构建通过；Electron 首轮在启动未处理异常后卡住清理，保留日志并清理该测试进程后，同代码独立复验（含模型测试、CLI、聊天/重启、引用和 Inspector）34s 通过。
+
 - 模块 52：DeepChat 私有 Agent/项目技能的已选择内容，通过独立 DimSkillContext 接入 Native PrepareContext；产品 owner 校验当前分配、项目覆盖、选择和文件根，并在异步读取后重验 Agent/目录及选择快照，收据保存内容 hash。默认/项目技能发现、read、exec 继续属于 dim，不恢复 Node 技能执行器。旧 skill_run 指引替换为原生工具指引，内容 builder 升 v4。真实 Rust 用例完成已选技能注入、Native read + exec 执行技能脚本及 Timeline 收据（8s）；538 项技能/上下文回归通过。桌面验收发现整份未选目录占满固定上下文，修正为仅注入已选技能，并加入无选择时不读取/注入私有目录的回归；主进程构建、ACP/Native 两项联合验收通过（40s）。格式/i18n/lint/双端 typecheck 通过；Native smoke 脚本新增独立技能用例，现为 13 项。私有技能的原生目录注册、环境与策略兼容仍继续实施。
 
 - 验证批次 51：按当前模块重新生成 schema 3 架构基线，全量 main 8312 项通过、18 项跳过，唯一失败为模块 44 已移除物理表访问后遗留的 databaseSecurity Tape 边界豁免。删除该过期豁免后 46 项 Tape 边界用例全部通过，没有放宽存储边界。Memory scope（78 classified/3 exempt）和 78 项类型门禁通过。后续产品接线继续进行，最终全量仍在完成剩余模块后复跑。
