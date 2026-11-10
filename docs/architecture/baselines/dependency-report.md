@@ -4,37 +4,37 @@ Generated on 2026-11-10.
 
 ## main
 
-- Total files: 908
-- Internal dependency edges: 2960
-- Cycles detected: 14
+- Total files: 897
+- Internal dependency edges: 2902
+- Cycles detected: 11
 
 ### Top outgoing dependencies
 
-- `app/composition.ts`: 216
-- `data/schemaCatalog.ts`: 54
-- `tool/agentTools/agentToolManager.ts`: 35
-- `session/data/database.ts`: 32
+- `app/composition.ts`: 219
+- `data/schemaCatalog.ts`: 55
+- `session/data/database.ts`: 33
 - `agent/acp/compatibility/dependencies.ts`: 29
 - `memory/index.ts`: 25
 - `agent/dim/createDimAgent.ts`: 24
 - `mcp/index.ts`: 23
-- `tool/index.ts`: 23
+- `provider/index.ts`: 22
 - `tape/application/sessionTape.ts`: 22
-- `provider/index.ts`: 21
+- `tool/index.ts`: 21
 - `app/mainProcess.ts`: 20
 - `cli/index.ts`: 20
 - `provider/settings.ts`: 20
 - `mcp/inMemoryServers/builder.ts`: 17
+- `provider/managers/providerInstanceManager.ts`: 17
 
 ### Top incoming dependencies
 
-- `data/baseTable.ts`: 53
+- `data/baseTable.ts`: 54
 - `routes/routeRegistry.ts`: 45
-- `provider/settings.ts`: 41
+- `provider/settings.ts`: 40
+- `session/data/database.ts`: 40
 - `remote/types.ts`: 39
-- `session/data/database.ts`: 39
 - `tape/domain/entry.ts`: 37
-- `config/settingsStore.ts`: 35
+- `config/settingsStore.ts`: 34
 - `agent/shared/agentSessionIds.ts`: 32
 - `agent/settings.ts`: 31
 - `tape/ports/capabilities.ts`: 29
@@ -55,10 +55,7 @@ Generated on 2026-11-10.
 - `provider/settings.ts -> provider/modelConfig.ts -> provider/providerRegistry.ts -> provider/aiSdk/providerFactory.ts -> provider/settings.ts`
 - `memory/runtimeContracts.ts -> memory/session/memoryPromptContributor.ts -> memory/runtimeContracts.ts`
 - `desktop/browser/YoBrowserPresenter.ts -> desktop/browser/YoBrowserToolHandler.ts -> desktop/browser/YoBrowserPresenter.ts`
-- `tool/agentTools/agentToolManager.ts -> tool/agentTools/agentTapeTools.ts -> tool/agentTools/agentToolManager.ts`
 - `tool/agentTools/agentToolManager.ts -> tool/agentTools/agentMemoryTools.ts -> tool/agentTools/agentToolManager.ts`
-- `tool/agentTools/agentToolManager.ts -> tool/agentTools/cronJobTool.ts -> tool/agentTools/agentToolManager.ts`
-- `tool/agentTools/agentToolManager.ts -> tool/agentTools/liveDelegationTool.ts -> tool/agentTools/agentToolManager.ts`
 - `skill/sync/toolScanner.ts -> skill/sync/security.ts -> skill/sync/toolScanner.ts`
 
 ## renderer-main

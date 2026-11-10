@@ -158,6 +158,8 @@
 
 ## 模块进度
 
+- 验证批次 51：按当前模块重新生成 schema 3 架构基线，全量 main 8312 项通过、18 项跳过，唯一失败为模块 44 已移除物理表访问后遗留的 databaseSecurity Tape 边界豁免。删除该过期豁免后 46 项 Tape 边界用例全部通过，没有放宽存储边界。Memory scope（78 classified/3 exempt）和 78 项类型门禁通过。后续产品接线继续进行，最终全量仍在完成剩余模块后复跑。
+
 - 模块 50：聊天音频通过插件输入准备接入 Native auxiliary owner：公开的 MIME-bearing file source 在辅助请求中由 Aimux 转换为真实音频，先提取与用户问题相关的音频证据，再交给 dim Agent；保留原附件展示/追溯。实际测试确认当前 Native Agent image policy 会过滤音频，因此禁止直接把辅助音频形状交给 Agent，未修改 SDK 的该策略。音频准备截断、取消、会话/模型/目录/代次变化时不接纳输入；使用音频聊天模型的独立转写也走原生辅助调用，专用 ASR 继续 Native Modality。32 项相关回归通过，真实 Rust 用例覆盖原始音频 auxiliary、Agent 证据/工具、fork/retry/迁移与重启（112s），主进程构建、Electron 草稿/模型测试/CLI/聊天/重启/引用/Inspector 联合验收通过（31s）。格式/i18n/lint/双端 typecheck 通过。没有新增 SDK 补丁；大体积音频的文件传输仍待补齐，不将该模块计为全部媒体兼容完成。
 
 - 模块 49：物理删除无生产入口的 Node SkillExecutionService、旧 SkillTools、cron 模型工具和 LiveDelegationAgentTool，以及对应旧执行器测试；项目技能隔离/引用测试改为直接验证仍在使用的 SkillService 公共管理接口。工具侧移除多余 Tape/cron ports、composition 接线与旧 cron prompt；桌面技能管理、Scheduled Tasks 服务及 CLI 子会话能力保留。清理 guard 阻止重新导入这些执行器。962 项工具/技能/边界回归通过，主进程构建、ACP/Native 两项 Electron 联合验收通过（43s）；格式/i18n/lint/双端 typecheck 通过。模块 48 的完整 12 项 Native smoke 已串行通过（227s）。

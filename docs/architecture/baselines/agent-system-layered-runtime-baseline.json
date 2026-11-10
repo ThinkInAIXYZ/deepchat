@@ -1,7 +1,7 @@
 {
   "schemaVersion": 3,
   "goal": "agent-system-layered-runtime",
-  "headCommit": "7b168d6c14d785e71910ca04a07a247f17167e43",
+  "headCommit": "b7b8c8e60adedb9d9bf752e43fc8fc488f38d182",
   "relevantWorkingTree": {
     "dirty": false,
     "files": []
@@ -98,10 +98,12 @@
     "src/main/agent/dim/scopes.ts",
     "src/main/agent/dim/sessionConnection.ts",
     "src/main/agent/dim/sessionControls.ts",
+    "src/main/agent/dim/sessionReferences.ts",
     "src/main/agent/dim/sessionRuntime.ts",
     "src/main/agent/dim/sessionSettings.ts",
     "src/main/agent/dim/timelineInspector.ts",
     "src/main/agent/dim/timelineInspectorProjection.ts",
+    "src/main/agent/dim/toolCatalog.ts",
     "src/main/agent/dim/transcriptMutations.ts",
     "src/main/agent/manager/agentManager.ts",
     "src/main/agent/manager/deepChatAgentBackend.ts",
@@ -486,7 +488,7 @@
       "src/shared/contracts/routes/window.routes.ts",
       "src/shared/contracts/routes/workspace.routes.ts"
     ],
-    "sha256": "7cde03e30f18c38929bf437ec4a22e208671a306a669bdcdcb05d87374d70d73"
+    "sha256": "eb923710432b4e7ef88b87110e5605e96ae9709a2f9151da796315cd35c35a9b"
   },
   "storage": {
     "sqlite": {
@@ -496,7 +498,7 @@
         "src/main/data/schemaTypes.ts"
       ],
       "tableIdentifiers": [],
-      "sha256": "f9f97d0ceda28a0f3aec11d9272550f3b5d1857e674b7be7a927a4863fe3ca76"
+      "sha256": "15fbf41cb8b8c6d33eefbce84ae4a5603637fde8040e445091a9c75381e137d0"
     },
     "memoryDuckDbSidecar": {
       "files": [
@@ -516,7 +518,7 @@
       "src/main/app/mainProcess.ts",
       "src/main/appMain.ts"
     ],
-    "sha256": "29782bb65d25e80db5b207f55065d8c5056d54c0286628a07c524be6b964d414"
+    "sha256": "199935ade913429a3a13192bd33ab375d299f8b902d042aeee7406672d8223a9"
   },
   "dependencyMetrics": {
     "dimFiles": [
@@ -553,10 +555,12 @@
       "src/main/agent/dim/scopes.ts",
       "src/main/agent/dim/sessionConnection.ts",
       "src/main/agent/dim/sessionControls.ts",
+      "src/main/agent/dim/sessionReferences.ts",
       "src/main/agent/dim/sessionRuntime.ts",
       "src/main/agent/dim/sessionSettings.ts",
       "src/main/agent/dim/timelineInspector.ts",
       "src/main/agent/dim/timelineInspectorProjection.ts",
+      "src/main/agent/dim/toolCatalog.ts",
       "src/main/agent/dim/transcriptMutations.ts"
     ],
     "dimToPresenter": 0,

@@ -6,12 +6,13 @@ These files have no in-repo importers inside their scope and need manual classif
 
 ## main
 
-- Candidate count: 16
+- Candidate count: 17
 
 - `agent/shared/agentCatalogEventSink.ts`
+- `agent/shared/process/commandShellPath.ts`
+- `agent/vision/sessionVisionResolver.ts`
 - `backgroundExecUtilityHostEntry.ts`
 - `cli/deepChatToolPort.ts`
-- `codeModeUtilityHostEntry.ts`
 - `config/aes.ts`
 - `env.d.ts`
 - `fileWatcherUtilityHostEntry.ts`

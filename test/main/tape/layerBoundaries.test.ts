@@ -62,7 +62,6 @@ const ALLOWED_STORAGE_EXCEPTIONS = new Map<string, StorageBoundaryException>([
     'sync/replica/store.ts',
     { physicalName: 'invalidate affected Tape projections after atomic import' }
   ],
-  ['app/databaseSecurity.ts', { physicalName: 'database table-name security allowlist' }],
   [
     'app/startupMigrations/legacyChatImportService.ts',
     { physicalName: 'migration-only full-table replacement and projection cleanup' }
