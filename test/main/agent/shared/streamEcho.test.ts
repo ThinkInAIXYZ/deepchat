@@ -1,7 +1,7 @@
 import { createDeepChatOutputProjection } from '@/session/outputProjection'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import type { StreamState, IoParams } from '@/agent/deepchat/runtime/types'
-import { createState, markStreamChanged } from '@/agent/deepchat/runtime/types'
+import type { StreamState, IoParams } from '@/agent/shared/messageStream'
+import { createState, markStreamChanged } from '@/agent/shared/messageStream'
 
 vi.mock('@/events', () => ({
   STREAM_EVENTS: {
@@ -11,8 +11,8 @@ vi.mock('@/events', () => ({
   }
 }))
 
-import { startEcho } from '@/agent/deepchat/runtime/echo'
-import { accumulate } from '@/agent/deepchat/runtime/accumulator'
+import { startEcho } from '@/agent/shared/streamEcho'
+import { accumulate } from '@/agent/shared/streamAccumulator'
 
 const publishDeepchatEvent = vi.fn()
 

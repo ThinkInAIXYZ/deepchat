@@ -113,8 +113,8 @@ import {
   TRUNCATED_TOOL_CALL_ERROR,
   type ToolBatchDisposition
 } from '@/agent/deepchat/runtime/dispatch'
-import type { EchoHandle } from '@/agent/deepchat/runtime/echo'
-import { accumulate } from '@/agent/deepchat/runtime/accumulator'
+import type { EchoHandle } from '@/agent/shared/streamEcho'
+import { accumulate } from '@/agent/shared/streamAccumulator'
 
 function createIo(overrides?: Partial<IoParams>): IoParams {
   return {

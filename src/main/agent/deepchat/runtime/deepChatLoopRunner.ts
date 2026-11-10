@@ -1,4 +1,4 @@
-import { createRateLimitBlock } from './echo'
+import { createRateLimitBlock } from '@/agent/shared/streamEcho'
 import { createProviderViewManifest, type ProviderViewManifestInput } from '@/tape/application/providerViewManifest'
 import type { DeepChatOutputPort } from '@/agent/shared/output'
 import type { PluginContextPort } from '@shared/types/userPlugin'
@@ -79,8 +79,8 @@ import {
   inspectContextOverflow,
   isContextWindowErrorLike,
   type ContextOverflowFacts
-} from '@/agent/deepchat/runtime/contextWindowError'
-import { buildPersistableMessageTracePayload } from '@/agent/deepchat/runtime/messageTracePayload'
+} from '@/agent/shared/contextWindowError'
+import { buildPersistableMessageTracePayload } from '@/agent/shared/messageTracePayload'
 import type { SessionTranscriptPort } from '@/session/data/contracts'
 import { processStream } from '@/agent/deepchat/runtime/process'
 import type { ProviderPermissionCoordinator } from '@/agent/deepchat/runtime/providerPermissionCoordinator'

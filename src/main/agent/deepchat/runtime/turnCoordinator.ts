@@ -52,7 +52,7 @@ import {
 } from './contextBudget'
 import type { CompactionRuntimeCoordinator } from './compactionRuntimeCoordinator'
 import { hasCompactionBoundaryAdvanced, type CompactionService } from './compactionService'
-import { isContextWindowErrorLike } from './contextWindowError'
+import { isContextWindowErrorLike } from '@/agent/shared/contextWindowError'
 import { resolveInterleavedReasoningConfig } from '@/agent/shared/generationSettings'
 import {
   updateToolCallResponse,

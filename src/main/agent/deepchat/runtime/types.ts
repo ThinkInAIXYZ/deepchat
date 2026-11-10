@@ -1,24 +1,26 @@
+import type { StreamPermission } from '@/agent/shared/providerPermissionProjection'
+import { type IoParams, type StreamState } from '@/agent/shared/messageStream'
+export {
+  type ToolCallResult,
+  type IoParams,
+  type StreamState,
+  createState,
+  markStreamChanged
+} from '@/agent/shared/messageStream'
 import type {
   AssistantMessageBlock,
   MessageMetadata,
   PermissionMode,
   QuestionOption
 } from '@shared/types/agent-interface'
-import type {
-  LLMCoreStreamEvent,
-  ProviderRoundStopReason,
-  ToolCallExecutionOwner
-} from '@shared/types/core/llm-events'
+import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import type {
   ChatMessage,
-  ChatMessageProviderOptions,
   ChatMessageProviderReplayProjector
 } from '@shared/types/core/chat-message'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { ModelConfig } from '@shared/types/provider'
 import type { DeepChatProviderAttemptIdentity } from '@shared/types/provider-attempt'
-import type { DeepChatOutputPort } from '@/agent/shared/output'
-import type { SessionTranscriptPort } from '@/session/data/contracts'
 import type { CacheImageOptions } from '@shared/types/attachment'
 import type { LoopRun } from '@/agent/deepchat/loop/loopRun'
 import type {
@@ -29,7 +31,6 @@ import type {
   ToolExecutionPort,
   ToolResultPort
 } from '@/agent/deepchat/loop/ports'
-import type { CommandShellProfile } from '@shared/commandShell'
 import type {
   ExecutionJournalWriter,
   NestedExecutionJournalWriter,
@@ -94,56 +95,6 @@ export function notifyRunJournalObserver(
 
 import type { InterleavedReasoningConfig } from '@/agent/shared/generationSettings'
 export type { InterleavedReasoningConfig } from '@/agent/shared/generationSettings'
-
-export interface ToolCallResult {
-  id: string
-  name: string
-  arguments: string
-  providerOptions?: ChatMessageProviderOptions
-  serverName?: string
-  serverIcons?: string
-  serverDescription?: string
-}
-
-export interface StreamState {
-  blocks: AssistantMessageBlock[]
-  metadata: MessageMetadata
-  startTime: number
-  firstTokenTime: number | null
-  pendingToolCalls: Map<
-    string,
-    {
-      name: string
-      arguments: string
-      blockIndex: number
-      executionOwner: ToolCallExecutionOwner
-      providerOptions?: ChatMessageProviderOptions
-    }
-  >
-  completedToolCalls: ToolCallResult[]
-  stopReason: ProviderRoundStopReason | null
-  roundUsage: {
-    inputTokens: number
-    outputTokens: number
-    totalTokens: number
-    cachedInputTokens?: number
-    cacheWriteInputTokens?: number
-  } | null
-  toolCallCount: number
-  dirty: boolean
-  blocksRevision: number
-}
-
-export interface IoParams {
-  sessionId: string
-  requestId: string
-  messageId: string
-  providerId: string
-  modelId: string
-  messageStore: SessionTranscriptPort
-  abortSignal: AbortSignal
-  output: DeepChatOutputPort
-}
 
 export type ProcessIoParams = Pick<IoParams, 'messageStore' | 'output'> & {
   tapeToolFactWriter: TapeToolFactWriter
@@ -250,27 +201,7 @@ export interface PendingToolInteraction {
     custom: boolean
     multiple: boolean
   }
-  permission?: {
-    permissionType: 'read' | 'write' | 'all' | 'command'
-    description: string
-    toolName?: string
-    serverName?: string
-    providerId?: string
-    requestId?: string
-    rememberable?: boolean
-    requiresUserConfirmation?: boolean
-    command?: string
-    commandSignature?: string
-    shellProfile?: CommandShellProfile
-    paths?: string[]
-    commandInfo?: {
-      command: string
-      riskLevel: 'low' | 'medium' | 'high' | 'critical'
-      suggestion: string
-      signature?: string
-      baseCommand?: string
-    }
-  }
+  permission?: StreamPermission
 }
 
 export type ToolBatchInteraction = Omit<PendingToolInteraction, 'origin'> & {
@@ -334,25 +265,4 @@ export interface ProcessParams {
   programmaticToolParents?: Pick<ProgrammaticToolPort, 'prepare'>
   commitRunTerminal(selection: ProcessTerminalSelection): void
   io: ProcessIoParams
-}
-
-export function createState(): StreamState {
-  return {
-    blocks: [],
-    metadata: {},
-    startTime: Date.now(),
-    firstTokenTime: null,
-    pendingToolCalls: new Map(),
-    completedToolCalls: [],
-    stopReason: null,
-    roundUsage: null,
-    toolCallCount: 0,
-    dirty: false,
-    blocksRevision: 0
-  }
-}
-
-export function markStreamChanged(state: StreamState): void {
-  state.dirty = true
-  state.blocksRevision += 1
 }

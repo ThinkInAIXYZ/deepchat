@@ -96,7 +96,13 @@ function hasValidCeiling(numbers: ReturnType<typeof parseExplicitContextNumbers>
 
 export function inspectContextOverflow(value: unknown): ContextOverflowFacts {
   const matches: string[] = []
-  const matched = hasContextWindowErrorText(value, new Set<unknown>(), 0, { totalChars: 0 }, matches)
+  const matched = hasContextWindowErrorText(
+    value,
+    new Set<unknown>(),
+    0,
+    { totalChars: 0 },
+    matches
+  )
   if (!matched) return { matched: false, confidence: 'none' }
 
   let explicitMatch:
@@ -232,7 +238,14 @@ function hasContextWindowErrorText(
   }
 
   seen.add(value)
-  return hasContextWindowErrorFields(value as Record<string, unknown>, seen, depth, state, [], matches)
+  return hasContextWindowErrorFields(
+    value as Record<string, unknown>,
+    seen,
+    depth,
+    state,
+    [],
+    matches
+  )
 }
 
 function hasContextWindowErrorFields(
@@ -335,9 +348,7 @@ function parseExplicitContextNumbers(text: string): {
 
   const explicitLimit = EXPLICIT_CONTEXT_LIMIT_PATTERN.exec(text)
   const observedLimitTokens = parseTokenCount(explicitLimit?.[1])
-  return observedLimitTokens === undefined
-    ? {}
-    : { observedLimitTokens, limitScope: 'context' }
+  return observedLimitTokens === undefined ? {} : { observedLimitTokens, limitScope: 'context' }
 }
 
 function resolveContextScope(text: string): ContextOverflowFacts['scope'] {

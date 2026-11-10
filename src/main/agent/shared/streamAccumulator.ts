@@ -1,10 +1,7 @@
 import type { AssistantMessageBlock } from '@shared/types/agent-interface'
-import type {
-  LLMCoreStreamEvent,
-  ProviderUrlSourcePayload
-} from '@shared/types/core/llm-events'
+import type { LLMCoreStreamEvent, ProviderUrlSourcePayload } from '@shared/types/core/llm-events'
 import type { ChatMessageProviderOptions } from '@shared/types/core/chat-message'
-import { markStreamChanged, type StreamState } from './types'
+import { markStreamChanged, type StreamState } from './messageStream'
 
 const MAX_VISIBLE_SEARCH_PAGES = 6
 

@@ -19,7 +19,7 @@ import {
 } from '@/agent/deepchat/runtime/sessionStatusPublisher'
 import { DeepChatToolResolver } from '@/agent/deepchat/runtime/toolResolver'
 import { RuntimeHookSink } from '@/agent/deepchat/runtime/runtimeHookSink'
-import { createRateLimitBlock } from '@/agent/deepchat/runtime/echo'
+import { createRateLimitBlock } from '@/agent/shared/streamEcho'
 import { logSlowPreStreamStep } from '@/agent/deepchat/runtime/preStreamWatchdog'
 import {
   resolveSessionGenerationSettings,

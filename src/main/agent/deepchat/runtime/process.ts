@@ -1,20 +1,27 @@
+import { resolveProviderTerminalDecision } from '@/agent/shared/providerStreamTerminal'
+export {
+  resolveProviderTerminalDecision,
+  NO_MODEL_RESPONSE_ERROR,
+  INCOMPLETE_PROVIDER_STREAM_ERROR,
+  INCOMPLETE_TOOL_USE_ERROR
+} from '@/agent/shared/providerStreamTerminal'
+import {
+  appendStreamingProviderPermissionBlock,
+  markStreamingProviderPermissionResolved
+} from '@/agent/shared/providerPermissionProjection'
+export {
+  appendStreamingProviderPermissionBlock,
+  markStreamingProviderPermissionResolved
+} from '@/agent/shared/providerPermissionProjection'
 import { TOOL_SEARCH_AGENT_TOOL_NAME } from '@shared/agentTools'
 import type { AssistantMessageBlock } from '@shared/types/agent-interface'
 import type { ChatMessage } from '@shared/types/core/chat-message'
-import type { PermissionRequestPayload } from '@shared/types/core/llm-events'
 import type { DeepChatExecutionContract } from '@shared/types/execution-contract'
 import type { DeepChatProviderAttemptIdentity } from '@shared/types/provider-attempt'
-import type {
-  IoParams,
-  PendingToolInteraction,
-  ProcessParams,
-  ProcessResult,
-  StreamState,
-  ToolCallResult
-} from './types'
+import type { IoParams, ProcessParams, ProcessResult, StreamState, ToolCallResult } from './types'
 import { markStreamChanged } from './types'
-import { accumulate, commitRoundUsage, finalizeTrailingPendingNarrativeBlocks } from './accumulator'
-import { startEcho } from './echo'
+import { accumulate, commitRoundUsage } from '@/agent/shared/streamAccumulator'
+import { startEcho } from '@/agent/shared/streamEcho'
 import {
   assertPausedProjectionReady,
   finalize,
@@ -23,7 +30,7 @@ import {
   settleToolBatch,
   type ToolBatchDisposition
 } from './dispatch'
-import { isContextWindowErrorLike } from './contextWindowError'
+import { isContextWindowErrorLike } from '@/agent/shared/contextWindowError'
 import {
   extractLatestCompletedToolBatch,
   NoProgressToolLoopGuard,
@@ -62,19 +69,11 @@ import {
   attachProgrammaticToolDeferredResumeCapability,
   projectProgrammaticExecDefinition
 } from './programmaticToolSurface'
-import { CommandShellProfileSchema } from '@shared/commandShell'
 
 const UNKNOWN_CONTEXT_LIMIT = Number.MAX_SAFE_INTEGER
 const MAX_TRUNCATED_TOOL_RECOVERY_ATTEMPTS = 1
 const USER_CANCELED_GENERATION_ERROR = 'common.error.userCanceledGeneration'
-export const NO_MODEL_RESPONSE_ERROR = 'common.error.noModelResponse'
-export const INCOMPLETE_PROVIDER_STREAM_ERROR =
-  'Provider stream ended without a terminal stop event.'
-export const INCOMPLETE_TOOL_USE_ERROR =
-  'Provider requested tool use without a completed tool call.'
 const deepChatLoopEngine = new DeepChatLoopEngine()
-type PendingPermissionPayload = NonNullable<PendingToolInteraction['permission']>
-type PendingPermissionCommandInfo = NonNullable<PendingPermissionPayload['commandInfo']>
 
 function wrapTerminalCommitFailure(
   executionError: ExecutionJournalError,
@@ -124,24 +123,6 @@ type PendingToolSurfaceCandidateRelease = {
   readonly candidates: readonly ToolSurfaceActivationCandidate[]
   readonly toolCallIdByOrdinal: ReadonlyMap<number, string>
   readonly release: (evidence: readonly ToolSurfaceActivationEvidence[]) => void
-}
-
-function getLatestErrorMessage(state: StreamState): string | null {
-  for (let index = state.blocks.length - 1; index >= 0; index -= 1) {
-    const block = state.blocks[index]
-    if (block.type === 'error' && typeof block.content === 'string' && block.content.trim()) {
-      return block.content
-    }
-  }
-  return null
-}
-
-function stripTrailingErrorBlock(state: StreamState, message: string): void {
-  const lastBlock = state.blocks[state.blocks.length - 1]
-  if (lastBlock?.type === 'error' && lastBlock.content === message) {
-    state.blocks.pop()
-    markStreamChanged(state)
-  }
 }
 
 export const MAX_TOOL_CALLS_SKIPPED_ERROR =
@@ -369,71 +350,6 @@ function markOtherTruncatedToolCallsIncomplete(
   }
 }
 
-export type ProviderTerminalDecision =
-  | {
-      type: 'complete'
-      stopReason: 'complete' | 'max_tokens' | 'max_turn_requests'
-    }
-  | {
-      type: 'error'
-      error: string
-      source: 'context' | 'empty' | 'provider'
-      stopReason: 'context_window' | 'empty_response' | 'provider_error'
-    }
-
-export function resolveProviderTerminalDecision(state: StreamState): ProviderTerminalDecision {
-  const stopReason = state.stopReason
-  if (stopReason === 'error') {
-    const streamErrorMessage = getLatestErrorMessage(state) ?? NO_MODEL_RESPONSE_ERROR
-    if (isContextWindowErrorLike(streamErrorMessage)) {
-      stripTrailingErrorBlock(state, streamErrorMessage)
-      return {
-        type: 'error',
-        error: streamErrorMessage,
-        source: 'context',
-        stopReason: 'context_window'
-      }
-    }
-    return {
-      type: 'error',
-      error: streamErrorMessage,
-      source: 'provider',
-      stopReason: 'provider_error'
-    }
-  }
-  if (stopReason === null) {
-    return {
-      type: 'error',
-      error: INCOMPLETE_PROVIDER_STREAM_ERROR,
-      source: 'provider',
-      stopReason: 'provider_error'
-    }
-  }
-  if (state.blocks.length === 0) {
-    return {
-      type: 'error',
-      error: NO_MODEL_RESPONSE_ERROR,
-      source: 'empty',
-      stopReason: 'empty_response'
-    }
-  }
-  switch (stopReason) {
-    case 'complete':
-    case 'max_tokens':
-    case 'max_turn_requests':
-      return { type: 'complete', stopReason }
-    case 'tool_use':
-      return {
-        type: 'error',
-        error: INCOMPLETE_TOOL_USE_ERROR,
-        source: 'provider',
-        stopReason: 'provider_error'
-      }
-  }
-  const unsupportedStopReason: never = stopReason
-  throw new Error(`Unsupported provider stop reason: ${String(unsupportedStopReason)}`)
-}
-
 function parseAssistantBlocks(rawContent: string): AssistantMessageBlock[] {
   try {
     const parsed = JSON.parse(rawContent) as AssistantMessageBlock[]
@@ -492,183 +408,6 @@ function finalizeUserCanceledErrorIfNeeded(state: StreamState, io: IoParams): vo
   finalizeError(state, io, USER_CANCELED_GENERATION_ERROR)
 }
 
-function normalizeProviderPermissionType(
-  permissionType: unknown
-): 'read' | 'write' | 'all' | 'command' {
-  return permissionType === 'read' ||
-    permissionType === 'write' ||
-    permissionType === 'all' ||
-    permissionType === 'command'
-    ? permissionType
-    : 'write'
-}
-
-function parseStreamingPermissionPaths(raw: unknown): string[] | undefined {
-  if (!Array.isArray(raw)) {
-    return undefined
-  }
-
-  const paths = raw.filter(
-    (item): item is string => typeof item === 'string' && item.trim().length > 0
-  )
-  return paths.length > 0 ? paths : undefined
-}
-
-function parseStreamingPermissionCommandInfo(
-  raw: unknown
-): PendingPermissionCommandInfo | undefined {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-    return undefined
-  }
-
-  const value = raw as Record<string, unknown>
-  if (typeof value.command !== 'string' || !value.command.trim()) {
-    return undefined
-  }
-
-  const riskLevel =
-    value.riskLevel === 'low' ||
-    value.riskLevel === 'medium' ||
-    value.riskLevel === 'high' ||
-    value.riskLevel === 'critical'
-      ? value.riskLevel
-      : 'medium'
-
-  return {
-    command: value.command.trim(),
-    riskLevel,
-    suggestion: typeof value.suggestion === 'string' ? value.suggestion.trim() : '',
-    ...(typeof value.signature === 'string' && value.signature.trim()
-      ? { signature: value.signature.trim() }
-      : {}),
-    ...(typeof value.baseCommand === 'string' && value.baseCommand.trim()
-      ? { baseCommand: value.baseCommand.trim() }
-      : {})
-  }
-}
-
-function toStreamingProviderPermission(
-  permission: PermissionRequestPayload
-): PendingPermissionPayload {
-  const toolName =
-    typeof permission.tool_call_name === 'string' && permission.tool_call_name.trim()
-      ? permission.tool_call_name.trim()
-      : undefined
-  const serverName =
-    typeof permission.server_name === 'string' && permission.server_name.trim()
-      ? permission.server_name.trim()
-      : undefined
-  const providerId =
-    typeof permission.providerId === 'string' && permission.providerId.trim()
-      ? permission.providerId.trim()
-      : undefined
-  const requestId =
-    typeof permission.requestId === 'string' && permission.requestId.trim()
-      ? permission.requestId.trim()
-      : undefined
-  const command =
-    typeof permission.command === 'string' && permission.command.trim()
-      ? permission.command.trim()
-      : undefined
-  const commandSignature =
-    typeof permission.commandSignature === 'string' && permission.commandSignature.trim()
-      ? permission.commandSignature.trim()
-      : undefined
-  const shellProfile = CommandShellProfileSchema.safeParse(permission.shellProfile)
-  const paths = parseStreamingPermissionPaths(permission.paths)
-  const commandInfo = parseStreamingPermissionCommandInfo(permission.commandInfo)
-  const metadata =
-    permission.metadata &&
-    typeof permission.metadata === 'object' &&
-    !Array.isArray(permission.metadata)
-      ? (permission.metadata as Record<string, unknown>)
-      : undefined
-  const permissionType = normalizeProviderPermissionType(permission.permissionType)
-
-  return {
-    permissionType,
-    description:
-      typeof permission.description === 'string' && permission.description.trim()
-        ? permission.description
-        : `components.messageBlockPermissionRequest.description.${permissionType}`,
-    ...(toolName ? { toolName } : {}),
-    ...(serverName ? { serverName } : {}),
-    ...(providerId ? { providerId } : {}),
-    ...(requestId ? { requestId } : {}),
-    ...(command ? { command } : {}),
-    ...(commandSignature ? { commandSignature } : {}),
-    ...(shellProfile.success ? { shellProfile: shellProfile.data } : {}),
-    ...(paths ? { paths } : {}),
-    ...(commandInfo ? { commandInfo } : {}),
-    ...(metadata?.rememberable === false ? { rememberable: false } : {})
-  }
-}
-
-export function appendStreamingProviderPermissionBlock(
-  state: StreamState,
-  permissionPayload: PermissionRequestPayload
-): {
-  actionBlock: AssistantMessageBlock
-  permission: PendingPermissionPayload
-  tool: {
-    callId?: string
-    name?: string
-    params?: string
-  }
-} {
-  const permission = toStreamingProviderPermission(permissionPayload)
-  const toolCallId =
-    typeof permissionPayload.tool_call_id === 'string' && permissionPayload.tool_call_id.trim()
-      ? permissionPayload.tool_call_id.trim()
-      : permission.requestId || 'acp-permission'
-  const toolArgs =
-    typeof permissionPayload.tool_call_params === 'string' ? permissionPayload.tool_call_params : ''
-  const toolName = permission.toolName || toolCallId
-  finalizeTrailingPendingNarrativeBlocks(state.blocks)
-  const actionBlock: AssistantMessageBlock = {
-    type: 'action',
-    content: permission.description,
-    status: 'pending',
-    timestamp: Date.now(),
-    action_type: 'tool_call_permission',
-    tool_call: {
-      id: toolCallId,
-      name: toolName,
-      params: toolArgs,
-      ...(permission.serverName ? { server_name: permission.serverName } : {}),
-      ...(typeof permissionPayload.server_description === 'string'
-        ? { server_description: permissionPayload.server_description }
-        : {}),
-      ...(typeof permissionPayload.server_icons === 'string'
-        ? { server_icons: permissionPayload.server_icons }
-        : {})
-    },
-    extra: {
-      needsUserAction: true,
-      permissionType: permission.permissionType,
-      ...(permission.toolName ? { toolName: permission.toolName } : {}),
-      ...(permission.serverName ? { serverName: permission.serverName } : {}),
-      ...(permission.providerId ? { providerId: permission.providerId } : {}),
-      ...(permission.requestId ? { permissionRequestId: permission.requestId } : {}),
-      permissionRequest: JSON.stringify(permission),
-      ...(permission.rememberable === false ? { rememberable: false } : {})
-    }
-  }
-
-  state.blocks.push(actionBlock)
-  markStreamChanged(state)
-
-  return {
-    actionBlock,
-    permission,
-    tool: {
-      callId: toolCallId,
-      name: toolName,
-      params: toolArgs
-    }
-  }
-}
-
 function commitCorrectedToolMessage(
   conversationMessages: ChatMessage[],
   batchMessages: ChatMessage[]
@@ -681,22 +420,6 @@ function commitCorrectedToolMessage(
   )
   if (messageIndex >= 0) {
     conversationMessages[messageIndex] = correctedMessage
-  }
-}
-
-export function markStreamingProviderPermissionResolved(
-  block: AssistantMessageBlock,
-  granted: boolean,
-  permissionType: 'read' | 'write' | 'all' | 'command'
-): void {
-  block.status = granted ? 'granted' : 'denied'
-  block.extra = {
-    ...block.extra,
-    needsUserAction: false,
-    ...(granted ? { grantedPermissions: permissionType } : {})
-  }
-  if (!granted) {
-    block.content = 'User denied the request.'
   }
 }
 
@@ -1235,11 +958,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
                 state,
                 event.permission
               )
-              stampProviderAttemptIdentity(
-                state.blocks,
-                firstNewBlock,
-                providerAttemptIdentity
-              )
+              stampProviderAttemptIdentity(state.blocks, firstNewBlock, providerAttemptIdentity)
               emitDeepChatLoopNotification(notificationObserver, {
                 event: 'PermissionRequest',
                 permission,
@@ -1261,11 +980,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
             if (event.type !== 'usage') {
               const firstNewBlock = state.blocks.length
               accumulate(state, event)
-              stampProviderAttemptIdentity(
-                state.blocks,
-                firstNewBlock,
-                providerAttemptIdentity
-              )
+              stampProviderAttemptIdentity(state.blocks, firstNewBlock, providerAttemptIdentity)
             }
             if (event.type === 'provider_search') {
               for (const result of event.provider_search.results) {
@@ -1298,7 +1013,9 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
 
           const activeRequestContract = run.activeRequestContract
           if (activeRequestContract && activeRequestContract.requestSeq !== run.requestSeq) {
-            throw new Error('Provider response does not match the active ExecutionContract request.')
+            throw new Error(
+              'Provider response does not match the active ExecutionContract request.'
+            )
           }
           const executionContract = activeRequestContract?.executionContract ?? null
           const requestSeq = activeRequestContract?.requestSeq ?? run.requestSeq
@@ -1411,9 +1128,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
             providerId === 'acp'
               ? Number.MAX_SAFE_INTEGER
               : (toPositiveInteger(preparedContinuationBudget?.contextLength) ??
-                (modelConfig.contextLength > 0
-                  ? modelConfig.contextLength
-                  : UNKNOWN_CONTEXT_LIMIT))
+                (modelConfig.contextLength > 0 ? modelConfig.contextLength : UNKNOWN_CONTEXT_LIMIT))
           const continuationOutputCapContextLength =
             providerId === 'acp'
               ? Number.MAX_SAFE_INTEGER

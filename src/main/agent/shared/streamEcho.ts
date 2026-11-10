@@ -1,6 +1,6 @@
 import type { AssistantMessageBlock } from '@shared/types/agent-interface'
 import type { RateLimitQueueSnapshot } from '@shared/types/provider'
-import type { StreamState, IoParams } from './types'
+import type { StreamState, IoParams } from './messageStream'
 import { createThrottle } from '@shared/utils/throttle'
 
 const RENDERER_FLUSH_INTERVAL = 120

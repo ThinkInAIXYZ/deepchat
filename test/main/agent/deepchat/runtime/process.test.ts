@@ -64,7 +64,7 @@ vi.mock('@/events', () => ({
   }
 }))
 
-import { accumulate } from '@/agent/deepchat/runtime/accumulator'
+import { accumulate } from '@/agent/shared/streamAccumulator'
 import {
   INCOMPLETE_PROVIDER_STREAM_ERROR,
   INCOMPLETE_TOOL_USE_ERROR,

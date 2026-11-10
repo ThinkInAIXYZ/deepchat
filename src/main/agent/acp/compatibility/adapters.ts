@@ -10,24 +10,24 @@ import type {
   AcpRequestTracePort,
   AcpViewManifestInput
 } from '@/agent/acp/instance/ports'
-import { accumulate } from '@/agent/deepchat/runtime/accumulator'
-import { startEcho, type EchoHandle } from '@/agent/deepchat/runtime/echo'
-import { finalize, finalizeError } from '@/agent/deepchat/runtime/dispatch'
+import { accumulate } from '@/agent/shared/streamAccumulator'
+import { startEcho, type EchoHandle } from '@/agent/shared/streamEcho'
+import { finalize, finalizeError } from '@/agent/shared/streamFinalization'
 import {
   appendStreamingProviderPermissionBlock,
-  markStreamingProviderPermissionResolved,
-  resolveProviderTerminalDecision
-} from '@/agent/deepchat/runtime/process'
+  markStreamingProviderPermissionResolved
+} from '@/agent/shared/providerPermissionProjection'
+import { resolveProviderTerminalDecision } from '@/agent/shared/providerStreamTerminal'
 import { createAcpPromptTerminalEvents } from '@/agent/acp/runtime/acpContentMapper'
 import {
   createState,
   markStreamChanged,
   type IoParams,
   type StreamState
-} from '@/agent/deepchat/runtime/types'
+} from '@/agent/shared/messageStream'
 import type { SessionTranscript } from '@/session/data/transcript'
 import type { TapeReconciliationPort } from '@/tape/ports/capabilities'
-import { buildPersistableMessageTracePayload } from '@/agent/deepchat/runtime/messageTracePayload'
+import { buildPersistableMessageTracePayload } from '@/agent/shared/messageTracePayload'
 
 interface ProjectionState {
   stream: StreamState
