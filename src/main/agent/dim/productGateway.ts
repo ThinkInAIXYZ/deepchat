@@ -61,6 +61,7 @@ export interface DimPluginHooksRequest {
   sessionId: string
   event: PluginContextEvent
   matcher: string
+  includeUnmatched?: boolean
 }
 
 export interface DimProductGatewayOptions {
@@ -239,7 +240,8 @@ export class DimProductGateway {
         request.sessionId.length > 4096 ||
         !['SessionStart', 'UserPromptSubmit', 'SubagentStart'].includes(request.event as string) ||
         typeof request.matcher !== 'string' ||
-        request.matcher.length > 4096
+        request.matcher.length > 4096 ||
+        (request.includeUnmatched != null && typeof request.includeUnmatched !== 'boolean')
       )
         throw new Error('Plugin hook configuration requires an authorized native scope')
       const sources =
@@ -247,7 +249,8 @@ export class DimProductGateway {
           {
             sessionId: request.sessionId,
             event: request.event as PluginContextEvent,
-            matcher: request.matcher
+            matcher: request.matcher,
+            ...(request.includeUnmatched === true ? { includeUnmatched: true } : {})
           },
           signal
         )) ?? []

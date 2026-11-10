@@ -92,15 +92,42 @@ export class DimPluginHooks {
     this.options.hooks.beginRun(scope.binding.sessionId)
     try {
       for (const source of sources) {
-        for (const hook of source.hooks) {
+        const ownerFilter: JsonValue = {
+          op: 'and',
+          conditions: [equal('data.pluginId', source.pluginId), equal('data.digest', source.digest)]
+        }
+        const marker = await this.content.latest(
+          scope.ref,
+          ['deepchat/plugin-hook-session'],
+          ownerFilter
+        )
+        const observed = marker.event
+          ? marker
+          : await this.content.latest(scope.ref, ['deepchat/plugin-hook'], ownerFilter)
+        scope.assertCurrent()
+        const parent =
+          scope.description.origin === 'internal' ? scope.description.parentSessionId : null
+        const compact = !!(
+          observed.event &&
+          compaction.event &&
+          dimSequence(compaction.event.sequence) > dimSequence(observed.event.sequence)
+        )
+        const sourceName = compact
+          ? 'compact'
+          : observed.event?.data.launchId === this.launchId
+            ? undefined
+            : observed.event
+              ? 'resume'
+              : 'startup'
+        const order = { SessionStart: 0, SubagentStart: 1, UserPromptSubmit: 2 }
+        for (const hook of [...source.hooks].sort((a, b) => order[a.event] - order[b.event])) {
           scope.assertCurrent()
           const previous = await this.latest(scope.ref, source, hook)
           scope.assertCurrent()
-          const parent = scope.description.parentSessionId
           let event: PluginContextEvent
           let boundary: string
           let matcher: string
-          let sourceName: string | undefined
+          let hookSource: string | undefined
           if (hook.event === 'UserPromptSubmit') {
             event = hook.event
             boundary = `input:${request.turnId}:${createHash('sha256')
@@ -115,22 +142,22 @@ export class DimPluginHooks {
           } else {
             if (parent) continue
             event = hook.event
-            const compact =
-              compaction.event &&
-              (!previous || dimSequence(compaction.event.sequence) > dimSequence(previous.sequence))
             if (compact) {
-              sourceName = 'compact'
+              hookSource = 'compact'
               boundary = `compact:${compaction.event!.id}`
-            } else if (previous?.invocation.launchId === this.launchId) {
-              append(previous.invocation)
+            } else if (!sourceName) {
+              if (previous) append(previous.invocation)
               continue
             } else {
-              sourceName = previous ? 'resume' : 'startup'
-              boundary = `${sourceName}:${this.launchId}`
+              hookSource = sourceName
+              boundary = `${hookSource}:${this.launchId}`
             }
-            matcher = sourceName
+            matcher = hookSource
           }
-          if (hook.matcher && !new RegExp(hook.matcher).test(matcher)) continue
+          if (hook.matcher && !new RegExp(hook.matcher).test(matcher)) {
+            if (hook.event !== 'UserPromptSubmit' && previous) append(previous.invocation)
+            continue
+          }
           const payload: Record<string, JsonValue> = {
             session_id:
               parent && event === 'SubagentStart'
@@ -142,7 +169,7 @@ export class DimPluginHooks {
             cwd: scope.description.cwd,
             transcript_path: null,
             model: request.modelId,
-            ...(sourceName ? { source: sourceName } : {}),
+            ...(hookSource ? { source: hookSource } : {}),
             ...(event === 'UserPromptSubmit'
               ? { prompt: request.hookPrompt ?? request.query }
               : {}),
@@ -165,6 +192,23 @@ export class DimPluginHooks {
           )
           scope.assertCurrent()
           append(invocation)
+        }
+        if (
+          !parent &&
+          source.hooks.some((hook) => hook.event === 'SessionStart') &&
+          (!marker.event || marker.event.data.launchId !== this.launchId || compact)
+        ) {
+          signal.throwIfAborted()
+          await (
+            await this.options.host.start()
+          ).call('session.deepchat_hooks.observe', {
+            ...scope.ref,
+            pluginId: source.pluginId,
+            digest: source.digest,
+            launchId: this.launchId,
+            compactionId: compaction.event?.id ?? null
+          })
+          scope.assertCurrent()
         }
       }
       return this.combined(reply)

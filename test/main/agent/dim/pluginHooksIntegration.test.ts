@@ -68,6 +68,15 @@ let input = ''; process.stdin.on('data', x => input += x); process.stdin.on('end
       {
         id: 'startup',
         event: 'SessionStart',
+        matcher: '^startup$',
+        command: `exec ${command}`,
+        commandWindows: command,
+        timeout: 5.5
+      },
+      {
+        id: 'compact',
+        event: 'SessionStart',
+        matcher: '^compact$',
         command: `exec ${command}`,
         commandWindows: command,
         timeout: 5.5
@@ -88,6 +97,11 @@ let input = ''; process.stdin.on('data', x => input += x); process.stdin.on('end
       hooks: declared
     }
     hooks.register(source)
+    hooks.register({
+      ...source,
+      pluginId: 'resume-only',
+      hooks: [{ ...declared[0], id: 'resume', matcher: '^resume$' }]
+    })
     const bodies: unknown[] = []
     const fixture = createServer(async (request, response) => {
       const chunks: Buffer[] = []
@@ -112,7 +126,13 @@ let input = ''; process.stdin.on('data', x => input += x); process.stdin.on('end
       pluginHooks: async (request, signal) =>
         (await hooks.nativeSources(signal)).map((source) => ({
           ...source,
-          hooks: source.hooks.filter((hook) => hook.event === request.event)
+          hooks: source.hooks.filter(
+            (hook) =>
+              hook.event === request.event &&
+              (request.includeUnmatched ||
+                !hook.matcher ||
+                new RegExp(hook.matcher).test(request.matcher))
+          )
         }))
     })
     const host = new DimRuntimeSupervisor({
@@ -206,6 +226,7 @@ let input = ''; process.stdin.on('data', x => input += x); process.stdin.on('end
         ['SessionStart', 'startup'],
         ['UserPromptSubmit', 'first prompt']
       ])
+      expect(await native.diagnostics('resume-only')).toEqual([])
       expect(JSON.stringify(bodies)).toContain('native-hook:startup')
       expect(JSON.stringify(bodies)).toContain('native-hook:first prompt')
       expect(JSON.parse(await readFile(path.join(profile, 'environment.json'), 'utf8'))).toEqual({
@@ -334,6 +355,17 @@ let input = ''; process.stdin.on('data', x => input += x); process.stdin.on('end
         native = connect()
       }
       await send('after restart', 'second')
+      const finalRequest = bodies
+        .filter(
+          (body) => !JSON.stringify(body).includes('Write a short title for this conversation:')
+        )
+        .at(-1)
+      expect(JSON.stringify(finalRequest)).toContain('native-hook:startup')
+      expect(JSON.stringify(finalRequest)).toContain('native-hook:compact')
+      expect(JSON.stringify(finalRequest)).toContain('resume-only')
+      expect(
+        (await native.diagnostics('resume-only')).filter((row) => row.status === 'completed')
+      ).toHaveLength(1)
       expect(await calls()).toEqual(
         expect.arrayContaining([
           expect.objectContaining({ hook_event_name: 'SessionStart', source: 'resume' })

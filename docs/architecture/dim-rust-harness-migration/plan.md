@@ -160,6 +160,8 @@
 
 ## 模块进度
 
+- 模块 80：SessionStart 观察事实由 Native 插件独立持久化，全部 matcher 跳过时也记录当前启动边界，恢复专用处理器在重启后只运行一次。启动、子会话和输入按事件顺序处理；恢复或压缩 matcher 不匹配时保留该处理器最近成功的会话上下文，原生内部子 agent 与普通 fork 分开。观察配置查询仍校验当前 scope、revision 和声明事件，不绕过实际命令 matcher。桥 0.30.0，SDK 扩展和存储格式不变。真实 Native 启动限定/压缩限定/恢复限定、既有上下文保留及取消/撤销/强杀恢复/重试联合通过（17s），完整 12 文件 25 项 Native 通过（218s），相关网关回归、双端类型、格式/i18n/lint、release 与主进程构建通过。Electron 联合首轮在重启后的工具读取遇到压缩无法缩小，添加失败请求附件后同一流程通过（48s）；该间歇失败仍保留诊断跟进，不提高预算或时限。旧 Tape Hooks 续接和旧 Node 执行器删除继续下一模块。
+
 - 模块 79：已分配但未显式选择的私有技能可由当前 Agent 按需发现；产品只提供经授权的目录和显式选择策略，读取目录、SKILL.md 和执行脚本使用 dim 原生工具。完整目录通过 Native SessionFilesHost 发布为不可变的会话文件，内容 hash 去重，fork、备份、迁移和 GC 复用原生所有者；上下文只附当前文件指针，避免重复注入元数据挤占首轮预算。发布前后复核 Agent、工作区、选择和完整目录，撤销期间不采用旧指针；不将 Agent 私有根注册为进程级全局技能。桥 0.29.0，无新增依赖或存储格式变化。显式选择/按需发现两种真实 Native 场景通过（18s），私有文件位于工作目录外，跨多模型步骤只生成一份目录；24 项相关回归、双端类型/门禁和 SDK 离线图/边界/25 项插件文档校验通过。首次整目录注入触发首轮预算失败，改为按需文件并精简重复桥接说明；没有调整 Native 上下文限额。release 构建通过（21m10s），完整 Native 25 项通过（227s），Electron 聊天/CLI/备份导入/故障恢复/重启/会话读取联合通过（39s）。夹具仅在请求提供 read_session 时返回该工具，避免压缩请求误消费会话读取步骤；提问投影超时增加原生 pending/latest 诊断，原断言时限保持。Windows cmd.exe 的命令字符串通过原生 verbatim 参数传递，固定 hash 的第 12 个 SDK 代码扩展纳入来源清单；其余可执行程序和 Unix 行为保留，Windows 实际 runner 待验证。
 
 - 模块 78：已声明的产品 Context Hooks 接入 Native Session 插件；DeepChat 仅提供经当前作用域授权、不可变版本验证的配置和旧 JSON 协议适配，命令通过 dim HostPlatform 的进程树 owner 执行。启动前等待 Timeline publication；取消、撤销和 Session close 等待整棵进程树结束才记录终态，重启只有 started 事实时保持 uncertain，显式重试校验当前版本、旧事实和原生分支空闲状态。启动/恢复/压缩、用户输入及子 agent 边界独立，单个输出 64 KiB、上下文 8 KiB、整体 10 秒预算保留；兼容小数秒超时及 DeepChat 工具链环境，Rust 再过滤环境，不传递模型凭据。诊断经 storage 插件读取 owned generations，新执行不写 Tape；原生 Hooks 保留上游行为。桥 0.28.0；首次真实 Rust 的上下文/去重/控制字段拒绝/取消/撤销/强杀恢复与显式重试通过（11.5s），46 项相关回归与双端类型通过。最终 release 构建通过（2m46s），压缩/工具链环境与过滤追加场景通过；完整 Native 24 项通过（205s），回执合并及超限输入边界调整后 Hooks 定向通过（5.7s），主进程复构建与 Electron 聊天/CLI/备份导入/故障回滚/重启联合通过（33s）。旧 Node Hook 执行代码在后续模块物理移除。
@@ -319,7 +321,7 @@
 - 模块 7：固定 Session 控制命令接入 native owners（队列/原子 withdraw+steer、权限 CAS、模型/上下文、问题/审批、fork），区分 v3 safe-integer 命令与 u64 内容游标。消息只在 dim input/applied 后进入桌面读模型，缓存尚未应用的输入事实；fork/branch 复用事件 ID 时使用作用域消息身份，工具 call ID 按 request 区分。原生队列/权限/fork 与消息顺序回归已加入，完整 backend/队列编辑 UI 仍待接线。
 - 模块 6：将无执行职责的 generation settings/模型事实/数值边界移到 shared；引入 DesktopSessionState，让 Direct ACP 的设置和 identity 不再依赖 built-in harness，ACP 的协议、进程与事件仍使用原 client。新增无 Tape/无 dim 会话的 ACP 状态持久化与并发模型切换校验。内置 backend 继续在 P2 实施。
 - 模块 5：host 插件新增独立模型 row，通过 dim 原生 provider management 接纳配置，通过 auxiliaryModel service 执行辅助调用；隔离的调用连接取消时仅终止对应辅助请求。真实 Rust provider + 本地 HTTP fixture 验证 agent/auxiliary 两条路径、凭据不进历史、配置重启幂等与流请求取消。现有 Provider 设置、媒体及辅助调用者仍待接线。
-- 模块 4：私有产品能力网关、Session toolRegistry 注册、工具目录版本校验与按 Session 重新挂载、取消与断线撤销。真实 release 验证工具执行/目录替换/取消/重启，并用真实 step/tool-* 事件验证 UI 工具投影。产品 MCP/知识库/CUA 服务目录尚未接线，不把此模块标为 P3 全部完成。
+- 模块 4：私有产品能力网关、Session toolRegistry 注册、工具目录版本校验与按 Session 重新挂载、取消与断线撤销。真实 release 验证工具执行/目录替换/取消/重启，并用真实 step/tool-\* 事件验证 UI 工具投影。产品 MCP/知识库/CUA 服务目录尚未接线，不把此模块标为 P3 全部完成。
 - 模块 3：原生事件订阅、有界补页与 raw timeline query；持久 app/native binding 与 submission intent；消息、工具、审批与 usage 的 SQL 读模型投影。消息和 cursor 同事务提交，旧 reader 被替换后禁止写入；断线可重连同一执行进程，accepted input 不重发。真实 release + SQLite 验证重启后身份/历史/提交幂等，投影失败回滚与恢复。完整桌面 backend、工具配置与迁移仍在后续任务。
 - 模块 2：实现 `DimRuntimeSupervisor` 与 `DimPluginClient`，使用私有 socket/pipe、受管 Node、版本/profile/readiness 校验、并发启动合并、graceful shutdown 及进程树兜底；新增 `smoke:dim` 原生集成检查。主应用尚未接入，P2 队列 UI、P5 migration 等任务保持未完成。
 

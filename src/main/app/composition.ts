@@ -1045,7 +1045,9 @@ export async function createMainProcessControl(dependencies: {
           hooks: source.hooks.filter(
             (hook) =>
               hook.event === request.event &&
-              (!hook.matcher || new RegExp(hook.matcher).test(request.matcher))
+              (request.includeUnmatched ||
+                !hook.matcher ||
+                new RegExp(hook.matcher).test(request.matcher))
           )
         }))
         .filter((source) => source.hooks.length > 0)

@@ -20,7 +20,10 @@ import {
 } from '../helpers/chat'
 import { waitForAppReady } from '../helpers/wait'
 
-test('desktop chat uses persistent native dim sessions @smoke', async ({ app, launchApp }) => {
+test('desktop chat uses persistent native dim sessions @smoke', async ({
+  app,
+  launchApp
+}, testInfo) => {
   // This workflow includes CLI inference, backup rollback and application restart recovery.
   test.setTimeout(60_000)
   const manualTitle = 'NATIVE_MANUAL_TITLE_'.repeat(12)
@@ -437,6 +440,11 @@ test('desktop chat uses persistent native dim sessions @smoke', async ({ app, la
       /timeline events|时间线事件/
     )
   } finally {
+    if (testInfo.status !== testInfo.expectedStatus)
+      await testInfo.attach('native-model-requests.json', {
+        body: JSON.stringify(requests, null, 2),
+        contentType: 'application/json'
+      })
     server.closeAllConnections()
     await new Promise<void>((resolve) => server.close(() => resolve()))
   }

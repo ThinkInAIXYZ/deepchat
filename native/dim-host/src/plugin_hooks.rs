@@ -63,6 +63,16 @@ struct Cancel {
     branch_id: String,
     invocation_id: String,
 }
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct Observe {
+    session_id: String,
+    branch_id: String,
+    plugin_id: String,
+    digest: String,
+    launch_id: String,
+    compaction_id: Option<String>,
+}
 #[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Source {
@@ -121,6 +131,7 @@ impl DynPlugin for PluginHooks {
                 vec![
                     MethodDecl::new("session.deepchat_hooks.run", true, Interruption::Report),
                     MethodDecl::new("session.deepchat_hooks.cancel", true, Interruption::Report),
+                    MethodDecl::new("session.deepchat_hooks.observe", true, Interruption::Report),
                 ],
                 Arc::new(move |call, caller, _| {
                     let (tree, platform, identity, lifecycle, running, workers, stop) = (
@@ -133,6 +144,26 @@ impl DynPlugin for PluginHooks {
                         stop.clone(),
                     );
                     Box::pin(async move {
+                        if call.method.ends_with(".observe") {
+                            let p:Observe=params(call.params)?;
+                            if p.session_id!=identity.session_id || [&p.plugin_id,&p.digest,&p.launch_id].iter().any(|value|value.is_empty()||value.len()>4096) || p.compaction_id.as_ref().is_some_and(|value|value.len()>4096) { return Err(invalid()); }
+                            let catalog=crate::gateway::request(json!({"kind":"plugin_hooks","sessionId":p.session_id,"event":"SessionStart","matcher":"","includeUnmatched":true}),caller.clone(),4*1024*1024).await.map_err(|_|invalid())?;
+                            let sources:Vec<Source>=serde_json::from_value(catalog["sources"].clone()).map_err(|_|invalid())?;
+                            if !sources.iter().any(|source|source.plugin_id==p.plugin_id&&source.digest==p.digest&&source.hooks.iter().any(|hook|hook.event=="SessionStart")) { return Err(invalid()); }
+                            let branch=tree.get(&p.branch_id)?;
+                            let metadata=branch.service::<crate::inputs::DeepChatInputMetadata>()?;
+                            let _lane=metadata.lane.lock().await;
+                            crate::inputs::ensure_active(&metadata).await?;
+                            if caller.is_cancelled() || stop.is_cancelled() { return Err(invalid()); }
+                            let id=format!("{:x}",Sha256::digest(serde_json::to_vec(&json!([p.plugin_id,p.digest,p.launch_id,p.compaction_id])).map_err(|_|invalid())?));
+                            let old=crate::facts::events(&metadata.timeline,crate::facts::and(vec![crate::facts::extension("plugin-hook-session"),crate::facts::equal("data.observationId",json!(id))])).await?;
+                            if old.is_empty() {
+                                let data=json!({"observationId":id,"pluginId":p.plugin_id,"digest":p.digest,"launchId":p.launch_id,"compactionId":p.compaction_id});
+                                let event=metadata.timeline.append(dim_agent_types::EventKind::Extension(dim_agent_types::ExtensionEvent::new("deepchat","plugin-hook-session",data).map_err(RpcError::invalid)?).into())?;
+                                crate::facts::published(&metadata.timeline,event.sequence).await?;
+                            }
+                            return reply(json!({"observed":true}));
+                        }
                         if call.method.ends_with(".cancel") {
                             let p: Cancel = params(call.params)?;
                             if p.session_id != identity.session_id {
