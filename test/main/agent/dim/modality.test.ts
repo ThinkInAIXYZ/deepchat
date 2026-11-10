@@ -7,8 +7,9 @@ import type { DimRuntimeSupervisor } from '@/agent/dim/runtimeSupervisor'
 it('preserves a failed media submission identity without replaying provider work', async () => {
   const unknown = new DimConnectionError('lost native acknowledgement', 'unknown')
   const call = vi.fn().mockRejectedValue(unknown)
+  const close = vi.fn()
   const media = new DimModality({
-    start: async () => ({ call })
+    openConnection: async () => ({ call, close })
   } as unknown as DimRuntimeSupervisor)
   const failed = await media
     .submit({ category: 'image', operation: 'generate', client_task_id: 'admission-id' })
@@ -16,6 +17,7 @@ it('preserves a failed media submission identity without replaying provider work
   expect(failed).toBeInstanceOf(DimMediaSubmissionError)
   expect(failed).toMatchObject({ clientTaskId: 'admission-id', cause: unknown })
   expect(call).toHaveBeenCalledTimes(1)
+  expect(close).toHaveBeenCalledOnce()
 })
 
 it('bounds result reads and rejects content that no longer matches the native digest', async () => {

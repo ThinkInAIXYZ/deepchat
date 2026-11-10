@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest'
 import { createServer } from 'node:http'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 import os from 'node:os'
@@ -12,6 +12,7 @@ import { DimModelBridge } from '@/agent/dim/modelBridge'
 import { DimModelCatalog } from '@/agent/dim/modelCatalog'
 import { DimProductGateway } from '@/agent/dim/productGateway'
 import { DimModality, type DimMediaTask } from '@/agent/dim/modality'
+import { DimConnectionError } from '@/agent/dim/pluginClient'
 import { DimEmbeddingModels } from '@/agent/dim/embeddingModels'
 import { DimMediaModels } from '@/agent/dim/mediaModels'
 import { dimDatabase } from './fixtures/database'
@@ -30,6 +31,11 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
     let videoPollHeld = false
     let resumeVideo = false
     const wave = Buffer.from('RIFF\u0004\u0000\u0000\u0000WAVE')
+    const largeWave = Buffer.alloc(18 * 1024 * 1024 + 17, 0x61)
+    wave.copy(largeWave)
+    let largeTranscriptions = 0
+    let heldTranscriptions = 0
+    let cancelledTranscriptions = 0
     const requests: Array<{
       url: string
       authorization?: string
@@ -139,6 +145,20 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
         response.end(wave)
       } else if (request.url === '/v1/audio/transcriptions') {
         expect(body.toString()).toContain('whisper-1')
+        if (body.length > 8 * 1024 * 1024) {
+          expect(body.includes(largeWave)).toBe(true)
+          if (!body.includes(Buffer.from('hold-native-audio'))) largeTranscriptions++
+        }
+        if (body.includes(Buffer.from('hold-native-audio'))) {
+          expect(body.includes(largeWave)).toBe(true)
+          heldTranscriptions++
+          response.writeHead(200, { 'Content-Type': 'application/json' })
+          response.flushHeaders()
+          response.once('close', () => {
+            cancelledTranscriptions++
+          })
+          return
+        }
         response.writeHead(200, { 'Content-Type': 'application/json' })
         response.end(JSON.stringify({ text: 'native transcription' }))
       } else {
@@ -270,6 +290,39 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
       })
       const transcribed = await wait(transcription.task.task_id)
       expect(transcribed.result?.data).toMatchObject({ text: 'native transcription' })
+      const inputRoot = path.join(profile, 'dim/deepchat-media-inputs')
+      const retainedInputs = async () =>
+        (await readdir(inputRoot)).filter((name) => /^[0-9a-f-]{36}$/.test(name))
+      expect(
+        await desktopMedia.transcribeAudioStandalone(
+          provider.id,
+          'whisper-1',
+          largeWave.toString('base64'),
+          'audio/wav',
+          'large.wav'
+        )
+      ).toBe('native transcription')
+      expect(largeTranscriptions).toBe(1)
+      await expect.poll(retainedInputs, { timeout: 10_000 }).toEqual([])
+      expect(await readdir(host.payloadRoot)).toEqual([])
+      const heldAudio = {
+        category: 'speech',
+        operation: 'transcribe',
+        params: { prompt: 'hold-native-audio' },
+        model: transcriptionModel,
+        client_task_id: randomUUID(),
+        files: [
+          { name: 'hold.wav', media_type: 'audio/wav', data_base64: largeWave.toString('base64') }
+        ]
+      }
+      const heldAudioTask = await media.submit(heldAudio)
+      await expect.poll(() => heldTranscriptions, { timeout: 10_000 }).toBe(1)
+      expect((await media.submit(heldAudio)).task_id).toBe(heldAudioTask.task_id)
+      expect(heldTranscriptions).toBe(1)
+      expect(await retainedInputs()).toHaveLength(1)
+      await media.cancel(heldAudioTask.task_id)
+      await expect.poll(() => cancelledTranscriptions, { timeout: 10_000 }).toBe(1)
+      await expect.poll(retainedInputs, { timeout: 10_000 }).toEqual([])
       expect(
         requests.every((request) => request.authorization === 'Bearer native-media-first')
       ).toBe(true)
@@ -481,9 +534,35 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
         (await client.call<TaskReply>('modality.task.status', { task_id: heldTask.task_id })).task
           .state
       ).toBe('cancelled')
+      // Lose only the product receipt after native admission. Never replay the task.
+      const uncertain = new DimModality({
+        payloadRoot: host.payloadRoot,
+        openConnection: async () => {
+          const connection = await host.openConnection()
+          return {
+            call: async (method: string, params: never, timeout: number) => {
+              await connection.call(method, params, timeout)
+              throw new DimConnectionError('lost media receipt', 'unknown')
+            },
+            close: () => connection.close()
+          }
+        }
+      } as unknown as DimRuntimeSupervisor)
+      const clientTaskId = randomUUID()
+      await expect(
+        uncertain.submit({ ...heldAudio, client_task_id: clientTaskId })
+      ).rejects.toMatchObject({ clientTaskId })
+      await expect.poll(() => heldTranscriptions, { timeout: 10_000 }).toBe(2)
+      expect(await retainedInputs()).toHaveLength(1)
+      expect(await readdir(host.payloadRoot)).toEqual([])
+      const orphan = path.join(inputRoot, randomUUID())
+      await mkdir(orphan)
+      await writeFile(path.join(orphan, 'input-0'), 'uncommitted input')
       await host.stop()
       credential = 'native-media-rotated'
       client = await host.start()
+      await expect.poll(retainedInputs, { timeout: 10_000 }).toEqual([])
+      expect(heldTranscriptions).toBe(2)
       expect(
         (await client.call<TaskReply>('modality.task.status', { task_id: image.task.task_id })).task
           .state

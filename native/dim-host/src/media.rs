@@ -23,8 +23,10 @@ use std::{
 use tokio_util::sync::CancellationToken;
 
 type Aliases = HashMap<(String, String), String>;
+pub struct TasksReady;
 pub fn install(builder: &mut AgentBuilder) {
     dim_agent_runtime::names::register::<ModalityAdapterService>(builder.catalog_mut(), None);
+    dim_agent_runtime::names::register::<TasksReady>(builder.catalog_mut(), None);
     builder.plugin(|names| Ok(Box::new(Media::new(names)?)));
 }
 /// Native startup recovery must see the product adapter and its restored aliases.
@@ -52,7 +54,11 @@ impl DynPlugin for OrderedModality {
         keys
     }
     fn apply<'a>(&'a self, ctx: &'a Ctx) -> BoxFuture<'a, rutis::Result<Effect>> {
-        self.native.apply(ctx)
+        Box::pin(async move {
+            let effect = self.native.apply(ctx).await?;
+            ctx.provide(TasksReady)?;
+            Ok(effect)
+        })
     }
 }
 struct Media {

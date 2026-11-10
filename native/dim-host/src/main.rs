@@ -5,6 +5,7 @@ mod gateway;
 mod inputs;
 mod legacy_queue;
 mod media;
+mod media_inputs;
 mod memory;
 mod migration;
 mod model_stream;
@@ -36,6 +37,7 @@ fn install(builder: &mut dim_agent_runtime::AgentBuilder) {
         },
     );
     context::install(builder);
+    media_inputs::install(builder);
     settings::install(builder);
     permissions::install(builder);
     product_tools::install(builder);

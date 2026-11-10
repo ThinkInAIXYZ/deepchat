@@ -73,3 +73,11 @@ the query position distinguishes that branch from another line's inherited prefi
 The desktop authorizes native delegation against the current root binding before
 and after I/O. The dim `agent` tool creates and executes members; this metadata port
 does not create, schedule or invoke them.
+
+Large independent media inputs use `deepchat.native_media_inputs.submit`. The
+desktop sends a bounded file-backed RPC payload; the plugin prepares private
+binary inputs through public FileStorage/PluginFileTransactions and delegates
+admission to ModalityTasks. Native task records determine retention, terminal
+cleanup and restart recovery. Recovery completes before orphan cleanup; uncertain
+admission never triggers an automatic resubmission. Cleanup observers are joined
+at unload. A scoped caller protects input preparation from idle backup shutdown.

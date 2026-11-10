@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import type { JsonValue } from '@shared/contracts/json'
 import type { DimModelId } from './modelBridge'
 import type { DimRuntimeSupervisor } from './runtimeSupervisor'
+import { prepareDimPayload } from './payload'
 
 export interface DimMediaFile {
   name: string
@@ -45,21 +46,32 @@ export class DimModality {
 
   async submit(input: DimMediaSubmission, signal?: AbortSignal): Promise<DimMediaTask> {
     signal?.throwIfAborted()
-    const client = await this.host.start()
-    signal?.throwIfAborted()
+    // A scoped caller keeps idle backup admission from stopping input preparation.
+    const client = await this.host.openConnection()
     const clientTaskId = input.client_task_id ?? randomUUID()
-    const { task } = await client
-      .call<{ task: DimMediaTask }>(
-        'modality.task.submit',
-        {
-          ...input,
-          client_task_id: clientTaskId
-        } as unknown as JsonValue,
+    const submission = { ...input, client_task_id: clientTaskId } as unknown as JsonValue
+    const fileBacked =
+      (input.files ?? []).reduce((size, file) => size + (file.data_base64?.length ?? 0), 0) >
+      4 * 1024 * 1024
+    let payload: Awaited<ReturnType<typeof prepareDimPayload>> | undefined
+    let task: DimMediaTask
+    try {
+      signal?.throwIfAborted()
+      payload = fileBacked
+        ? await prepareDimPayload(this.host.payloadRoot, submission, signal)
+        : { params: submission, dispose: async () => {} }
+      const result = await client.call<{ task: DimMediaTask }>(
+        fileBacked ? 'deepchat.native_media_inputs.submit' : 'modality.task.submit',
+        payload.params,
         120_000
       )
-      .catch((error: unknown) => {
-        throw new DimMediaSubmissionError(clientTaskId, error)
-      })
+      task = result.task
+    } catch (error) {
+      throw new DimMediaSubmissionError(clientTaskId, error)
+    } finally {
+      await payload?.dispose()
+      client.close()
+    }
     if (signal?.aborted) {
       await this.cancel(task.task_id)
       signal.throwIfAborted()
