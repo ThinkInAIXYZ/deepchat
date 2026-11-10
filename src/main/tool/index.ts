@@ -39,7 +39,6 @@ import {
   AgentToolManager,
   IMAGE_GENERATE_TOOL_NAME,
   AGENT_TAPE_TOOL_SERVER_NAME,
-  CRON_JOB_TOOL_SERVER_NAME,
   type AgentToolCallResult
 } from './agentTools'
 import type {
@@ -1736,7 +1735,6 @@ export class ToolService implements ToolServicePort {
       this.buildQuestionPrompt(toolNames),
       this.buildImageGenerationPrompt(toolNames),
       this.buildTapePrompt(groupedTools.get(AGENT_TAPE_TOOL_SERVER_NAME) ?? []),
-      this.buildCronJobPrompt(groupedTools.get(CRON_JOB_TOOL_SERVER_NAME) ?? []),
       this.buildSkillsPrompt(toolNames),
       this.buildSettingsPrompt(groupedTools.get('deepchat-settings') ?? []),
       this.buildYoBrowserPrompt(groupedTools.get('yobrowser') ?? [])
@@ -1942,18 +1940,6 @@ export class ToolService implements ToolServicePort {
       )
     }
     return lines.join('\n')
-  }
-
-  private buildCronJobPrompt(tools: MCPToolDefinitionBase[]): string {
-    if (tools.length === 0) {
-      return ''
-    }
-
-    return [
-      '## Scheduled Task Tool',
-      `Use \`${CRON_JOB_AGENT_TOOL_NAME}\` only when the user explicitly asks to create, inspect, run, pause, resume, update, delete, or preview Scheduled tasks.`,
-      'Scheduled task deliveries are notification-only and do not continue normal Remote conversations.'
-    ].join('\n')
   }
 
   private buildSettingsPrompt(tools: MCPToolDefinitionBase[]): string {

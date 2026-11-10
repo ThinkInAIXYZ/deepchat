@@ -5,10 +5,6 @@ import type { SettingsNavigationPayload } from '@shared/settingsNavigation'
 import type {
   DeepChatSubagentMeta,
   DeepChatSubagentCapability,
-  AgentTapeContextOptions,
-  AgentTapeContextResult,
-  AgentTapeSearchOptions,
-  AgentTapeSearchResult,
   PermissionMode,
   SendMessageInput,
   SessionGenerationSettings,
@@ -34,18 +30,8 @@ import type { MemoryCommandResult } from '@shared/contracts/routes/memory.routes
 import type { SessionRuntimeUpdate } from '@/session/runtimeEvents'
 import type { SkillExecutionAuthorityPort } from '@/skill/skillExecutionAuthority'
 import type { MemoryScopeContext, MemoryWriteOutcome } from '../memory/types'
-import type {
-  CronJob,
-  CronJobRun,
-  CronJobsSchedulerStatus,
-  CronSchedulePreview
-} from '@shared/cronJobs'
-import type { cronJobsUpsertInputSchema } from '@shared/contracts/routes/cronJobs.routes'
-import type { z } from 'zod'
 import type { LiveDelegationConsentReceipt } from '@/orchestration/liveDelegationConsent'
 import type { ReadSessionInput } from '@shared/sessionReferences'
-
-export type AgentToolCronJobUpsertInput = z.input<typeof cronJobsUpsertInputSchema>
 
 export interface ConversationSessionInfo {
   sessionId: string
@@ -108,19 +94,6 @@ export interface AgentToolSessionPort {
   ): Promise<ConversationExecutionAuthority | null>
 }
 
-export interface AgentTapeToolPort {
-  searchTape(
-    conversationId: string,
-    query: string,
-    options?: AgentTapeSearchOptions
-  ): Promise<AgentTapeSearchResult[]>
-  getTapeContext(
-    conversationId: string,
-    entryIds: number[],
-    options?: AgentTapeContextOptions
-  ): Promise<AgentTapeContextResult>
-}
-
 export interface AgentMemoryToolPort {
   isMemoryEnabled(agentId: string): boolean
   rememberMemory(
@@ -145,20 +118,6 @@ export interface AgentMemoryToolPort {
     memoryId: string,
     beforeMutation?: () => void
   ): Promise<MemoryCommandResult>
-}
-
-export interface AgentCronJobToolPort {
-  listCronJobs(): Promise<{ jobs: CronJob[]; schedulerStatus: CronJobsSchedulerStatus }>
-  upsertCronJob(input: AgentToolCronJobUpsertInput, beforeMutation?: () => void): Promise<CronJob>
-  deleteCronJob(id: string, beforeMutation?: () => void): Promise<void>
-  toggleCronJob(id: string, enabled: boolean, beforeMutation?: () => void): Promise<CronJob>
-  runCronJobNow(id: string, beforeMutation?: () => void): Promise<CronJobRun>
-  listCronJobRuns(jobId: string, limit?: number): Promise<CronJobRun[]>
-  previewCronSchedule(input: {
-    cronExpr: string
-    timezone: string
-    count?: number
-  }): Promise<CronSchedulePreview>
 }
 
 export interface AgentSubagentToolPort {
@@ -265,9 +224,7 @@ export interface AgentToolPermissionPort {
 
 export interface AgentToolDependencies {
   sessions: AgentToolSessionPort
-  tape: AgentTapeToolPort
   memory: AgentMemoryToolPort
-  cronJobs: AgentCronJobToolPort
   subagents: AgentSubagentToolPort
   liveDelegation?: AgentLiveDelegationToolPort
   agentInvocationAdmission: AgentInvocationAdmissionPort

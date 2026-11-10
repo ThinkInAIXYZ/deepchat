@@ -11,7 +11,6 @@ import {
   resolveDeepChatSubagentCapability
 } from '@shared/lib/deepchatSubagents'
 import { LIVE_DELEGATION_AGENT_TOOL_NAME } from '@shared/agentTools'
-import { SkillExecutionService } from '@/skill/skillExecutionService'
 import { POSIX_COMMAND_SHELL } from '../../../helpers/commandShell'
 import {
   SKILL_EXECUTION_PACKAGE_MAX_PATH_BYTES,

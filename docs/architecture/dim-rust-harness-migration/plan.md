@@ -158,6 +158,8 @@
 
 ## 模块进度
 
+- 模块 49：物理删除无生产入口的 Node SkillExecutionService、旧 SkillTools、cron 模型工具和 LiveDelegationAgentTool，以及对应旧执行器测试；项目技能隔离/引用测试改为直接验证仍在使用的 SkillService 公共管理接口。工具侧移除多余 Tape/cron ports、composition 接线与旧 cron prompt；桌面技能管理、Scheduled Tasks 服务及 CLI 子会话能力保留。清理 guard 阻止重新导入这些执行器。962 项工具/技能/边界回归通过，主进程构建、ACP/Native 两项 Electron 联合验收通过（43s）；格式/i18n/lint/双端 typecheck 通过。模块 48 的完整 12 项 Native smoke 已串行通过（227s）。
+
 - 模块 48：图片、视频、TTS 与 ASR facade 均要求 Native Modality，删除 Node 媒体推理回退。视频优先复用 dim 默认适配器；当前锁定版本未提供的 OpenAI 兼容 /videos 协议以 Rust ModalityAdapter 扩展实现，任务准入、排队、持久化、恢复与取消继续属于 dim，网络复用 Native Aimux transport/guard。保留原请求选项、两种 body 格式、参考素材与提示词时长提取，流式写入有界结果文件，不持久化连接或响应 URL。实际恢复用例发现 Native Modality 在产品 adapter 就绪前读取可选绑定，通过公开插件装配依赖修正启动顺序，无新增 SDK 补丁。桥 0.12.0。1107 项 provider/CLI compute 回归、真实 Rust 媒体联合用例（含视频取消及重启不重复提交）通过；主进程构建、Electron 草稿/模型测试/CLI/聊天/重启/引用/Inspector 联合验收通过（35s）；格式/i18n/lint/双端 typecheck 通过。媒体聊天会话、聊天音频输入及特殊供应商仍继续接线。
 
 - 模块 47：未保存 provider 草稿的生成式连接验证改走 Native auxiliary owner；临时准入和凭据只在内存中，测试不保存/启用产品 provider，不替换正在使用的实例。结束时先撤权并拒绝迟到回调，再用公开 provider.delete CAS 清理临时 Native 配置；重启时仅按专用命名空间及模型 UUID 标记清理可识别的草稿残留。1092 项 provider/草稿回归通过；三项实际 Rust 连接验证覆盖临时 key、清理、重启残留恢复及 profile 无明文 key。主进程构建和实际 Electron 草稿验证、CLI、聊天、重启、引用与 Inspector 联合验收通过（30s）。格式/i18n/lint/双端 typecheck 通过。

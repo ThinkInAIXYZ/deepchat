@@ -1806,14 +1806,6 @@ export async function createMainProcessControl(dependencies: {
         }
       }
     },
-    tape: {
-      searchTape: async (conversationId, query, options) => {
-        return await sessionQuery.searchTape(conversationId, query, options)
-      },
-      getTapeContext: async (conversationId, entryIds, options) => {
-        return await sessionQuery.getTapeContext(conversationId, entryIds, options)
-      }
-    },
     memory: {
       isMemoryEnabled: (agentId) => memoryService.isEnabled(agentId),
       rememberMemory: async (agentId, input, sourceSession, model, beforeMutation) =>
@@ -1838,19 +1830,6 @@ export async function createMainProcessControl(dependencies: {
       },
       forgetMemory: async (agentId, memoryId, beforeMutation) =>
         await memoryService.forgetMemory(agentId, memoryId, beforeMutation)
-    },
-    cronJobs: {
-      listCronJobs: async () => await cronJobs.list(),
-      upsertCronJob: async (input, beforeMutation) =>
-        (await cronJobs.upsert(input, beforeMutation)).job,
-      deleteCronJob: async (id, beforeMutation) => {
-        await cronJobs.delete(id, beforeMutation)
-      },
-      toggleCronJob: async (id, enabled, beforeMutation) =>
-        (await cronJobs.toggle(id, enabled, beforeMutation)).job,
-      runCronJobNow: async (id, beforeMutation) => (await cronJobs.runNow(id, beforeMutation)).run,
-      listCronJobRuns: async (jobId, limit) => cronJobs.listRuns(jobId, limit),
-      previewCronSchedule: async (input) => cronJobs.previewSchedule(input)
     },
     subagents: {
       createSubagentSession: async (input) => {
