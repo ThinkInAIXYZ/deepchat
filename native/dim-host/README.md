@@ -207,6 +207,14 @@ and fences Native. Manual database imports settle any older device-import
 journal before replacing product SQL. Changed winners or revoked authorization
 restore the prior Native profile. Derived input and Inspector indexes are rebuilt for replaced Sessions.
 No bridge reads Native SQLite tables or combines live databases.
+The supervisor gives global daemon shutdown one 30 s budget across its completed
+RPC acknowledgement and confirmed process exit. The pinned rutis cleanup
+contract already permits 10 s for plugin unload, plus a 2 s loader margin and
+5 s process-exit wait; a 10 s outer RPC cutoff could terminate legal cleanup.
+The cold-profile barrier still requires both the successful reply and exit code
+zero. Busy, timed-out or unconfirmed shutdown never exposes files to maintenance.
+This global lifecycle budget does not change model or tool cancellation.
+
 Receiver admission waits for Native execution to become idle before taking the
 cold-profile barrier. Busy receivers retain the pending transfer and do not
 advance its cursor. The source can export while unrelated Sessions execute.

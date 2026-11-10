@@ -1,6 +1,6 @@
 # DeepChat 以 dim Rust 替换内置 Agent Harness
 
-状态：当前实现合同，本地整体验收完成。主产品内置 backend 已切换为 dim Rust，旧 Harness、Node 模型执行器与重复内置工具已删除；保留 Direct ACP client、只读旧历史与按需转换器。最后恢复补强的推送及当前 head 的六平台 CI 回读受 GitHub 凭据失效阻塞，未标记为完成。执行与验证记录见 [plan.md](./plan.md)。
+状态：当前实现合同，本地整体验收完成。主产品内置 backend 已切换为 dim Rust，旧 Harness、Node 模型执行器与重复内置工具已删除；保留 Direct ACP client、只读旧历史与按需转换器。最后恢复补强已推送；当前 head 的六平台 CI 正在核验，发现的 Windows 全局退出预算问题单独修复并验证，不以旧版本结果代替。执行与验证记录见 [plan.md](./plan.md)。
 
 ## 1. 决策与范围
 

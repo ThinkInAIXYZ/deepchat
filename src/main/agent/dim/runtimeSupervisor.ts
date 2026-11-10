@@ -30,6 +30,12 @@ export interface DimRuntimeOptions {
   diagnostic?(event: DimRuntimeDiagnostic): void
 }
 
+// The pinned rutis owner permits 10 s for plugin cleanup; its binary loader
+// then adds a 2 s stop margin and up to 5 s for process exit. One daemon
+// shutdown therefore cannot share the former 10 s individual-RPC deadline.
+// Keep one bounded budget across acknowledgement and confirmed process exit.
+const SHUTDOWN_BUDGET_MS = 30_000
+
 export interface DimStopOptions {
   ifIdle?: boolean
 }
@@ -465,10 +471,11 @@ export class DimRuntimeSupervisor {
     }
     // Preserve scoped callers. The native decision is atomic with connection/attach admission
     // and checks running Sessions; daemon_busy leaves this host and its work untouched.
-    await client.call('daemon.shutdown', { ifIdle: true }, 10_000)
+    const deadline = Date.now() + SHUTDOWN_BUDGET_MS
+    await client.call('daemon.shutdown', { ifIdle: true }, SHUTDOWN_BUDGET_MS)
     const graceful = await Promise.race([
       this.exited!.then(() => this.exitCode === 0),
-      delay(10_000, undefined, { ref: false }).then(() => false)
+      delay(Math.max(0, deadline - Date.now()), undefined, { ref: false }).then(() => false)
     ])
     if (!graceful) throw new Error('dim idle shutdown did not complete; profile access is denied')
     client.close()
@@ -488,13 +495,14 @@ export class DimRuntimeSupervisor {
     let graceful = false
     let failed = false
     let shutdownFailure: unknown
+    const deadline = Date.now() + SHUTDOWN_BUDGET_MS
     try {
       if (client) {
-        await client.call('daemon.shutdown', {}, 10_000)
+        await client.call('daemon.shutdown', {}, SHUTDOWN_BUDGET_MS)
         this.diagnose('shutdown acknowledged')
         graceful = await Promise.race([
           this.exited!.then(() => this.exitCode === 0),
-          delay(10_000, undefined, { ref: false }).then(() => false)
+          delay(Math.max(0, deadline - Date.now()), undefined, { ref: false }).then(() => false)
         ])
       }
       if (!graceful && wasRunning) throw new Error('dim did not complete graceful shutdown')

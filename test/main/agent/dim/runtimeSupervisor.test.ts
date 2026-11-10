@@ -113,3 +113,50 @@ it.each(['request rejected', 'exit unconfirmed'] as const)(
     expect(close).toHaveBeenCalledOnce()
   }
 )
+
+it.each([false, true])(
+  'keeps the cold-profile fence through a slow valid shutdown (ifIdle=%s)',
+  async (ifIdle) => {
+    const owner = host()
+    const acknowledgement = Promise.withResolvers<object>()
+    const exited = Promise.withResolvers<void>()
+    const waitingForExit = Promise.withResolvers<void>()
+    let now = 0
+    const clock = vi.spyOn(Date, 'now').mockImplementation(() => now)
+    const client = { call: vi.fn(() => acknowledgement.promise), close: vi.fn() }
+    Object.assign(owner, {
+      connection: client,
+      process: { pid: 42 },
+      exitCode: null,
+      exited: exited.promise
+    })
+    let exitBudget = -1
+    vi.mocked(delay).mockImplementationOnce((ms) => {
+      exitBudget = ms ?? 0
+      waitingForExit.resolve()
+      return new Promise(() => {})
+    })
+    const work = vi.fn(async () => 'closed profile')
+    try {
+      const result = owner.withStopped(work, { ifIdle })
+      expect(client.call).toHaveBeenCalledWith(
+        'daemon.shutdown',
+        ifIdle ? { ifIdle: true } : {},
+        30_000
+      )
+      // The native owner may still be completing a legal plugin cleanup after 10 s.
+      now = 15_000
+      expect(work).not.toHaveBeenCalled()
+      acknowledgement.resolve({})
+      await waitingForExit.promise
+      expect(exitBudget).toBe(15_000)
+      expect(work).not.toHaveBeenCalled()
+      Object.assign(owner, { exitCode: 0 })
+      exited.resolve()
+      await expect(result).resolves.toBe('closed profile')
+      expect(work).toHaveBeenCalledOnce()
+    } finally {
+      clock.mockRestore()
+    }
+  }
+)
