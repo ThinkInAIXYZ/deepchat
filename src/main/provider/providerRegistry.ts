@@ -15,6 +15,7 @@ export type AiSdkModelSourceStrategy =
   | 'runcrate'
   | 'cloudgpu'
   | 'obscurify'
+  | 'wiro'
   | 'apimart'
   | 'openai-codex'
   | 'opencode-go'
@@ -715,6 +716,16 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
       checkStrategy: 'key-status',
       credentialStrategy: 'api-key',
       keyStatusStrategy: 'uberllm',
+      embeddingStrategy: 'none'
+    })
+  ],
+  [
+    'wiro',
+    // /v1/models needs the key, so listing models also checks the credential.
+    createDefinition({
+      ...OPENAI_BASE,
+      modelSource: 'wiro',
+      credentialStrategy: 'api-key',
       embeddingStrategy: 'none'
     })
   ],
