@@ -2,7 +2,6 @@ import type { ProviderSettingsPort } from '@/provider/settings'
 import { ModelType } from '@shared/model'
 import type { LLM_PROVIDER } from '@shared/types/provider'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { AiSdkProvider } from '../../../src/main/provider/providers/aiSdkProvider'
 import {
   assertWorkersAiSuccess,
   extractWorkersAiModelRecords,
@@ -11,10 +10,6 @@ import {
   WORKERS_AI_BASE_URL_ERROR,
   WorkersAiProvider
 } from '../../../src/main/provider/providers/workersAiProvider'
-import {
-  isJevUnsupportedCapabilityError,
-  JEV_UNSUPPORTED_CAPABILITY_ERROR
-} from '../../../src/main/provider/providers/jevProvider'
 
 vi.mock('@shared/logger', () => ({
   default: {
@@ -419,53 +414,6 @@ describe('WorkersAiProvider', () => {
         errorMsg: WORKERS_AI_BASE_URL_ERROR
       })
       expect(fetchMock).not.toHaveBeenCalled()
-    })
-  })
-
-  describe('capabilities', () => {
-    it('refuses the judgment model on every chat-shaped path', async () => {
-      const fetchMock = vi.fn()
-      vi.stubGlobal('fetch', fetchMock)
-      const provider = createProviderInstance()
-
-      await expect(provider.completions([], 'typesafe/jev')).rejects.toThrow(
-        JEV_UNSUPPORTED_CAPABILITY_ERROR
-      )
-      await expect(provider.generateText('prompt', 'typesafe/jev')).rejects.toThrow(
-        JEV_UNSUPPORTED_CAPABILITY_ERROR
-      )
-      await expect(provider.summaries('text', 'typesafe/jev')).rejects.toThrow(
-        JEV_UNSUPPORTED_CAPABILITY_ERROR
-      )
-
-      const events = []
-      for await (const event of provider.coreStream([], 'typesafe/jev', {} as never, 0, 0, [])) {
-        events.push(event)
-      }
-      expect(events[0]).toMatchObject({
-        type: 'error',
-        error_message: JEV_UNSUPPORTED_CAPABILITY_ERROR
-      })
-
-      // Refused before any request: a judgment model must never reach the chat endpoint.
-      expect(fetchMock).not.toHaveBeenCalled()
-    })
-
-    it('still routes a chat model into the shared chat transport', async () => {
-      // A 400 keeps the test fast: the transport retries a 5xx before surfacing it.
-      const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ error: 'upstream' }, 400))
-      vi.stubGlobal('fetch', fetchMock)
-
-      await expect(
-        createProviderInstance().completions(
-          [{ role: 'user', content: 'hi' }],
-          '@cf/meta/llama-3.1-8b-instruct'
-        )
-      ).rejects.toThrow()
-
-      // The chat path was entered rather than refused, which is what "one provider, both kinds of
-      // model" means.
-      expect(fetchMock).toHaveBeenCalled()
     })
   })
 })

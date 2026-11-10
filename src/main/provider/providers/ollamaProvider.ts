@@ -1,37 +1,18 @@
+import { isInsecureTlsAllowed } from '@/lib/insecureTls'
 import type { ProviderSettingsPort } from '@/provider/settings'
-import type { ChatMessage } from '@shared/types/core/chat-message'
-import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
-import type { LLMResponse } from '@shared/types/provider'
-import type { MCPToolDefinition } from '@shared/types/mcp'
-import type {
-  LLM_EMBEDDING_ATTRS,
-  LLM_PROVIDER,
-  MODEL_META,
-  ModelConfig,
-  OllamaModel,
-  ProviderStreamOptions,
-  ProgressResponse
-} from '@shared/types/provider'
 import { ModelType } from '@shared/model'
 import { getValidProviderCustomHeaders } from '@shared/providerCustomHeaders'
-import {
-  BaseLLMProvider,
-  SUMMARY_TITLES_PROMPT,
-  type ProviderGenerateTextOptions
-} from '../baseProvider'
-import type { ProviderLocalePort } from '../ports'
+import type {
+  LLM_PROVIDER,
+  MODEL_META,
+  OllamaModel,
+  ProgressResponse
+} from '@shared/types/provider'
 import { execFile } from 'node:child_process'
 import { Ollama, ShowResponse } from 'ollama'
-import {
-  runAiSdkCoreStream,
-  runAiSdkDimensions,
-  runAiSdkEmbeddings,
-  runAiSdkGenerateText,
-  type AiSdkRuntimeContext
-} from '../aiSdk'
-import { normalizeOllamaOpenAIBaseUrl, normalizeOllamaSdkHost } from '../aiSdk/providerFactory'
-import { isInsecureTlsAllowed } from '@/lib/insecureTls'
-import { buildResolvedCapabilitySnapshot, resolveCapabilityIdentity } from '../capabilityIdentity'
+import { BaseLLMProvider } from '../baseProvider'
+import type { ProviderLocalePort } from '../ports'
+import { normalizeOllamaSdkHost } from '../providerEndpoints'
 
 const OLLAMA_LIST_TIMEOUT_MS = 5000
 const OLLAMA_RUNTIME_CONTEXT_TIMEOUT_MS = 400
@@ -74,33 +55,6 @@ export class OllamaProvider extends BaseLLMProvider {
       host,
       ...(requestFetch ? { fetch: requestFetch } : {})
     })
-  }
-
-  protected getAiSdkRuntimeContext(
-    modelId: string,
-    modelConfig?: Pick<ModelConfig, 'reasoning'>
-  ): AiSdkRuntimeContext {
-    const capabilityIdentity = resolveCapabilityIdentity({
-      providerId: this.provider.id,
-      modelId,
-      explicitProviderId: this.provider.capabilityProviderId
-    })
-
-    return {
-      providerKind: 'openai-compatible',
-      provider: {
-        ...this.provider,
-        baseUrl: normalizeOllamaOpenAIBaseUrl(this.provider.baseUrl)
-      },
-      capabilitySnapshot: buildResolvedCapabilitySnapshot(capabilityIdentity, {
-        reasoningEnabled: modelConfig?.reasoning
-      }),
-      providerSettings: this.providerSettings,
-      defaultHeaders: this.defaultHeaders,
-      buildLegacyFunctionCallPrompt: (tools) => this.getFunctionCallWrapPrompt(tools),
-      emitRequestTrace: (modelConfig, payload) => this.emitRequestTrace(modelConfig, payload),
-      supportsNativeTools: (_modelId, modelConfig) => modelConfig.functionCall === true
-    }
   }
 
   private mergeCapabilities(...sources: Array<string[] | undefined>): string[] | undefined {
@@ -518,104 +472,6 @@ export class OllamaProvider extends BaseLLMProvider {
     }
   }
 
-  public async summaryTitles(messages: ChatMessage[], modelId: string): Promise<string> {
-    const prompt = `${SUMMARY_TITLES_PROMPT}\n\n${messages.map((m) => `${m.role}: ${m.content}`).join('\n')}`
-    const modelConfig = this.providerSettings.getModelConfig(modelId, this.provider.id)
-    const response = await runAiSdkGenerateText(
-      this.getAiSdkRuntimeContext(modelId, modelConfig),
-      [{ role: 'user', content: prompt }],
-      modelId,
-      modelConfig,
-      0.3,
-      30
-    )
-
-    return response.content.trim() || 'New Conversation'
-  }
-
-  public async completions(
-    messages: ChatMessage[],
-    modelId: string,
-    temperature?: number,
-    maxTokens?: number
-  ): Promise<LLMResponse> {
-    const modelConfig = this.providerSettings.getModelConfig(modelId, this.provider.id)
-    return runAiSdkGenerateText(
-      this.getAiSdkRuntimeContext(modelId, modelConfig),
-      messages,
-      modelId,
-      modelConfig,
-      temperature,
-      maxTokens
-    )
-  }
-
-  public async summaries(
-    text: string,
-    modelId: string,
-    temperature?: number,
-    maxTokens?: number
-  ): Promise<LLMResponse> {
-    const modelConfig = this.providerSettings.getModelConfig(modelId, this.provider.id)
-    return runAiSdkGenerateText(
-      this.getAiSdkRuntimeContext(modelId, modelConfig),
-      [{ role: 'user', content: `Please summarize the following content:\n\n${text}` }],
-      modelId,
-      modelConfig,
-      temperature ?? 0.5,
-      maxTokens
-    )
-  }
-
-  public async generateText(
-    prompt: string,
-    modelId: string,
-    temperature?: number,
-    maxTokens?: number,
-    options?: ProviderGenerateTextOptions
-  ): Promise<LLMResponse> {
-    const modelConfig = this.providerSettings.getModelConfig(modelId, this.provider.id)
-    if (options?.signal) {
-      return runAiSdkGenerateText(
-        this.getAiSdkRuntimeContext(modelId, modelConfig),
-        [{ role: 'user', content: prompt }],
-        modelId,
-        modelConfig,
-        temperature,
-        maxTokens,
-        options.signal
-      )
-    }
-    return runAiSdkGenerateText(
-      this.getAiSdkRuntimeContext(modelId, modelConfig),
-      [{ role: 'user', content: prompt }],
-      modelId,
-      modelConfig,
-      temperature,
-      maxTokens
-    )
-  }
-
-  public async suggestions(
-    context: string,
-    modelId: string,
-    temperature?: number,
-    maxTokens?: number
-  ): Promise<string[]> {
-    const response = await this.generateText(
-      `Based on the following context, generate 5 possible follow-up questions or suggestions, one per line:\n\n${context}`,
-      modelId,
-      temperature ?? 0.8,
-      maxTokens ?? 200
-    )
-
-    return response.content
-      .split('\n')
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .slice(0, 5)
-  }
-
   private async attachModelInfo(model: OllamaModel): Promise<OllamaModel> {
     try {
       const showResponse = await this.showModelInfo(model.name)
@@ -794,34 +650,5 @@ export class OllamaProvider extends BaseLLMProvider {
       console.error(`Failed to show Ollama model info for ${modelName}:`, (error as Error).message)
       throw error
     }
-  }
-
-  async *coreStream(
-    messages: ChatMessage[],
-    modelId: string,
-    modelConfig: ModelConfig,
-    temperature: number,
-    maxTokens: number,
-    mcpTools: MCPToolDefinition[],
-    options?: ProviderStreamOptions
-  ): AsyncGenerator<LLMCoreStreamEvent> {
-    yield* runAiSdkCoreStream(
-      this.getAiSdkRuntimeContext(modelId, modelConfig),
-      messages,
-      modelId,
-      modelConfig,
-      temperature,
-      maxTokens,
-      mcpTools,
-      options?.signal
-    )
-  }
-
-  async getEmbeddings(modelId: string, texts: string[], signal?: AbortSignal): Promise<number[][]> {
-    return runAiSdkEmbeddings(this.getAiSdkRuntimeContext(modelId), modelId, texts, signal)
-  }
-
-  async getDimensions(modelId: string, signal?: AbortSignal): Promise<LLM_EMBEDDING_ATTRS> {
-    return runAiSdkDimensions(this.getAiSdkRuntimeContext(modelId), modelId, signal)
   }
 }

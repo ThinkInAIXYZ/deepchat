@@ -1,5 +1,5 @@
 import type { LLM_PROVIDER } from '@shared/types/provider'
-import type { AiSdkProviderKind } from './aiSdk/providerFactory'
+import type { ProviderTransportKind } from './providerEndpoints'
 
 export type AiSdkBehaviorPreset =
   | 'openai'
@@ -58,7 +58,7 @@ export type AiSdkRouteStrategy = 'none' | 'apimart' | 'grok' | 'new-api' | 'open
 export type AiSdkEmbeddingStrategy = 'none' | 'openai' | 'google' | 'new-api' | 'zenmux'
 
 export interface AiSdkProviderDefinition {
-  runtimeKind: AiSdkProviderKind
+  runtimeKind: ProviderTransportKind
   behaviorPreset: AiSdkBehaviorPreset
   modelSource: AiSdkModelSourceStrategy
   checkStrategy: AiSdkCheckStrategy

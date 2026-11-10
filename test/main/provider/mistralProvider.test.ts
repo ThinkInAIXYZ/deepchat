@@ -1,13 +1,10 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LLM_PROVIDER } from '@shared/types/provider'
-import { AiSdkProvider } from '../../../src/main/provider/providers/aiSdkProvider'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { resolveAiSdkProviderDefinition } from '../../../src/main/provider/providerRegistry'
+import { AiSdkProvider } from '../../../src/main/provider/providers/aiSdkProvider'
 
-const { mockGetProvider, mockRunAiSdkGenerateText } = vi.hoisted(() => ({
-  mockGetProvider: vi.fn(),
-  mockRunAiSdkGenerateText: vi.fn()
-}))
+const { mockGetProvider } = vi.hoisted(() => ({ mockGetProvider: vi.fn() }))
 
 vi.mock('electron', () => ({
   app: {
@@ -46,13 +43,6 @@ vi.mock('../../../src/main/provider/providerDbLoader', () => ({
   }
 }))
 
-vi.mock('../../../src/main/provider/aiSdk', () => ({
-  runAiSdkCoreStream: vi.fn(),
-  runAiSdkDimensions: vi.fn(),
-  runAiSdkEmbeddings: vi.fn(),
-  runAiSdkGenerateText: mockRunAiSdkGenerateText
-}))
-
 const createProvider = (overrides?: Partial<LLM_PROVIDER>): LLM_PROVIDER => ({
   id: 'mistral',
   name: 'Mistral',
@@ -78,7 +68,6 @@ const createProviderSettings = (): ProviderSettingsPort =>
 describe('AiSdkProvider mistral', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockRunAiSdkGenerateText.mockResolvedValue({ content: 'ok' })
   })
 
   it('resolves Mistral by id and by custom provider apiType', () => {
@@ -185,30 +174,5 @@ describe('AiSdkProvider mistral', () => {
       isOk: false,
       errorMsg: 'Missing API key'
     })
-    expect(mockRunAiSdkGenerateText).not.toHaveBeenCalled()
-  })
-
-  it('verifies Mistral with a small generate-text request', async () => {
-    const provider = new AiSdkProvider(createProvider(), createProviderSettings())
-    ;(provider as any).isInitialized = true
-
-    await expect(provider.check()).resolves.toEqual({
-      isOk: true,
-      errorMsg: null
-    })
-    expect(mockRunAiSdkGenerateText).toHaveBeenCalledWith(
-      expect.objectContaining({
-        providerKind: 'openai-compatible',
-        provider: expect.objectContaining({
-          id: 'mistral',
-          baseUrl: 'https://api.mistral.ai/v1'
-        })
-      }),
-      [{ role: 'user', content: 'Hello' }],
-      'mistral-small-latest',
-      expect.any(Object),
-      0.2,
-      16
-    )
   })
 })

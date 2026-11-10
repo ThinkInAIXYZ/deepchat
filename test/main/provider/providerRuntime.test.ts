@@ -1,32 +1,19 @@
-import { describe, it, expect, beforeEach, vi, beforeAll, afterEach } from 'vitest'
-import { ProviderRuntime } from '../../../src/main/provider/index'
-import { ProviderSettings } from '../../../src/main/provider/settings'
-import type { LLM_PROVIDER } from '@shared/types/provider'
-import type { ChatMessage } from '@shared/types/core/chat-message'
-import type { MainDatabase } from '../../../src/main/data/mainDatabase'
-import { AiSdkProvider } from '../../../src/main/provider/providers/aiSdkProvider'
-import { ModelType } from '../../../src/shared/model'
 import { AcpRuntimeOwner } from '@/agent/acp/client'
 import { AcpSessionPersistence } from '@/agent/acp/runtime'
-import { DEFAULT_PROVIDERS } from '@/provider/defaults'
 import { DimAuxiliaryModels } from '@/agent/dim/auxiliaryModels'
+import { DimDecisions } from '@/agent/dim/decisions'
 import { DimEmbeddingModels } from '@/agent/dim/embeddingModels'
 import { DimMediaModels } from '@/agent/dim/mediaModels'
-import { DimDecisions } from '@/agent/dim/decisions'
 import { DimMediaSubmissionError } from '@/agent/dim/modality'
+import { DEFAULT_PROVIDERS } from '@/provider/defaults'
 import { ProviderInstanceManager } from '@/provider/managers/providerInstanceManager'
-
-const {
-  mockRunAiSdkCoreStream,
-  mockRunAiSdkDimensions,
-  mockRunAiSdkEmbeddings,
-  mockRunAiSdkGenerateText
-} = vi.hoisted(() => ({
-  mockRunAiSdkCoreStream: vi.fn(),
-  mockRunAiSdkDimensions: vi.fn(),
-  mockRunAiSdkEmbeddings: vi.fn(),
-  mockRunAiSdkGenerateText: vi.fn().mockResolvedValue({ content: 'mock completion' })
-}))
+import { resolveAiSdkProviderDefinition } from '@/provider/providerRegistry'
+import type { LLM_PROVIDER } from '@shared/types/provider'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { MainDatabase } from '../../../src/main/data/mainDatabase'
+import { ProviderRuntime } from '../../../src/main/provider/index'
+import { AiSdkProvider } from '../../../src/main/provider/providers/aiSdkProvider'
+import { ProviderSettings } from '../../../src/main/provider/settings'
 
 // Ensure electron is mocked for this suite to avoid CJS named export issues
 vi.mock('electron', () => {
@@ -72,12 +59,14 @@ vi.mock('@/platform/proxy', () => ({
   }
 }))
 
-vi.mock('../../../src/main/provider/aiSdk', () => ({
-  runAiSdkCoreStream: mockRunAiSdkCoreStream,
-  runAiSdkDimensions: mockRunAiSdkDimensions,
-  runAiSdkEmbeddings: mockRunAiSdkEmbeddings,
-  runAiSdkGenerateText: mockRunAiSdkGenerateText
-}))
+/** A retired method may never become a fallback, even if an external caller adds one. */
+function legacyInferenceTrap(provider: object, method: string) {
+  const trap = vi.fn(() => {
+    throw new Error('Retired Node inference was called')
+  })
+  Object.defineProperty(provider, method, { configurable: true, value: trap })
+  return trap
+}
 
 describe('ProviderRuntime Integration Tests', () => {
   let providerRuntime: ProviderRuntime
@@ -183,7 +172,6 @@ describe('ProviderRuntime Integration Tests', () => {
     // Clear all mocks before each test
     vi.clearAllMocks()
     vi.unstubAllGlobals()
-    mockRunAiSdkGenerateText.mockResolvedValue({ content: 'mock completion' })
 
     vi.stubGlobal(
       'fetch',
@@ -252,6 +240,34 @@ describe('ProviderRuntime Integration Tests', () => {
     }
   })
 
+  it.each(
+    DEFAULT_PROVIDERS.filter(
+      (provider) => resolveAiSdkProviderDefinition(provider)?.checkStrategy === 'generate-text'
+    )
+  )(
+    'checks $id credentials through Native inference without constructing a Node provider',
+    async (provider) => {
+      const definition = resolveAiSdkProviderDefinition(provider)!
+      expect(definition.checkModelId).toBeTruthy()
+      mockProviderSettings.getProviderById = vi.fn().mockReturnValue(provider)
+      const admit = vi.fn().mockResolvedValue({ providerId: 'native', modelId: 'probe' })
+      const complete = vi.fn().mockResolvedValue({ text: 'ok', stopReason: 'end_turn' })
+      providerRuntime.setNativeModels(
+        new DimAuxiliaryModels({ models: { admit }, bridge: { complete } })
+      )
+      const construct = vi.spyOn(providerRuntime, 'getProviderInstance').mockImplementation(() => {
+        throw new Error('Node provider must not be constructed')
+      })
+      await expect(providerRuntime.check(provider.id)).resolves.toEqual({
+        isOk: true,
+        errorMsg: null
+      })
+      expect(admit).toHaveBeenCalledWith(provider.id, definition.checkModelId)
+      expect(complete).toHaveBeenCalledOnce()
+      expect(construct).not.toHaveBeenCalled()
+    }
+  )
+
   describe('Draft credential validation', () => {
     it.each([
       ['alibaba-token-plan-cn', 'openai-completions', 'deepseek-v4-flash'],
@@ -282,7 +298,6 @@ describe('ProviderRuntime Integration Tests', () => {
           expect.any(String),
           expect.any(AbortSignal)
         )
-        expect(mockRunAiSdkGenerateText).not.toHaveBeenCalled()
         expect(global.fetch).not.toHaveBeenCalled()
         expect(mockProviderSettings.setProviderModels).not.toHaveBeenCalled()
         expect(mockProviderSettings.enableModel).not.toHaveBeenCalled()
@@ -312,7 +327,6 @@ describe('ProviderRuntime Integration Tests', () => {
         models: []
       })
       expect(completeDraft).toHaveBeenCalledOnce()
-      expect(mockRunAiSdkGenerateText).not.toHaveBeenCalled()
       expect(global.fetch).not.toHaveBeenCalled()
       expect(mockProviderSettings.setProviderModels).not.toHaveBeenCalled()
       expect(mockProviderSettings.enableModel).not.toHaveBeenCalled()
@@ -435,7 +449,7 @@ describe('ProviderRuntime Integration Tests', () => {
         stopReason: 'end_turn',
         usage: { promptTokens: 2, completionTokens: 3, totalTokens: 5 }
       })
-      const legacy = vi.spyOn(
+      const legacy = legacyInferenceTrap(
         providerRuntime.getProviderInstance('mock-openai-api'),
         'generateText'
       )
@@ -466,8 +480,11 @@ describe('ProviderRuntime Integration Tests', () => {
     })
 
     it('uses native streaming and model tests without invoking the desktop provider', async () => {
-      const legacy = vi.spyOn(providerRuntime.getProviderInstance('mock-openai-api'), 'coreStream')
-      const completions = vi.spyOn(
+      const legacy = legacyInferenceTrap(
+        providerRuntime.getProviderInstance('mock-openai-api'),
+        'coreStream'
+      )
+      const completions = legacyInferenceTrap(
         providerRuntime.getProviderInstance('mock-openai-api'),
         'completions'
       )
@@ -530,7 +547,10 @@ describe('ProviderRuntime Integration Tests', () => {
         controller.abort()
         throw new Error('native disconnected')
       })
-      const legacy = vi.spyOn(providerRuntime.getProviderInstance('mock-openai-api'), 'completions')
+      const legacy = legacyInferenceTrap(
+        providerRuntime.getProviderInstance('mock-openai-api'),
+        'completions'
+      )
       providerRuntime.setNativeModels(
         new DimAuxiliaryModels({
           models: {
@@ -553,7 +573,7 @@ describe('ProviderRuntime Integration Tests', () => {
     })
 
     it('routes knowledge embeddings and dimension failures exclusively through dim', async () => {
-      const legacy = vi.spyOn(
+      const legacy = legacyInferenceTrap(
         providerRuntime.getProviderInstance('mock-openai-api'),
         'getEmbeddings'
       )
@@ -590,7 +610,10 @@ describe('ProviderRuntime Integration Tests', () => {
     it('keeps desktop media admission limits and never retries an unknown native submission', async () => {
       const unknown = new DimMediaSubmissionError('native-task-id', new Error('connection lost'))
       const submit = vi.fn().mockRejectedValue(unknown)
-      const legacy = vi.spyOn(providerRuntime.getProviderInstance('mock-openai-api'), 'coreStream')
+      const legacy = legacyInferenceTrap(
+        providerRuntime.getProviderInstance('mock-openai-api'),
+        'coreStream'
+      )
       const rateLimit = vi.spyOn(providerRuntime, 'executeWithRateLimit').mockResolvedValue()
       providerRuntime.setNativeMedia(
         new DimMediaModels({
@@ -633,7 +656,7 @@ describe('ProviderRuntime Integration Tests', () => {
       const complete = vi
         .fn()
         .mockResolvedValue({ text: ' Native audio transcript ', stopReason: 'end_turn' })
-      const oldTranscribe = vi.spyOn(
+      const oldTranscribe = legacyInferenceTrap(
         providerRuntime.getProviderInstance('mock-openai-api'),
         'transcribeAudio'
       )
@@ -690,8 +713,8 @@ describe('ProviderRuntime Integration Tests', () => {
 
     it('requires native media owners for every standalone media operation', async () => {
       const provider = providerRuntime.getProviderInstance('mock-openai-api')
-      const legacy = vi.spyOn(provider, 'coreStream')
-      const legacyTranscribe = vi.spyOn(provider, 'transcribeAudio')
+      const legacy = legacyInferenceTrap(provider, 'coreStream')
+      const legacyTranscribe = legacyInferenceTrap(provider, 'transcribeAudio')
       for (const method of [
         'generateImageStandalone',
         'generateVideoStandalone',
@@ -716,8 +739,8 @@ describe('ProviderRuntime Integration Tests', () => {
     it('routes title and summary helpers through the native model service', async () => {
       const complete = vi.fn().mockResolvedValue({ text: 'Native title', stopReason: 'end_turn' })
       const provider = providerRuntime.getProviderInstance('mock-openai-api')
-      const legacyTitle = vi.spyOn(provider, 'summaryTitles')
-      const legacySummary = vi.spyOn(provider, 'summaries')
+      const legacyTitle = legacyInferenceTrap(provider, 'summaryTitles')
+      const legacySummary = legacyInferenceTrap(provider, 'summaries')
       providerRuntime.setNativeModels(
         new DimAuxiliaryModels({
           models: { admit: async () => ({ providerId: 'native', modelId: 'fixture' }) },
@@ -745,8 +768,8 @@ describe('ProviderRuntime Integration Tests', () => {
 
     it('rejects missing native model and embedding owners instead of falling back', async () => {
       const provider = providerRuntime.getProviderInstance('mock-openai-api')
-      const completion = vi.spyOn(provider, 'completions')
-      const embedding = vi.spyOn(provider, 'getEmbeddings')
+      const completion = legacyInferenceTrap(provider, 'completions')
+      const embedding = legacyInferenceTrap(provider, 'getEmbeddings')
       await expect(
         providerRuntime.generateText('mock-openai-api', 'prompt', 'mock-gpt-thinking')
       ).rejects.toThrow('Native dim model service is unavailable')

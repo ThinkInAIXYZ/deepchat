@@ -7,6 +7,7 @@ const ROOT = process.cwd()
 const MAIN = path.join(ROOT, 'src/main')
 const RETIRED = [
   path.join(MAIN, 'agent/deepchat'),
+  path.join(MAIN, 'provider/aiSdk'),
   path.join(MAIN, 'tool/codeMode'),
   path.join(MAIN, 'skill/skillExecutionService.ts'),
   path.join(MAIN, 'skill/skillTools.ts'),

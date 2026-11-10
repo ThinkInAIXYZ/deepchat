@@ -1,20 +1,12 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AWS_BEDROCK_PROVIDER } from '@shared/types/provider'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AiSdkProvider } from '../../../src/main/provider/providers/aiSdkProvider'
 
-const {
-  mockBedrockClient,
-  mockBedrockSend,
-  mockGetProvider,
-  mockRunAiSdkCoreStream,
-  mockRunAiSdkGenerateText
-} = vi.hoisted(() => ({
+const { mockBedrockClient, mockBedrockSend, mockGetProvider } = vi.hoisted(() => ({
   mockBedrockClient: vi.fn(),
   mockBedrockSend: vi.fn(),
-  mockGetProvider: vi.fn(),
-  mockRunAiSdkCoreStream: vi.fn(),
-  mockRunAiSdkGenerateText: vi.fn().mockResolvedValue({ content: 'ok' })
+  mockGetProvider: vi.fn()
 }))
 
 vi.mock('electron', () => ({
@@ -36,11 +28,6 @@ vi.mock('@aws-sdk/client-bedrock', () => ({
       this.input = input
     }
   }
-}))
-
-vi.mock('../../../src/main/provider/aiSdk', () => ({
-  runAiSdkCoreStream: mockRunAiSdkCoreStream,
-  runAiSdkGenerateText: mockRunAiSdkGenerateText
 }))
 
 vi.mock('../../../src/main/provider/providerDbLoader', () => ({
@@ -109,7 +96,6 @@ describe('AiSdkProvider aws-bedrock', () => {
         send: mockBedrockSend
       }
     })
-    mockRunAiSdkGenerateText.mockResolvedValue({ content: 'ok' })
   })
 
   afterEach(() => {
@@ -130,7 +116,6 @@ describe('AiSdkProvider aws-bedrock', () => {
 
     await expect(provider.check()).resolves.toEqual({ isOk: true, errorMsg: null })
     expect(mockBedrockSend).not.toHaveBeenCalled()
-    expect(mockRunAiSdkGenerateText).not.toHaveBeenCalled()
   })
 
   it('maps active Claude models from the Bedrock catalog', async () => {
@@ -193,6 +178,5 @@ describe('AiSdkProvider aws-bedrock', () => {
       errorMsg: null
     })
     expect(mockBedrockSend).toHaveBeenCalledTimes(1)
-    expect(mockRunAiSdkGenerateText).not.toHaveBeenCalled()
   })
 })

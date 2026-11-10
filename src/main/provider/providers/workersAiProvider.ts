@@ -1,11 +1,7 @@
 import { isJevJudgmentModelId } from '@shared/jevProtocol'
 import { ModelType } from '@shared/model'
-import type { ChatMessage } from '@shared/types/core/chat-message'
-import { createStreamEvent, type LLMCoreStreamEvent } from '@shared/types/core/llm-events'
-import type { MCPToolDefinition } from '@shared/types/mcp'
-import type { MODEL_META, ModelConfig, ProviderStreamOptions } from '@shared/types/provider'
-import { AiSdkProvider, type RouteDecision, type RouteDecisionOptions } from './aiSdkProvider'
-import { JEV_UNSUPPORTED_CAPABILITY_ERROR } from './jevProvider'
+import type { MODEL_META } from '@shared/types/provider'
+import { AiSdkProvider } from './aiSdkProvider'
 
 /**
  * Workers AI catalogue and model-type guards. Native decision execution uses the
@@ -156,43 +152,6 @@ export class WorkersAiProvider extends AiSdkProvider {
     } catch (error: unknown) {
       return { isOk: false, errorMsg: this.describeCheckFailure(error) }
     }
-  }
-
-  /**
-   * A judgment model is not a chat model. Every chat-shaped path resolves a route first, so refusing
-   * here is what keeps `typesafe/jev` from being sent to the chat endpoint and answered as prose —
-   * the failure the model type exists to prevent. The pickers already filter judgment models out of
-   * chat surfaces; this is the boundary behind them.
-   */
-  protected override resolveRouteDecision(
-    modelId: string,
-    modelConfig?: ModelConfig,
-    options?: RouteDecisionOptions
-  ): RouteDecision {
-    if (isJevJudgmentModelId(modelId)) {
-      throw new Error(JEV_UNSUPPORTED_CAPABILITY_ERROR)
-    }
-    return super.resolveRouteDecision(modelId, modelConfig, options)
-  }
-
-  public override async *coreStream(
-    messages: ChatMessage[],
-    modelId: string,
-    modelConfig: ModelConfig,
-    temperature: number,
-    maxTokens: number,
-    tools: MCPToolDefinition[],
-    options?: ProviderStreamOptions
-  ): AsyncGenerator<LLMCoreStreamEvent> {
-    // A streaming surface reports failure as an event rather than a throw, so the refusal keeps the
-    // shape the judgment-only provider uses.
-    if (isJevJudgmentModelId(modelId)) {
-      options?.signal?.throwIfAborted()
-      yield createStreamEvent.error(JEV_UNSUPPORTED_CAPABILITY_ERROR)
-      yield createStreamEvent.stop('error')
-      return
-    }
-    yield* super.coreStream(messages, modelId, modelConfig, temperature, maxTokens, tools, options)
   }
 
   protected override async fetchProviderModels(): Promise<MODEL_META[]> {

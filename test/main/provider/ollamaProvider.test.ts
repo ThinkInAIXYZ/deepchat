@@ -1,8 +1,8 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ModelType } from '../../../src/shared/model'
 import type { LLM_PROVIDER, MODEL_META, OllamaModel } from '@shared/types/provider'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { OllamaProvider } from '../../../src/main/provider/providers/ollamaProvider'
+import { ModelType } from '../../../src/shared/model'
 
 const { mockExecFile, mockOllamaConstructorOptions, mockOllamaPs } = vi.hoisted(() => ({
   mockExecFile: vi.fn(),
@@ -129,8 +129,8 @@ describe('OllamaProvider.fetchModels', () => {
     }
   })
 
-  it('normalizes Ollama SDK host and OpenAI-compatible runtime base URL', () => {
-    const ollamaProvider = new OllamaProvider(
+  it('normalizes the metadata SDK host and preserves authentication headers', () => {
+    new OllamaProvider(
       {
         ...provider,
         apiKey: 'test-key',
@@ -138,19 +138,10 @@ describe('OllamaProvider.fetchModels', () => {
       },
       providerSettings
     )
-    const runtimeContext = (ollamaProvider as any).getAiSdkRuntimeContext('local-custom-model')
 
     expect(mockOllamaConstructorOptions.at(-1)).toEqual({
       host: 'http://localhost:11434',
       headers: { Authorization: 'Bearer test-key' }
-    })
-    expect(runtimeContext.providerKind).toBe('openai-compatible')
-    expect(runtimeContext.provider.baseUrl).toBe('http://localhost:11434/v1')
-    expect(runtimeContext.capabilitySnapshot.identity).toMatchObject({
-      providerId: 'ollama',
-      requestModelId: 'local-custom-model',
-      catalogMatched: false,
-      catalogModelId: null
     })
   })
 

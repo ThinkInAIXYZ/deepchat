@@ -1,16 +1,7 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
 import { ModelType } from '@shared/model'
-import type { ChatMessage } from '@shared/types/core/chat-message'
-import { createStreamEvent, type LLMCoreStreamEvent } from '@shared/types/core/llm-events'
-import type { MCPToolDefinition } from '@shared/types/mcp'
-import type {
-  LLM_PROVIDER,
-  LLMResponse,
-  MODEL_META,
-  ModelConfig,
-  ProviderStreamOptions
-} from '@shared/types/provider'
-import { BaseLLMProvider, type ProviderGenerateTextOptions } from '../baseProvider'
+import type { LLM_PROVIDER, MODEL_META } from '@shared/types/provider'
+import { BaseLLMProvider } from '../baseProvider'
 import type { ProviderLocalePort } from '../ports'
 import { createProviderHttpErrorFromResponse, ProviderHttpError } from '../providerFailure'
 
@@ -147,52 +138,6 @@ export class JevProvider extends BaseLLMProvider {
       }
       return { isOk: false, errorMsg: error instanceof Error ? error.message : String(error) }
     }
-  }
-
-  public async summaryTitles(_messages: ChatMessage[], _modelId: string): Promise<string> {
-    throw new Error(JEV_UNSUPPORTED_CAPABILITY_ERROR)
-  }
-
-  public async completions(
-    _messages: ChatMessage[],
-    _modelId: string,
-    _temperature?: number,
-    _maxTokens?: number
-  ): Promise<LLMResponse> {
-    throw new Error(JEV_UNSUPPORTED_CAPABILITY_ERROR)
-  }
-
-  public async summaries(
-    _text: string,
-    _modelId: string,
-    _temperature?: number,
-    _maxTokens?: number
-  ): Promise<LLMResponse> {
-    throw new Error(JEV_UNSUPPORTED_CAPABILITY_ERROR)
-  }
-
-  public async generateText(
-    _prompt: string,
-    _modelId: string,
-    _temperature?: number,
-    _maxTokens?: number,
-    _options?: ProviderGenerateTextOptions
-  ): Promise<LLMResponse> {
-    throw new Error(JEV_UNSUPPORTED_CAPABILITY_ERROR)
-  }
-
-  public async *coreStream(
-    _messages: ChatMessage[],
-    _modelId: string,
-    _modelConfig: ModelConfig,
-    _temperature: number,
-    _maxTokens: number,
-    _mcpTools: MCPToolDefinition[],
-    options?: ProviderStreamOptions
-  ): AsyncGenerator<LLMCoreStreamEvent> {
-    options?.signal?.throwIfAborted()
-    yield createStreamEvent.error(JEV_UNSUPPORTED_CAPABILITY_ERROR)
-    yield createStreamEvent.stop('error')
   }
 
   protected async fetchProviderModels(): Promise<MODEL_META[]> {

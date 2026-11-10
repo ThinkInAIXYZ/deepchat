@@ -4,9 +4,7 @@ import type { LLM_PROVIDER } from '@shared/types/provider'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   extractJevModelRecords,
-  isJevUnsupportedCapabilityError,
   JEV_BASE_URL_ERROR,
-  JEV_UNSUPPORTED_CAPABILITY_ERROR,
   JevProvider
 } from '../../../src/main/provider/providers/jevProvider'
 
@@ -192,35 +190,6 @@ describe('JevProvider', () => {
       const afterFailure = await provider.fetchModels()
 
       expect(afterFailure.map((model) => model.id)).toEqual(['jev-1.13.0'])
-    })
-  })
-
-  describe('chat surface', () => {
-    it('refuses every chat-shaped entry point instead of issuing a request', async () => {
-      const fetchMock = vi.fn()
-      vi.stubGlobal('fetch', fetchMock)
-      const provider = createProviderInstance()
-
-      await expect(provider.completions([], 'jev-1.13.0')).rejects.toSatisfy(
-        isJevUnsupportedCapabilityError
-      )
-      await expect(provider.summaries('text', 'jev-1.13.0')).rejects.toSatisfy(
-        isJevUnsupportedCapabilityError
-      )
-      await expect(provider.generateText('prompt', 'jev-1.13.0')).rejects.toSatisfy(
-        isJevUnsupportedCapabilityError
-      )
-
-      const events = []
-      for await (const event of provider.coreStream([], 'jev-1.13.0', {} as never, 0, 0, [])) {
-        events.push(event)
-      }
-      expect(events[0]).toMatchObject({
-        type: 'error',
-        error_message: JEV_UNSUPPORTED_CAPABILITY_ERROR
-      })
-
-      expect(fetchMock).not.toHaveBeenCalled()
     })
   })
 

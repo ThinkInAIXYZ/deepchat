@@ -1,72 +1,72 @@
-import type { ProviderSettingsPort } from '@/provider/settings'
+import { AcpRuntimeOwner } from '@/agent/acp/client'
+import { AcpSessionPersistence } from '@/agent/acp/runtime'
 import type { DimAuxiliaryModels } from '@/agent/dim/auxiliaryModels'
+import type { DimDecisions } from '@/agent/dim/decisions'
 import type { DimEmbeddingModels } from '@/agent/dim/embeddingModels'
-import { dimModelParameters } from '@/agent/dim/modelCatalog'
 import type { DimMediaModels } from '@/agent/dim/mediaModels'
+import { dimModelParameters } from '@/agent/dim/modelCatalog'
+import type { AgentSettingsPort } from '@/agent/settings'
+import type { McpSettings } from '@/mcp/settings'
+import type { ProviderSettingsPort } from '@/provider/settings'
+import type { DeepchatEventPublisher } from '@shared/contracts/events'
+import type { ImageGenerationOptions } from '@shared/imageGenerationSettings'
+import type { JevJudgmentResult, JevQuestion } from '@shared/jevProtocol'
 import logger from '@shared/logger'
-import { resolveAiSdkProviderDefinition } from './providerRegistry'
-import type { LLMResponse } from '@shared/types/provider'
+import {
+  ProviderBatchUpdate,
+  ProviderChange,
+  checkRequiresRebuild
+} from '@shared/provider-operations'
+import type { TtsSettings } from '@shared/ttsSettings'
+import type { AcpConfigState, AcpDebugRequest, AcpDebugRunResult } from '@shared/types/acp'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type {
-  ProviderRuntimePort,
+  KeyStatus,
+  LLMResponse,
+  LLM_EMBEDDING_ATTRS,
   LLM_PROVIDER,
   MODEL_META,
   ModelConfig,
-  OllamaModel,
-  KeyStatus,
-  LLM_EMBEDDING_ATTRS,
-  StandaloneImageGenerationResult,
-  StandaloneSpeechGenerationResult,
-  StandaloneVideoGenerationResult,
   ModelScopeMcpSyncOptions,
   ModelScopeMcpSyncResult,
+  OllamaModel,
+  ProviderRuntimePort,
+  ProviderStreamOptions,
   RateLimitQueueSnapshot,
-  ProviderStreamOptions
+  StandaloneImageGenerationResult,
+  StandaloneSpeechGenerationResult,
+  StandaloneVideoGenerationResult
 } from '@shared/types/provider'
-import type { AcpConfigState, AcpDebugRequest, AcpDebugRunResult } from '@shared/types/acp'
-import type { JevJudgmentResult, JevQuestion } from '@shared/jevProtocol'
-import type { DimDecisions } from '@/agent/dim/decisions'
-import type { ImageGenerationOptions } from '@shared/imageGenerationSettings'
+import type {
+  ProviderCatalogRefreshReason,
+  ProviderCatalogRefreshResult,
+  ProviderCatalogSnapshot
+} from '@shared/types/providerCatalog'
 import type { VideoGenerationOptions } from '@shared/videoGenerationSettings'
-import type { TtsSettings } from '@shared/ttsSettings'
+import { ShowResponse } from 'ollama'
 import {
-  ProviderChange,
-  ProviderBatchUpdate,
-  checkRequiresRebuild
-} from '@shared/provider-operations'
+  BaseLLMProvider,
+  SUMMARY_TITLES_PROMPT,
+  type ProviderGenerateTextOptions
+} from './baseProvider'
+import { ProviderCatalogService } from './catalog/providerCatalogService'
+import { ModelManager } from './managers/modelManager'
+import { ModelScopeSyncManager } from './managers/modelScopeSyncManager'
+import { OllamaManager } from './managers/ollamaManager'
+import { ProviderInstanceManager } from './managers/providerInstanceManager'
+import { RateLimitManager } from './managers/rateLimitManager'
 import type {
   AcpAsLlmProviderPermissionPort,
   AcpAsLlmProviderSessionControlPort,
   AcpProviderAdminPort,
   ProviderLocalePort
 } from './ports'
-import {
-  BaseLLMProvider,
-  SUMMARY_TITLES_PROMPT,
-  type ProviderGenerateTextOptions
-} from './baseProvider'
-import { ProviderConfig, StreamState } from './types'
-import { RateLimitManager } from './managers/rateLimitManager'
-import { ProviderInstanceManager } from './managers/providerInstanceManager'
-import { ModelManager } from './managers/modelManager'
-import { OllamaManager } from './managers/ollamaManager'
-import { ModelScopeSyncManager } from './managers/modelScopeSyncManager'
-import type { McpSettings } from '@/mcp/settings'
-import type { OllamaProvider } from './providers/ollamaProvider'
-import { ShowResponse } from 'ollama'
-import { AcpRuntimeOwner } from '@/agent/acp/client'
-import { AcpSessionPersistence } from '@/agent/acp/runtime'
+import { resolveAiSdkProviderDefinition } from './providerRegistry'
 import { AcpProvider } from './providers/acpProvider'
-import type { AgentSettingsPort } from '@/agent/settings'
-import type { DeepchatEventPublisher } from '@shared/contracts/events'
-import type {
-  ProviderCatalogRefreshReason,
-  ProviderCatalogRefreshResult,
-  ProviderCatalogSnapshot
-} from '@shared/types/providerCatalog'
-import { ProviderCatalogService } from './catalog/providerCatalogService'
+import type { OllamaProvider } from './providers/ollamaProvider'
+import { ProviderConfig, StreamState } from './types'
 
 const createAbortError = (): Error => {
   if (typeof DOMException !== 'undefined') {
@@ -463,7 +463,7 @@ export class ProviderRuntime
         signal: options?.signal
       })
     }
-    return this.getProviderInstance(providerId).coreStream(
+    return this.acpExecution(providerId).coreStream(
       messages,
       modelId,
       modelConfig,
@@ -592,7 +592,7 @@ export class ProviderRuntime
         .content
     // Record input messages to the large model
     logger.info('generateCompletion', providerId, modelId, temperature, maxTokens, messages)
-    const provider = this.getProviderInstance(providerId)
+    const provider = this.acpExecution(providerId)
     const response = await provider.completions(messages, modelId, temperature, maxTokens)
     return response.content
   }
@@ -617,7 +617,7 @@ export class ProviderRuntime
         temperature,
         maxTokens
       )
-    const provider = this.getProviderInstance(providerId)
+    const provider = this.acpExecution(providerId)
     return provider.summaries(text, modelId, temperature, maxTokens)
   }
 
@@ -638,7 +638,7 @@ export class ProviderRuntime
         maxTokens,
         options?.signal
       )
-    const provider = this.getProviderInstance(providerId)
+    const provider = this.acpExecution(providerId)
     return options
       ? provider.generateText(prompt, modelId, temperature, maxTokens, options)
       : provider.generateText(prompt, modelId, temperature, maxTokens)
@@ -671,7 +671,7 @@ export class ProviderRuntime
         return ''
       }
     }
-    const provider = this.getProviderInstance(providerId)
+    const provider = this.acpExecution(providerId)
     let response = ''
     const signal = options?.signal
     const shouldSwallowErrors = options?.swallowErrors !== false
@@ -895,8 +895,6 @@ export class ProviderRuntime
         const definition = resolveAiSdkProviderDefinition(configured)
         if (definition?.checkStrategy === 'generate-text') modelId = definition.checkModelId
       }
-      const provider = this.getProviderInstance(providerId)
-
       // Explicit model tests follow the same native inference boundary as production calls.
       if (modelId) {
         try {
@@ -911,7 +909,7 @@ export class ProviderRuntime
                   10,
                   AbortSignal.timeout(60_000)
                 )
-              : provider.completions(testMessage, modelId, 0.1, 10),
+              : this.acpExecution(providerId).completions(testMessage, modelId, 0.1, 10),
             new Promise<null>((resolve) => setTimeout(() => resolve(null), 60000))
           ])
           // 检查响应是否有效
@@ -934,7 +932,7 @@ export class ProviderRuntime
           `[ProviderRuntime] No modelId provided, using provider's own check method for ${providerId}`
         )
         try {
-          return await provider.check()
+          return await this.getProviderInstance(providerId).check()
         } catch (error) {
           console.error(`Provider ${providerId} check failed:`, error)
           const errorMessage = error instanceof Error ? error.message : String(error)
@@ -1081,7 +1079,7 @@ export class ProviderRuntime
       )
       return response.content.replace(/["']/g, '').trim()
     }
-    const provider = this.getProviderInstance(providerId)
+    const provider = this.acpExecution(providerId)
     return provider.summaryTitles(messages, modelId)
   }
 
@@ -1239,6 +1237,13 @@ export class ProviderRuntime
       throw new Error('ACP provider unavailable')
     }
     await provider.resolvePermissionRequest(requestId, granted)
+  }
+
+  /** Only the direct ACP client exposes a Node-side execution interface. */
+  private acpExecution(providerId: string): AcpProvider {
+    if (this.providerSettings.getProviderById(providerId)?.apiType !== 'acp')
+      throw new Error('Provider inference belongs to native dim')
+    return this.getProviderInstance(providerId) as AcpProvider
   }
 
   private getAcpProviderInstance(): AcpProvider | null {

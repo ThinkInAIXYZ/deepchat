@@ -110,15 +110,6 @@
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "1.4.0",
-    "@ai-sdk/amazon-bedrock": "^5.0.78",
-    "@ai-sdk/anthropic": "^4.0.50",
-    "@ai-sdk/azure": "^4.0.65",
-    "@ai-sdk/google": "^4.0.65",
-    "@ai-sdk/google-vertex": "^5.0.77",
-    "@ai-sdk/open-responses": "^2.0.40",
-    "@ai-sdk/openai": "^4.0.62",
-    "@ai-sdk/openai-compatible": "^3.0.45",
-    "@ai-sdk/provider": "^4.0.11",
     "@arcships/light-ocr": "0.5.7",
     "@aws-sdk/client-bedrock": "^3.1128.0",
     "@aws-sdk/credential-providers": "^3.1128.0",
@@ -134,7 +125,6 @@
     "@parcel/watcher": "^2.6.0",
     "@zerob13/nativekit": "0.6.3",
     "acp-extension-core": "0.1.9",
-    "ai": "^7.0.94",
     "axios": "^1.20.0",
     "better-sqlite3-multiple-ciphers": "13.0.3",
     "compare-versions": "^6.1.1",
@@ -265,7 +255,6 @@
   },
   "pnpm": {
     "overrides": {
-      "@ai-sdk/provider-utils>undici": "7.30.1",
       "@electron/get>undici": "7.30.1",
       "@xmldom/xmldom": "0.8.15",
       "dompurify": "3.4.17",
