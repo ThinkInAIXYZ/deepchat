@@ -5,7 +5,7 @@ import type { DimEvent } from '@/agent/dim/sessionConnection'
 import type { DimSessionBinding } from '@/session/data/tables/dimSessionBindings'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
 import { expect, it } from 'vitest'
-import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, readdir, readFile, realpath, rm } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
@@ -1637,9 +1637,9 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
         await expect(readFile(path.join(profile, 'legacy-never-run.txt'))).rejects.toMatchObject({
           code: 'ENOENT'
         })
-        expect(await new DimSessionControls(host).call('native_identity', legacyRef)).toMatchObject(
-          { cwd: profile, tools: null }
-        )
+        const legacyIdentity = await new DimSessionControls(host).call('native_identity', legacyRef)
+        expect(legacyIdentity.tools).toBeNull()
+        expect(await realpath(legacyIdentity.cwd)).toBe(await realpath(profile))
         const neverSent = randomUUID()
         grants.data.dimInputIntentsTable.begin({
           submissionId: neverSent,
@@ -1784,12 +1784,11 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
         ).toEqual(originalView.messages.map((message) => message.id))
         expect(conversationRequests()).toHaveLength(nativeCallsBeforeChange)
         grants.data.newSessionsTable.update(scopeProduct, { project_dir: changedDirectory })
-        expect(
-          await controls.call('native_identity', {
-            sessionId: changedScope.dimSessionId,
-            branchId: changedScope.branchId
-          })
-        ).toMatchObject({ cwd: changedDirectory })
+        const changedIdentity = await controls.call('native_identity', {
+          sessionId: changedScope.dimSessionId,
+          branchId: changedScope.branchId
+        })
+        expect(await realpath(changedIdentity.cwd)).toBe(await realpath(changedDirectory))
         await scopeRuntime.submit(scopeProduct, [{ type: 'text', text: 'scope after directory' }])
         await scopeRuntime.waitIdle(scopeProduct)
         expect(JSON.stringify(conversationRequests().at(-1)!.body)).toContain('scope original')
