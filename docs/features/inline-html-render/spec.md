@@ -38,7 +38,8 @@ unmount. This feature adds a second content source to that host.
 - No inlining of local image paths. Pages use `data:` URIs or inline SVG.
 - No rendering of HTML code blocks or legacy `<antArtifact>` content.
 - No change to MCP App sizing, styles, or labels. Gaps found there are listed under Follow-ups.
-- No network access from the page (`connect-src 'none'`), no device permissions, no forms.
+- No network access from the page (`connect-src 'none'`), no device permissions, no forms. One
+  exception remains: WebRTC (see Security).
 
 ## User Experience
 
@@ -127,8 +128,10 @@ const htmlRenderSectionSchema = z.strictObject({
   means every tool was enabled. Sessions store their own disabled list and do not fall back to
   the agent's, so a second one-time step (`html-render-session-tools-seeded-v1`) adds both names
   to the disabled list of every existing DeepChat session before the first window opens. It keeps
-  other tools and runs once, so a tool the user later enables in a session stays enabled. It does
-  not touch `cronjob`, because older sessions may have enabled it on purpose. The tools are
+  other tools and runs once, so a tool the user later enables in a session stays enabled. Its
+  writes are excluded from device sync, so other devices do not see every session as just edited
+  and newer messages there are not overwritten. It does not touch `cronjob`, because older
+  sessions may have enabled it on purpose. The tools are
   toggled one by one: with only `html_render` disabled, `html_render_section` stays listed but
   every call fails for lack of a panel. They are grouped with the `agent-core` tools, so the settings and session tool lists
   need no new group label.
@@ -407,6 +410,11 @@ the existing `mcp-app` render item.
   reference.
 - No network requests (`connect-src 'none'`), no forms, no frames, no device permissions, no remote
   scripts, styles, fonts or images.
+- Exception: WebRTC. Chromium does not enforce the CSP `webrtc` directive, so a page can send data
+  out through STUN/TURN. This needs all of: the user enabled the tool, untrusted content in the
+  conversation injected instructions into the model, and the session is not in `full_access` mode
+  (where the agent already has other ways to send data). Add `webrtc 'block'` once Chromium
+  enforces it. Tracked in #2513.
 - `/lib` serves only names in the instance's `libraries` map.
 - With the bootstrap's link handler suppressed, scripted clicks on `_top`, `_blank`, `_parent` and
   `_self` links, `top.location` and `location` assignment, `window.open`, `fetch` and remote images
@@ -446,6 +454,19 @@ the existing `mcp-app` render item.
 - A page far below the viewport does not prepare a sandbox until scrolled near.
 - A page that never initializes shows the load error after 10 s, and the chat stays responsive.
 - Scripted link clicks with the bootstrap handler suppressed open nothing and send no request.
+
+## Known Limitations
+
+- The one-time seeding of agents and sessions does not hold when old and new app versions are
+  mixed (#2513):
+  - Device sync checks only the protocol version, not the app version. A session edited on a
+    device with an older version syncs back with a disabled list that lacks both tool names, so
+    the tools are enabled again and the migration does not run a second time.
+  - Agent configs are synced too. An agent edited on an older version overwrites the result of
+    `seedHtmlRenderToolsDisabled`, and new sessions of that agent start with both tools enabled.
+  - Importing a backup from an older version has the same effect.
+  - A full fix needs sessions to tell "enabled by the user" apart from "never had the tool". Not
+    in this change.
 
 ## Open Questions (for maintainers)
 
