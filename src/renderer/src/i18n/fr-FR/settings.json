@@ -472,7 +472,8 @@
       "saveAndTest": "Enregistrer et tester",
       "saveOnly": "Enregistrer uniquement",
       "saveAndTestFirst": "Enregistrez et testez d’abord la configuration cloud."
-    }
+    },
+    "legacyBackupPassword": "Mot de passe de l’ancienne sauvegarde chiffrée (facultatif)"
   },
   "dashboard": {
     "badge": "Tableau de bord d'utilisation",

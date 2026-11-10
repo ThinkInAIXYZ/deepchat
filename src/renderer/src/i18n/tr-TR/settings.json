@@ -847,7 +847,8 @@
       "saveAndTest": "Kaydet ve test et",
       "saveOnly": "Yalnızca kaydet",
       "saveAndTestFirst": "Önce bulut yapılandırmasını kaydedip test edin."
-    }
+    },
+    "legacyBackupPassword": "Eski şifreli yedek parolası (isteğe bağlı)"
   },
   "dashboard": {
     "badge": "Kullanım Kontrol Paneli",

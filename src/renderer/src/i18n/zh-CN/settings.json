@@ -847,7 +847,8 @@
         "workersAi": "Cloudflare Workers AI"
       },
       "applyFailed": "导入失败：{message}"
-    }
+    },
+    "legacyBackupPassword": "旧加密备份密码（可选）"
   },
   "dashboard": {
     "badge": "使用看板",

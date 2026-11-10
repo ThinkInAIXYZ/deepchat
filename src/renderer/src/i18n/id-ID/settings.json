@@ -847,7 +847,8 @@
       "saveAndTest": "Simpan dan uji",
       "saveOnly": "Simpan saja",
       "saveAndTestFirst": "Simpan dan uji konfigurasi cloud terlebih dahulu."
-    }
+    },
+    "legacyBackupPassword": "Kata sandi cadangan terenkripsi lama (opsional)"
   },
   "dashboard": {
     "badge": "Gunakan Kanban",

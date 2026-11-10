@@ -847,7 +847,8 @@
       "saveAndTest": "Lưu và kiểm tra",
       "saveOnly": "Chỉ lưu",
       "saveAndTestFirst": "Hãy lưu và kiểm tra cấu hình đám mây trước."
-    }
+    },
+    "legacyBackupPassword": "Mật khẩu bản sao lưu mã hóa cũ (không bắt buộc)"
   },
   "dashboard": {
     "badge": "Trang tổng quan sử dụng",

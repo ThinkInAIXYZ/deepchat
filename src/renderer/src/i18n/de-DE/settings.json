@@ -847,7 +847,8 @@
       "saveAndTest": "Speichern und testen",
       "saveOnly": "Nur speichern",
       "saveAndTestFirst": "Speichere und teste zuerst die Cloud-Konfiguration."
-    }
+    },
+    "legacyBackupPassword": "Passwort des alten verschlüsselten Backups (optional)"
   },
   "dashboard": {
     "badge": "Nutzungsübersicht",

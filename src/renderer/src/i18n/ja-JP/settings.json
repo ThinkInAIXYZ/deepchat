@@ -472,7 +472,8 @@
       "saveAndTest": "保存してテスト",
       "saveOnly": "保存のみ",
       "saveAndTestFirst": "まずクラウド設定を保存してテストしてください。"
-    }
+    },
+    "legacyBackupPassword": "旧暗号化バックアップのパスワード（任意）"
   },
   "dashboard": {
     "badge": "使用ダッシュボード",

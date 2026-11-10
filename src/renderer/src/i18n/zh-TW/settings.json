@@ -472,7 +472,8 @@
       "saveAndTest": "儲存並測試",
       "saveOnly": "僅儲存",
       "saveAndTestFirst": "請先儲存並測試雲端設定。"
-    }
+    },
+    "legacyBackupPassword": "舊加密備份密碼（選填）"
   },
   "dashboard": {
     "badge": "使用看板",

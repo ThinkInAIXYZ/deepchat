@@ -472,7 +472,8 @@
       "saveAndTest": "Salvar e testar",
       "saveOnly": "Apenas salvar",
       "saveAndTestFirst": "Salve e teste a configuração da nuvem primeiro."
-    }
+    },
+    "legacyBackupPassword": "Senha do backup criptografado antigo (opcional)"
   },
   "dashboard": {
     "badge": "Painel de uso",

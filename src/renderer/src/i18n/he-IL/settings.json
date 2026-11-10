@@ -472,7 +472,8 @@
       "saveAndTest": "שמור ובדוק",
       "saveOnly": "שמור בלבד",
       "saveAndTestFirst": "שמור ובדוק קודם את תצורת הענן."
-    }
+    },
+    "legacyBackupPassword": "סיסמת הגיבוי המוצפן הישן (אופציונלי)"
   },
   "dashboard": {
     "badge": "לוח שימוש",

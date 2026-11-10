@@ -158,6 +158,8 @@
 
 ## 模块进度
 
+- 模块 44：旧加密库在 MainDatabase 校验后、desktop services 构造前一次性解密；原加密库 checkpoint 后按唯一文件名保留 0600 恢复副本，空间预检、全部迁移表计数和 quick_check 校验，替换无法重开即恢复原库。文件已切换而 metadata 未写完时，下次启动验证明文文件后修复 metadata，无需再次输入旧密码。停用开启/改密码实现，旧客户端请求在进入数据库维护前拒绝；设置页移除持续加密表单，保留 OS 凭据保护与数据库修复。旧加密备份新增仅导入使用的密码参数，先在 staging 解密校验，再进入增量/覆盖导入；密码不持久化到配置。实际 SQLCipher 解密、恢复和备份转明文测试通过；142 项主进程回归、88 项界面回归通过。进一步移除通用重新加密分支后 18 项迁移回归和 Node 类型复验通过。完整 Electron 构建、主进程复构建、数据设置及 Native 重启续聊两项桌面验收通过（30s）；格式/i18n/lint/双端 typecheck 通过。Native profile 备份/同步仍独立待接线。
+
 - 模块 43：按已批准的 Code Mode 暂停范围，物理删除旧 Node Code Mode runtime、utility host、协议、生成工具与打包入口，共移除约 4600 行源码/旧执行器测试。ToolService 不再创建或调度 Code Mode；Agent/Minimal 仅转交 owner 目录，Code 明确拒绝。架构门禁禁止恢复旧目录和运行器。435 项工具/权限/架构回归及格式/i18n/lint/双端 typecheck 通过；完整 Electron 构建和四项 ACP/dim 桌面联合验收通过（84s）。
 
 - 模块 42：Native 会话引用使用独立产品 epoch，清空/删除会话撤销旧引用，普通代次更新保留引用身份。preview/search/context 读取 Native 同步后的有界派生索引，原始消息详情经独立 storage 插件从 dim 公开 transcript owner 读取，不以 SQL 缓存或 Tape 校验 Native 内容；授权在 Native I/O 前及每次 await 后重验，scope/generation 变化拒绝过期结果。保留旧历史读取兼容，不在选择 Native 引用时创建 Tape。48 项会话引用、投影和 schema 回归通过；真实 Electron 新建/重启/续聊用 Native read_session 连续读取列表和原文，31s 通过；主进程构建、格式/i18n/lint/双端 typecheck 通过。

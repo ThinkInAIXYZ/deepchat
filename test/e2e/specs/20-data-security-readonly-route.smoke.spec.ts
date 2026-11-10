@@ -2,7 +2,7 @@ import { test, expect } from '../fixtures/electronApp'
 import { openSettings, openSettingsTab } from '../helpers/settings'
 import { waitForAppReady } from '../helpers/wait'
 
-test('data settings exposes database security and device read-only routes @smoke', async ({
+test('data settings keeps backup and repair after encryption retirement @smoke', async ({
   app
 }) => {
   await waitForAppReady(app.page)
@@ -12,12 +12,10 @@ test('data settings exposes database security and device read-only routes @smoke
   await expect(settingsPage.getByTestId('settings-data-page')).toBeVisible({
     timeout: 30_000
   })
-  await expect(settingsPage.getByTestId('database-encryption-section')).toBeVisible({
+  await expect(settingsPage.getByTestId('backup-sync-section')).toBeVisible({
     timeout: 30_000
   })
-  await expect(settingsPage.getByTestId('database-encryption-status-badge')).toBeVisible({
-    timeout: 30_000
-  })
+  await expect(settingsPage.getByTestId('database-encryption-status-badge')).toHaveCount(0)
   await expect(settingsPage.getByTestId('database-repair-section')).toBeVisible({
     timeout: 30_000
   })
@@ -63,6 +61,7 @@ test('data settings exposes database security and device read-only routes @smoke
       databaseStatus: {
         cipher: databaseSecurity.status?.cipher,
         enabledType: typeof databaseSecurity.status?.enabled,
+        enabled: databaseSecurity.status?.enabled,
         lastMigrationAtType: typeof databaseSecurity.status?.lastMigrationAt,
         manualUnlockRequiredType: typeof databaseSecurity.status?.manualUnlockRequired,
         migrationInProgressType: typeof databaseSecurity.status?.migrationInProgress,
@@ -84,6 +83,7 @@ test('data settings exposes database security and device read-only routes @smoke
   expect(snapshot.appVersionType).toBe('string')
   expect(snapshot.databaseStatus.cipher).toBe('sqlcipher')
   expect(snapshot.databaseStatus.enabledType).toBe('boolean')
+  expect(snapshot.databaseStatus.enabled).toBe(false)
   expect(snapshot.databaseStatus.manualUnlockRequiredType).toBe('boolean')
   expect(snapshot.databaseStatus.migrationInProgressType).toBe('boolean')
   expect(['safeStorage', 'manual', 'none']).toContain(snapshot.databaseStatus.passwordStorage)

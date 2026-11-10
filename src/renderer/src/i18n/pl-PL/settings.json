@@ -847,7 +847,8 @@
       "saveAndTest": "Zapisz i testuj",
       "saveOnly": "Tylko zapisz",
       "saveAndTestFirst": "Najpierw zapisz i przetestuj konfigurację chmury."
-    }
+    },
+    "legacyBackupPassword": "Hasło starej zaszyfrowanej kopii zapasowej (opcjonalne)"
   },
   "dashboard": {
     "badge": "Panel użytkowania",

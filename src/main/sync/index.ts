@@ -136,7 +136,12 @@ export class SyncService {
     private readonly database: SyncDatabasePort,
     private readonly settingsDatabase: SettingsDatabase,
     private readonly providerDatabase: ProviderDatabase,
-    private readonly publishEvent: DeepchatEventPublisher
+    private readonly publishEvent: DeepchatEventPublisher,
+    private readonly decryptLegacyBackup?: (
+      source: string,
+      target: string,
+      password: string
+    ) => void
   ) {}
 
   public async checkSyncFolder(): Promise<{ exists: boolean; path: string }> {
@@ -323,7 +328,8 @@ export class SyncService {
   public async importFromSync(
     backupFileName: string,
     importMode: 'increment' | 'overwrite',
-    database: SyncImportDatabasePort
+    database: SyncImportDatabasePort,
+    legacyPassword?: string
   ): Promise<SyncImportResult> {
     const { exists, path: syncFolderPath } = await this.checkSyncFolder()
     if (!exists) {
@@ -343,14 +349,15 @@ export class SyncService {
       return { success: false, message: 'sync.error.noValidBackup' }
     }
 
-    return this.importBackupFile(backupZipPath, importMode, database)
+    return this.importBackupFile(backupZipPath, importMode, database, legacyPassword)
   }
 
   /** Internal entry point for a fully downloaded and verified private staging file. */
   public async importBackupFile(
     backupZipPath: string,
     importMode: 'increment' | 'overwrite',
-    database: SyncImportDatabasePort
+    database: SyncImportDatabasePort,
+    legacyPassword?: string
   ): Promise<SyncImportResult> {
     this.publishEvent('sync.import.started', {
       version: Date.now()
@@ -373,13 +380,13 @@ export class SyncService {
     try {
       await this.extractBackupArchive(backupZipPath, extractionDir)
       const configImportService = this.createConfigImportService()
-      const manifest = configImportService.readManifest(extractionDir)
+      let manifest = configImportService.readManifest(extractionDir)
       const backupVersion = this.resolveBackupVersion(manifest)
       const usesSqliteConfigStorage = backupVersion >= 2 && manifest?.configStorage === 'sqlite'
       const activeDatabasePassword = this.getActiveDatabasePassword()
-      const backupDatabasePassword = this.resolveBackupDatabasePassword(
+      let backupDatabasePassword = this.resolveBackupDatabasePassword(
         manifest,
-        activeDatabasePassword
+        legacyPassword ?? activeDatabasePassword
       )
 
       const backupDbSource = this.resolveBackupDbSource(extractionDir)
@@ -392,6 +399,14 @@ export class SyncService {
       }
       if (usesSqliteConfigStorage && backupDbSource.type !== 'agent') {
         throw new Error('sync.error.noValidBackup')
+      }
+      if (backupDatabasePassword && !activeDatabasePassword) {
+        if (!this.decryptLegacyBackup) throw new Error('sync.error.encryptedBackupPasswordMissing')
+        const decrypted = path.join(extractionDir, 'legacy-decrypted-agent.db')
+        this.decryptLegacyBackup(backupDbSource.path, decrypted, backupDatabasePassword)
+        backupDbSource.path = decrypted
+        backupDatabasePassword = undefined
+        manifest = manifest ? { ...manifest, databaseEncrypted: false } : null
       }
       this.assertOverwriteEncryptionCompatible(
         backupDbSource.type,

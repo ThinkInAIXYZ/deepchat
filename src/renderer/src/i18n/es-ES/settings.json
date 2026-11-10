@@ -847,7 +847,8 @@
       "saveAndTest": "Guardar y probar",
       "saveOnly": "Solo guardar",
       "saveAndTestFirst": "Guarda y prueba primero la configuración de nube."
-    }
+    },
+    "legacyBackupPassword": "Contraseña de la copia cifrada anterior (opcional)"
   },
   "dashboard": {
     "badge": "Panel de uso",

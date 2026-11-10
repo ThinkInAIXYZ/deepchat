@@ -847,7 +847,8 @@
       "saveAndTest": "Simpan dan uji",
       "saveOnly": "Simpan sahaja",
       "saveAndTestFirst": "Simpan dan uji konfigurasi awan dahulu."
-    }
+    },
+    "legacyBackupPassword": "Kata laluan sandaran tersulit lama (pilihan)"
   },
   "dashboard": {
     "badge": "Gunakan Kanban",

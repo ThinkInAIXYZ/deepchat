@@ -78,6 +78,18 @@ export async function startMainProcess(
         }
       }
     })
+    const startupDatabase = database
+    await databaseSecurityService.migrateLegacyEncryption({
+      getDatabasePath: () => startupDatabase.getDatabasePath(),
+      getDatabasePassword: () => startupDatabase.getDatabasePassword(),
+      checkpointAndClose: () => {
+        startupDatabase.getDatabase().pragma('wal_checkpoint(TRUNCATE)')
+        startupDatabase.close()
+      },
+      close: () => startupDatabase.close(),
+      reopenWithPassword: (password) => startupDatabase.reopenWithPassword(password),
+      isOpen: () => startupDatabase.getDatabase().open
+    })
     splashWindow.showDatabaseUnlockProgress({
       active: false,
       safeStorageAvailable: databaseSecurityService.getStatus().safeStorageAvailable

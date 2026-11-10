@@ -847,7 +847,8 @@
         "workersAi": "Cloudflare Workers AI"
       },
       "applyFailed": "كىرگۈزۈش مەغلۇپ بولدى: {message}"
-    }
+    },
+    "legacyBackupPassword": "Legacy encrypted backup password (optional)"
   },
   "dashboard": {
     "badge": "تاختىسىدىن پاڭلانغانلىقىنى قوللان",

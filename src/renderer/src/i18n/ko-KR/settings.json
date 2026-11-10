@@ -472,7 +472,8 @@
       "saveAndTest": "저장 및 테스트",
       "saveOnly": "저장만",
       "saveAndTestFirst": "먼저 클라우드 설정을 저장하고 테스트하세요."
-    }
+    },
+    "legacyBackupPassword": "이전 암호화 백업 비밀번호 (선택 사항)"
   },
   "dashboard": {
     "badge": "사용 대시보드",

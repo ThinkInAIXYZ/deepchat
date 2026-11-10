@@ -847,7 +847,8 @@
         "workersAi": "Cloudflare Workers AI"
       },
       "applyFailed": "ᠠᠴᠠ ᠣᠷᠣᠭᠤᠯᠬᠤ ᠳᠤ ᠢᠯᠠᠭᠳᠠᠭᠰᠠᠨ ᠦᠭᠡᠢ ᠄ {message}"
-    }
+    },
+    "legacyBackupPassword": "Legacy encrypted backup password (optional)"
   },
   "dashboard": {
     "badge": "ᠢ ᠬᠡᠷᠡᠭᠯᠡᠬᠦ",

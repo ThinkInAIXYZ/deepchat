@@ -405,7 +405,8 @@
       "saveAndTest": "Gem og test",
       "saveOnly": "Gem kun",
       "saveAndTestFirst": "Gem og test cloud-konfigurationen først."
-    }
+    },
+    "legacyBackupPassword": "Adgangskode til gammel krypteret sikkerhedskopi (valgfri)"
   },
   "dashboard": {
     "badge": "Brugsoverblik",

@@ -1320,7 +1320,9 @@ export async function createMainProcessControl(dependencies: {
     mainDatabase,
     settingsDatabase,
     providerDatabase,
-    publishDeepchatEvent
+    publishDeepchatEvent,
+    (source, target, password) =>
+      databaseSecurityService.decryptLegacyBackup(source, target, password)
   )
   const syncTokenStorage = {
     protectToken: (token: string) => {
@@ -3467,9 +3469,14 @@ export async function createMainProcessControl(dependencies: {
     const syncRoutes = createSyncRoutes({
       sync: syncService,
       settings: syncSettings,
-      importFromSync: (backupFileName, importMode) =>
+      importFromSync: (backupFileName, importMode, legacyPassword) =>
         runDatabaseMaintenance((database) =>
-          syncService.importFromSync(backupFileName, importMode ?? ImportMode.INCREMENT, database)
+          syncService.importFromSync(
+            backupFileName,
+            importMode ?? ImportMode.INCREMENT,
+            database,
+            legacyPassword
+          )
         ),
       pullLatestBackupFromCloud: (importMode) => pullLatestBackupFromCloud(importMode),
       recordActivity: (input) => {
@@ -3538,18 +3545,9 @@ export async function createMainProcessControl(dependencies: {
       startup: startupWorkloadCoordinator,
       ensureDefaultWorkspace: () => projectService.ensureDefaultWorkspace(),
       enableDatabaseEncryption: (password) =>
-        runDatabaseMaintenance((database) =>
-          databaseSecurityService.enableEncryption({ password, database, providerSettings })
-        ),
+        databaseSecurityService.enableEncryption({ password }),
       changeDatabasePassword: (currentPassword, newPassword) =>
-        runDatabaseMaintenance((database) =>
-          databaseSecurityService.changePassword({
-            currentPassword,
-            newPassword,
-            database,
-            providerSettings
-          })
-        ),
+        databaseSecurityService.changePassword({ currentPassword, newPassword }),
       disableDatabaseEncryption: (currentPassword) =>
         runDatabaseMaintenance((database) =>
           databaseSecurityService.disableEncryption({
