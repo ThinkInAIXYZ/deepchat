@@ -69,7 +69,7 @@ impl PrepareContext for DesktopContext {
         cancel: CancellationToken,
     ) -> HostFuture<'_, Arc<ModelRequest>> {
         Box::pin(async move {
-            let query = request
+            let prompt = request
                 .messages
                 .iter()
                 .rev()
@@ -85,16 +85,16 @@ impl PrepareContext for DesktopContext {
                         .collect::<Vec<_>>()
                         .join("\n"),
                 })
-                .unwrap_or_default()
-                .chars()
-                .take(16_384)
-                .collect::<String>();
+                .unwrap_or_default();
+            let query = prompt.chars().take(16_384).collect::<String>();
             let result = super::gateway::request(
                 json!({
                     "kind":"context", "sessionId":self.session_id, "turnId":source.turn_id,
                     "requestId":source.request_id, "through":source.through.to_string(),
                     "providerId":request.provider_id, "modelId":request.model_id, "query":query,
                     "nativeAgentId":request.metadata.as_ref().and_then(|metadata|metadata.agent_id.clone()),
+                    "hookPromptTooLarge":prompt.len() > 1024 * 1024,
+                    "hookPrompt":if prompt.len() <= 1024 * 1024 { Some(prompt) } else { None },
                 }),
                 cancel.clone(),
                 8 * 1024 * 1024,

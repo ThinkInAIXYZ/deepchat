@@ -48,8 +48,16 @@ dim's own tools.
 `DimSessionRuntime` persists the app/native binding and input intent before sending. Its event
 reader applies desktop messages and its cursor in one SQL transaction, without a new Tape. Its
 optional preparation callback mounts product configuration/tools before accepting new input.
-The main application has not switched to this backend. Queue UI, product service wiring and
-old-session migration remain tracked in the migration plan.
+The main application uses this backend. Remaining compatibility work and validation are tracked
+in the migration plan.
+
+Declared desktop context hooks use the `DeepChatPluginHooks` native Session part. The desktop
+provides verified immutable plugin configuration and adapts the existing context-only JSON
+protocol. `HostPlatform` owns processes and their trees; started and terminal receipts belong to
+Timeline. Cancellation, revocation and Session close terminate the complete tree before a
+terminal receipt. A started receipt recovered without an outcome is uncertain and is never
+automatically repeated. Explicit retry requires the current revision and an inactive native
+branch. Native Hooks retain their own execution semantics. Legacy Tape remains read-only.
 
 ## Native integration check
 

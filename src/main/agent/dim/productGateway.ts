@@ -7,6 +7,7 @@ import type { JsonValue } from '@shared/contracts/json'
 import type { DimMcpServer } from './mcp'
 import type { DimModelId } from './modelBridge'
 import type { DimOAuthConnection } from './providerCredentials'
+import type { PluginContextEvent, UserPluginHookSource } from '@shared/types/userPlugin'
 
 type JsonObject = { [key: string]: JsonValue }
 
@@ -48,12 +49,20 @@ export interface DimProductContextRequest {
   providerId: string
   modelId: string
   query: string
+  hookPrompt?: string
+  hookPromptTooLarge?: boolean
   nativeAgentId?: string
 }
 export interface DimProductContextReply {
   messages: Array<{ role: 'user'; content: string }>
   receipts?: JsonValue[]
 }
+export interface DimPluginHooksRequest {
+  sessionId: string
+  event: PluginContextEvent
+  matcher: string
+}
+
 export interface DimProductGatewayOptions {
   // Resolve through the durable native-to-product binding and current product authorization.
   // Only capabilities that dim does not implement belong in this catalog.
@@ -61,6 +70,7 @@ export interface DimProductGatewayOptions {
   context?(request: DimProductContextRequest, signal: AbortSignal): Promise<DimProductContextReply>
   mcp?(sessionId: string, signal: AbortSignal): Promise<Record<string, DimMcpServer>>
   titleModel?(sessionId: string, signal: AbortSignal): Promise<DimModelId | null>
+  pluginHooks?(request: DimPluginHooksRequest, signal: AbortSignal): Promise<UserPluginHookSource[]>
   connectionAuth?(
     providerId: string,
     modelId: string,
@@ -222,6 +232,28 @@ export class DimProductGateway {
     request: Record<string, unknown>,
     signal: AbortSignal
   ): Promise<JsonValue> {
+    if (request.kind === 'plugin_hooks') {
+      if (
+        typeof request.sessionId !== 'string' ||
+        !request.sessionId ||
+        request.sessionId.length > 4096 ||
+        !['SessionStart', 'UserPromptSubmit', 'SubagentStart'].includes(request.event as string) ||
+        typeof request.matcher !== 'string' ||
+        request.matcher.length > 4096
+      )
+        throw new Error('Plugin hook configuration requires an authorized native scope')
+      const sources =
+        (await this.options.pluginHooks?.(
+          {
+            sessionId: request.sessionId,
+            event: request.event as PluginContextEvent,
+            matcher: request.matcher
+          },
+          signal
+        )) ?? []
+      signal.throwIfAborted()
+      return { sources: sources as unknown as JsonValue }
+    }
     if (request.kind === 'title_model') {
       if (
         typeof request.sessionId !== 'string' ||
@@ -299,6 +331,10 @@ export class DimProductGateway {
         BigInt(request.through) > 18446744073709551615n ||
         typeof request.query !== 'string' ||
         request.query.length > 65_536 ||
+        (request.hookPrompt != null &&
+          (typeof request.hookPrompt !== 'string' ||
+            Buffer.byteLength(request.hookPrompt) > 1024 * 1024)) ||
+        (request.hookPromptTooLarge != null && typeof request.hookPromptTooLarge !== 'boolean') ||
         (request.nativeAgentId != null &&
           (typeof request.nativeAgentId !== 'string' ||
             !request.nativeAgentId ||
@@ -314,6 +350,8 @@ export class DimProductGateway {
           modelId: request.modelId as string,
           through: request.through,
           query: request.query,
+          ...(typeof request.hookPrompt === 'string' ? { hookPrompt: request.hookPrompt } : {}),
+          ...(request.hookPromptTooLarge === true ? { hookPromptTooLarge: true } : {}),
           ...(typeof request.nativeAgentId === 'string'
             ? { nativeAgentId: request.nativeAgentId }
             : {})

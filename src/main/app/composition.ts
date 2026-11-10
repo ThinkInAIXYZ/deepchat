@@ -188,6 +188,7 @@ import { DimRuntimeSupervisor } from '@/agent/dim/runtimeSupervisor'
 import { DimProductGateway } from '@/agent/dim/productGateway'
 import { DimProductTools } from '@/agent/dim/productTools'
 import { DimProductContext } from '@/agent/dim/productContext'
+import { DimPluginHooks } from '@/agent/dim/pluginHooks'
 import { DimSkillContext } from '@/agent/dim/skillContext'
 import { DimModelCatalog, dimModelParameters } from '@/agent/dim/modelCatalog'
 import { DimModelBridge } from '@/agent/dim/modelBridge'
@@ -1031,6 +1032,23 @@ export async function createMainProcessControl(dependencies: {
   })
   const dimGateway = new DimProductGateway({
     resolve: (id) => dimTools.resolve(id),
+    pluginHooks: async (request, signal) => {
+      const scope = await dimScopes.owner(request.sessionId, signal)
+      authorizeDimScope(scope.binding)
+      const sources = (await pluginService.contextHooks?.nativeSources(signal)) ?? []
+      scope.assertCurrent()
+      authorizeDimScope(scope.binding)
+      return sources
+        .map((source) => ({
+          ...source,
+          hooks: source.hooks.filter(
+            (hook) =>
+              hook.event === request.event &&
+              (!hook.matcher || new RegExp(hook.matcher).test(request.matcher))
+          )
+        }))
+        .filter((source) => source.hooks.length > 0)
+    },
     context: (request, signal) => dimContext.prepare(request, signal),
     titleModel: async (id, signal) => {
       const scope = dimScopes.bound(id, signal)
@@ -2196,6 +2214,15 @@ export async function createMainProcessControl(dependencies: {
     skills: skillService,
     session: (id) => appSessionService.get(id)
   })
+  const dimPluginHooks = pluginService.contextHooks
+    ? new DimPluginHooks({
+        database: sessionData.database,
+        host: dimHost,
+        hooks: pluginService.contextHooks,
+        resolve: dimScopes.context
+      })
+    : undefined
+  if (dimPluginHooks) pluginService.contextHooks?.useNative(dimPluginHooks)
   dimContext = new DimProductContext({
     database: sessionData.database,
     content: new DimContent(dimHost),
@@ -2204,9 +2231,14 @@ export async function createMainProcessControl(dependencies: {
     prepare: async (binding, request, signal) => {
       const skills = await dimSkills.contribute(binding, signal)
       const memory = await dimMemory.contribute(binding, request, signal)
+      const hooks = await dimPluginHooks?.contribute(binding, request, signal)
       return {
-        messages: [...skills.messages, ...memory.messages],
-        receipts: [...(skills.receipts ?? []), ...(memory.receipts ?? [])]
+        messages: [...skills.messages, ...memory.messages, ...(hooks?.messages ?? [])],
+        receipts: [
+          ...(skills.receipts ?? []),
+          ...(memory.receipts ?? []),
+          ...(hooks?.receipts ?? [])
+        ]
       }
     }
   })

@@ -14,6 +14,15 @@ export interface UserPluginHook {
   statusMessage?: string
 }
 
+export interface UserPluginHookSource {
+  pluginId: string
+  digest: string
+  root: string
+  data: string
+  hooks: UserPluginHook[]
+  environment?: Record<string, string>
+}
+
 export interface UserPluginMcpServer {
   name: string
   type: 'stdio' | 'http' | 'sse'

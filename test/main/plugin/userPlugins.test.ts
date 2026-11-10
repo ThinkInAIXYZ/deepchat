@@ -20,6 +20,44 @@ vi.mock('node:fs', async () => {
 vi.unmock('node:child_process')
 vi.unmock('child_process')
 
+it('returns verified native hook configuration without reading or writing Tape and rejects a revoked owner', async () => {
+  const tapeAccess = vi.fn(() => {
+    throw new Error('Configuration must not access Tape')
+  })
+  const hooks = new UserPluginHooks({
+    appendAnchor: tapeAccess,
+    getBySession: tapeAccess,
+    getTapeIncarnationId: tapeAccess
+  })
+  let release: (() => void) | undefined
+  hooks.register({
+    pluginId: 'native',
+    digest: 'first',
+    root: '/plugin',
+    data: '/data',
+    hooks: [],
+    verify: () =>
+      new Promise<void>((resolve) => {
+        release = resolve
+      })
+  })
+  const reading = hooks.nativeSources(new AbortController().signal)
+  hooks.unregister('native')
+  release!()
+  await expect(reading).rejects.toThrow()
+  hooks.register({
+    pluginId: 'native',
+    digest: 'second',
+    root: '/plugin',
+    data: '/data',
+    hooks: []
+  })
+  expect(await hooks.nativeSources(new AbortController().signal)).toMatchObject([
+    { pluginId: 'native', digest: 'second', root: '/plugin', data: '/data', hooks: [] }
+  ])
+  expect(tapeAccess).not.toHaveBeenCalled()
+})
+
 const temporary: string[] = []
 function directory() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-user-plugin-'))

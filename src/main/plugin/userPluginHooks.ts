@@ -14,7 +14,8 @@ import type {
   PluginContextInput,
   PluginContextPort,
   UserPluginHook,
-  UserPluginHookDiagnostic
+  UserPluginHookDiagnostic,
+  UserPluginHookSource
 } from '@shared/types/userPlugin'
 
 interface HookOwner {
@@ -52,6 +53,18 @@ export class UserPluginHooks implements PluginContextPort {
   private queue: Promise<void> = Promise.resolve()
   private activeRuns = new Map<string, number>()
   private updating = false
+  private native?: {
+    diagnostics(pluginId: string): Promise<UserPluginHookDiagnostic[]>
+    retry(pluginId: string, invocationId: string): Promise<void>
+  }
+
+  useNative(runtime: NonNullable<UserPluginHooks['native']>): void {
+    this.native = runtime
+  }
+
+  async readDiagnostics(pluginId: string): Promise<UserPluginHookDiagnostic[]> {
+    return this.native ? this.native.diagnostics(pluginId) : this.diagnostics(pluginId)
+  }
 
   beginRun(sessionId: string): void {
     if (this.updating) throw new Error('A plugin update is being applied; retry after it completes')
@@ -91,6 +104,31 @@ export class UserPluginHooks implements PluginContextPort {
 
   hasHooks(): boolean {
     return this.owners.size > 0
+  }
+
+  /** Verified configuration only; the native plugin owns execution and its audit. */
+  async nativeSources(signal: AbortSignal): Promise<UserPluginHookSource[]> {
+    const sources: UserPluginHookSource[] = []
+    // Pin registry membership across asynchronous verification.
+    const owners = [...this.owners.values()]
+    for (const owner of owners) {
+      const active = AbortSignal.any([signal, owner.controller.signal])
+      active.throwIfAborted()
+      await owner.verify?.(active)
+      active.throwIfAborted()
+      if (this.owners.get(owner.pluginId) !== owner)
+        throw new Error('Plugin hook configuration changed during admission')
+      sources.push({
+        pluginId: owner.pluginId,
+        digest: owner.digest,
+        root: owner.root,
+        data: owner.data,
+        environment: this.environment(),
+        hooks: owner.hooks.map((hook) => ({ ...hook }))
+      })
+    }
+    signal.throwIfAborted()
+    return sources
   }
 
   private history(sessionId: string): Map<string, Invocation> {
@@ -390,6 +428,11 @@ export class UserPluginHooks implements PluginContextPort {
   }
 
   async retry(pluginId: string, invocationId: string): Promise<void> {
+    if (this.native) {
+      if (this.activeRuns.size || this.updating)
+        throw new Error('Finish active turns and plugin updates before retrying a hook')
+      return this.native.retry(pluginId, invocationId)
+    }
     const invocation = [...this.sessions.keys()]
       .map((sessionId) => this.history(sessionId).get(invocationId))
       .find(Boolean)

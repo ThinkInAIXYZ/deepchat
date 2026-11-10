@@ -2,6 +2,53 @@ import { expect, it } from 'vitest'
 import { createConnection } from 'node:net'
 import { DimProductGateway } from '@/agent/dim/productGateway'
 
+it('admits declared hook configuration only for a valid current native owner', async () => {
+  let reads = 0
+  const gateway = new DimProductGateway({
+    resolve: async () => {
+      throw new Error('Hook configuration cannot execute tools')
+    },
+    pluginHooks: async (query, signal) => {
+      reads++
+      signal.throwIfAborted()
+      if (query.sessionId !== 'current') throw new Error('Hook owner was replaced')
+      return [
+        { pluginId: 'fixture', digest: 'revision', root: '/plugin', data: '/data', hooks: [] }
+      ]
+    }
+  })
+  const address = await gateway.start()
+  try {
+    for (const query of [
+      { sessionId: '', event: 'SessionStart', matcher: 'startup' },
+      { sessionId: 'current', event: 'PermissionRequest', matcher: '' },
+      { sessionId: 'current', event: 'SubagentStart', matcher: 'x'.repeat(4097) }
+    ])
+      expect(await request(address, { kind: 'plugin_hooks', ...query })).toMatchObject({
+        error: expect.any(String)
+      })
+    expect(reads).toBe(0)
+    expect(
+      await request(address, {
+        kind: 'plugin_hooks',
+        sessionId: 'replaced',
+        event: 'SessionStart',
+        matcher: 'resume'
+      })
+    ).toEqual({ error: 'Hook owner was replaced' })
+    expect(
+      await request(address, {
+        kind: 'plugin_hooks',
+        sessionId: 'current',
+        event: 'SessionStart',
+        matcher: 'startup'
+      })
+    ).toMatchObject({ result: { sources: [{ pluginId: 'fixture', digest: 'revision' }] } })
+  } finally {
+    await gateway.stop()
+  }
+})
+
 it('returns an optional title model selection without executing an inference request', async () => {
   let reads = 0
   const gateway = new DimProductGateway({

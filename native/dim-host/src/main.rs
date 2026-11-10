@@ -20,6 +20,7 @@ mod model_stream;
 mod models;
 mod payload;
 mod permissions;
+mod plugin_hooks;
 mod profile;
 mod product_tools;
 mod provider_connections;
@@ -64,6 +65,7 @@ fn install(builder: &mut dim_agent_runtime::AgentBuilder) {
     queue::install(builder);
     storage::install(builder);
     memory::install(builder);
+    plugin_hooks::install(builder);
     scopes::install(builder);
     profile::install(builder);
 }
