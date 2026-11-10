@@ -158,6 +158,8 @@
 
 ## 模块进度
 
+- 模块 35：主入口 Inspector 查询、详情、导出及 head 订阅切换到 Native Timeline，旧 Tape 仍只读。独立 storage 插件通过 dim 公开 owner 补读固定切点历史和按 event ID 获取详情；产品 SQL 仅保存可重建的有界摘要/分组索引，不持久化请求正文或原始事件副本。Native sequence 保持 u64 字符串，列表数字仅为展示序号；缓存丢失重建更换 epoch，旧翻页与详情游标要求 reset。升级已有 transcript cursor 时先补齐旧前缀，防止实时投影跳过历史；个别和批量工具结果仅产生一次终态分组。保留现有过滤、分页、执行/工具分组、耗时、详情与支持导出，显示原始 Native 事件名和位置。被动查看旧会话不进行迁移。137 项主进程/Inspector 界面回归、10 项真实 Rust smoke、完整 Electron 构建、主进程复构建与聊天/重启/原生详情/Inspector 打开验收通过；最终格式、i18n、lint 与双端 typecheck 通过。Electron 首次在测试 fixture 的 DevTools 初始化阶段遇到 CDP promise 回收，清理该进程后复验 27s 通过。
+
 - 模块 34：内部子会话在原生初始化时，通过 SessionStore 公开 creation_record 验证实际 parent link 并装载产品 ToolProvider；client 会话仍等待桌面持久绑定后显式刷新。产品 scope owner 与模型 frame 查询分开复用，子工具在执行前校验当前根会话代次、产品配置与调用子会话，拒绝未知 client、跨 scope 和旧代访问。profile.tools 按 dim 合同只挂载固定工具，产品扩展单独由 ToolProvider 提供，不移植 TS agent loop。原生 PermissionState 为无产品元数据的分支保留继承的 FullAccess 策略；显式产品 default 模式继续要求同意，Native deny 继续优先。真实 HTTP 证明首次子模型请求已看到产品工具，实际以子会话身份调用插件，并完成原生 write；6 项作用域/产品能力回归、10 项 Rust smoke、主进程构建、format/i18n/lint 、双端 typecheck 与 Electron 真实聊天/重启续聊均通过。桥 0.9.0，无新增上游补丁；原生 MCP 的子会话继承、子会话桌面记录/独立产品配置和目录动态刷新继续实施。
 
 - 模块 33：Ollama 匿名连接也持久化产品准入引用，经公开 ProviderSecretHost 在每次请求重新检查启停、模型状态与连接指纹；确认值不会成为 HTTP header，API key owner 不参与匿名请求。锁定源码仅将 secrets.rs 的 Anonymous 早返回限定为“未声明引用”，保持无引用的 dim 原有行为，hash 记入 extensionPatches；桥升为 0.8.0。独立真实 Rust fixture 绕过后续 TS admission，证明缓存连接拒绝禁用 provider、禁用模型及替换地址，重启后仍检查，实际 HTTP 无 Authorization/准入值且不调用 API key owner。最终 10 项 Rust smoke、39 项目录/provider/安装回归、应用主进程构建、Electron 聊天/重启续聊、格式、i18n、lint 和双端 typecheck 均通过。

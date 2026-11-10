@@ -1,3 +1,5 @@
+import { indexDimInspectorEvent } from './timelineInspectorProjection'
+import { dimSequence } from './sessionConnection'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
 import type { SessionDatabase } from '@/session/data/database'
 import { TranscriptProjectionApplier } from '@/session/data/transcriptProjection'
@@ -24,6 +26,7 @@ export class DimProjectionStore {
           throw new Error('Native transition message belongs to another product session')
       }
       this.database.dimSessionBindingsTable.replace(previous, next)
+      this.database.dimTimelineInspectorTable.deleteBySession(next.sessionId)
       this.applier.applyRetractions(
         this.database.deepchatMessagesTable
           .getIdsBySession(next.sessionId)
@@ -106,6 +109,11 @@ export class DimProjectionStore {
           throw new Error('Native projection message belongs to another product session')
         this.applier.applyRecord(message)
       }
+      // A newly introduced/lost inspector cache catches up through its own reader.
+      // Never skip its unseen prefix just because transcript hydration is further ahead.
+      const inspector = this.database.dimTimelineInspectorTable.head(binding)
+      if (dimSequence(inspector.cursor) === dimSequence(binding.cursor))
+        indexDimInspectorEvent(this.database, binding, event)
       this.database.dimSessionBindingsTable.advance(binding, projection.binding)
       return projection
     })()

@@ -193,6 +193,7 @@ import { DimAuxiliaryModels } from '@/agent/dim/auxiliaryModels'
 import { DimMediaModels } from '@/agent/dim/mediaModels'
 import { DimModality } from '@/agent/dim/modality'
 import { DimContent } from '@/agent/dim/content'
+import { DimTimelineInspector } from '@/agent/dim/timelineInspector'
 import { DimScopes } from '@/agent/dim/scopes'
 import { DimLegacySource } from '@/agent/dim/legacySource'
 import { DimInputPreparation } from '@/agent/dim/inputPreparation'
@@ -471,6 +472,7 @@ export async function createMainProcessControl(dependencies: {
   let dimAgent: ReturnType<typeof createDimAgent>
   let dimMemory: ReturnType<typeof createDimMemoryRuntime>
   let dimTools: DimProductTools
+  let dimInspector: DimTimelineInspector
   let dimContext: DimProductContext
   let yoBrowserPresenter: IYoBrowserPresenter
   let computerUsePreviewPresenter: ComputerUsePreviewPresenter
@@ -731,7 +733,8 @@ export async function createMainProcessControl(dependencies: {
     }
   )
   const tapeInspectorHeadWatcher = new TapeInspectorHeadWatcher({
-    readHead: (sessionId) => sessionData.tapeStore.getTapeInspectorHead(sessionId),
+    readHead: (sessionId) =>
+      dimInspector?.getHead(sessionId) ?? sessionData.tapeStore.getTapeInspectorHead(sessionId),
     emit: (webContentsId, pulse) => {
       typedEventHub.publish(sessionsTapeInspectorHeadChangedEvent.name, pulse, {
         kind: 'renderer',
@@ -2286,7 +2289,13 @@ export async function createMainProcessControl(dependencies: {
       }
     })
   })
+  dimInspector = new DimTimelineInspector({
+    database: sessionData.database,
+    host: dimHost,
+    content: new DimContent(dimHost)
+  })
   sessionQuery = new SessionQuery({
+    nativeInspector: dimInspector,
     sessions: appSessionService,
     runtime: {
       getAgentKind: (agentId) => agentManager.resolveBackend(agentId).kind,

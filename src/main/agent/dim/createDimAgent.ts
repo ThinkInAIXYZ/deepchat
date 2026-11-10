@@ -174,6 +174,7 @@ export function createDimAgent(options: DimAgentOptions) {
       new TranscriptProjectionApplier(database).applyRetractions(
         database.deepchatMessagesTable.getIdsBySession(sessionId)
       )
+      database.dimTimelineInspectorTable.deleteBySession(sessionId)
       database.dimInputProjectionTable.deleteBySession(sessionId)
       database.dimInputIntentsTable.deleteBySession(sessionId)
       database.dimSessionImportsTable.deleteBySession(sessionId)

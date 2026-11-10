@@ -1,3 +1,4 @@
+import { DimTimelineInspectorTable } from './tables/dimTimelineInspector'
 import { DimInputProjectionTable } from './tables/dimInputProjection'
 import { DimSessionImportsTable } from './tables/dimSessionImports'
 import { DimScopeChangesTable } from './tables/dimScopeChanges'
@@ -63,6 +64,10 @@ export class SessionDatabase {
 
   get newSessionsTable() {
     return new NewSessionsTable(this.getDatabase())
+  }
+
+  get dimTimelineInspectorTable() {
+    return new DimTimelineInspectorTable(this.getDatabase())
   }
 
   get dimInputProjectionTable() {

@@ -50,6 +50,11 @@ test('desktop chat uses persistent native dim sessions @smoke', async ({ app, la
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   try {
     await waitForAppReady(app.page)
+    await app.page.evaluate(() =>
+      window.deepchat.invoke('settings.update', {
+        changes: [{ key: 'traceDebugEnabled', value: true }]
+      })
+    )
     const providerId = await app.page.evaluate(
       async (baseUrl) => {
         const id = `custom-${crypto.randomUUID()}`
@@ -146,6 +151,28 @@ test('desktop chat uses persistent native dim sessions @smoke', async ({ app, la
     )
     expect(JSON.stringify(continued?.messages)).toContain('NATIVE_DIM_FIRST_INPUT')
     expect(JSON.stringify(continued?.messages)).toContain('NATIVE_DIM_AFTER_RESTART')
+    const inspection = await reopened.page.evaluate(async (id) => {
+      const facts = await window.deepchat.invoke('sessions.listTapeInspectorPage', {
+        sessionId: id,
+        mode: 'tail',
+        limit: 200
+      })
+      if (facts.status !== 'ok') throw new Error('Native timeline page unavailable')
+      const call = facts.records.find((row) => row.name === 'model/call')!
+      const detail = await window.deepchat.invoke('sessions.getTapeInspectorRecordDetail', {
+        sessionId: id,
+        expectedTapeIncarnationId: facts.tapeIncarnationId,
+        entryId: call.entryId
+      })
+      return { facts, detail }
+    }, sessionId)
+    expect(inspection.facts.records.every((row) => row.dim?.sessionId === nativeId)).toBe(true)
+    expect(inspection.detail.status).toBe('ok')
+    await reopened.page.getByTestId('open-tape-inspector-button').click()
+    await expect(reopened.page.getByTestId('tape-inspector-panel')).toBeVisible()
+    await expect(reopened.page.getByTestId('tape-inspector-panel')).toContainText(
+      /timeline events|时间线事件/
+    )
   } finally {
     server.closeAllConnections()
     await new Promise<void>((resolve) => server.close(() => resolve()))

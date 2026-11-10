@@ -1,3 +1,4 @@
+import { DimTimelineInspectorTable } from '@/session/data/tables/dimTimelineInspector'
 import { DimInputProjectionTable } from '@/session/data/tables/dimInputProjection'
 import { DimSessionImportsTable } from '@/session/data/tables/dimSessionImports'
 import { DimScopeChangesTable } from '@/session/data/tables/dimScopeChanges'
@@ -89,6 +90,7 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
   { name: 'dim_provider_grants', createTable: (db) => new DimProviderGrantsTable(db) },
   { name: 'dim_input_projection', createTable: (db) => new DimInputProjectionTable(db) },
   { name: 'dim_input_intents', createTable: (db) => new DimInputIntentsTable(db) },
+  { name: 'dim_timeline_inspector_heads', createTable: (db) => new DimTimelineInspectorTable(db) },
   { name: 'dim_session_bindings', createTable: (db) => new DimSessionBindingsTable(db) },
   {
     name: 'conversations',
@@ -501,6 +503,7 @@ export function createMainSchemaCatalog(db: Database.Database): MainSchemaCatalo
   const dimSessionScopes = new DimSessionScopesTable(db)
   const dimIntents = new DimInputIntentsTable(db)
   const dimBindings = new DimSessionBindingsTable(db)
+  const dimTimelineInspector = new DimTimelineInspectorTable(db)
   const dimProviderGrants = new DimProviderGrantsTable(db)
   const deepchatSessions = new DeepChatSessionsTable(db)
   const messages = new DeepChatMessagesTable(db)
@@ -546,6 +549,7 @@ export function createMainSchemaCatalog(db: Database.Database): MainSchemaCatalo
     projects,
     deepchatSessions,
     dimBindings,
+    dimTimelineInspector,
     dimProviderGrants,
     dimIntents,
     dimInputProjection,

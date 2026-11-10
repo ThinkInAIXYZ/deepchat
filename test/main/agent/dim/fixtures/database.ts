@@ -28,6 +28,7 @@ export function dimDatabase(filename = ':memory:') {
   const data = new SessionDatabase({ getDatabase: () => adapter })
   for (const table of [
     data.dimSessionBindingsTable,
+    data.dimTimelineInspectorTable,
     data.dimSessionImportsTable,
     data.dimScopeChangesTable,
     data.dimSessionScopesTable,

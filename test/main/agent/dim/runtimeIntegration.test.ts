@@ -42,6 +42,7 @@ import { DimMemorySource } from '@/agent/dim/memorySource'
 import { DimMemoryEvidence } from '@/agent/dim/memoryEvidence'
 import type { DimMemorySource as MemorySourceReference } from '@shared/types/agent-memory'
 import { DimContent } from '@/agent/dim/content'
+import { DimTimelineInspector } from '@/agent/dim/timelineInspector'
 import { DimScopeTransitions } from '@/agent/dim/scopeTransitions'
 import { DimTranscriptMutations } from '@/agent/dim/transcriptMutations'
 import { SessionTranscriptMutations } from '@/session/transcriptMutations'
@@ -855,6 +856,39 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
           .getBySession('product-ui')
           .find((row) => row.role === 'user')!
         expect(JSON.parse(user.content)).toEqual(representation)
+        const inspector = new DimTimelineInspector({
+          database: grants.data,
+          host,
+          content: new DimContent(host)
+        })
+        const facts = await inspector.listPage({
+          sessionId: 'product-ui',
+          mode: 'tail',
+          limit: 200
+        })
+        if (facts.status !== 'ok') throw new Error('Native inspector did not return facts')
+        const callFact = facts.records.find((row) => row.name === 'model/call')!
+        expect(callFact.dim).toMatchObject({
+          sessionId: ref.sessionId,
+          branchId: ref.branchId,
+          eventId: nativeCall!.id,
+          sequence: String(nativeCall!.sequence)
+        })
+        const detail = await inspector.getDetail({
+          sessionId: 'product-ui',
+          expectedTapeIncarnationId: facts.tapeIncarnationId,
+          entryId: callFact.entryId
+        })
+        expect(detail.status).toBe('ok')
+        if (detail.status !== 'ok') throw new Error('Native inspector detail is unavailable')
+        expect(detail.detail.data).toMatchObject({
+          request: {
+            metadata: {
+              deepchatContextReceipts: [{ source: 'product-context-fixture', version: 1 }]
+            }
+          }
+        })
+
         expect(JSON.stringify(conversationRequests()[0].body)).not.toContain(representation.text)
       }
 
