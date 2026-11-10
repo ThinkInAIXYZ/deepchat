@@ -124,10 +124,13 @@ const htmlRenderSectionSchema = z.strictObject({
   `DEFAULT_DISABLED_AGENT_TOOLS`, which also applies to an agent created without a list. A
   one-time step (`htmlRenderToolsSeeded`) adds them to the disabled list of every existing agent
   without touching other tools; it runs after the independent-config migration, so a missing list
-  means every tool was enabled. Conversations created before
-  the upgrade keep the tool list they started with. The tools are toggled one by one: with
-  only `html_render` disabled, `html_render_section` stays listed but every call fails for lack of
-  a panel. They are grouped with the `agent-core` tools, so the settings and session tool lists
+  means every tool was enabled. Sessions store their own disabled list and do not fall back to
+  the agent's, so a second one-time step (`html-render-session-tools-seeded-v1`) adds both names
+  to the disabled list of every existing DeepChat session before the first window opens. It keeps
+  other tools and runs once, so a tool the user later enables in a session stays enabled. It does
+  not touch `cronjob`, because older sessions may have enabled it on purpose. The tools are
+  toggled one by one: with only `html_render` disabled, `html_render_section` stays listed but
+  every call fails for lack of a panel. They are grouped with the `agent-core` tools, so the settings and session tool lists
   need no new group label.
 - Code Mode: both tools are Code Mode direct tools (`CODE_MODE_DIRECT_TOOL_NAMES`), exposed
   beside `run_code` / `exec` instead of inside them. Nested Code Mode calls return only
