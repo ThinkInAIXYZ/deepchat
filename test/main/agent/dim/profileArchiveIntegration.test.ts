@@ -403,6 +403,38 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
     })
     const source = new DimRuntimeSupervisor(options('source'))
     const coordinator = new DimRuntimeSupervisor(options('coordinator'))
+    let held: import('node:http').ServerResponse | undefined
+    let cancelled = false
+    let requests = 0
+    const reply = (response: import('node:http').ServerResponse, text: string) => {
+      response.writeHead(200, { 'Content-Type': 'text/event-stream' })
+      response.end(
+        `data: ${JSON.stringify({ id: 'live-export', object: 'chat.completion.chunk', model: 'fixture', created: 0, choices: [{ index: 0, delta: { role: 'assistant', content: text }, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`
+      )
+    }
+    const fixture = createServer(async (request, response) => {
+      const chunks: Buffer[] = []
+      for await (const chunk of request) chunks.push(Buffer.from(chunk))
+      if (Buffer.concat(chunks).toString().includes('Write a short title for this conversation:')) {
+        reply(response, 'Live owner')
+        return
+      }
+      requests++
+      held = response
+      response.once('close', () => {
+        if (!response.writableFinished) cancelled = true
+      })
+    })
+    await new Promise<void>((resolve) => fixture.listen(0, '127.0.0.1', resolve))
+    const backups = new DimProfileBackups({
+      runtimeRoot: path.resolve('runtime/dim'),
+      profileRoot: path.join(root, 'source'),
+      temporaryRoot: os.tmpdir(),
+      host: source,
+      readers: () => {
+        throw new Error('Selection must not restore session readers')
+      }
+    })
     try {
       const client = await source.start()
       const model = await new DimModelBridge(source).configure({
@@ -410,7 +442,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
         displayName: 'Selected archive',
         connection: {
           driverKind: 'openai-compatible',
-          baseUrl: 'http://127.0.0.1:1/v1',
+          baseUrl: `http://127.0.0.1:${(fixture.address() as { port: number }).port}/v1`,
           auth: { type: 'anonymous' }
         },
         model: {
@@ -466,21 +498,53 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
           rawBlocks: []
         })
       }
+      const busy = { sessionId: sessions[1].id, branchId: 'main' }
+      await client.call('deepchat.host.input', {
+        ...busy,
+        mode: 'queue',
+        submissionId: randomUUID(),
+        rawBlocks: [],
+        content: [{ type: 'text', text: 'Keep this unrelated inference running during export.' }]
+      })
+      await expect.poll(() => !!held, { timeout: 10_000 }).toBe(true)
+      const live = await backups.exportSessions([sessions[0].id])
+      try {
+        expect(await source.start()).toBe(client)
+        await client.call('daemon.ping')
+        expect(cancelled).toBe(false)
+        expect(held!.writableFinished).toBe(false)
+        expect(requests).toBe(1)
+        const reader = await coordinator.start()
+        const page = await reader.call<ArchivePage>('deepchat.storage.archive_catalog', {
+          directory: live.directory,
+          limit: 64
+        })
+        expect(page.totalSessions).toBe(1)
+        expect(page.sessions[0].sessionId).toBe(sessions[0].id)
+        expect(
+          await readFile(
+            path.join(
+              live.directory,
+              'rust/dimcode.sqlite.session-files',
+              sessions[0].file,
+              'owned.txt'
+            ),
+            'utf8'
+          )
+        ).toBe(sessions[0].text)
+      } finally {
+        await live.dispose()
+      }
+      reply(held!, 'Unrelated inference completed after export')
+      await client.call('deepchat.host.idle', busy)
+      expect(requests).toBe(1)
+      expect(cancelled).toBe(false)
       await source.stop()
       const reader = await coordinator.start()
       const identity = JSON.parse(
         await readFile(path.resolve('runtime/dim/plugins/native-host-lock.json'), 'utf8')
       )
       const snapshot = await captureDimProfile(path.join(root, 'source/dim'), os.tmpdir(), identity)
-      const backups = new DimProfileBackups({
-        runtimeRoot: path.resolve('runtime/dim'),
-        profileRoot: path.join(root, 'source'),
-        temporaryRoot: os.tmpdir(),
-        host: source,
-        readers: () => {
-          throw new Error('Selection must not restore session readers')
-        }
-      })
       try {
         for (const session of sessions) {
           const selected = await backups.selectSessions(snapshot, [session.id])
@@ -525,6 +589,8 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
     } finally {
       await source.stop()
       await coordinator.stop()
+      fixture.closeAllConnections()
+      await new Promise<void>((resolve) => fixture.close(() => resolve()))
       await rm(root, { recursive: true, force: true })
     }
   },

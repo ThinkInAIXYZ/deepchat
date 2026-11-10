@@ -30,21 +30,7 @@ pub(crate) async fn transfer(
     cancel: &CancellationToken,
 ) -> Result<Value, RpcError> {
     let source = super::archive::root(&input.source_directory).await?;
-    let target = if input.initialize_target {
-        if !input.target_directory.is_absolute() {
-            return Err(RpcError::invalid("Archive requires an absolute directory"));
-        }
-        let root = tokio::fs::canonicalize(input.target_directory.join("rust"))
-            .await
-            .map_err(|_| RpcError::invalid("Native archive directory is unavailable"))?;
-        match tokio::fs::symlink_metadata(root.join("dimcode.sqlite")).await {
-            Ok(_) => super::archive::root(&input.target_directory).await?,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => root,
-            Err(_) => return Err(RpcError::invalid("Native archive database is unavailable")),
-        }
-    } else {
-        super::archive::root(&input.target_directory).await?
-    };
+    let target = target_root(&input.target_directory, input.initialize_target).await?;
     if source == target {
         return Err(RpcError::invalid(
             "Archive transfer requires separate profiles",
@@ -91,6 +77,85 @@ pub(crate) async fn transfer(
     let closed = source_db.close().await;
     let result = result?;
     closed?;
+    Ok(result)
+}
+
+async fn target_root(directory: &std::path::Path, initialize: bool) -> Result<PathBuf, RpcError> {
+    if initialize {
+        if !directory.is_absolute() {
+            return Err(RpcError::invalid("Archive requires an absolute directory"));
+        }
+        let root = tokio::fs::canonicalize(directory.join("rust"))
+            .await
+            .map_err(|_| RpcError::invalid("Native archive directory is unavailable"))?;
+        match tokio::fs::symlink_metadata(root.join("dimcode.sqlite")).await {
+            Ok(_) => super::archive::root(directory).await,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(root),
+            Err(_) => return Err(RpcError::invalid("Native archive database is unavailable")),
+        }
+    } else {
+        super::archive::root(directory).await
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(crate) struct Export {
+    target_directory: PathBuf,
+    session_ids: Vec<String>,
+}
+
+pub(crate) async fn export(
+    ctx: &Ctx,
+    files: &Arc<FileStorage>,
+    source_db: Arc<SqliteStorage>,
+    input: Export,
+    cancel: &CancellationToken,
+) -> Result<Value, RpcError> {
+    // The assembly sets PAYLOAD_ROOT from this server's --home. The supplied
+    // SqliteStorage is the same live owner, not another connection to its file.
+    let source = crate::PAYLOAD_ROOT
+        .get()
+        .and_then(|path| path.parent())
+        .ok_or_else(|| RpcError::invalid("Native profile home is unavailable"))?;
+    let source = tokio::fs::canonicalize(source)
+        .await
+        .map_err(|_| RpcError::invalid("Native profile home is unavailable"))?;
+    let source_home = source
+        .parent()
+        .and_then(|path| path.to_str())
+        .ok_or_else(|| RpcError::invalid("Native profile home is unavailable"))?;
+    let target = target_root(&input.target_directory, true).await?;
+    if source == target {
+        return Err(RpcError::invalid("Export requires a separate profile"));
+    }
+    let source_root = files
+        .register_root(source.clone(), cancel)
+        .await
+        .map_err(|_| RpcError::invalid("Native export files are unavailable"))?;
+    let target_root = files
+        .register_root(target.clone(), cancel)
+        .await
+        .map_err(|_| RpcError::invalid("Native export target is unavailable"))?;
+    let installed = super::archive_rebase::installed_home(&input.target_directory).await?;
+    let target_db = SqliteStorage::open(target.join("dimcode.sqlite"))?;
+    let result = merge(
+        ctx,
+        files,
+        source_db,
+        target_db.clone(),
+        source_root,
+        target_root,
+        Some(source_home),
+        Some(&installed),
+        Some(&input.session_ids),
+        cancel,
+    )
+    .await;
+    let closed = target_db.close().await;
+    let result = result?;
+    closed?;
+    // The live source owner stays open; only the disposable target is ours.
     Ok(result)
 }
 

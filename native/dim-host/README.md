@@ -167,6 +167,14 @@ content and do not copy the source's global media-task registry. Selection reads
 a disposable copy of the verified source and returns a separate immutable
 snapshot, so neither archive inspection nor native sidecars mutate the original.
 
+`deepchat.storage.archive_export` selects the same closure from the running
+native storage owner. Timeline copies freeze committed branch heads and read
+immutable batches; source SQLite is never copied live or opened by the desktop.
+Only the fresh target storage owner closes. Other native Sessions, model calls
+and plugin lifecycles continue on the original daemon. The desktop snapshots the
+closed target after acknowledgement and retains staging if that acknowledgement
+is lost, rather than deleting files whose native owner may still be active.
+
 The SDK file-owner seam adds `SessionStore.adopt_file` for an exclusively leased
 cold profile. It validates the copied immutable directory with FileStorage before
 recording ownership through the native writer. The schema and sweeper are dim's

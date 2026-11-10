@@ -3,10 +3,10 @@
   "sourceRevision": "0423b321abc923900525d79d030fd690110f91c4",
   "baseRelease": "0.1.0-alpha.21",
   "serverVersion": "0.1.0-alpha.18",
-  "bridgeVersion": "0.39.0",
+  "bridgeVersion": "0.40.0",
   "storeFormat": 36,
   "apiVersion": 1,
-  "cargoLockSha256": "1700aa72d9a8e166779a9af586673bc9c143569f2fae998a45241f97ba9ea6d9",
+  "cargoLockSha256": "e504733dcd85beea7e8c71915c1fede13982dec0aa66b66b266132a8fd4b6bc4",
   "assemblyPatch": {
     "path": "crates/dim-app-server/src/provider.rs",
     "sha256": "1efdf44c936721817646c7517e3d35daf15282b655fd466eaf258dbaf80def3e"

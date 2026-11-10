@@ -120,6 +120,32 @@ export class DimProfileBackups implements SyncNativeProfilePort {
     }
   }
 
+  /** Read selected content through live native owners without stopping other Sessions. */
+  async exportSessions(sessionIds: readonly string[]): Promise<DimProfileSnapshot> {
+    const identity = await this.identity()
+    const root = await mkdtemp(path.join(this.options.temporaryRoot, 'dim-export-owner-'))
+    const directory = path.join(root, 'dim')
+    let client: Awaited<ReturnType<DimRuntimeSupervisor['openConnection']>> | undefined
+    let ownerMayBeActive = false
+    try {
+      await mkdir(path.join(directory, 'rust'), { recursive: true, mode: 0o700 })
+      client = await this.options.host.openConnection()
+      ownerMayBeActive = true
+      await client.call(
+        'deepchat.storage.archive_export',
+        { targetDirectory: directory, sessionIds: [...sessionIds] },
+        30 * 60_000
+      )
+      // Only a successful native reply acknowledges the target owner's release.
+      // A forwarding plugin can report an error after losing its native connection.
+      ownerMayBeActive = false
+      return await captureDimProfile(directory, this.options.temporaryRoot, identity)
+    } finally {
+      client?.close()
+      if (!ownerMayBeActive) await rm(root, { recursive: true, force: true })
+    }
+  }
+
   /** A subset is produced by native owners from a verified, cold snapshot. */
   async selectSessions(
     snapshot: DimProfileSnapshot,

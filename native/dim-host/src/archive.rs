@@ -49,11 +49,16 @@ impl DynPlugin for Archives {
         "DeepChatArchiveReads"
     }
     fn injects(&self) -> Vec<TypeKey> {
-        vec![self.methods.erase(), self.files.erase()]
+        vec![
+            self.methods.erase(),
+            self.files.erase(),
+            TypeKey::of::<SqliteStorage>(),
+        ]
     }
     fn apply<'a>(&'a self, ctx: &'a Ctx) -> BoxFuture<'a, rutis::Result<Effect>> {
         Box::pin(async move {
             let files = ctx.require_at(&self.files)?;
+            let live = ctx.require::<SqliteStorage>()?;
             let context = ctx.clone();
             ctx.require_at(&self.methods)?.register(
                 ctx,
@@ -70,10 +75,23 @@ impl DynPlugin for Archives {
                         Interruption::Report,
                     ),
                     MethodDecl::new("deepchat.native_archive.rebase", true, Interruption::Report),
+                    MethodDecl::new("deepchat.native_archive.export", true, Interruption::Report),
                 ],
                 Arc::new(move |call, cancel, _| {
-                    let (files, context) = (files.clone(), context.clone());
+                    let (files, context, live) = (files.clone(), context.clone(), live.clone());
                     Box::pin(async move {
+                        if call.method.ends_with(".export") {
+                            return reply(
+                                super::archive_transfer::export(
+                                    &context,
+                                    &files,
+                                    live,
+                                    params(call.params)?,
+                                    &cancel,
+                                )
+                                .await?,
+                            );
+                        }
                         if call.method.ends_with(".rebase") {
                             return reply(
                                 super::archive_rebase::rebase(

@@ -92,6 +92,7 @@ export default definePlugin({
         'readiness',
         'archive_catalog',
         'archive_transfer',
+        'archive_export',
         'archive_rebase'
       ].map((name) => ({
         name: `deepchat.storage.${name}`,
@@ -99,6 +100,7 @@ export default definePlugin({
           name === 'seed_title' ||
           name === 'rename_title' ||
           name === 'archive_transfer' ||
+          name === 'archive_export' ||
           name === 'archive_rebase',
         interruption: 'report',
         progress: false
@@ -119,6 +121,7 @@ export default definePlugin({
                     'readiness',
                     'archive_catalog',
                     'archive_transfer',
+                    'archive_export',
                     'archive_rebase'
                   ]
                 : ['history']
@@ -128,13 +131,16 @@ export default definePlugin({
         if (
           method === 'deepchat.storage.archive_catalog' ||
           method === 'deepchat.storage.archive_transfer' ||
+          method === 'deepchat.storage.archive_export' ||
           method === 'deepchat.storage.archive_rebase'
         ) {
-          const operation = method.endsWith('archive_transfer')
-            ? 'deepchat.native_archive.transfer'
-            : method.endsWith('archive_rebase')
-              ? 'deepchat.native_archive.rebase'
-              : 'deepchat.native_archive.catalog'
+          const operation = method.endsWith('archive_export')
+            ? 'deepchat.native_archive.export'
+            : method.endsWith('archive_transfer')
+              ? 'deepchat.native_archive.transfer'
+              : method.endsWith('archive_rebase')
+                ? 'deepchat.native_archive.rebase'
+                : 'deepchat.native_archive.catalog'
           if (!config.rawHistory)
             return { code: 'unsupported', message: 'Native archive owner is unavailable' }
           return {
@@ -144,7 +150,7 @@ export default definePlugin({
               {
                 profile: config.profile,
                 methods: [operation],
-                timeoutMs: method.endsWith('archive_transfer') ? 30 * 60_000 : 120000
+                timeoutMs: /archive_(transfer|export)$/.test(method) ? 30 * 60_000 : 120000
               },
               (call) => call(operation, params)
             )
