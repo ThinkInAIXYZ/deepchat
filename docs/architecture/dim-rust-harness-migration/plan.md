@@ -160,6 +160,8 @@
 
 ## 模块进度
 
+- 模块 84：通过 Electron 失败请求与产品 SQL 查明压缩问题的具体原因：刷新目录产生与显式自定义模型同 ID 的稀疏记录，目录优先查询抹掉声明的 32k/8k，桌面和 Native 实际采用默认 16k/4096。统一内容/路由查询优先采用显式自定义事实，暖缓存和刷新也不覆盖；保留逐 ID 数据库读取。两个存储模式的刷新/缓存回归、761 项供应商测试、双端类型/格式/i18n/lint、主进程生产构建通过。Electron 增加会话/Native 实际 32k/8k 断言，聊天/CLI/增量与覆盖恢复/故障回滚/重启/read_session/Inspector 全流程通过（41s）。未增加模型声明的预算、测试超时或修改 Native 压缩算法；SDK 与桥不变。
+
 - 模块 83：物理删除 Node AI SDK 执行目录、七个供应商类的文本/流/向量/媒体推理、旧函数调用/XML 适配和 Codex/xAI/DeepSeek 网络包装器；移除 10 个运行时 SDK 依赖及专用 override。供应商类仅负责目录、配置、认证与模型管理，Ollama 下载和 Direct ACP 保留；纯 URL 规范化独立，DeepSeek 旧归档只读解码保留。公开连通性检查使用 Native 模型服务，26 个内置配置验证不构造 Node 推理实例；旧实现细节测试退役，Native 防回退、ACP、元数据与认证回归保留。759 项供应商测试、6 项旧消息读取、双端类型/格式/i18n/lint、主进程生产构建及完整 Native 25 项（239s）通过。Electron 聊天/CLI/备份恢复已运行，重启后两次 read_session 再现模块 80 的间歇压缩无法缩小；失败请求已留存，继续定位，未放宽窗口或超时。SDK/桥版本不变。
 
 - 模块 82：修复实际 macOS x64 runner 暴露的 Hooks 输入来源错误：dim 的 keyed 环境状态也渲染成 User 消息，桥不能用最后一条 User 消息推断真实输入。Native frame owner 在当前 model-start 固定切点查询当前 turn 已消费的 input，排除尚在队列的未来输入及 keyed 状态，只提取真实 user 内容或无 key 的 operator raw；产品上下文适配采用该原生来源，Hooks 与记忆查询共用。桥 0.32.0，SDK 和存储格式不变。真实 Rust 在强制错误状态提示、追加未来队列输入和晚到 keyed 状态时，仍分别收到当前/下一轮真实输入；原有归档、取消、撤销、重启、换代和清空场景一并通过（32s）。99 项相关单元、双端类型及全部门禁通过；release（3m06s）、完整 Native 25 项（230s）、Electron 联合流程（41s）通过。提问夹具将 HTTP 答复已刷出和 Native/桌面问题投影分为两个现有 5 秒断言，整体测试时限保持；Windows 间歇提问延迟继续由新 runner 验证。桥 0.29.0 的 Linux x64、macOS ARM64、Windows x64/ARM64 四个平台完整打包离线验收通过；该轮 macOS x64 的上述输入问题由本模块修复，旧 Linux ARM64 下载失败已由下一轮 Native 成功验证覆盖。

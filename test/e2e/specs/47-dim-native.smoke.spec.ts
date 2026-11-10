@@ -204,6 +204,17 @@ test('desktop chat uses persistent native dim sessions @smoke', async ({
       'false'
     )
     const sessionId = await getActiveSessionId(app.page)
+    const limits = await app.page.evaluate(
+      async (id) => ({
+        generation: await window.deepchat.invoke('sessions.getGenerationSettings', {
+          sessionId: id
+        }),
+        context: await window.deepchat.invoke('sessions.getContextOccupancy', { sessionId: id })
+      }),
+      sessionId
+    )
+    expect(limits.generation.settings).toMatchObject({ contextLength: 32000, maxTokens: 8000 })
+    expect(limits.context.contextWindowTokens).toBe(32000)
     await expect
       .poll(async () =>
         app.page.evaluate(async (id) => {
