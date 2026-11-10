@@ -121,7 +121,8 @@ impl DynPlugin for StoredScope {
                         reply(json!({"sessionId":address.session_id,"origin":origin,"parentSessionId":parent,
                             "cwd":config.cwd,"model":{"providerId":config.model.provider_id,"modelId":config.model.model_id},"role":config.collaboration_role,
                             "tools":config.tools,"title":metadata.title,
-                            "titleRevision":metadata.revision.to_string()}))
+                            "titleRevision":metadata.revision.to_string(),
+                            "ownedPaths":owner.owned_paths(&address.session_id).await?}))
                     };
                     tokio::select!{_=cancel.cancelled()=>Err(RpcError::interrupted()),result=read=>result}
                 })

@@ -160,6 +160,10 @@
 
 ## 模块进度
 
+- 模块 71：Native FileStorage 复制原生不可变会话附件并比较已有文件字节，再交给 SessionStore 原生归属写入器接纳原 file ID；原 schema、共享归属与孤儿清理器保留，插件不写 native SQL。SDK 两个固定扩展分别 hash 校验并固定 LF 检出，桥 0.21.0。storage scope 发布当前归属路径，上下文追加当前会话文件目录根，不修改历史绝对路径或扩大权限。实际跨目录文件/原始历史/重复合并/重启、孤儿删除而附件保留、目标侧模型恢复后续聊及源 DB hash 不变通过（23s）；31 项相关回归和双端类型/门禁通过。release 构建、完整 20 项 Native（169s）通过；Electron 联合验收通过（39s）。综合桌面用例原 30s 上限两次在末段重启触发，60s 诊断全部完成后，为包含 CLI/备份回滚/重启的单一流程设置 60s 总预算，各界面断言时限不变，标准命令复验 36s 完成。命令输出归属重定位与产品增量导入继续实施。
+
+- 模块 65 macOS 签名清单修正：macOS ARM64 的 Native 20 项、打包与包内离线 dim 启动通过，随后 OCR 校验发现其原始 Node 分发 SHA 被错误替换为签名后 SHA。现保留 OCR 分发来源 SHA，继续由原有 enclosing-app signature 校验签名后字节；dim 的运行清单仍单独记录签名后的真实 SHA，不放宽任何校验。
+
 - 模块 65 包体预算修正：六平台实际工作流中 Linux x64 的 20 项 Native 回归、打包及包内离线启动通过；OCR 测量发现旧政策仍要求独立 Node 为 0。实际 CI 测得 Node 压缩 49,895,032 字节、dim 压缩 77,268,592 字节；现为两者分别设置 56/84 MiB 上限，dim 从 otherRuntime 拆出，OCR 与 uv/cloudflared 的既有上限保持。移除不再成立的删除 Node 预期 -50 MiB，总安装包增长/缩小阈值不放宽。33 项包体回归和本地真实解包包的组件测量、OCR 初始化/中英文识别/退出（峰值 RSS 329 MiB）通过。其余平台继续实际验证。
 
 - 模块 70：storage 插件新增冷 profile Timeline 合并原语，AgentRecords/SessionStore/TimelineStore 公开 owner 接纳归属与完整批次，保留原事件 ID、序号、trace、分支和标题；已存在会话保留目标内容，归属冲突与运行中目标拒绝。关闭后的完整原生历史/重启/重复导入真实验证通过（18s），双端类型与门禁通过。桥 0.20.0；release 构建、完整 8 文件 20 项 Native 回归（147s）和 Electron 聊天/CLI/备份恢复/重启/Inspector（31s）通过。文件归属接纳与产品增量导入继续实施，当前不开放不完整导入。

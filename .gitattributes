@@ -1,2 +1,3 @@
 # These exact bytes are pinned in the native runtime provenance manifest.
 native/dim-host/Cargo.lock text eol=lf
+resources/dim-sdk/*.rs text eol=lf

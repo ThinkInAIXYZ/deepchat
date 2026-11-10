@@ -84,6 +84,8 @@ const assemblyFile = 'crates/dim-agent-runtime/src/assembly.rs'
 const secretsFile = 'crates/dim-app-server/src/provider/secrets.rs'
 const servicesFile = 'crates/dim-app-server/src/lib.rs'
 const recordsFile = 'crates/dim-app-server/src/agent_records.rs'
+const ownedFilesFile = 'crates/dim-app-server/src/storage/files.rs'
+const sessionStoreFile = 'crates/dim-app-server/src/storage/timeline.rs'
 git([
   'diff',
   '--exit-code',
@@ -93,7 +95,9 @@ git([
   `:!${assemblyFile}`,
   `:!${secretsFile}`,
   `:!${servicesFile}`,
-  `:!${recordsFile}`
+  `:!${recordsFile}`,
+  `:!${ownedFilesFile}`,
+  `:!${sessionStoreFile}`
 ])
 if (current !== expected) await writeFile(path.join(directory, filename), expected)
 // Add an explicit host-value replacement to the builder's assembly API. It changes no
@@ -193,6 +197,22 @@ if (recordsCurrent !== recordsOriginal && recordsCurrent !== recordsExpected)
   throw new Error('Pinned dim ownership exports have unexpected changes')
 if (recordsCurrent !== recordsExpected)
   await writeFile(path.join(directory, recordsFile), recordsExpected)
+// The native file owner admits copied immutable files under its existing schema.
+// The embedding plugin never writes ownership rows or manages a second file catalog.
+const filePatches = []
+for (const [filename, extension] of [
+  [ownedFilesFile, 'session-files-adopt.rs'],
+  [sessionStoreFile, 'session-store-adopt.rs']
+]) {
+  const original = git(['show', `HEAD:${filename}`]) + '\n'
+  const expected =
+    original + '\n' + (await readFile(path.join(root, 'resources/dim-sdk', extension), 'utf8'))
+  const current = await readFile(path.join(directory, filename), 'utf8')
+  if (current !== original && current !== expected)
+    throw new Error('Pinned native file owner has unexpected changes')
+  if (current !== expected) await writeFile(path.join(directory, filename), expected)
+  filePatches.push({ path: filename, sha256: createHash('sha256').update(expected).digest('hex') })
+}
 export const nativeSource = {
   sourceRevision: lock.sourceCommit,
   storeFormat: Number(
@@ -205,6 +225,7 @@ export const nativeSource = {
     { path: assemblyFile, sha256: createHash('sha256').update(assemblyExpected).digest('hex') },
     { path: secretsFile, sha256: createHash('sha256').update(secretsExpected).digest('hex') },
     { path: servicesFile, sha256: createHash('sha256').update(servicesExpected).digest('hex') },
-    { path: recordsFile, sha256: createHash('sha256').update(recordsExpected).digest('hex') }
+    { path: recordsFile, sha256: createHash('sha256').update(recordsExpected).digest('hex') },
+    ...filePatches
   ]
 }

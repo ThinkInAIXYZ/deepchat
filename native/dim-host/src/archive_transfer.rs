@@ -49,6 +49,7 @@ pub(crate) async fn transfer(
         let target_db = SqliteStorage::open(target.join("dimcode.sqlite"))?;
         let result = merge(
             ctx,
+            files,
             source_db.clone(),
             target_db.clone(),
             source_root,
@@ -70,12 +71,16 @@ pub(crate) async fn transfer(
 
 async fn merge(
     ctx: &Ctx,
+    files: &Arc<FileStorage>,
     source_db: Arc<SqliteStorage>,
     target_db: Arc<SqliteStorage>,
     source_root: usize,
     target_root: usize,
     cancel: &CancellationToken,
 ) -> Result<Value, RpcError> {
+    let source_path = files
+        .root_path(source_root)
+        .map_err(|_| RpcError::invalid("Archive files are unavailable"))?;
     let source_records = AgentRecords(source_db.clone());
     let target_records = AgentRecords(target_db.clone());
     let profiles = source_records.agents().await?;
@@ -107,10 +112,15 @@ async fn merge(
                 ));
             }
             skipped.push(owner.session_id.clone());
-        } else if !source.owned_paths(&owner.session_id).await?.is_empty() {
+        } else if source
+            .owned_paths(&owner.session_id)
+            .await?
+            .iter()
+            .any(|path| super::archive_files::managed_id(path, &source_path).is_none())
+        {
             // Do not publish a Session whose file ownership has not been transferred.
             return Err(RpcError::invalid(
-                "Archive Session requires portable file transfer",
+                "Archive Session requires portable output transfer",
             ));
         }
     }
@@ -205,6 +215,20 @@ async fn merge(
                 cancel,
             )
             .await?;
+            for path in source.owned_paths(&owner.session_id).await? {
+                let id = super::archive_files::managed_id(&path, &source_path)
+                    .ok_or_else(|| RpcError::invalid("Archive file ownership is invalid"))?;
+                super::archive_files::copy_managed(
+                    files,
+                    source_root,
+                    target_root,
+                    &target,
+                    &owner.session_id,
+                    &id,
+                    cancel,
+                )
+                .await?;
+            }
             for grant in source.grants(&owner.session_id).await? {
                 target
                     .add_grant(&owner.session_id, grant.path, grant.kind, grant.mode)

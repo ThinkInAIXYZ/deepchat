@@ -21,6 +21,8 @@ import {
 import { waitForAppReady } from '../helpers/wait'
 
 test('desktop chat uses persistent native dim sessions @smoke', async ({ app, launchApp }) => {
+  // This workflow includes CLI inference, backup rollback and application restart recovery.
+  test.setTimeout(60_000)
   const manualTitle = 'NATIVE_MANUAL_TITLE_'.repeat(12)
   const requests: Array<{ messages?: unknown[]; tools?: Array<{ function: { name: string } }> }> =
     []

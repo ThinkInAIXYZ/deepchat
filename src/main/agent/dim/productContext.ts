@@ -69,6 +69,25 @@ export class DimProductContext {
     check()
     await this.options.authorize(scope, signal)
     check()
-    return prepared
+    // File ids remain immutable across a cold restore. The owner resolves their physical
+    // directories in this profile, so earlier absolute history paths can be located again.
+    const roots = [
+      ...new Set(
+        (resolved?.description.ownedPaths ?? [])
+          .filter((value) => /[\\/]dimcode\.sqlite\.session-files[\\/][a-f0-9-]{36}$/.test(value))
+          .map((value) => value.slice(0, Math.max(value.lastIndexOf('/'), value.lastIndexOf('\\'))))
+      )
+    ]
+    if (!roots.length) return prepared
+    return {
+      ...prepared,
+      messages: [
+        ...prepared.messages,
+        {
+          role: 'user',
+          content: `Native session attachment files currently use these directory roots: ${JSON.stringify(roots)}. If an earlier absolute attachment path is unavailable after a profile restore, use the current root with the same file ID and filename. Native file ownership and permissions still apply.`
+        }
+      ]
+    }
   }
 }

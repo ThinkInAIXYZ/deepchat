@@ -46,6 +46,48 @@ it('requires the current native step before reading product context and fences a
       messages: [{ role: 'user', content: 'authorized context' }]
     })
     expect(latest.mock.calls[0][0]).toEqual({ sessionId: 'native', branchId: 'main' })
+    const ownedPaths = [
+      '/current/dimcode.sqlite.session-files/11111111-1111-4111-8111-111111111111',
+      '/current/dimcode.sqlite.session-files/22222222-2222-4222-8222-222222222222',
+      'C:\\data\\dimcode.sqlite.session-files\\33333333-3333-4333-8333-333333333333',
+      '/workspace/output.txt'
+    ]
+    const fileContext = new DimProductContext({
+      database: database.data,
+      content: { latest },
+      authorize,
+      prepare,
+      resolve: async () => ({
+        binding,
+        description: {
+          sessionId: 'native',
+          origin: 'client',
+          parentSessionId: null,
+          cwd: '/current',
+          model: { providerId: 'provider', modelId: 'model' },
+          role: 'leader',
+          tools: null,
+          title: null,
+          titleRevision: '0',
+          ownedPaths
+        },
+        ref: { sessionId: 'native', branchId: 'main' },
+        assertCurrent: () => {}
+      })
+    })
+    const withFiles = await fileContext.prepare(request, signal)
+    expect(withFiles.messages).toHaveLength(2)
+    expect(withFiles.messages[0]).toEqual({ role: 'user', content: 'authorized context' })
+    expect(withFiles.messages[1]).toMatchObject({
+      role: 'user',
+      content: expect.stringContaining(
+        JSON.stringify([
+          '/current/dimcode.sqlite.session-files',
+          'C:\\data\\dimcode.sqlite.session-files'
+        ])
+      )
+    })
+
     prepare.mockImplementation(async () => {
       database.data.dimSessionBindingsTable.replace(binding, {
         ...binding,

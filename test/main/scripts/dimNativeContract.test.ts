@@ -168,7 +168,7 @@ it('requires release artifacts in packages and the complete local plugin closure
   await rm(path.join(f.plugins, 'runtime/src/runner.mjs'))
   await expect(verifyDimRuntime({ ...f.options, development: true })).rejects.toThrow()
 })
-it('records signed native and Node digests before the app is sealed, including OCR Node ownership', async () => {
+it('records signed native and Node digests before the app is sealed, preserving OCR distribution provenance', async () => {
   const f = await fixture('darwin-arm64')
   const ocrFile = path.join(f.runtimeRoot, 'ocr/manifest.json')
   await f.write(
@@ -186,7 +186,7 @@ it('records signed native and Node digests before the app is sealed, including O
   expect(manifest.sha256).toBe(hash(await readFile(f.native)))
   expect(manifest.nodeSha256).toBe(hash(await readFile(f.node)))
   expect(manifest.sha256).not.toBe(f.manifest.sha256)
-  expect(JSON.parse(await readFile(ocrFile, 'utf8')).nodeSha256).toBe(manifest.nodeSha256)
+  expect(JSON.parse(await readFile(ocrFile, 'utf8')).nodeSha256).toBe(hash(binary('darwin-arm64')))
   await expect(verifyDimRuntime(f.options)).resolves.toMatchObject({
     nodeSha256: manifest.nodeSha256
   })

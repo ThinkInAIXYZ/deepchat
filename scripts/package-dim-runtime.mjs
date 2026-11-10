@@ -129,12 +129,8 @@ export async function packageDimAssets(context, resourcesDir) {
     })
     runtime.manifest.sha256 = hash(await readFile(runtime.native))
     runtime.nodeSha256 = hash(await readFile(runtime.node))
-    const ocrFile = path.join(runtimeRoot, 'ocr/manifest.json')
-    const ocr = await json(ocrFile)
-    if (ocr.paths?.node) {
-      ocr.nodeSha256 = runtime.nodeSha256
-      await writeFile(ocrFile, JSON.stringify(ocr, null, 2) + '\n')
-    }
+    // OCR retains the original distribution digest and validates signed mutations
+    // through the enclosing macOS app signature. Its provenance must stay original.
   }
   runtime.manifest.nodeSha256 = runtime.nodeSha256
   await writeFile(

@@ -15,6 +15,7 @@ export interface DimScopeDescription {
   tools: string[] | null
   title: { text: string; source: 'auto' | 'manual' } | null
   titleRevision: string
+  ownedPaths?: string[]
 }
 export interface DimAuthorizedOwner {
   binding: Readonly<DimSessionBinding>

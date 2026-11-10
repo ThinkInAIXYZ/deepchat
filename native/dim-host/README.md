@@ -10,7 +10,8 @@ suite. Its TS plugin bindings do not expose arbitrary `ModelConfig` adoption or
 `ProviderSecretHost`, so production integration needs this native assembly.
 `scripts/prepare-dim-source.mjs` verifies the pinned Git object and checks exact changes in the Provider assembly: enabling the existing
 `ProviderSecretHost` dependency and resolving explicitly marked custom-header
-references through that same host when a connection is opened. Except for the builder extension below, all other tracked
+references through that same host when a connection is opened. Every SDK
+extension is enumerated and hashed in the provenance lock; all other tracked
 source must match the pinned revision. Loop, queue, context and model drivers
 remain upstream implementations.
 
@@ -39,8 +40,8 @@ The desktop callback must authorize the provider/reference pair and use its
 existing OS-protected credential store. Custom header values use immutable references too; rotation revokes the old
 connection grant. Resolved credential/header values never enter Timeline.
 
-Only Linux x64 has been built and exercised locally so far. Cross-platform
-packaging validation remains part of the migration acceptance work.
+Native smoke has run on Linux x64/ARM64 and macOS ARM64 in package regression.
+Remaining architecture and final package validation continue independently.
 
 `session.deepchat_inputs.submit` stores validated desktop presentation as a
 `deepchat/input-representation` extension (both context flags are false), then
@@ -94,6 +95,14 @@ an exclusive, disposable cold destination. AgentRecords and SessionStore preserv
 Agent/Session identities and parentage; TimelineStore reads and appends complete
 atomic batches, including trace data and child-branch creation facts. Existing
 Session identities retain the destination's content. Conflicting Agent or Session
-ownership is rejected. A failed staging profile must be discarded. Sessions with
-owned files remain blocked until their native ownership can be transferred; this
-primitive does not enable incremental product imports by itself.
+ownership is rejected. A failed staging profile must be discarded. Immutable Session files transfer through Native FileStorage and SessionStore
+ownership admission, preserving their file ids and shared lifetime. Registered
+command outputs still require relocation before product incremental imports can
+be enabled. The context plugin publishes current Session-file roots without
+rewriting historical paths.
+
+The SDK file-owner seam adds `SessionStore.adopt_file` for an exclusively leased
+cold profile. It validates the copied immutable directory with FileStorage before
+recording ownership through the native writer. The schema and sweeper are dim's
+existing implementations. Two separately hashed SDK file extensions make this
+seam reviewable; no DeepChat SQL accesses native ownership tables.

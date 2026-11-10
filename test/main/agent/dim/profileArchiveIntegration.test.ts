@@ -1,11 +1,12 @@
-import { expect, it } from 'vitest'
-import { createHash } from 'node:crypto'
-import { cp, mkdtemp, readFile, realpath, rm } from 'node:fs/promises'
+import { expect, it, vi } from 'vitest'
+import { createHash, randomUUID } from 'node:crypto'
+import { cp, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import os from 'node:os'
 import { DimRuntimeSupervisor } from '@/agent/dim/runtimeSupervisor'
 import { DimAgentProfiles } from '@/agent/dim/agentProfiles'
 import { DimModelBridge } from '@/agent/dim/modelBridge'
+import { DimSessionControls } from '@/agent/dim/sessionControls'
 import { createServer } from 'node:http'
 
 interface ArchivePage {
@@ -26,7 +27,7 @@ interface ArchivePage {
 }
 
 it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
-  'reads closed foreign profile ownership through the storage plugin without loading or changing it',
+  'merges closed Native histories and file ownership, preserves the source, and continues restored sessions',
   async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'dc-dim-archive-'))
     const options = (name: string) => ({
@@ -41,14 +42,42 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
     const source = new DimRuntimeSupervisor(options('source'))
     const target = new DimRuntimeSupervisor(options('target'))
     let requests = 0
-    const fixture = createServer((_request, response) => {
+    let allowInference = false
+    const requestBodies: string[] = []
+    const fixture = createServer(async (request, response) => {
       requests++
-      response.writeHead(400).end()
+      if (!allowInference) {
+        response.writeHead(400).end()
+        return
+      }
+      try {
+        const chunks: Buffer[] = []
+        for await (const chunk of request) chunks.push(Buffer.from(chunk))
+        requestBodies.push(Buffer.concat(chunks).toString('utf8'))
+        response.writeHead(200, { 'Content-Type': 'text/event-stream' })
+        response.end(
+          `data: ${JSON.stringify({
+            id: 'native-archive',
+            object: 'chat.completion.chunk',
+            model: 'fixture',
+            created: 0,
+            choices: [
+              {
+                index: 0,
+                delta: { role: 'assistant', content: 'Native archive continuation' },
+                finish_reason: 'stop'
+              }
+            ]
+          })}\n\ndata: [DONE]\n\n`
+        )
+      } catch {
+        response.writeHead(400).end()
+      }
     })
     await new Promise<void>((resolve) => fixture.listen(0, '127.0.0.1', resolve))
     try {
       const client = await source.start()
-      const model = await new DimModelBridge(source).configure({
+      const projection: Parameters<DimModelBridge['configure']>[0] = {
         key: 'archive-only',
         displayName: 'Archive fixture',
         connection: {
@@ -72,7 +101,8 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
             maxOutputTokens: 1024
           }
         }
-      })
+      }
+      const model = await new DimModelBridge(source).configure(projection)
       const agentId = await new DimAgentProfiles(source).ensure({
         name: 'Archive owner',
         description: '',
@@ -93,6 +123,14 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
           title: `归档会话 ${index}`
         })
       }
+      const attachment = await client.call<{ attachmentId: string; path: string }>(
+        'attachment.put',
+        {
+          sessionId: ids[0],
+          name: 'archive.txt',
+          text: 'Immutable Native attachment：归档字节'
+        }
+      )
       await client.call('deepchat.host.input', {
         sessionId: ids[0],
         branchId: 'main',
@@ -138,7 +176,9 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
         expect(session.title).toMatchObject({ source: 'manual' })
         expect(session.title?.text).toMatch(/^归档会话 [0-2]$/)
         expect(session.titleRevision).toBe('1')
-        expect(session.ownedPaths).toEqual([])
+        expect(session.ownedPaths).toHaveLength(session.sessionId === ids[0] ? 1 : 0)
+        if (session.sessionId === ids[0])
+          expect(path.basename(session.ownedPaths[0])).toBe(attachment.attachmentId)
         expect(session.grants).toEqual([])
         expect(page.agents[agentId].profile.systemPrompt).toBe('ARCHIVE_ONLY_PROFILE')
         found.push(session.sessionId)
@@ -198,7 +238,60 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
           limit: 100
         })
       ).toEqual(originalHistory)
+      const restoredFile = path.join(
+        root,
+        'target/dim/rust/dimcode.sqlite.session-files',
+        attachment.attachmentId,
+        'archive.txt'
+      )
+      expect(await readFile(restoredFile, 'utf8')).toBe('Immutable Native attachment：归档字节')
+      await target.stop()
+      const orphan = path.join(root, 'target/dim/rust/dimcode.sqlite.session-files', randomUUID())
+      await mkdir(orphan, { recursive: true, mode: 0o700 })
+      await writeFile(path.join(orphan, 'orphan.txt'), 'unowned', { mode: 0o600 })
+      reader = await target.start()
+      await reader.call('attachment.put', {
+        sessionId: ids[1],
+        name: 'sweep.txt',
+        text: 'trigger native cleanup'
+      })
+      await vi.waitFor(
+        async () => {
+          await expect(readFile(path.join(orphan, 'orphan.txt'))).rejects.toMatchObject({
+            code: 'ENOENT'
+          })
+        },
+        { timeout: 5000, interval: 25 }
+      )
+      const scope = await reader.call<{ ownedPaths: string[] }>('deepchat.storage.scope', {
+        sessionId: ids[0]
+      })
+      expect(scope.ownedPaths.map((value) => path.basename(value))).toContain(
+        attachment.attachmentId
+      )
+      expect(await readFile(restoredFile, 'utf8')).toBe('Immutable Native attachment：归档字节')
       expect(requests).toBe(0)
+      allowInference = true
+      const restoredModel = await new DimModelBridge(target).configure(projection)
+      const ref = { sessionId: ids[0], branchId: 'main' }
+      await new DimSessionControls(target).call('set_model', ref, { ...restoredModel })
+      await reader.call('deepchat.host.input', {
+        ...ref,
+        mode: 'queue',
+        submissionId: 'continued-after-archive',
+        rawBlocks: [],
+        content: [{ type: 'text', text: 'Continue the imported Native session' }]
+      })
+      await reader.call('deepchat.host.idle', ref)
+      expect(requests).toBe(1)
+      expect(requestBodies[0]).toContain('归档输入：保持事件身份与批次')
+      expect(
+        JSON.stringify(
+          await reader.call('deepchat.storage.history', { ...ref, after: '0', limit: 100 })
+        )
+      ).toContain('Native archive continuation')
+      expect(await readFile(restoredFile, 'utf8')).toBe('Immutable Native attachment：归档字节')
+      expect(await digest()).toBe(before)
     } finally {
       await Promise.all([source.stop(), target.stop()])
       fixture.closeAllConnections()
