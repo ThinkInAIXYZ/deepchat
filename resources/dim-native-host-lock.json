@@ -3,10 +3,10 @@
   "sourceRevision": "0423b321abc923900525d79d030fd690110f91c4",
   "baseRelease": "0.1.0-alpha.21",
   "serverVersion": "0.1.0-alpha.18",
-  "bridgeVersion": "0.21.0",
+  "bridgeVersion": "0.22.0",
   "storeFormat": 36,
   "apiVersion": 1,
-  "cargoLockSha256": "2459a6bc7e7d6a8ec3d71e0fac5ee66baefc8fb49042562eb9adaba064b6da7a",
+  "cargoLockSha256": "8cfd557e333abe40a718490eebe21e86dd7bb199bf966f778d4d2aec3c4c0a96",
   "assemblyPatch": {
     "path": "crates/dim-app-server/src/provider.rs",
     "sha256": "9aa74fedeba12c0e16830146a4289a7875b2e75a8ea272c0c19fe958b0b98eb3"
@@ -30,11 +30,11 @@
     },
     {
       "path": "crates/dim-app-server/src/storage/files.rs",
-      "sha256": "26c8e2a13d2524ccd3c8795d97e214d97d0295fc5604bdea9df7caac086f0697"
+      "sha256": "43d6079e761c910d477912d8166b001d6809f82b2c9778338df8e6ef512e0b6d"
     },
     {
       "path": "crates/dim-app-server/src/storage/timeline.rs",
-      "sha256": "e6632cc9fdeaa7d3ad0ac969949e4ff78dd43d9a79aec87a6c98ede0c539f492"
+      "sha256": "86451409b23ecccce724495b24682762cf208c6cfa4ce80fbbeb27494be85dc9"
     }
   ]
 }

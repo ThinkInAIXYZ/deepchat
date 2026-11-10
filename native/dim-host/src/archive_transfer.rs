@@ -17,6 +17,8 @@ use tokio_util::sync::CancellationToken;
 pub(crate) struct Transfer {
     source_directory: PathBuf,
     target_directory: PathBuf,
+    source_home: Option<String>,
+    installed_directory: Option<PathBuf>,
 }
 
 pub(crate) async fn transfer(
@@ -40,6 +42,10 @@ pub(crate) async fn transfer(
         .register_root(target.clone(), cancel)
         .await
         .map_err(|_| RpcError::invalid("Target files are unavailable"))?;
+    let installed_directory = match input.installed_directory.as_deref() {
+        Some(directory) => Some(super::archive_rebase::installed_home(directory).await?),
+        None => None,
+    };
     let (source_db, format) = SqliteStorage::open_read_only(source.join("dimcode.sqlite"))?;
     let result = async {
         if format != dim_app_server::storage::STORE_FORMAT {
@@ -54,6 +60,8 @@ pub(crate) async fn transfer(
             target_db.clone(),
             source_root,
             target_root,
+            input.source_home.as_deref(),
+            installed_directory.as_deref(),
             cancel,
         )
         .await;
@@ -76,6 +84,8 @@ async fn merge(
     target_db: Arc<SqliteStorage>,
     source_root: usize,
     target_root: usize,
+    source_home: Option<&str>,
+    installed_directory: Option<&std::path::Path>,
     cancel: &CancellationToken,
 ) -> Result<Value, RpcError> {
     let source_path = files
@@ -112,16 +122,22 @@ async fn merge(
                 ));
             }
             skipped.push(owner.session_id.clone());
-        } else if source
-            .owned_paths(&owner.session_id)
-            .await?
-            .iter()
-            .any(|path| super::archive_files::managed_id(path, &source_path).is_none())
-        {
-            // Do not publish a Session whose file ownership has not been transferred.
-            return Err(RpcError::invalid(
-                "Archive Session requires portable output transfer",
-            ));
+        } else {
+            for path in source.owned_paths(&owner.session_id).await? {
+                if super::archive_files::managed_id(&path, &source_path).is_none() {
+                    let home = source_home.ok_or_else(|| {
+                        RpcError::invalid(
+                            "Native output transfer requires the original profile directory",
+                        )
+                    })?;
+                    if !installed_directory.is_some_and(|directory| directory.is_absolute()) {
+                        return Err(RpcError::invalid(
+                            "Native output transfer requires the installed profile directory",
+                        ));
+                    }
+                    super::archive_outputs::relative(&path, home)?;
+                }
+            }
         }
     }
     for profile in &profiles {
@@ -216,22 +232,49 @@ async fn merge(
             )
             .await?;
             for path in source.owned_paths(&owner.session_id).await? {
-                let id = super::archive_files::managed_id(&path, &source_path)
-                    .ok_or_else(|| RpcError::invalid("Archive file ownership is invalid"))?;
-                super::archive_files::copy_managed(
-                    files,
-                    source_root,
-                    target_root,
-                    &target,
-                    &owner.session_id,
-                    &id,
-                    cancel,
-                )
-                .await?;
+                if let Some(id) = super::archive_files::managed_id(&path, &source_path) {
+                    super::archive_files::copy_managed(
+                        files,
+                        source_root,
+                        target_root,
+                        &target,
+                        &owner.session_id,
+                        &id,
+                        cancel,
+                    )
+                    .await?;
+                } else if let Some(relative) = super::archive_outputs::relative(
+                    &path,
+                    source_home.expect("validated original home"),
+                )? {
+                    super::archive_outputs::copy(
+                        files,
+                        source_root,
+                        target_root,
+                        &installed_directory
+                            .expect("validated installed home")
+                            .join("rust"),
+                        &target,
+                        &owner.session_id,
+                        &relative,
+                        cancel,
+                    )
+                    .await?;
+                } else {
+                    target.register(&owner.session_id, path).await?;
+                }
             }
             for grant in source.grants(&owner.session_id).await? {
+                let path = if let (Some(home), Some(installed)) = (source_home, installed_directory)
+                {
+                    super::archive_outputs::within_home(&grant.path, home)?
+                        .map(|relative| installed.join("rust").join(relative))
+                        .unwrap_or(grant.path)
+                } else {
+                    grant.path
+                };
                 target
-                    .add_grant(&owner.session_id, grant.path, grant.kind, grant.mode)
+                    .add_grant(&owner.session_id, path, grant.kind, grant.mode)
                     .await?;
             }
             let title = source

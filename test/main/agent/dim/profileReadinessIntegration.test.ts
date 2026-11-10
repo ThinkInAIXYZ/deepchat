@@ -1,6 +1,6 @@
 import { expect, it, vi } from 'vitest'
 import { createServer, type ServerResponse } from 'node:http'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, readFile, realpath, rm } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
@@ -148,7 +148,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
         process.platform === 'win32'
           ? `'${value.replaceAll("'", "''")}'`
           : `'${value.replaceAll("'", "'\\''")}'`
-      const command = `${process.platform === 'win32' ? '& ' : ''}${quote(process.execPath)} -e 'setInterval(()=>{},1000)'`
+      const command = `${process.platform === 'win32' ? '& ' : ''}${quote(process.execPath)} -e 'process.stdout.write(String.fromCharCode(120).repeat(262161));setInterval(()=>{},1000)'`
       tools.push({ name: 'exec', arguments: { command, runInBackground: true, timeoutMs: -1 } })
       await client.call('deepchat.host.input', {
         ...ref,
@@ -159,11 +159,22 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
       })
       await client.call('deepchat.host.idle', ref, 30_000)
       const events = await client.call<{
-        events: Array<{ type: string; name: string; data: { task_id?: string } }>
+        events: Array<{
+          type: string
+          name: string
+          data: { task_id?: string; output_path?: string }
+        }>
       }>('deepchat.storage.history', { ...ref, limit: 200 })
       const taskId = events.events.findLast(
         (event) => event.type === 'exec' && event.name === 'started'
       )?.data.task_id
+      const originalOutput = events.events.findLast(
+        (event) => event.type === 'exec' && event.name === 'started'
+      )?.data.output_path
+      expect(typeof originalOutput).toBe('string')
+      await expect
+        .poll(async () => (await readFile(originalOutput!)).length)
+        .toBeGreaterThanOrEqual(262161)
       expect(typeof taskId).toBe('string')
       expect(await client.call('deepchat.storage.readiness')).toMatchObject({
         idle: false,
@@ -213,6 +224,78 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
         const snapshot = await capturing
         try {
           expect(snapshot.value).toBe('product boundary')
+          const originalBytes = await readFile(originalOutput!)
+          expect(originalBytes.length).toBeGreaterThanOrEqual(262161)
+          const mergedRoot = path.join(profile, 'merged')
+          await mkdir(mergedRoot, { recursive: true })
+          const mergedHost = host.createIsolatedProfile(mergedRoot)
+          try {
+            await mergedHost.start()
+            await mergedHost.stop()
+            const workingSource = path.join(profile, 'merge-source')
+            await cp(snapshot.profile.directory, workingSource, { recursive: true })
+            const coordinator = await host.start()
+            await coordinator.call(
+              'deepchat.storage.archive_transfer',
+              {
+                sourceDirectory: workingSource,
+                targetDirectory: path.join(mergedRoot, 'dim'),
+                sourceHome: (await snapshot.profile.manifest()).sourceHome!,
+                installedDirectory: path.join(mergedRoot, 'dim')
+              },
+              120_000
+            )
+            const merged = await mergedHost.start()
+            const scope = await merged.call<{ ownedPaths: string[] }>('deepchat.storage.scope', {
+              sessionId: ref.sessionId
+            })
+            expect(scope.ownedPaths.length).toBeGreaterThan(0)
+            const nativeRoot = await realpath(path.join(mergedRoot, 'dim/rust'))
+            for (const output of scope.ownedPaths) {
+              const relative = path.relative(nativeRoot, await realpath(output))
+              expect(relative.startsWith('..') || path.isAbsolute(relative)).toBe(false)
+              expect(await readFile(output)).toEqual(originalBytes)
+            }
+          } finally {
+            await mergedHost.stop()
+          }
+          const restoredRoot = path.join(profile, 'restored')
+          await mkdir(restoredRoot, { recursive: true })
+          const restoredHost = host.createIsolatedProfile(restoredRoot)
+          const owner = new DimProfileBackups({
+            runtimeRoot: path.resolve('runtime/dim'),
+            profileRoot: restoredRoot,
+            temporaryRoot: os.tmpdir(),
+            host: restoredHost,
+            readers: () => {
+              throw new Error('Cold restore must not start product readers')
+            }
+          })
+          const prepared = await owner.prepareRestore(
+            snapshot.profile.directory,
+            await snapshot.profile.manifest()
+          )
+          try {
+            const installed = await prepared.install()
+            await installed.commit()
+            const restored = await restoredHost.start()
+            const scope = await restored.call<{ ownedPaths: string[] }>('deepchat.storage.scope', {
+              sessionId: ref.sessionId
+            })
+            expect(scope.ownedPaths.length).toBeGreaterThan(0)
+            const nativeRoot = await realpath(path.join(restoredRoot, 'dim/rust'))
+            for (const output of scope.ownedPaths) {
+              const relative = path.relative(nativeRoot, await realpath(output))
+              expect(relative.startsWith('..') || path.isAbsolute(relative)).toBe(false)
+              expect(await readFile(output)).toEqual(originalBytes)
+            }
+            await restored.call('deepchat.host.delete', { sessionId: ref.sessionId })
+            expect(await readFile(originalOutput!)).toEqual(originalBytes)
+          } finally {
+            await restoredHost.stop()
+            await prepared.dispose()
+          }
+
           expect(copied).toBe(true)
           expect(
             (await snapshot.profile.manifest()).files.some(

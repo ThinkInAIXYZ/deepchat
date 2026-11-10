@@ -200,15 +200,19 @@ if (recordsCurrent !== recordsExpected)
 // The native file owner admits copied immutable files under its existing schema.
 // The embedding plugin never writes ownership rows or manages a second file catalog.
 const filePatches = []
-for (const [filename, extension] of [
-  [ownedFilesFile, 'session-files-adopt.rs'],
-  [sessionStoreFile, 'session-store-adopt.rs']
+for (const [filename, extensions] of [
+  [ownedFilesFile, ['session-files-adopt.rs', 'session-files-relocate.rs']],
+  [sessionStoreFile, ['session-store-adopt.rs', 'session-store-relocate.rs']]
 ]) {
   const original = git(['show', `HEAD:${filename}`]) + '\n'
-  const expected =
-    original + '\n' + (await readFile(path.join(root, 'resources/dim-sdk', extension), 'utf8'))
+  let expected = original
+  const accepted = [original]
+  for (const extension of extensions) {
+    expected += '\n' + (await readFile(path.join(root, 'resources/dim-sdk', extension), 'utf8'))
+    accepted.push(expected)
+  }
   const current = await readFile(path.join(directory, filename), 'utf8')
-  if (current !== original && current !== expected)
+  if (!accepted.includes(current))
     throw new Error('Pinned native file owner has unexpected changes')
   if (current !== expected) await writeFile(path.join(directory, filename), expected)
   filePatches.push({ path: filename, sha256: createHash('sha256').update(expected).digest('hex') })

@@ -96,9 +96,11 @@ Agent/Session identities and parentage; TimelineStore reads and appends complete
 atomic batches, including trace data and child-branch creation facts. Existing
 Session identities retain the destination's content. Conflicting Agent or Session
 ownership is rejected. A failed staging profile must be discarded. Immutable Session files transfer through Native FileStorage and SessionStore
-ownership admission, preserving their file ids and shared lifetime. Registered
-command outputs still require relocation before product incremental imports can
-be enabled. The context plugin publishes current Session-file roots without
+ownership admission, preserving their file ids and shared lifetime. Registered command outputs stream through Native FileStorage into the target
+profile and use its installed directory. Opaque overwrite restores relocate
+output ownership through SessionStore before installation; deleting a restored
+Session leaves the original profile untouched. Product incremental import
+remains a separate SQL/Native transaction integration. The context plugin publishes current Session-file roots without
 rewriting historical paths.
 
 The SDK file-owner seam adds `SessionStore.adopt_file` for an exclusively leased
@@ -106,3 +108,9 @@ cold profile. It validates the copied immutable directory with FileStorage befor
 recording ownership through the native writer. The schema and sweeper are dim's
 existing implementations. Two separately hashed SDK file extensions make this
 seam reviewable; no DeepChat SQL accesses native ownership tables.
+
+Snapshots record their original product home for portable output registration.
+SQLite read-only snapshots may create WAL/SHM companions, so transfer consumers
+read a disposable working copy after validating an immutable archive closure.
+The storage coordinator has an empty private home and no desktop gateway; it
+opens only the staged store and does not restore Agents or invoke models.

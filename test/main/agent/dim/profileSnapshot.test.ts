@@ -1,5 +1,5 @@
 import { expect, it, vi } from 'vitest'
-import { chmod, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { captureDimProfile, validateDimProfile } from '@/agent/dim/profileSnapshot'
@@ -35,6 +35,7 @@ it('captures an immutable opaque profile including WAL and native files, excludi
         'files/immutable',
         'files/script'
       ])
+      expect(manifest.sourceHome).toBe(await realpath(profile))
       expect(manifest.files[2].mode).toBe(0o400)
       expect(manifest.files[3].mode).toBe(0o700)
       expect(await readFile(path.join(captured.directory, 'dimcode.sqlite'), 'utf8')).toBe(

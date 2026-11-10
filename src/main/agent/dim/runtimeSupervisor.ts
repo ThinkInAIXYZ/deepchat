@@ -39,6 +39,17 @@ export class DimRuntimeSupervisor {
     null
 
   constructor(private readonly options: DimRuntimeOptions) {}
+  /** A storage coordinator gets a fresh product home and no desktop capabilities. */
+  createIsolatedProfile(profileRoot: string): DimRuntimeSupervisor {
+    if (!this.options.nativePlugins) throw new Error('Native profile operations are unavailable')
+    return new DimRuntimeSupervisor({
+      runtimeRoot: this.options.runtimeRoot,
+      nodeExecutable: this.options.nodeExecutable,
+      profileRoot,
+      nativePlugins: true
+    })
+  }
+
   get usesNativePlugins(): boolean {
     return this.options.nativePlugins === true
   }

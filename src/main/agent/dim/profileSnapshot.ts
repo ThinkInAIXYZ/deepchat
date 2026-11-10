@@ -1,5 +1,5 @@
 import { constants, createReadStream } from 'node:fs'
-import { chmod, copyFile, lstat, mkdir, mkdtemp, readdir, rm } from 'node:fs/promises'
+import { chmod, copyFile, lstat, mkdir, mkdtemp, readdir, realpath, rm } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
 import path from 'node:path'
 
@@ -10,6 +10,7 @@ export interface DimProfileIdentity {
 }
 export interface DimProfileManifest extends DimProfileIdentity {
   version: 1
+  sourceHome?: string
   files: Array<{ path: string; size: number; sha256: string; mode: number }>
 }
 export interface DimProfileSnapshot {
@@ -77,6 +78,7 @@ export async function captureDimProfile(
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
       exists = false
     }
+    const sourceHome = exists ? await realpath(source) : path.resolve(source)
     const files = exists ? await filesAt(source, '', true) : []
     for (const relative of files) {
       const input = path.join(source, relative)
@@ -105,7 +107,7 @@ export async function captureDimProfile(
             mode: info.mode & 0o700
           })
         }
-        return { ...identity, version: 1, files: entries }
+        return { ...identity, version: 1, sourceHome, files: entries }
       }
     }
   } catch (error) {
@@ -130,6 +132,14 @@ export async function validateDimProfile(
     !Array.isArray(manifest.files)
   )
     throw new Error('Unsupported native profile backup')
+  if (
+    manifest.sourceHome !== undefined &&
+    (typeof manifest.sourceHome !== 'string' ||
+      manifest.sourceHome.length > 32768 ||
+      manifest.sourceHome.includes('\0') ||
+      (!path.posix.isAbsolute(manifest.sourceHome) && !path.win32.isAbsolute(manifest.sourceHome)))
+  )
+    throw new Error('Invalid native profile source home')
   const root = await lstat(directory)
   if (!root.isDirectory() || root.isSymbolicLink()) throw new Error('Invalid native profile root')
   const actual = await filesAt(directory)

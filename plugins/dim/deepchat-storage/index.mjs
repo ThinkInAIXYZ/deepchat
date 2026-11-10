@@ -91,10 +91,15 @@ export default definePlugin({
         'rename_title',
         'readiness',
         'archive_catalog',
-        'archive_transfer'
+        'archive_transfer',
+        'archive_rebase'
       ].map((name) => ({
         name: `deepchat.storage.${name}`,
-        mutating: name === 'seed_title' || name === 'rename_title' || name === 'archive_transfer',
+        mutating:
+          name === 'seed_title' ||
+          name === 'rename_title' ||
+          name === 'archive_transfer' ||
+          name === 'archive_rebase',
         interruption: 'report',
         progress: false
       })),
@@ -113,7 +118,8 @@ export default definePlugin({
                     'rename_title',
                     'readiness',
                     'archive_catalog',
-                    'archive_transfer'
+                    'archive_transfer',
+                    'archive_rebase'
                   ]
                 : ['history']
             }
@@ -121,11 +127,14 @@ export default definePlugin({
         }
         if (
           method === 'deepchat.storage.archive_catalog' ||
-          method === 'deepchat.storage.archive_transfer'
+          method === 'deepchat.storage.archive_transfer' ||
+          method === 'deepchat.storage.archive_rebase'
         ) {
           const operation = method.endsWith('archive_transfer')
             ? 'deepchat.native_archive.transfer'
-            : 'deepchat.native_archive.catalog'
+            : method.endsWith('archive_rebase')
+              ? 'deepchat.native_archive.rebase'
+              : 'deepchat.native_archive.catalog'
           if (!config.rawHistory)
             return { code: 'unsupported', message: 'Native archive owner is unavailable' }
           return {

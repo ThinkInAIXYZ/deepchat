@@ -8,7 +8,7 @@ import { unzipSync } from 'fflate'
 import { SyncImportRecovery } from '../../../src/main/sync/importRecovery'
 import { DimProfileBackups } from '../../../src/main/agent/dim/profileBackups'
 import { captureDimProfile } from '../../../src/main/agent/dim/profileSnapshot'
-import type { DimRuntimeSupervisor } from '../../../src/main/agent/dim/runtimeSupervisor'
+import { DimRuntimeSupervisor } from '../../../src/main/agent/dim/runtimeSupervisor'
 import { test, expect } from '../fixtures/electronApp'
 import {
   getActiveSessionId,
@@ -310,7 +310,15 @@ test('desktop chat uses persistent native dim sessions @smoke', async ({ app, la
         runtimeRoot: path.resolve('runtime/dim'),
         profileRoot: app.userDataDir,
         temporaryRoot: os.tmpdir(),
-        host: {} as DimRuntimeSupervisor,
+        host: new DimRuntimeSupervisor({
+          runtimeRoot: path.resolve('runtime/dim'),
+          profileRoot: app.userDataDir,
+          nodeExecutable: path.resolve(
+            'runtime/node',
+            ...(process.platform === 'win32' ? ['node.exe'] : ['bin', 'node'])
+          ),
+          nativePlugins: true
+        }),
         readers: () => {
           throw new Error('Offline recovery fixture must not start readers')
         }

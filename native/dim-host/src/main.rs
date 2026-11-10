@@ -1,5 +1,7 @@
 mod archive;
 mod archive_files;
+mod archive_outputs;
+mod archive_rebase;
 mod archive_transfer;
 mod context;
 mod embeddings;

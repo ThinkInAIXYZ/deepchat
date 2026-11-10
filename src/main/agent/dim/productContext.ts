@@ -73,9 +73,17 @@ export class DimProductContext {
     // directories in this profile, so earlier absolute history paths can be located again.
     const roots = [
       ...new Set(
-        (resolved?.description.ownedPaths ?? [])
-          .filter((value) => /[\\/]dimcode\.sqlite\.session-files[\\/][a-f0-9-]{36}$/.test(value))
-          .map((value) => value.slice(0, Math.max(value.lastIndexOf('/'), value.lastIndexOf('\\'))))
+        (resolved?.description.ownedPaths ?? []).flatMap((value) => {
+          if (/[\\/]dimcode\.sqlite\.session-files[\\/][a-f0-9-]{36}$/.test(value))
+            return [value.slice(0, Math.max(value.lastIndexOf('/'), value.lastIndexOf('\\')))]
+          const normalized = value.replaceAll('\\', '/')
+          const marker = '/command-output/'
+          const position = normalized.lastIndexOf(marker)
+          return position >= 0 &&
+            /^[a-f0-9-]{36}\//.test(normalized.slice(position + marker.length))
+            ? [value.slice(0, position + marker.length - 1)]
+            : []
+        })
       )
     ]
     if (!roots.length) return prepared
@@ -85,7 +93,7 @@ export class DimProductContext {
         ...prepared.messages,
         {
           role: 'user',
-          content: `Native session attachment files currently use these directory roots: ${JSON.stringify(roots)}. If an earlier absolute attachment path is unavailable after a profile restore, use the current root with the same file ID and filename. Native file ownership and permissions still apply.`
+          content: `Native session-owned files currently use these directory roots: ${JSON.stringify(roots)}. If an earlier absolute file path is unavailable after a profile restore, use the current root with its original relative suffix (file ID and filename, or command session ID and output filename). Native file ownership and permissions still apply.`
         }
       ]
     }

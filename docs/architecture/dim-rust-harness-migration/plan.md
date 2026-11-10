@@ -160,6 +160,8 @@
 
 ## 模块进度
 
+- 模块 72：备份记录原 Native home；独立空 profile 协调器在应用启动屏障内，通过 storage 插件对 staging 执行 SessionStore 输出归属重定位，未恢复任何 Agent，不发模型请求。原始 Timeline 不修改，恢复后的删除不触碰原 profile 文件。命令输出合并经 Native FileStorage 以 64 KiB 分块复制并比较已有文件 hash，保留原目录下的相对身份；内部 grant 与 context 路径按目标位置恢复。已验证真实 262,161 字节输出合并、跨目录覆盖恢复、目标删除与源文件保留，以及已有媒体/历史合并两项 Native 用例；9 项相关单元、Rust check、双端类型/门禁通过。桥 0.22.0 release 构建、完整 Native 20 项（172s）、Electron 联合验收（34s）通过。桌面离线恢复 fixture 改为使用真实 Native 协调器，验证包括故障回滚与重启续聊。SDK 只读会创建 WAL/SHM 的事实由临时工作副本隔离，原始校验清单不放宽。产品增量/实时同步仍继续接线。
+
 - 模块 71：Native FileStorage 复制原生不可变会话附件并比较已有文件字节，再交给 SessionStore 原生归属写入器接纳原 file ID；原 schema、共享归属与孤儿清理器保留，插件不写 native SQL。SDK 两个固定扩展分别 hash 校验并固定 LF 检出，桥 0.21.0。storage scope 发布当前归属路径，上下文追加当前会话文件目录根，不修改历史绝对路径或扩大权限。实际跨目录文件/原始历史/重复合并/重启、孤儿删除而附件保留、目标侧模型恢复后续聊及源 DB hash 不变通过（23s）；31 项相关回归和双端类型/门禁通过。release 构建、完整 20 项 Native（169s）通过；Electron 联合验收通过（39s）。综合桌面用例原 30s 上限两次在末段重启触发，60s 诊断全部完成后，为包含 CLI/备份回滚/重启的单一流程设置 60s 总预算，各界面断言时限不变，标准命令复验 36s 完成。命令输出归属重定位与产品增量导入继续实施。
 
 - 模块 65 macOS 签名清单修正：macOS ARM64 的 Native 20 项、打包与包内离线 dim 启动通过，随后 OCR 校验发现其原始 Node 分发 SHA 被错误替换为签名后 SHA。现保留 OCR 分发来源 SHA，继续由原有 enclosing-app signature 校验签名后字节；dim 的运行清单仍单独记录签名后的真实 SHA，不放宽任何校验。

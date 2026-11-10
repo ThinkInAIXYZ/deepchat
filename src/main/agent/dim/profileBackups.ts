@@ -140,6 +140,32 @@ export class DimProfileBackups implements SyncNativeProfilePort {
         )
           directories.add(parent)
       }
+      if (manifest.files.some((file) => file.path === 'rust/dimcode.sqlite')) {
+        // The application's supervisor remains fenced. This empty coordinator opens only
+        // the disposable store through the storage plugin and restores no Agents from it.
+        const coordinatorRoot = await mkdtemp(
+          path.join(this.options.temporaryRoot, 'dim-restore-owner-')
+        )
+        const coordinator = this.options.host.createIsolatedProfile(coordinatorRoot)
+        try {
+          const client = await coordinator.start()
+          await client.call(
+            'deepchat.storage.archive_rebase',
+            {
+              directory: next,
+              ...(manifest.sourceHome ? { sourceHome: manifest.sourceHome } : {}),
+              installedDirectory: target
+            },
+            120_000
+          )
+        } finally {
+          try {
+            await coordinator.stop()
+          } finally {
+            await rm(coordinatorRoot, { recursive: true, force: true })
+          }
+        }
+      }
       for (const directory of [...directories].sort((a, b) => b.length - a.length))
         await syncDirectory(directory)
       await writeDimProfileRecovery(container, {

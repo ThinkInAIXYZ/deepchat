@@ -50,6 +50,7 @@ it('requires the current native step before reading product context and fences a
       '/current/dimcode.sqlite.session-files/11111111-1111-4111-8111-111111111111',
       '/current/dimcode.sqlite.session-files/22222222-2222-4222-8222-222222222222',
       'C:\\data\\dimcode.sqlite.session-files\\33333333-3333-4333-8333-333333333333',
+      '/current/command-output/44444444-4444-4444-8444-444444444444/task.log',
       '/workspace/output.txt'
     ]
     const fileContext = new DimProductContext({
@@ -83,7 +84,8 @@ it('requires the current native step before reading product context and fences a
       content: expect.stringContaining(
         JSON.stringify([
           '/current/dimcode.sqlite.session-files',
-          'C:\\data\\dimcode.sqlite.session-files'
+          'C:\\data\\dimcode.sqlite.session-files',
+          '/current/command-output'
         ])
       )
     })
