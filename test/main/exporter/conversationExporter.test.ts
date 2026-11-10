@@ -42,7 +42,14 @@ describe('buildConversationExportContent html', () => {
   ])('keeps {{word}} text from %s', (text) => {
     const html = buildConversationExportContent(conversation, messages(text), 'html')
     expect(html).toContain(`<div class="message-content">${text}</div>`)
-    expect(html.split(text).length - 1).toBeGreaterThanOrEqual(5)
+    const pre = (label: string, value: string) =>
+      `<div class="section-label">${label}</div>\n        <pre class="code">${value}</pre>`
+    expect(html).toContain(
+      `<div class="section-title">🤔 思考过程</div>\n        <pre class="code">${text}</pre>`
+    )
+    expect(html).toContain(pre('参数', `{\n  &quot;t&quot;: &quot;${text}&quot;\n}`))
+    expect(html).toContain(pre('响应', text))
+    expect(html).toContain(`❌ ${text}\n`)
     expect(html).toContain('Template {{title}} chat')
     expect(html).toContain('model-{{x}}')
     expect(html).toContain('<strong>{{mime}}.md</strong>')
