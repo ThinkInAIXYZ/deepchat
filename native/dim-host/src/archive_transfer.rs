@@ -1,7 +1,6 @@
 //! Cold-profile transfer through the native ownership and Timeline writers.
 //! The destination is disposable staging: a failed transfer must never be installed.
 use dim_agent_capabilities::{file_storage::FileStorage, methods::RpcError};
-use dim_agent_runtime::{TimelineKey, TimelineStore};
 use dim_app_server::{
     AgentRecord, AgentRecords,
     storage::{SessionStore, SqliteStorage},
@@ -224,59 +223,26 @@ async fn merge(
                     origin,
                 )
                 .await?;
-            events += copy_timeline(
+            events += super::archive_timeline::copy(
                 source.timeline_store(),
                 target.timeline_store(),
                 &owner.session_id,
                 cancel,
             )
             .await?;
-            for path in source.owned_paths(&owner.session_id).await? {
-                if let Some(id) = super::archive_files::managed_id(&path, &source_path) {
-                    super::archive_files::copy_managed(
-                        files,
-                        source_root,
-                        target_root,
-                        &target,
-                        &owner.session_id,
-                        &id,
-                        cancel,
-                    )
-                    .await?;
-                } else if let Some(relative) = super::archive_outputs::relative(
-                    &path,
-                    source_home.expect("validated original home"),
-                )? {
-                    super::archive_outputs::copy(
-                        files,
-                        source_root,
-                        target_root,
-                        &installed_directory
-                            .expect("validated installed home")
-                            .join("rust"),
-                        &target,
-                        &owner.session_id,
-                        &relative,
-                        cancel,
-                    )
-                    .await?;
-                } else {
-                    target.register(&owner.session_id, path).await?;
-                }
-            }
-            for grant in source.grants(&owner.session_id).await? {
-                let path = if let (Some(home), Some(installed)) = (source_home, installed_directory)
-                {
-                    super::archive_outputs::within_home(&grant.path, home)?
-                        .map(|relative| installed.join("rust").join(relative))
-                        .unwrap_or(grant.path)
-                } else {
-                    grant.path
-                };
-                target
-                    .add_grant(&owner.session_id, path, grant.kind, grant.mode)
-                    .await?;
-            }
+            copy_assets(
+                files,
+                &source,
+                &target,
+                source_root,
+                target_root,
+                &source_path,
+                source_home,
+                installed_directory,
+                &owner.session_id,
+                cancel,
+            )
+            .await?;
             let title = source
                 .metadata(&owner.session_id)
                 .await
@@ -297,72 +263,105 @@ async fn merge(
             ));
         }
     }
+    for session in &skipped {
+        let incoming = source.timeline_store().session_config(session).await?;
+        let existing = target.timeline_store().session_config(session).await?;
+        if serde_json::to_value(&incoming)
+            .map_err(|_| RpcError::invalid("Invalid source config"))?
+            != serde_json::to_value(&existing)
+                .map_err(|_| RpcError::invalid("Invalid target config"))?
+            || source.creation_record(session).await? != target.creation_record(session).await?
+        {
+            return Err(RpcError::invalid(
+                "Native Session creation identity conflicts",
+            ));
+        }
+        events += super::archive_timeline::copy(
+            source.timeline_store(),
+            target.timeline_store(),
+            session,
+            cancel,
+        )
+        .await?;
+        copy_assets(
+            files,
+            &source,
+            &target,
+            source_root,
+            target_root,
+            &source_path,
+            source_home,
+            installed_directory,
+            session,
+            cancel,
+        )
+        .await?;
+    }
     Ok(json!({"imported":imported,"skipped":skipped,"events":events.to_string()}))
 }
 
-async fn copy_timeline(
-    source: Arc<dyn TimelineStore>,
-    target: Arc<dyn TimelineStore>,
+async fn copy_assets(
+    files: &Arc<FileStorage>,
+    source: &SessionStore,
+    target: &SessionStore,
+    source_root: usize,
+    target_root: usize,
+    source_path: &std::path::Path,
+    source_home: Option<&str>,
+    installed_directory: Option<&std::path::Path>,
     session: &str,
     cancel: &CancellationToken,
-) -> Result<u64, RpcError> {
-    let mut pending = source.branches(session).await?;
-    let mut copied = BTreeSet::new();
-    let mut events = 0;
-    while !pending.is_empty() {
-        let index = pending
-            .iter()
-            .position(|branch| {
-                branch
-                    .info
-                    .parent
-                    .as_ref()
-                    .is_none_or(|parent| copied.contains(parent))
-            })
-            .ok_or_else(|| RpcError::invalid("Archive branch ancestry is invalid"))?;
-        let branch = pending.remove(index);
-        let key = TimelineKey {
-            session_id: session.into(),
-            branch_id: branch.info.id.clone(),
-        };
-        let mut after = 0;
-        while after < branch.sequence {
-            if cancel.is_cancelled() {
-                return Err(RpcError::interrupted());
-            }
-            let page = source.read_page(&key, after, 128, branch.sequence).await?;
-            if page.is_empty() {
-                return Err(RpcError::invalid("Archive Timeline page is incomplete"));
-            }
-            let mut records = page.into_iter().peekable();
-            while let Some(first) = records.next() {
-                let end = first.batch_end;
-                let mut batch = vec![first];
-                while records.peek().is_some_and(|record| record.batch_end == end) {
-                    batch.push(records.next().expect("peeked record"));
-                }
-                if batch
-                    .last()
-                    .is_none_or(|record| record.event.sequence != end)
-                {
-                    return Err(RpcError::invalid("Archive Timeline batch is incomplete"));
-                }
-                events += batch.len() as u64;
-                let (done, settled) = tokio::sync::oneshot::channel();
-                target.append(
-                    key.clone(),
-                    batch,
-                    Box::new(move |result| {
-                        let _ = done.send(result);
-                    }),
-                )?;
-                settled
-                    .await
-                    .map_err(|_| RpcError::invalid("Archive Timeline writer stopped"))??;
-                after = end;
-            }
+) -> Result<(), RpcError> {
+    for path in source.owned_paths(session).await? {
+        if let Some(id) = super::archive_files::managed_id(&path, &source_path) {
+            super::archive_files::copy_managed(
+                files,
+                source_root,
+                target_root,
+                &target,
+                session,
+                &id,
+                cancel,
+            )
+            .await?;
+        } else if let Some(relative) = super::archive_outputs::relative(
+            &path,
+            source_home.ok_or_else(|| {
+                RpcError::invalid("Native output transfer requires the original profile directory")
+            })?,
+        )? {
+            super::archive_outputs::copy(
+                files,
+                source_root,
+                target_root,
+                &installed_directory
+                    .ok_or_else(|| {
+                        RpcError::invalid(
+                            "Native output transfer requires the installed profile directory",
+                        )
+                    })?
+                    .join("rust"),
+                &target,
+                session,
+                &relative,
+                cancel,
+            )
+            .await?;
+        } else {
+            target.register(session, path).await?;
         }
-        copied.insert(branch.info.id);
     }
-    Ok(events)
+    for grant in source.grants(session).await? {
+        let path = if let (Some(home), Some(installed)) = (source_home, installed_directory) {
+            super::archive_outputs::within_home(&grant.path, home)?
+                .map(|relative| installed.join("rust").join(relative))
+                .unwrap_or(grant.path)
+        } else {
+            grant.path
+        };
+        target
+            .add_grant(session, path, grant.kind, grant.mode)
+            .await?;
+    }
+    Ok(())
 }

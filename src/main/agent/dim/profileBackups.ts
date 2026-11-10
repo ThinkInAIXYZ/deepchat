@@ -1,4 +1,14 @@
-import { chmod, copyFile, mkdir, mkdtemp, open, readFile, rename, rm } from 'node:fs/promises'
+import {
+  chmod,
+  copyFile,
+  mkdir,
+  mkdtemp,
+  open,
+  readFile,
+  readdir,
+  rename,
+  rm
+} from 'node:fs/promises'
 import path from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 import { DimMethodError } from './pluginClient'
@@ -16,12 +26,20 @@ import {
 
 export interface PreparedDimProfile {
   readonly recoveryDirectory: string
+  readonly nativeSessionIds?: readonly string[]
   install(): Promise<{ commit(): Promise<void>; rollback(): Promise<void> }>
   dispose(): Promise<void>
 }
 export interface SyncNativeProfilePort {
   capture<T>(collect: () => Promise<T>): Promise<{ value: T; profile: DimProfileSnapshot }>
   prepareRestore(directory: string, manifest: unknown): Promise<PreparedDimProfile>
+  prepareMerge(directory: string, manifest: unknown): Promise<PreparedDimProfile>
+}
+
+async function syncProfileDirectories(directory: string): Promise<void> {
+  for (const entry of await readdir(directory, { withFileTypes: true }))
+    if (entry.isDirectory()) await syncProfileDirectories(path.join(directory, entry.name))
+  await syncDirectory(directory)
 }
 
 export class DimProfileRecoveryError extends Error {
@@ -102,7 +120,45 @@ export class DimProfileBackups implements SyncNativeProfilePort {
     }
   }
 
-  async prepareRestore(directory: string, value: unknown): Promise<PreparedDimProfile> {
+  prepareRestore(directory: string, value: unknown): Promise<PreparedDimProfile> {
+    return this.prepare(directory, value)
+  }
+
+  /** The caller holds the common cold-profile/database barrier throughout admission. */
+  async prepareMerge(directory: string, value: unknown): Promise<PreparedDimProfile> {
+    const identity = await this.identity()
+    const incoming = await validateDimProfile(directory, value, identity)
+    const current = await captureDimProfile(
+      path.join(this.options.profileRoot, 'dim'),
+      this.options.temporaryRoot,
+      identity
+    )
+    try {
+      const manifest = await current.manifest()
+      if (!manifest.files.some((file) => file.path === 'rust/dimcode.sqlite'))
+        return await this.prepareRestore(directory, incoming)
+      // Native read-only opens may create SQLite sidecars. Never open the verified
+      // immutable backup itself; even catalogue reads use this disposable working copy.
+      const working = await captureDimProfile(directory, this.options.temporaryRoot, identity)
+      try {
+        await validateDimProfile(working.directory, incoming, identity)
+        return await this.prepare(current.directory, manifest, {
+          directory: working.directory,
+          manifest: incoming
+        })
+      } finally {
+        await working.dispose()
+      }
+    } finally {
+      await current.dispose()
+    }
+  }
+
+  private async prepare(
+    directory: string,
+    value: unknown,
+    merge?: { directory: string; manifest: DimProfileManifest }
+  ): Promise<PreparedDimProfile> {
     const manifest: DimProfileManifest = await validateDimProfile(
       directory,
       value,
@@ -113,6 +169,7 @@ export class DimProfileBackups implements SyncNativeProfilePort {
     const previous = path.join(container, 'previous')
     const target = path.join(this.options.profileRoot, 'dim')
     let state: 'staged' | 'swapping' | 'installed' | 'settled' = 'staged'
+    const nativeSessionIds: string[] = []
     // A failed rollback retains its private recovery directory for explicit recovery.
     const dispose = async () => {
       if (state === 'staged' || state === 'settled')
@@ -120,7 +177,6 @@ export class DimProfileBackups implements SyncNativeProfilePort {
     }
     try {
       await mkdir(next, { mode: 0o700 })
-      const directories = new Set([next])
       for (const file of manifest.files) {
         const output = path.join(next, file.path)
         await mkdir(path.dirname(output), { recursive: true, mode: 0o700 })
@@ -133,12 +189,6 @@ export class DimProfileBackups implements SyncNativeProfilePort {
           await handle.close()
         }
         await chmod(output, file.mode)
-        for (
-          let parent = path.dirname(output);
-          parent.startsWith(next);
-          parent = path.dirname(parent)
-        )
-          directories.add(parent)
       }
       if (manifest.files.some((file) => file.path === 'rust/dimcode.sqlite')) {
         // The application's supervisor remains fenced. This empty coordinator opens only
@@ -149,6 +199,17 @@ export class DimProfileBackups implements SyncNativeProfilePort {
         const coordinator = this.options.host.createIsolatedProfile(coordinatorRoot)
         try {
           const client = await coordinator.start()
+          if (merge)
+            await client.call(
+              'deepchat.storage.archive_transfer',
+              {
+                sourceDirectory: merge.directory,
+                targetDirectory: next,
+                ...(merge.manifest.sourceHome ? { sourceHome: merge.manifest.sourceHome } : {}),
+                installedDirectory: target
+              },
+              30 * 60_000
+            )
           await client.call(
             'deepchat.storage.archive_rebase',
             {
@@ -158,6 +219,19 @@ export class DimProfileBackups implements SyncNativeProfilePort {
             },
             120_000
           )
+          let after: string | undefined
+          do {
+            const page = await client.call<{
+              sessions: Array<{ sessionId: string }>
+              next: string | null
+            }>('deepchat.storage.archive_catalog', {
+              directory: next,
+              limit: 64,
+              ...(after ? { after } : {})
+            })
+            nativeSessionIds.push(...page.sessions.map((session) => session.sessionId))
+            after = page.next ?? undefined
+          } while (after)
         } finally {
           try {
             await coordinator.stop()
@@ -166,8 +240,7 @@ export class DimProfileBackups implements SyncNativeProfilePort {
           }
         }
       }
-      for (const directory of [...directories].sort((a, b) => b.length - a.length))
-        await syncDirectory(directory)
+      await syncProfileDirectories(next)
       await writeDimProfileRecovery(container, {
         version: 1,
         phase: 'prepared',
@@ -175,6 +248,7 @@ export class DimProfileBackups implements SyncNativeProfilePort {
       })
       return {
         recoveryDirectory: path.basename(container),
+        nativeSessionIds,
         dispose,
         // The caller already holds the common cold-profile/database maintenance barrier.
         install: async () => {

@@ -144,7 +144,7 @@ export default definePlugin({
               {
                 profile: config.profile,
                 methods: [operation],
-                timeoutMs: 120000
+                timeoutMs: method.endsWith('archive_transfer') ? 30 * 60_000 : 120000
               },
               (call) => call(operation, params)
             )

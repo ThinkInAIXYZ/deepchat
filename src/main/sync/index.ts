@@ -420,19 +420,30 @@ export class SyncService {
       if (manifest?.nativeProfile !== undefined) {
         if (manifest.nativeProfile !== ZIP_PATHS.nativeManifest || !this.nativeProfile)
           throw new Error('sync.error.unsupportedBackupVersion')
-        // Incremental native ownership remapping must precede admission of this format.
-        if (importMode !== ImportMode.OVERWRITE)
-          throw new Error('sync.error.unsupportedBackupVersion')
         await fs.promises.mkdir(path.join(extractionDir, 'dim/profile'), {
           recursive: true,
           mode: 0o700
         })
-        preparedNative = await this.nativeProfile.prepareRestore(
-          path.join(extractionDir, 'dim/profile'),
-          JSON.parse(
-            await fs.promises.readFile(path.join(extractionDir, ZIP_PATHS.nativeManifest), 'utf8')
-          )
+        const nativeManifest = JSON.parse(
+          await fs.promises.readFile(path.join(extractionDir, ZIP_PATHS.nativeManifest), 'utf8')
         )
+        preparedNative = await this.nativeProfile[
+          importMode === ImportMode.OVERWRITE ? 'prepareRestore' : 'prepareMerge'
+        ](path.join(extractionDir, 'dim/profile'), nativeManifest)
+        const admitted = new Set(preparedNative.nativeSessionIds)
+        const product = this.openBackupDatabase(backupDbSource.path, backupDatabasePassword)
+        try {
+          for (const table of ['dim_session_bindings', 'dim_session_scopes']) {
+            if (!this.countTableRows(product, table)) continue
+            const rows = product
+              .prepare(`SELECT DISTINCT dim_session_id FROM "${table}"`)
+              .all() as Array<{ dim_session_id: string }>
+            if (rows.some((row) => !admitted.has(row.dim_session_id)))
+              throw new Error('sync.error.noValidBackup')
+          }
+        } finally {
+          product.close()
+        }
       }
 
       database.close()

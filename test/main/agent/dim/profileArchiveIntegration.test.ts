@@ -7,7 +7,12 @@ import { DimRuntimeSupervisor } from '@/agent/dim/runtimeSupervisor'
 import { DimAgentProfiles } from '@/agent/dim/agentProfiles'
 import { DimModelBridge } from '@/agent/dim/modelBridge'
 import { DimSessionControls } from '@/agent/dim/sessionControls'
+import { DimProfileBackups } from '@/agent/dim/profileBackups'
+import { captureDimProfile, validateDimProfile } from '@/agent/dim/profileSnapshot'
 import { createServer } from 'node:http'
+
+vi.unmock('fs')
+vi.unmock('node:fs')
 
 interface ArchivePage {
   storeFormat: number
@@ -142,7 +147,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
       await client.call('deepchat.host.idle', { sessionId: ids[0], branchId: 'main' })
       await source.stop()
       const closedReader = await source.start()
-      const originalHistory = await closedReader.call('deepchat.storage.history', {
+      let originalHistory = await closedReader.call('deepchat.storage.history', {
         sessionId: ids[0],
         branchId: 'main',
         after: '0',
@@ -219,6 +224,61 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
           targetDirectory: staging
         })
       ).resolves.toEqual({ imported: [], skipped: [...ids].sort(), events: '0' })
+      const advanced = await source.start()
+      await advanced.call('deepchat.host.input', {
+        sessionId: ids[0],
+        branchId: 'main',
+        mode: 'append',
+        submissionId: 'compatible-tail',
+        rawBlocks: [],
+        content: [{ type: 'text', text: 'Compatible Native history tail' }]
+      })
+      await advanced.call('deepchat.host.idle', { sessionId: ids[0], branchId: 'main' })
+      await source.stop()
+      const historyReader = await source.start()
+      originalHistory = await historyReader.call('deepchat.storage.history', {
+        sessionId: ids[0],
+        branchId: 'main',
+        after: '0',
+        limit: 100
+      })
+      await source.stop()
+      const advancedArchive = path.join(root, 'advanced-archive')
+      await cp(path.join(root, 'source/dim'), advancedArchive, { recursive: true })
+      const appended = await reader.call<{ imported: string[]; skipped: string[]; events: string }>(
+        'deepchat.storage.archive_transfer',
+        { sourceDirectory: advancedArchive, targetDirectory: staging }
+      )
+      expect(appended.imported).toEqual([])
+      expect(appended.skipped.sort()).toEqual([...ids].sort())
+      expect(BigInt(appended.events)).toBeGreaterThan(0n)
+      const divergent = new DimRuntimeSupervisor(options('divergent'))
+      const conflictingTarget = path.join(root, 'conflicting-target')
+      try {
+        await mkdir(path.join(root, 'divergent'), { recursive: true })
+        await cp(archive, path.join(root, 'divergent/dim'), { recursive: true })
+        const conflicting = await divergent.start()
+        await conflicting.call('deepchat.host.input', {
+          sessionId: ids[0],
+          branchId: 'main',
+          mode: 'append',
+          submissionId: 'divergent-tail',
+          rawBlocks: [],
+          content: [{ type: 'text', text: 'Different Native history tail' }]
+        })
+        await conflicting.call('deepchat.host.idle', { sessionId: ids[0], branchId: 'main' })
+        await divergent.stop()
+        await cp(staging, conflictingTarget, { recursive: true })
+        await expect(
+          reader.call('deepchat.storage.archive_transfer', {
+            sourceDirectory: path.join(root, 'divergent/dim'),
+            targetDirectory: conflictingTarget
+          })
+        ).rejects.toThrow(/diverged/)
+      } finally {
+        await divergent.stop()
+        await rm(conflictingTarget, { recursive: true, force: true })
+      }
       await expect(
         reader.call('deepchat.storage.archive_transfer', {
           sourceDirectory: archive,
@@ -226,9 +286,34 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
         })
       ).rejects.toThrow()
       expect(await digest()).toBe(before)
-      await target.stop()
-      await rm(path.join(root, 'target/dim'), { recursive: true, force: true })
-      await cp(staging, path.join(root, 'target/dim'), { recursive: true })
+      const identity = JSON.parse(
+        await readFile(path.resolve('runtime/dim/plugins/native-host-lock.json'), 'utf8')
+      )
+      const snapshot = await captureDimProfile(path.join(root, 'source/dim'), os.tmpdir(), identity)
+      try {
+        const manifest = await snapshot.manifest()
+        await target.withStopped(async () => {
+          const prepared = await new DimProfileBackups({
+            runtimeRoot: path.resolve('runtime/dim'),
+            profileRoot: path.join(root, 'target'),
+            temporaryRoot: os.tmpdir(),
+            host: target,
+            readers: () => {
+              throw new Error('Cold merge must not start session readers')
+            }
+          }).prepareMerge(snapshot.directory, manifest)
+          try {
+            expect([...(prepared.nativeSessionIds ?? [])].sort()).toEqual([...ids].sort())
+            const installed = await prepared.install()
+            await installed.commit()
+          } finally {
+            await prepared.dispose()
+          }
+        })
+        await validateDimProfile(snapshot.directory, manifest, identity)
+      } finally {
+        await snapshot.dispose()
+      }
       reader = await target.start()
       expect(
         await reader.call('deepchat.storage.history', {
@@ -285,6 +370,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
       await reader.call('deepchat.host.idle', ref)
       expect(requests).toBe(1)
       expect(requestBodies[0]).toContain('归档输入：保持事件身份与批次')
+      expect(requestBodies[0]).toContain('Compatible Native history tail')
       expect(
         JSON.stringify(
           await reader.call('deepchat.storage.history', { ...ref, after: '0', limit: 100 })

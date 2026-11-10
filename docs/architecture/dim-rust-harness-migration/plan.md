@@ -160,6 +160,8 @@
 
 ## 模块进度
 
+- 模块 73：v3 Native profile 增量导入已接通。独立空 profile 的 storage 插件在 disposable staging 经 Native owners 合并，已有身份逐事件/trace/原子批次核对共享前缀后追加兼容尾部；分叉、创建记录或归属冲突拒绝安装，已有目标标题保留。原始备份只校验，查询使用工作副本。SQL 导入前校验绑定/归档 scopes 引用的全部 Native 会话确实在目标 owner 目录中；原有 journal 同时保护 SQL 与 Native 的安装、回滚和重启恢复。已有产品绑定/消息/Inspector 缓存保留本地游标并从 canonical tail 重建，另行保留导入旧代的只读归属，避免占用未来活动 generation。实际 Rust 重复合并/尾部追加/分叉拒绝、真正 prepareMerge/安装/重启/附件 GC/恢复后模型续聊与源备份完整性通过（41s）；37 项导入与恢复回归、共享 Native 身份游标回归通过。桥 0.23.0 release 构建、完整 Native 20 项（158s）、双端类型/门禁与 Electron 增量导入保留当前标题和消息、覆盖恢复、故障回滚、重启续聊（35s）通过。实时同步继续实施。
+
 - 模块 65 runner 实测修正：Linux x64/ARM64 的 Native、实际打包、包内无网络 dim 与 OCR 均通过，安装包体积门禁发现旧 1.1.0-beta.4 基线不含 Rust runtime。x64 新增 dim 组件 gzip 77,296,084 字节，安装包实际增长 145.02 MiB，归档 138.51 MiB；据此显式记录 80 MiB 的新增组件预期，原有 90/112 MiB 剩余波动预算与 dim 独立 84 MiB 上限保留。macOS ARM64 的 Native/离线 dim 通过后，OCR 揭示未签名 verification 应用内的共享 Node 被重签，无法使用 enclosing-app seal；verification 现保留原 Node 分发字节与签名，distribution 仍重签并校验所属团队。Windows x64 原生 19/20 通过，仅问题弹窗投影断言失败：保留原 5s 断言，补 Native 问题/事件种类诊断，不输出请求正文与凭据。Rust 编译缓存改在 smoke 前保存，避免单个运行时断言丢弃已完成构建；每次仍重新 build --locked 并完整验收。
 
 - 模块 72：备份记录原 Native home；独立空 profile 协调器在应用启动屏障内，通过 storage 插件对 staging 执行 SessionStore 输出归属重定位，未恢复任何 Agent，不发模型请求。原始 Timeline 不修改，恢复后的删除不触碰原 profile 文件。命令输出合并经 Native FileStorage 以 64 KiB 分块复制并比较已有文件 hash，保留原目录下的相对身份；内部 grant 与 context 路径按目标位置恢复。已验证真实 262,161 字节输出合并、跨目录覆盖恢复、目标删除与源文件保留，以及已有媒体/历史合并两项 Native 用例；9 项相关单元、Rust check、双端类型/门禁通过。桥 0.22.0 release 构建、完整 Native 20 项（172s）、Electron 联合验收（34s）通过。桌面离线恢复 fixture 改为使用真实 Native 协调器，验证包括故障回滚与重启续聊。SDK 只读会创建 WAL/SHM 的事实由临时工作副本隔离，原始校验清单不放宽。产品增量/实时同步仍继续接线。

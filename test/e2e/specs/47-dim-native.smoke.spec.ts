@@ -278,6 +278,22 @@ test('desktop chat uses persistent native dim sessions @smoke', async ({ app, la
         }),
       sessionId
     )
+    const mergedBackup = await app.page.evaluate(
+      (fileName) =>
+        window.deepchat.invoke('sync.import', { backupFile: fileName, mode: 'increment' }),
+      captured.backup!.fileName
+    )
+    expect(mergedBackup.result.success).toBe(true)
+    const merged = await app.page.evaluate(async (id) => {
+      const messages = await window.deepchat.invoke('sessions.listMessagesPage', { sessionId: id })
+      const sessions = await window.deepchat.invoke('sessions.listLightweight', {})
+      return {
+        messages: messages.messages.map((message) => message.id),
+        title: sessions.items.find((item) => item.id === id)?.title
+      }
+    }, sessionId)
+    expect(merged.messages).toEqual(firstPage.messages.map((message) => message.id))
+    expect(merged.title).toBe('AFTER_BACKUP_TITLE')
     const restoredBackup = await app.page.evaluate(
       (fileName) =>
         window.deepchat.invoke('sync.import', {

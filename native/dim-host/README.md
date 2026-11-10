@@ -94,13 +94,16 @@ the preflight boundary for canonical incremental transfer and portable files.
 an exclusive, disposable cold destination. AgentRecords and SessionStore preserve
 Agent/Session identities and parentage; TimelineStore reads and appends complete
 atomic batches, including trace data and child-branch creation facts. Existing
-Session identities retain the destination's content. Conflicting Agent or Session
-ownership is rejected. A failed staging profile must be discarded. Immutable Session files transfer through Native FileStorage and SessionStore
+Session identities retain their local titles and verify every shared event, trace
+and batch boundary before appending a compatible source tail. Divergent histories,
+conflicting creation records or ownership are rejected. A failed staging profile must be discarded. Immutable Session files transfer through Native FileStorage and SessionStore
 ownership admission, preserving their file ids and shared lifetime. Registered command outputs stream through Native FileStorage into the target
 profile and use its installed directory. Opaque overwrite restores relocate
 output ownership through SessionStore before installation; deleting a restored
-Session leaves the original profile untouched. Product incremental import
-remains a separate SQL/Native transaction integration. The context plugin publishes current Session-file roots without
+Session leaves the original profile untouched. Product incremental imports stage
+the canonical merge before SQL changes and reuse the durable SQL/Native recovery
+journal for atomic installation and rollback. Existing desktop bindings and caches
+keep their own cursor; imported closed scopes retain separate read-only ownership. The context plugin publishes current Session-file roots without
 rewriting historical paths.
 
 The SDK file-owner seam adds `SessionStore.adopt_file` for an exclusively leased
