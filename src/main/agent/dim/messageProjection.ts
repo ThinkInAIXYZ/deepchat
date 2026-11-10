@@ -5,7 +5,7 @@ import type {
   MessageMetadata,
   UserMessageContent
 } from '@shared/types/agent-interface'
-import type { ToolCallImagePreview } from '@shared/types/core/mcp'
+import type { HtmlRenderDescriptor, ToolCallImagePreview } from '@shared/types/core/mcp'
 import type { DimSessionBinding } from '@/session/data/tables/dimSessionBindings'
 import { dimSequence, type DimEvent } from './sessionConnection'
 import { dimQuestions } from '@shared/dimQuestions'
@@ -376,6 +376,19 @@ export function projectDimEvent(
               : null
           if (display && typeof display === 'object' && !Array.isArray(display)) {
             if (typeof display.response === 'string') block.tool_call.response = display.response
+            const html = display.htmlRender
+            if (
+              toolResult.isError !== true &&
+              html &&
+              typeof html === 'object' &&
+              !Array.isArray(html) &&
+              html.schemaVersion === 1 &&
+              typeof html.title === 'string' &&
+              (html.panelId === undefined || typeof html.panelId === 'string') &&
+              (html.height === undefined ||
+                (typeof html.height === 'number' && Number.isFinite(html.height)))
+            )
+              block.tool_call.htmlRender = html as unknown as HtmlRenderDescriptor
             if (Array.isArray(display.imagePreviews))
               block.tool_call.imagePreviews = display.imagePreviews
                 .slice(0, 32)

@@ -120,6 +120,8 @@ import {
   ExecutionContractDispatchError,
   assertExecutionContractAllowsDispatch
 } from '@/tape/domain/executionContract'
+import { HTML_RENDER_AGENT_TOOL_NAMES } from '@shared/agentTools'
+
 // Historical tool names remain readable in old settings and prompt receipts only.
 const APPLY_PATCH_TOOL_NAME = 'apply_patch'
 const STR_REPLACE_EDITOR_TOOL_NAME = 'str_replace_editor'
@@ -149,6 +151,7 @@ const FILESYSTEM_TOOL_ORDER = ['read', 'write', 'edit', 'glob', 'grep', 'exec', 
 const OFFLOAD_TOOL_NAMES = new Set(['exec', 'cdp_send'])
 const RESERVED_AGENT_TOOL_NAMES = new Set<string>([
   ...YO_BROWSER_TOOL_NAMES,
+  ...HTML_RENDER_AGENT_TOOL_NAMES,
   IMAGE_GENERATE_TOOL_NAME,
   CRON_JOB_AGENT_TOOL_NAME,
   LIVE_DELEGATION_AGENT_TOOL_NAME,

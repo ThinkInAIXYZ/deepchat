@@ -134,6 +134,8 @@ test('desktop chat uses persistent native dim sessions @smoke', async ({
   const manualTitle = 'NATIVE_MANUAL_TITLE_'.repeat(12)
   const requests: Array<{ messages?: unknown[]; tools?: Array<{ function: { name: string } }> }> =
     []
+  let htmlPhase: 'shell' | 'section' | null = null
+  let panelId = ''
   let readSession: { sessionId: string; messageId: string; action: 'messages' | 'message' } | null =
     null
   const server = createServer(async (request, response) => {
@@ -151,6 +153,38 @@ test('desktop chat uses persistent native dim sessions @smoke', async ({
     for await (const chunk of request) text += chunk
     const body = JSON.parse(text)
     requests.push(body)
+    if (
+      body.stream &&
+      htmlPhase &&
+      body.tools?.some(
+        (tool: { function?: { name?: string } }) => tool.function?.name === 'html_render'
+      )
+    ) {
+      const phase = htmlPhase
+      if (phase === 'section') {
+        const result = body.messages
+          .filter((message: { role: string }) => message.role === 'tool')
+          .at(-1)
+        const match = JSON.stringify(result).match(/panelId: ([A-Za-z0-9_-]+)/)
+        if (!match) throw new Error('Native HTML result lost its panel identity')
+        panelId = match[1]
+      }
+      htmlPhase = phase === 'shell' ? 'section' : null
+      const name = phase === 'shell' ? 'html_render' : 'html_render_section'
+      const args =
+        phase === 'shell'
+          ? {
+              title: 'Native HTML panel',
+              html: '<!doctype html><html><body><main data-dc-sections><h1>NATIVE_HTML_SHELL</h1></main></body></html>'
+            }
+          : { panelId, sectionId: 'evidence', html: '<p>NATIVE_HTML_SECTION</p>' }
+      response
+        .writeHead(200, { 'Content-Type': 'text/event-stream' })
+        .end(
+          `data: ${JSON.stringify({ id: 'native-html', object: 'chat.completion.chunk', created: 0, model: 'dim-desktop-fixture', choices: [{ index: 0, delta: { role: 'assistant', tool_calls: [{ index: 0, id: `native-html-${phase}`, type: 'function', function: { name, arguments: JSON.stringify(args) } }] }, finish_reason: 'tool_calls' }] })}\n\ndata: [DONE]\n\n`
+        )
+      return
+    }
     if (
       body.stream &&
       readSession &&
@@ -337,6 +371,32 @@ test('desktop chat uses persistent native dim sessions @smoke', async ({
       { id: sessionId, title: manualTitle }
     )
     expect(renamed.session.title).toBe(manualTitle)
+    const disabled = await app.page.evaluate(async (id) => {
+      await window.deepchat.invoke('sessions.updateDisabledAgentTools', {
+        sessionId: id,
+        disabledAgentTools: ['deepchat_question', 'process', 'cronjob']
+      })
+      return window.deepchat.invoke('sessions.getDisabledAgentTools', { sessionId: id })
+    }, sessionId)
+    expect(disabled.disabledAgentTools).toEqual(['ask_user', 'exec_stop', 'schedule'])
+    // Product HTML tools are opt-in, then run through the same Native tool provider.
+    expect(
+      requests
+        .filter((request) => request.tools)
+        .every((request) => !request.tools!.some((tool) => tool.function.name === 'html_render'))
+    ).toBe(true)
+    htmlPhase = 'shell'
+    await sendMessage(app.page, 'NATIVE_HTML_INPUT')
+    await expect(app.page.getByTestId('chat-page-shell')).toHaveAttribute(
+      'data-generating',
+      'false'
+    )
+    await expect(
+      app.page
+        .frameLocator('iframe[title="Native HTML panel"]')
+        .frameLocator('iframe')
+        .locator('body')
+    ).toContainText('NATIVE_HTML_SECTION')
     const firstPage = await app.page.evaluate(
       (id) => window.deepchat.invoke('sessions.listMessagesPage', { sessionId: id }),
       sessionId
@@ -348,14 +408,19 @@ test('desktop chat uses persistent native dim sessions @smoke', async ({
     expect(original.length).toBeGreaterThanOrEqual(2)
     expect(original.every((message) => message.metadata.dim?.sessionId)).toBe(true)
     const nativeId = original[0].metadata.dim.sessionId
-    const disabled = await app.page.evaluate(async (id) => {
-      await window.deepchat.invoke('sessions.updateDisabledAgentTools', {
-        sessionId: id,
-        disabledAgentTools: ['deepchat_question', 'process', 'cronjob']
-      })
-      return window.deepchat.invoke('sessions.getDisabledAgentTools', { sessionId: id })
-    }, sessionId)
-    expect(disabled.disabledAgentTools).toEqual(['ask_user', 'exec_stop', 'schedule'])
+    const htmlMessage = firstPage.messages.find(
+      (message) => message.role === 'assistant' && message.content.includes('native-html-shell')
+    )!
+    const htmlBlock = (
+      JSON.parse(htmlMessage.content) as Array<{ id: string; tool_call?: { name: string } }>
+    ).find((block) => block.tool_call?.name === 'html_render')!
+    const htmlRef = { conversationId: sessionId, messageId: htmlMessage.id, blockId: htmlBlock.id }
+    const preparedHtml = await app.page.evaluate(
+      (ref) => window.deepchat.invoke('mcp.apps.prepareHtmlRender', ref),
+      htmlRef
+    )
+    expect(preparedHtml.view.html).toContain('NATIVE_HTML_SHELL')
+    expect(preparedHtml.view.sandboxUrl.startsWith('mcp-app://')).toBe(true)
     const names = requests.flatMap(
       (request) => request.tools?.map((tool) => tool.function.name) ?? []
     )
@@ -487,13 +552,24 @@ test('desktop chat uses persistent native dim sessions @smoke', async ({
     await expect(getAssistantMessages(reopened.page).last()).toContainText(
       'NATIVE_DIM_DESKTOP_REPLY'
     )
+    const restoredHtml = await reopened.page.evaluate(
+      async (ref) => ({
+        view: await window.deepchat.invoke('mcp.apps.prepareHtmlRender', ref),
+        sections: await window.deepchat.invoke('mcp.apps.readHtmlRenderSections', ref)
+      }),
+      htmlRef
+    )
+    expect(restoredHtml.view.view.html).toContain('NATIVE_HTML_SHELL')
+    expect(restoredHtml.sections.sections).toEqual([
+      { id: 'evidence', html: '<p>NATIVE_HTML_SECTION</p>' }
+    ])
     readSession = {
       sessionId,
       messageId: firstPage.messages.find((message) => message.role === 'user')!.id,
       action: 'messages'
     }
     await sendMessage(reopened.page, 'NATIVE_DIM_AFTER_RESTART')
-    await expect(getAssistantMessages(reopened.page)).toHaveCount(2)
+    await expect(getAssistantMessages(reopened.page)).toHaveCount(3)
     await expect(getAssistantMessages(reopened.page).last()).toContainText(
       'NATIVE_DIM_DESKTOP_REPLY'
     )
@@ -522,8 +598,8 @@ test('desktop chat uses persistent native dim sessions @smoke', async ({
         tool_call: { response: expect.stringContaining('NATIVE_DIM_FIRST_INPUT') }
       })
     }
-    expect(restored.messages.filter((message) => message.role === 'user')).toHaveLength(2)
-    expect(restored.messages.filter((message) => message.role === 'assistant')).toHaveLength(2)
+    expect(restored.messages.filter((message) => message.role === 'user')).toHaveLength(3)
+    expect(restored.messages.filter((message) => message.role === 'assistant')).toHaveLength(3)
     expect(restored.messages.every((message) => message.status === 'sent')).toBe(true)
     expect(
       restored.messages.every((message) => JSON.parse(message.metadata).dim?.sessionId === nativeId)
@@ -555,6 +631,16 @@ test('desktop chat uses persistent native dim sessions @smoke', async ({
     await expect(reopened.page.getByTestId('tape-inspector-panel')).toContainText(
       /timeline events|时间线事件/
     )
+    await reopened.page.evaluate(
+      (id) => window.deepchat.invoke('sessions.clearMessages', { sessionId: id }),
+      sessionId
+    )
+    await expect(
+      reopened.page.evaluate(
+        (ref) => window.deepchat.invoke('mcp.apps.prepareHtmlRender', ref),
+        htmlRef
+      )
+    ).rejects.toThrow(/no longer available/)
   } finally {
     if (testInfo.status !== testInfo.expectedStatus)
       await testInfo.attach('native-model-requests.json', {

@@ -45,7 +45,8 @@ export function createDimDesktopTools(options: DesktopToolsOptions) {
                 response: result.rawData?.toolResult
                   ? JSON.stringify(result.rawData.toolResult)
                   : result.content,
-                imagePreviews: result.rawData?.imagePreviews ?? []
+                imagePreviews: result.rawData?.imagePreviews ?? [],
+                htmlRender: result.rawData?.htmlRender
               })
             ) as JsonValue
           }

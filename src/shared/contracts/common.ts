@@ -661,6 +661,14 @@ export const AssistantMessageBlockSchema = z.object({
             })
             .optional()
         })
+        .optional(),
+      htmlRender: z
+        .object({
+          schemaVersion: z.literal(1),
+          title: z.string().min(1).max(256),
+          height: z.number().int().positive().optional(),
+          panelId: z.string().min(1).max(64).optional()
+        })
         .optional()
     })
     .optional(),

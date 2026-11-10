@@ -1,3 +1,5 @@
+import { HTML_RENDER_SECTION_TOOL_NAME, HTML_RENDER_TOOL_NAME } from './agentHtmlRenderTool'
+
 // Historical server label retained for read-only Tape presentation.
 export const AGENT_TAPE_TOOL_SERVER_NAME = 'agent-tape'
 export const GLOB_TOOL_NAME = 'glob'
@@ -21,7 +23,14 @@ export const SKILL_AGENT_TOOL_NAMES = Object.freeze([
   SKILL_MANAGE_AGENT_TOOL_NAME,
   SKILL_RUN_AGENT_TOOL_NAME
 ] as const)
-export const DEFAULT_DISABLED_AGENT_TOOLS = [CRON_JOB_AGENT_TOOL_NAME] as const
+export const HTML_RENDER_AGENT_TOOL_NAMES = [
+  HTML_RENDER_TOOL_NAME,
+  HTML_RENDER_SECTION_TOOL_NAME
+] as const
+export const DEFAULT_DISABLED_AGENT_TOOLS = [
+  CRON_JOB_AGENT_TOOL_NAME,
+  ...HTML_RENDER_AGENT_TOOL_NAMES
+] as const
 
 export const TAPE_TOOL_NAMES = Object.freeze({
   info: 'tape_info',

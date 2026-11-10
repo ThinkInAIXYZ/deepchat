@@ -1,4 +1,5 @@
 import { DimMediaFiles } from '@/agent/dim/mediaFiles'
+import { DimHtmlRender } from '@/agent/dim/htmlRender'
 import { ModelType } from '@shared/model'
 import { registerNativeMediaCache } from '@/platform/nativeMediaCache'
 import { createDimSessionReferenceSource } from '@/agent/dim/sessionReferences'
@@ -326,6 +327,7 @@ import { backgroundExecSessionManager } from '@/agent/shared/process/backgroundE
 import {
   runBuiltinMcpAllowlistCompatibilityMigration,
   runDisabledAgentToolCapabilityCleanupMigration,
+  runHtmlRenderSessionToolsSeedMigration,
   runMainlineNormalizationMigration
 } from './startupMigrations/sessionDataMigrations'
 import { activateAppOnMac } from '@/lib/activateApp'
@@ -1672,6 +1674,11 @@ export async function createMainProcessControl(dependencies: {
     }
   })
   const pluginRuntimeSupervisor = new PluginRuntimeSupervisor()
+  const dimHtmlRender = new DimHtmlRender({
+    database: sessionData.database,
+    host: dimHost,
+    synchronize: (id) => dimAgent.runtime.synchronize(id)
+  })
   mcpService = new McpService(
     providerSettings,
     agentSettings,
@@ -1712,6 +1719,24 @@ export async function createMainProcessControl(dependencies: {
           )
         )
       },
+      readHtmlRenderSource: (input) => {
+        if (sessionData.database.dimSessionBindingsTable.get(input.conversationId))
+          return dimHtmlRender.source(input)
+        const message = sessionData.database.deepchatMessagesTable.get(input.messageId)
+        return message?.session_id === input.conversationId
+          ? sessionData.database.deepchatAssistantBlocksTable.readHtmlRenderSource(
+              input.messageId,
+              input.blockId
+            )
+          : null
+      },
+      listHtmlRenderSections: async (conversationId, panelId) =>
+        sessionData.database.dimSessionBindingsTable.get(conversationId)
+          ? ((await dimHtmlRender.panel(conversationId, panelId))?.sections ?? [])
+          : sessionData.database.deepchatAssistantBlocksTable.listHtmlRenderSections(
+              conversationId,
+              panelId
+            ),
       persistModelContext: (messageId, blockId, descriptor, toolInput, context) =>
         sessionData.database.deepchatAssistantBlocksTable.updateMcpAppModelContext(
           messageId,
@@ -1868,6 +1893,15 @@ export async function createMainProcessControl(dependencies: {
   const agentToolDependencies: AgentToolDependencies = {
     readSession: (callerSessionId, input) =>
       sessionData.sessionReferences.read(callerSessionId, input),
+    htmlRenderPanels: {
+      measurePanel: (conversationId, panelId) =>
+        sessionData.database.dimSessionBindingsTable.get(conversationId)
+          ? dimHtmlRender.panel(conversationId, panelId)
+          : sessionData.database.deepchatAssistantBlocksTable.measureHtmlRenderPanel(
+              conversationId,
+              panelId
+            )
+    },
     agentInvocationAdmission,
     sessions: {
       resolveConversationWorkdir: async (conversationId) => {
@@ -4344,6 +4378,11 @@ export async function createMainProcessControl(dependencies: {
   await runBuiltinMcpAllowlistCompatibilityMigration({
     sqlitePresenter: sessionDataMigrationSQLite,
     agentSettings
+  })
+  await runHtmlRenderSessionToolsSeedMigration({
+    sqlitePresenter: sessionDataMigrationSQLite,
+    agentSettings,
+    untracked: (write) => syncReplica!.untracked(write)
   })
   // Migration must finish before any renderer or background runtime can read a manual Agent scope.
   // A failed migration is startup-fatal; continuing would persist an empty active-Skill selection.

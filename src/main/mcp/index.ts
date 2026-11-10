@@ -1,4 +1,5 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
+import type { HtmlRenderSource } from '@/htmlRender/source'
 import logger from '@shared/logger'
 import { performance } from 'node:perf_hooks'
 import type { Prompt } from '@shared/types/prompt'
@@ -213,6 +214,15 @@ export class McpService implements McpServicePort {
         blockId: string
         toolInput: Record<string, unknown>
       }): boolean
+      readHtmlRenderSource(input: {
+        conversationId: string
+        messageId: string
+        blockId: string
+      }): HtmlRenderSource | null | Promise<HtmlRenderSource | null>
+      listHtmlRenderSections(
+        conversationId: string,
+        panelId: string
+      ): Array<{ id: string; html: string }> | Promise<Array<{ id: string; html: string }>>
       persistModelContext(
         messageId: string,
         blockId: string,
@@ -297,6 +307,8 @@ export class McpService implements McpServicePort {
           },
           getPermissionMode: mcpApps.getPermissionMode,
           validateSource: mcpApps.validateSource,
+          readHtmlRenderSource: mcpApps.readHtmlRenderSource,
+          listHtmlRenderSections: mcpApps.listHtmlRenderSections,
           persistModelContext: mcpApps.persistModelContext
         })
       : null

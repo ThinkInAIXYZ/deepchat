@@ -731,6 +731,8 @@ export class AiSdkProvider extends BaseLLMProvider {
         return this.fetchRequestyModels()
       case 'litellm':
         return this.fetchLiteLLMModels()
+      case 'openllm':
+        return this.fetchOpenLLMModels()
       case 'demonroute':
         return this.fetchDemonRouteModels()
       case 'apimodels': {
@@ -1080,6 +1082,47 @@ export class AiSdkProvider extends BaseLLMProvider {
       })
     }
     return [...models.values()]
+  }
+
+  /**
+   * OpenLLM's `/v1/models` cards carry `capabilities`, `context_window` and `max_output_tokens`.
+   * List the chat models and read those facts; ids are kept verbatim (aliases and
+   * `<provider>/<model>` ids).
+   */
+  private async fetchOpenLLMModels(): Promise<MODEL_META[]> {
+    const records = await this.fetchOpenAIModelRecords({ timeout: this.getModelFetchTimeout() })
+    const models: MODEL_META[] = []
+    for (const model of records) {
+      const modelId = typeof model.id === 'string' ? model.id.trim() : ''
+      const capabilities = Array.isArray(model.capabilities)
+        ? model.capabilities.filter((item): item is string => typeof item === 'string')
+        : []
+      if (!modelId || !capabilities.includes('chat')) {
+        continue
+      }
+      const contextLength =
+        toPositiveFiniteNumber(model.context_window) ??
+        toPositiveFiniteNumber(model.max_input_tokens)
+      const maxTokens = toPositiveFiniteNumber(model.max_output_tokens)
+      const displayName = typeof model.display_name === 'string' ? model.display_name.trim() : ''
+      models.push({
+        id: modelId,
+        name: displayName || modelId,
+        group: 'default',
+        providerId: this.provider.id,
+        isCustom: false,
+        type: ModelType.Chat,
+        ...(contextLength !== undefined ? { contextLength } : {}),
+        ...(maxTokens !== undefined ? { maxTokens } : {}),
+        vision: capabilities.includes('vision'),
+        functionCall: capabilities.includes('tools'),
+        reasoning: capabilities.includes('reasoning'),
+        ...(typeof model.owned_by === 'string' && model.owned_by.trim()
+          ? { ownedBy: model.owned_by.trim() }
+          : {})
+      })
+    }
+    return models
   }
 
   /**

@@ -222,11 +222,23 @@ export interface AgentToolPermissionPort {
   ): boolean
 }
 
+export interface AgentHtmlRenderPanelPort {
+  /** Persisted bytes of the shell and the latest version of each section; null when the session has no such panel. */
+  measurePanel(
+    conversationId: string,
+    panelId: string
+  ):
+    | { shellBytes: number; sectionBytes: ReadonlyMap<string, number> }
+    | null
+    | Promise<{ shellBytes: number; sectionBytes: ReadonlyMap<string, number> } | null>
+}
+
 export interface AgentToolDependencies {
   sessions: AgentToolSessionPort
   memory: AgentMemoryToolPort
   subagents: AgentSubagentToolPort
   liveDelegation?: AgentLiveDelegationToolPort
+  htmlRenderPanels?: AgentHtmlRenderPanelPort
   agentInvocationAdmission: AgentInvocationAdmissionPort
   skills: SkillServicePort
   skillExecutionAuthority: SkillExecutionAuthorityPort

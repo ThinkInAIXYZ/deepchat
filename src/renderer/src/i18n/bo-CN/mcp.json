@@ -319,6 +319,8 @@
     "title": "MCP App",
     "interactiveContent": "ཞབས་ཞུའི་ཡོ་བྱད་MCP མཉམ་འགུལ་གྱི་ནང་དོན་",
     "loadError": "MCP App འདི་འཇུག་མི་ཐུབ།",
+    "pageLoadError": "ཤོག་ངོས་འདི་མངོན་མི་ཐུབ།",
+    "pageScriptError": "ཤོག་ངོས་འདིའི་ཆ་ཤས་ཤིག་འཁོར་སྐྱོད་བྱེད་མ་ཐུབ།",
     "retry": "བསྐྱར་ཚོད།",
     "fullscreen": "བརྙན་ཤེལ་ཧྲིལ་པོ་ཁ་ཕྱེ་",
     "pictureInPicture": "པར་རིས་ནང་ཁ་ཕྱེ་",

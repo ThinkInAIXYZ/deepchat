@@ -15,7 +15,9 @@ import type {
   MCPToolDefinition
 } from '@shared/types/mcp'
 import { TOOL_EXECUTION } from '@shared/types/mcp'
-import type { ToolCallImagePreview } from '@shared/types/core/mcp'
+import type { HtmlRenderDescriptor, ToolCallImagePreview } from '@shared/types/core/mcp'
+import { HTML_RENDER_SECTION_TOOL_NAME, HTML_RENDER_TOOL_NAME } from '@shared/agentHtmlRenderTool'
+import { AgentHtmlRenderTool } from './agentHtmlRenderTool'
 import type {
   AgentToolProgressUpdate,
   ToolPermissionLeaseCapability,
@@ -59,6 +61,7 @@ export interface AgentToolCallResult {
     outputOffloadPath?: string
     fffSearch?: FffSearchMetadata
     imagePreviews?: ToolCallImagePreview[]
+    htmlRender?: HtmlRenderDescriptor
     requiresPermission?: boolean
     permissionRequest?: {
       toolName: string
@@ -160,6 +163,7 @@ export class AgentToolManager {
   private readonly memory: AgentMemoryToolHandler
   private readonly image: AgentImageGenerationTool
   private readonly settings: ChatSettingsToolHandler
+  private readonly htmlRender = new AgentHtmlRenderTool()
 
   constructor(private readonly options: AgentToolManagerOptions) {
     const { dependencies } = options
@@ -183,6 +187,7 @@ export class AgentToolManager {
     context.signal?.throwIfAborted()
     if (context.chatMode === 'acp agent') return []
     const definitions: MCPToolDefinition[] = []
+    if (context.chatMode === 'agent') definitions.push(...this.htmlRender.getToolDefinitions())
     const strict = context.requireCompleteCatalog || context.catalogPurpose === 'universe'
     const available = async (check: () => Promise<boolean>, tools: () => MCPToolDefinition[]) => {
       try {
@@ -286,6 +291,13 @@ export class AgentToolManager {
     options: AgentToolExecutionOptions = {}
   ): Promise<AgentToolCallResult | string> {
     options.signal?.throwIfAborted()
+    if (name === HTML_RENDER_TOOL_NAME) return this.htmlRender.call(args)
+    if (name === HTML_RENDER_SECTION_TOOL_NAME)
+      return this.htmlRender.callSection(
+        args,
+        sessionId,
+        this.options.dependencies.htmlRenderPanels
+      )
     const commit =
       (serverName: string) =>
       (normalizedArguments: Record<string, unknown> = args) => {

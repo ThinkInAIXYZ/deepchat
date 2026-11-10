@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import type { HtmlRenderSource } from '@/htmlRender/source'
 import { shell } from 'electron'
 import type { PermissionMode } from '@shared/types/agent-interface'
 import type {
@@ -30,6 +31,11 @@ import type {
 import { MCP_APP_SCHEME } from './sandboxRegistry'
 import { getHostView } from './hostViews'
 import { assertBoundedMcpJson } from '../schemaValidation'
+import {
+  HTML_RENDER_CSP,
+  HTML_RENDER_LIBRARIES,
+  buildHtmlRenderDocument
+} from '@/htmlRender/document'
 import { resolvePluginToolPolicy } from '@/plugin/toolPolicyStore'
 import type { HostViewKind } from '@shared/hostViews'
 
@@ -206,6 +212,15 @@ export class McpAppHost implements McpAppHostPort {
         blockId: string
         toolInput: Record<string, unknown>
       }): boolean
+      readHtmlRenderSource(input: {
+        conversationId: string
+        messageId: string
+        blockId: string
+      }): HtmlRenderSource | null | Promise<HtmlRenderSource | null>
+      listHtmlRenderSections(
+        conversationId: string,
+        panelId: string
+      ): Array<{ id: string; html: string }> | Promise<Array<{ id: string; html: string }>>
       persistModelContext(
         messageId: string,
         blockId: string,
@@ -317,6 +332,56 @@ export class McpAppHost implements McpAppHostPort {
       csp: instance.csp,
       expiresAt: instance.expiresAt
     }
+  }
+
+  async prepareHtmlRenderView(
+    input: { conversationId: string; messageId: string; blockId: string },
+    context: McpAppRouteContext
+  ): Promise<McpHostPreparedView> {
+    const source = await this.deps.readHtmlRenderSource(input)
+    if (!source) {
+      throw new Error('The rendered page is no longer available')
+    }
+    const instance = this.deps.registry.create({
+      context,
+      conversationId: input.conversationId,
+      messageId: input.messageId,
+      blockId: input.blockId,
+      descriptor: null,
+      title: source.title,
+      toolInput: {},
+      html: buildHtmlRenderDocument(source.html),
+      csp: HTML_RENDER_CSP,
+      libraries: HTML_RENDER_LIBRARIES,
+      validateLive:
+        source.isCurrent ??
+        (() => {
+          const current = this.deps.readHtmlRenderSource(input)
+          return !(current instanceof Promise) && current !== null
+        })
+    })
+    return {
+      instanceId: instance.instanceId,
+      sandboxUrl: `${MCP_APP_SCHEME}://${instance.instanceId}/sandbox.html`,
+      html: instance.html,
+      sandbox: 'allow-scripts allow-same-origin',
+      csp: instance.csp,
+      expiresAt: instance.expiresAt
+    }
+  }
+
+  async readHtmlRenderSections(input: {
+    conversationId: string
+    messageId: string
+    blockId: string
+  }): Promise<Array<{ id: string; html: string }>> {
+    const source = await this.deps.readHtmlRenderSource(input)
+    if (!source) {
+      throw new Error('The rendered page is no longer available')
+    }
+    return source.panelId
+      ? this.deps.listHtmlRenderSections(input.conversationId, source.panelId)
+      : []
   }
 
   async releaseView(instanceId: string, context: McpAppRouteContext): Promise<void> {

@@ -293,6 +293,22 @@
       :block-id="appBlockId"
       :tool-input="appToolInput"
     />
+    <HtmlRenderView
+      v-else-if="
+        renderMode !== 'tool-only' &&
+        htmlRender &&
+        block.status === 'success' &&
+        appConversationId &&
+        appMessageId &&
+        appBlockId
+      "
+      :conversation-id="appConversationId"
+      :message-id="appMessageId"
+      :block-id="appBlockId"
+      :title="htmlRender.title"
+      :height="htmlRender.height"
+      :panel-id="htmlRender.panelId"
+    />
   </div>
 </template>
 
@@ -314,10 +330,12 @@ import { getMarkstreamLanguageFromFilename } from '@/lib/markstreamLanguage'
 import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
 import { parseLiveDelegationSpawnBlock } from '@/lib/liveDelegationToolCall'
 import LiveDelegationToolCallCard from './LiveDelegationToolCallCard.vue'
+import { HTML_RENDER_SECTION_TOOL_NAME, HTML_RENDER_TOOL_NAME } from '@shared/agentHtmlRenderTool'
 import MessageBlockToolCallImagePreview from './MessageBlockToolCallImagePreview.vue'
 import { DcCopyButton } from '@dc-ui/components'
 
 const McpAppView = defineAsyncComponent(() => import('@/components/mcp/McpAppView.vue'))
+const HtmlRenderView = defineAsyncComponent(() => import('@/components/mcp/HtmlRenderView.vue'))
 
 const { t } = useI18n()
 
@@ -444,12 +462,32 @@ const parsedParamsRecord = computed(() =>
 )
 const mcpAppResult = computed(() => props.block.tool_call?.mcpResult)
 const mcpAppDescriptor = computed(() => mcpAppResult.value?.app)
+const htmlRender = computed(() => props.block.tool_call?.htmlRender)
 const appConversationId = computed(() => props.threadId?.trim() ?? '')
 const appMessageId = computed(() => props.messageId?.trim() ?? '')
 const appBlockId = computed(() => props.block.id?.trim() || props.block.tool_call?.id?.trim() || '')
 const appToolInput = computed<Record<string, unknown>>(() => parsedParamsRecord.value ?? {})
 
 const rawToolName = computed(() => props.block.tool_call?.name?.trim().toLowerCase() ?? '')
+const isHtmlRenderTool = computed(
+  () =>
+    rawToolName.value === HTML_RENDER_TOOL_NAME ||
+    rawToolName.value === HTML_RENDER_SECTION_TOOL_NAME
+)
+// Params stream in as partial JSON, so read the label with a pattern instead of JSON.parse.
+const htmlRenderSummary = computed(() => {
+  const raw = paramsText.value
+  const match = /"(?:title|sectionId)"\s*:\s*("(?:[^"\\]|\\.)*")/.exec(raw)
+  let label = ''
+  try {
+    label = match ? (JSON.parse(match[1]) as string) : ''
+  } catch {
+    label = ''
+  }
+  if (props.block.status !== 'loading') return label
+  const size = `${(raw.length / 1024).toFixed(1)} KB`
+  return label ? `${label} · ${size}` : size
+})
 const isSubagentOrchestrator = computed(() => rawToolName.value === 'subagent_orchestrator')
 
 type SubagentProgressTask = {
@@ -531,6 +569,8 @@ const summaryText = computed(() => {
       })
     }
   }
+
+  if (isHtmlRenderTool.value) return htmlRenderSummary.value
 
   const raw = paramsText.value.trim()
   if (!raw) return ''
