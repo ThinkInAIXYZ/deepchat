@@ -158,6 +158,15 @@ journal for atomic installation and rollback. Existing desktop bindings and cach
 keep their own cursor; imported closed scopes retain separate read-only ownership. The context plugin publishes current Session-file roots without
 rewriting historical paths.
 
+Transfers optionally select native Session ids. AgentRecords and SessionStore
+expand only their owned descendants and required ancestors, preserving the
+native default Agent profile without including unrelated root histories. An
+explicit initialization flag lets the native SQLite owner create a new staging
+store; incremental imports into an empty receiver still transfer Session-owned
+content and do not copy the source's global media-task registry. Selection reads
+a disposable copy of the verified source and returns a separate immutable
+snapshot, so neither archive inspection nor native sidecars mutate the original.
+
 The SDK file-owner seam adds `SessionStore.adopt_file` for an exclusively leased
 cold profile. It validates the copied immutable directory with FileStorage before
 recording ownership through the native writer. The schema and sweeper are dim's

@@ -120,6 +120,61 @@ export class DimProfileBackups implements SyncNativeProfilePort {
     }
   }
 
+  /** A subset is produced by native owners from a verified, cold snapshot. */
+  async selectSessions(
+    snapshot: DimProfileSnapshot,
+    sessionIds: readonly string[]
+  ): Promise<DimProfileSnapshot> {
+    const identity = await this.identity()
+    const manifest = await snapshot.manifest()
+    await validateDimProfile(snapshot.directory, manifest, identity)
+    const root = await mkdtemp(path.join(this.options.temporaryRoot, 'dim-selected-owner-'))
+    const directory = path.join(root, 'selected', 'dim')
+    const coordinator = this.options.host.createIsolatedProfile(path.join(root, 'coordinator'))
+    let selected: DimProfileSnapshot | undefined
+    const failures: unknown[] = []
+    try {
+      const working = await captureDimProfile(snapshot.directory, root, identity)
+      await validateDimProfile(working.directory, manifest, identity)
+      await mkdir(path.join(directory, 'rust'), { recursive: true, mode: 0o700 })
+      const client = await coordinator.start()
+      await client.call(
+        'deepchat.storage.archive_transfer',
+        {
+          sourceDirectory: working.directory,
+          targetDirectory: directory,
+          initializeTarget: true,
+          ...(manifest.sourceHome ? { sourceHome: manifest.sourceHome } : {}),
+          installedDirectory: directory,
+          sessionIds: [...sessionIds]
+        },
+        30 * 60_000
+      )
+      selected = await captureDimProfile(directory, this.options.temporaryRoot, identity)
+    } catch (error) {
+      failures.push(error)
+    }
+    const stopped = await Promise.allSettled([coordinator.stop()])
+    const closeFailures = stopped.filter((result) => result.status === 'rejected')
+    for (const result of closeFailures) failures.push(result.reason)
+    // Keep private working files if an owner has not confirmed that it released them.
+    if (!closeFailures.length) {
+      try {
+        await rm(root, { recursive: true, force: true })
+      } catch (error) {
+        failures.push(error)
+      }
+    }
+    if (failures.length) {
+      await selected?.dispose()
+      throw failures.length === 1
+        ? failures[0]
+        : new AggregateError(failures, 'Native selection and cleanup failed')
+    }
+    if (!selected) throw new Error('Native selection did not produce a snapshot')
+    return selected
+  }
+
   prepareRestore(directory: string, value: unknown): Promise<PreparedDimProfile> {
     return this.prepare(directory, value)
   }
@@ -135,8 +190,8 @@ export class DimProfileBackups implements SyncNativeProfilePort {
     )
     try {
       const manifest = await current.manifest()
-      if (!manifest.files.some((file) => file.path === 'rust/dimcode.sqlite'))
-        return await this.prepareRestore(directory, incoming)
+      if (!incoming.files.some((file) => file.path === 'rust/dimcode.sqlite'))
+        return await this.prepare(current.directory, manifest)
       // Native read-only opens may create SQLite sidecars. Never open the verified
       // immutable backup itself; even catalogue reads use this disposable working copy.
       const working = await captureDimProfile(directory, this.options.temporaryRoot, identity)
@@ -164,6 +219,7 @@ export class DimProfileBackups implements SyncNativeProfilePort {
       value,
       await this.identity()
     )
+    await mkdir(this.options.profileRoot, { recursive: true, mode: 0o700 })
     const container = await mkdtemp(path.join(this.options.profileRoot, '.dim-restore-'))
     const next = path.join(container, 'next')
     const previous = path.join(container, 'previous')
@@ -190,7 +246,8 @@ export class DimProfileBackups implements SyncNativeProfilePort {
         }
         await chmod(output, file.mode)
       }
-      if (manifest.files.some((file) => file.path === 'rust/dimcode.sqlite')) {
+      if (merge || manifest.files.some((file) => file.path === 'rust/dimcode.sqlite')) {
+        await mkdir(path.join(next, 'rust'), { recursive: true, mode: 0o700 })
         // The application's supervisor remains fenced. This empty coordinator opens only
         // the disposable store through the storage plugin and restores no Agents from it.
         const coordinatorRoot = await mkdtemp(
@@ -205,6 +262,7 @@ export class DimProfileBackups implements SyncNativeProfilePort {
               {
                 sourceDirectory: merge.directory,
                 targetDirectory: next,
+                initializeTarget: true,
                 ...(merge.manifest.sourceHome ? { sourceHome: merge.manifest.sourceHome } : {}),
                 installedDirectory: target
               },

@@ -241,6 +241,8 @@ let input = ''; process.stdin.on('data', x => input += x); process.stdin.on('end
         'completed'
       ])
       await send('compact source '.repeat(200), 'compaction-source')
+      // Manual compaction retains the latest turn. Keep the long source before it.
+      await send('retained tail', 'compaction-tail')
       expect(await client.call('deepchat.session.compact', ref)).toMatchObject({
         status: 'completed'
       })

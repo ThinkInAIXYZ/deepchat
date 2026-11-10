@@ -387,3 +387,146 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
   },
   60_000
 )
+
+it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
+  'selects independent Native sessions without exporting unrelated histories, including nondefault Agents',
+  async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'dc-dim-selected-'))
+    const options = (name: string) => ({
+      runtimeRoot: path.resolve('runtime/dim'),
+      profileRoot: path.join(root, name),
+      nodeExecutable: path.resolve(
+        'runtime/node',
+        ...(process.platform === 'win32' ? ['node.exe'] : ['bin', 'node'])
+      ),
+      nativePlugins: true
+    })
+    const source = new DimRuntimeSupervisor(options('source'))
+    const coordinator = new DimRuntimeSupervisor(options('coordinator'))
+    try {
+      const client = await source.start()
+      const model = await new DimModelBridge(source).configure({
+        key: 'selected-archive',
+        displayName: 'Selected archive',
+        connection: {
+          driverKind: 'openai-compatible',
+          baseUrl: 'http://127.0.0.1:1/v1',
+          auth: { type: 'anonymous' }
+        },
+        model: {
+          modelId: 'fixture',
+          displayName: 'Fixture',
+          status: 'active',
+          capabilities: {
+            modalities: ['text'],
+            toolCalling: false,
+            streaming: true,
+            structuredOutput: false,
+            vision: false,
+            audio: false,
+            reasoning: false,
+            contextWindow: 8192,
+            maxOutputTokens: 1024
+          }
+        }
+      })
+      const sessions: Array<{
+        id: string
+        agent: string
+        file: string
+        text: string
+        label: string
+      }> = []
+      for (const label of ['first', 'second']) {
+        const agent = await new DimAgentProfiles(source).ensure({
+          name: label,
+          description: '',
+          systemPrompt: `Selected ${label}`,
+          tools: []
+        })
+        const created = await client.call<{ sessionId: string }>('deepchat.host.launch', {
+          agent,
+          cwd: root,
+          model: { ...model },
+          tools: []
+        })
+        const text = `Immutable ${label} selected file`
+        const file = await client.call<{ attachmentId: string }>('attachment.put', {
+          sessionId: created.sessionId,
+          name: 'owned.txt',
+          text
+        })
+        sessions.push({ id: created.sessionId, agent, file: file.attachmentId, text, label })
+        await client.call('deepchat.host.input', {
+          sessionId: created.sessionId,
+          branchId: 'main',
+          mode: 'append',
+          submissionId: randomUUID(),
+          content: [{ type: 'text', text: label }],
+          rawBlocks: []
+        })
+      }
+      await source.stop()
+      const reader = await coordinator.start()
+      const identity = JSON.parse(
+        await readFile(path.resolve('runtime/dim/plugins/native-host-lock.json'), 'utf8')
+      )
+      const snapshot = await captureDimProfile(path.join(root, 'source/dim'), os.tmpdir(), identity)
+      const backups = new DimProfileBackups({
+        runtimeRoot: path.resolve('runtime/dim'),
+        profileRoot: path.join(root, 'source'),
+        temporaryRoot: os.tmpdir(),
+        host: source,
+        readers: () => {
+          throw new Error('Selection must not restore session readers')
+        }
+      })
+      try {
+        for (const session of sessions) {
+          const selected = await backups.selectSessions(snapshot, [session.id])
+          try {
+            const directory = selected.directory
+            const page = await reader.call<ArchivePage>('deepchat.storage.archive_catalog', {
+              directory,
+              limit: 64
+            })
+            expect(page.totalSessions).toBe(1)
+            expect(page.sessions.map((value) => value.sessionId)).toEqual([session.id])
+            expect(page.agents[session.agent].profile.systemPrompt).toBe(
+              `Selected ${session.label}`
+            )
+            expect(
+              await readFile(
+                path.join(
+                  directory,
+                  'rust/dimcode.sqlite.session-files',
+                  session.file,
+                  'owned.txt'
+                ),
+                'utf8'
+              )
+            ).toBe(session.text)
+          } finally {
+            await selected.dispose()
+          }
+        }
+        await expect(backups.selectSessions(snapshot, [randomUUID()])).rejects.toThrow(
+          'Selected archive Session ownership'
+        )
+        await validateDimProfile(snapshot.directory, await snapshot.manifest(), identity)
+      } finally {
+        await snapshot.dispose()
+      }
+      const original = await reader.call<ArchivePage>('deepchat.storage.archive_catalog', {
+        directory: path.join(root, 'source/dim'),
+        limit: 64
+      })
+      expect(original.totalSessions).toBe(2)
+    } finally {
+      await source.stop()
+      await coordinator.stop()
+      await rm(root, { recursive: true, force: true })
+    }
+  },
+  60_000
+)

@@ -18,6 +18,9 @@ pub(crate) struct Transfer {
     target_directory: PathBuf,
     source_home: Option<String>,
     installed_directory: Option<PathBuf>,
+    session_ids: Option<Vec<String>>,
+    #[serde(default)]
+    initialize_target: bool,
 }
 
 pub(crate) async fn transfer(
@@ -27,7 +30,21 @@ pub(crate) async fn transfer(
     cancel: &CancellationToken,
 ) -> Result<Value, RpcError> {
     let source = super::archive::root(&input.source_directory).await?;
-    let target = super::archive::root(&input.target_directory).await?;
+    let target = if input.initialize_target {
+        if !input.target_directory.is_absolute() {
+            return Err(RpcError::invalid("Archive requires an absolute directory"));
+        }
+        let root = tokio::fs::canonicalize(input.target_directory.join("rust"))
+            .await
+            .map_err(|_| RpcError::invalid("Native archive directory is unavailable"))?;
+        match tokio::fs::symlink_metadata(root.join("dimcode.sqlite")).await {
+            Ok(_) => super::archive::root(&input.target_directory).await?,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => root,
+            Err(_) => return Err(RpcError::invalid("Native archive database is unavailable")),
+        }
+    } else {
+        super::archive::root(&input.target_directory).await?
+    };
     if source == target {
         return Err(RpcError::invalid(
             "Archive transfer requires separate profiles",
@@ -61,6 +78,7 @@ pub(crate) async fn transfer(
             target_root,
             input.source_home.as_deref(),
             installed_directory.as_deref(),
+            input.session_ids.as_deref(),
             cancel,
         )
         .await;
@@ -85,6 +103,7 @@ async fn merge(
     target_root: usize,
     source_home: Option<&str>,
     installed_directory: Option<&std::path::Path>,
+    session_ids: Option<&[String]>,
     cancel: &CancellationToken,
 ) -> Result<Value, RpcError> {
     let source_path = files
@@ -92,7 +111,7 @@ async fn merge(
         .map_err(|_| RpcError::invalid("Archive files are unavailable"))?;
     let source_records = AgentRecords(source_db.clone());
     let target_records = AgentRecords(target_db.clone());
-    let profiles = source_records.agents().await?;
+    let mut profiles = source_records.agents().await?;
     let existing_agents = target_records.agents().await?;
     let existing_owners = target_records.owners().await?;
     let mut agents: BTreeSet<String> = existing_agents
@@ -106,6 +125,12 @@ async fn merge(
     let source = SessionStore::new(source_db, ctx.clone(), source_root);
     let target = SessionStore::new(target_db, ctx.clone(), target_root);
     let mut pending = source_records.owners().await?;
+    if let Some(roots) = session_ids {
+        let selected =
+            super::archive_selection::select(&source, &source_records, roots, cancel).await?;
+        pending.retain(|owner| selected.sessions.contains(&owner.session_id));
+        profiles.retain(|profile| selected.agents.contains(&profile.id));
+    }
     let mut skipped = Vec::new();
     for owner in &pending {
         if owner.error.is_some() || owner.owner.is_none() {

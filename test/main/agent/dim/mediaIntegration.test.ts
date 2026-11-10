@@ -720,8 +720,6 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
           )
         })
         try {
-          await target.start()
-          await target.stop()
           const manifest = await snapshot.manifest()
           await target.withStopped(async () => {
             const prepared = await new DimProfileBackups({
