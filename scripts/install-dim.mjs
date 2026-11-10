@@ -105,10 +105,16 @@ export async function installDim({
     )
     if (hash.digest('hex') !== artifact.archiveSha256)
       throw new Error('dim archive checksum mismatch')
-    const kinds = run('tar', ['-tvf', archive]).split(/\r?\n/)
+    // Git Bash can put GNU tar before Windows' ZIP-capable bsdtar. Relative
+    // archive names also avoid interpreting a Windows drive as a remote host.
+    const tar =
+      process.platform === 'win32'
+        ? path.join(process.env.SystemRoot ?? 'C:/Windows', 'System32', 'tar.exe')
+        : 'tar'
+    const kinds = run(tar, ['-tvf', artifact.filename], { cwd: stage }).split(/\r?\n/)
     if (kinds.some((line) => !['-', 'd'].includes(line[0])))
       throw new Error('Links or special files in dim archive')
-    const entries = run('tar', ['-tf', archive]).split(/\r?\n/)
+    const entries = run(tar, ['-tf', artifact.filename], { cwd: stage }).split(/\r?\n/)
     for (const entry of entries) {
       const parts = entry.replaceAll('\\', '/').split('/').filter(Boolean)
       if (
@@ -119,7 +125,7 @@ export async function installDim({
         throw new Error('Unsafe path in dim archive')
       }
     }
-    run('tar', ['-xf', archive, '-C', stage])
+    run(tar, ['-xf', artifact.filename], { cwd: stage })
     const extracted = path.join(stage, artifact.directory)
     await rejectLinks(extracted)
     const manifest = JSON.parse(
