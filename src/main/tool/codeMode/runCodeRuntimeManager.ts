@@ -15,7 +15,7 @@ import {
   type RunCodeParentMessage,
   type RunCodeToolBinding
 } from '@shared/codeModeProtocol'
-import { buildCanonicalToolCatalog } from '@/agent/deepchat/runtime/toolSurface'
+import { buildCanonicalToolCatalog } from '@/tool/catalog/toolSurface'
 import { MAX_EXECUTION_JOURNAL_NESTED_CHILDREN } from '@/tape/domain/executionJournal'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import { normalizeCodexToolName } from './toolModeTools'

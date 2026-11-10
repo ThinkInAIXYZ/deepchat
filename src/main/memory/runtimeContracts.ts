@@ -1,7 +1,7 @@
 import type { AppSessionId } from '@/agent/shared/agentSessionIds'
 import type { AgentMemorySource } from '@shared/types/agent-memory'
 import type { MemoryIngestionMessage } from './ports'
-import type { MemorySessionHandle } from '@/agent/deepchat/memory/memoryPromptContributor'
+import type { MemorySessionHandle } from '@/memory/session/memoryPromptContributor'
 
 export interface MemoryRuntimeSession {
   handle: MemorySessionHandle

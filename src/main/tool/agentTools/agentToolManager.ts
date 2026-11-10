@@ -116,13 +116,13 @@ import { resolveAgentOutputLimits, type AgentOutputLimits } from '@shared/lib/ag
 import {
   assertActiveToolSurfaceExecutionContext,
   type ToolSurfaceExecutionContext
-} from '@/agent/deepchat/runtime/toolSurface'
-import { recordToolSurfaceCanaryDiscovery } from '@/agent/deepchat/runtime/toolSurfaceCanaryDiagnostics'
+} from '@/tool/catalog/toolSurface'
+import { recordToolSurfaceCanaryDiscovery } from '@/tool/catalog/toolSurfaceCanaryDiagnostics'
 import {
   MAX_PROGRAMMATIC_TOOL_INPUT_BYTES,
   PROGRAMMATIC_EXEC_STDIN_DESCRIPTION,
   type ProgrammaticToolCapabilityV1
-} from '@/agent/deepchat/runtime/programmaticToolSurface'
+} from '@/tool/catalog/programmaticToolSurface'
 import {
   TOOL_SEARCH_TOOL_SERVER_NAME,
   parseToolSearchInput,

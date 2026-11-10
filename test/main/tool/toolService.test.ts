@@ -5,7 +5,7 @@ import { RUN_CODE_PROTOCOL_VERSION, type RunCodeParentMessage } from '@shared/co
 import { ToolService } from '@/tool'
 import { RunCodeRuntimeManager } from '@/tool/codeMode/runCodeRuntimeManager'
 import { POSIX_COMMAND_SHELL } from '../../helpers/commandShell'
-import { createToolCatalogPort } from '@/agent/deepchat/runtime/toolAdapters'
+import { createToolCatalogPort } from '@/agent/shared/resources/toolCatalog'
 import { AgentToolManager, CronJobToolHandler, TAPE_TOOL_NAMES } from '@/tool/agentTools'
 import { CommandPermissionService, ToolPermissionBroker } from '@/tool/permission'
 import { QUESTION_TOOL_NAME } from '@shared/contracts/questionTool'
@@ -39,14 +39,14 @@ import {
   revokeToolSurfaceDeferredDispatch,
   revokeToolSurfaceExecutionEligibility,
   type ToolSurfaceShadowPolicy
-} from '@/agent/deepchat/runtime/toolSurface'
+} from '@/tool/catalog/toolSurface'
 import {
   buildProgrammaticToolCapabilityV1,
   createProgrammaticToolSurfaceRunControllerV1,
   assertProgrammaticToolCapabilityViewCommitted,
   markProgrammaticToolCapabilityProvenanceCommitted,
   projectProgrammaticExecDefinition
-} from '@/agent/deepchat/runtime/programmaticToolSurface'
+} from '@/tool/catalog/programmaticToolSurface'
 import {
   AGENT_CLI_PROGRAMMATIC_GRANT_SCHEMA_VERSION,
   AgentCliTokenAuthority
@@ -59,7 +59,7 @@ import { buildToolSearchDefinition } from '@/tool/agentTools/toolSearchTool'
 import {
   bindToolSurfaceCanaryRunEvidence,
   createToolSurfaceCanaryRunEvidenceRecorder
-} from '@/agent/deepchat/runtime/toolSurfaceCanaryDiagnostics'
+} from '@/tool/catalog/toolSurfaceCanaryDiagnostics'
 
 vi.mock('electron', async () => {
   const { join } = await import('node:path')

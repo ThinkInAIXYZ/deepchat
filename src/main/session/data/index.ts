@@ -121,6 +121,7 @@ export function createSessionDataFromDatabase(
   const pendingInputs = new SessionPendingInputs(pendingInputStore, transcript, events)
   return {
     database,
+    legacyTape: database.legacyTape,
     settings,
     runtime: {
       sessionSettings: settings,

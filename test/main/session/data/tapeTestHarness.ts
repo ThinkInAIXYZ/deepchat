@@ -1,6 +1,5 @@
 import { performance } from 'node:perf_hooks'
 import { describe, expect, it, vi } from 'vitest'
-import { buildContext } from '@/agent/deepchat/runtime/contextBuilder'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import { SessionTape } from '@/tape/application/sessionTape'
 import { buildEffectiveTapeView, searchEffectiveTapeRows } from '@/tape/domain/effectiveView'
@@ -841,7 +840,6 @@ export {
   expect,
   it,
   vi,
-  buildContext,
   toAppSessionId,
   SessionTape,
   buildEffectiveTapeView,

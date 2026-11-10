@@ -16,7 +16,7 @@ import {
   createPolicySelectedToolSurfaceRun,
   createToolSurfaceExecutionBatch,
   type ToolSurfaceShadowPolicy
-} from '@/agent/deepchat/runtime/toolSurface'
+} from '@/tool/catalog/toolSurface'
 
 const tool = (
   name: string,

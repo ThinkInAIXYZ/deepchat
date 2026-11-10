@@ -1,4 +1,4 @@
-import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
+import { SessionResourcesRegistry as DeepChatAgentRuntime } from '@/agent/shared/resources/resourceRegistry'
 import {
   createDeepChatAgentBackend,
   type DeepChatAgentBackendPort

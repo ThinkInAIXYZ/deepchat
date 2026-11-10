@@ -1,8 +1,9 @@
 # Main Host and Portable Harness Boundaries
 
-> Planned replacement: [dim Rust harness migration](../dim-rust-harness-migration/spec.md).
-> This document remains the current implementation contract until the migration gates pass;
-> the new RFC is not yet implemented.
+> Superseded by the [dim Rust migration](../dim-rust-harness-migration/spec.md).
+> The former TypeScript execution core and standalone fake-provider verifier have been retired.
+> The remaining sections describe the historical boundary; current owners are dim Rust and the
+> independent desktop ACP client.
 
 Electron and the standalone Node host construct the same built-in Agent through
 `src/main/agent/deepchat/harness/index.ts`. Turn, Run, permission waits, cancellation, pending inputs
@@ -63,12 +64,8 @@ and [Tool Surface compatibility](../tool-surface-virtualization/spec.md).
 
 ## Standalone Host Verification
 
-`pnpm run test:harness:node` runs the [production-entry verifier](../../../scripts/verify-harness-node.mjs)
-and [minimal host](../../../test/node/deepChatHarness.ts) outside Vitest setup. The dependency audit
-rejects host/storage implementations in the core; CJS and ESM guards reject Electron loading.
-
-The host uses real temporary SQLite, a restricted file-read tool and a scripted provider. It checks
-two-turn context and tool results, permission denial and recovery, cancellation, transaction rollback
-and held-queue recovery after abrupt exit. Its three processes exit `0`, expected `73`, and `0`;
-missing SQLite fails. Committed journal outcomes survive failed message projection without invented
-success or automatic tool replay. Required PR `test-main` runs this command after the Main suite.
+`pnpm run test:harness:node` now runs `smoke:dim`: the actual pinned Rust host,
+private desktop/storage plugins, local HTTP provider fixtures and persistent native content.
+`pnpm run test:agent:eval` selects the [native agent suite](../../../test/main/agent/dim/runtimeIntegration.test.ts).
+Prepare the managed runtime with `pnpm run installRuntime:dim` and build the pinned SDK host with
+`pnpm run build:dim-host --dev`. CI installs Rust 1.98.1 and runs the same owners.

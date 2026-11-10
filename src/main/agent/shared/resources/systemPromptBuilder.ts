@@ -9,7 +9,7 @@ import type {
 import type { SkillServicePort } from '@shared/types/skill'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { ToolServicePort } from '@shared/types/tool'
-import type { SessionResourceHandle as DeepChatAgentInstance } from './sessionResources'
+import type { SessionResourceHandle } from './sessionResources'
 import type { ProviderCatalogPort } from '@/provider/ports'
 import {
   buildRuntimeCapabilitiesPrompt,
@@ -50,12 +50,12 @@ export interface SystemPromptBuilderDependencies {
   skillService: SystemPromptSkillPort
   providerCatalogPort: Pick<ProviderCatalogPort, 'getProviderModels' | 'getCustomModels'>
   toolService: ToolPromptPort
-  assertCurrent(sessionId: string, instance: DeepChatAgentInstance): void
+  assertCurrent(sessionId: string, instance: SessionResourceHandle): void
   isAcpBackedSubagentSession(sessionId: string, providerId?: string): boolean
   resolveProjectDir(
     sessionId: string,
     projectDir: string | null | undefined,
-    instance: DeepChatAgentInstance
+    instance: SessionResourceHandle
   ): string | null
   logSlowStep(sessionId: string, step: string, startedAt: number): void
 }
@@ -69,7 +69,7 @@ export interface SystemPromptBuildInput {
   sessionSkillBodiesOverride?: readonly Readonly<{ name: string; content: string }>[]
   contextLength?: number
   orchestrationPolicy?: OrchestrationPolicy
-  resourceInstance: DeepChatAgentInstance
+  resourceInstance: SessionResourceHandle
   commandShell: ResolvedCommandShell
 }
 
@@ -618,7 +618,7 @@ export function renderSessionActiveSkillsContext(
 
 export function resolveEffectiveActiveSkillNames(
   sessionActiveSkillNames: string[],
-  instance: DeepChatAgentInstance
+  instance: SessionResourceHandle
 ): string[] {
   return normalizeStringList([...sessionActiveSkillNames, ...instance.getRuntimeActivatedSkills()])
 }

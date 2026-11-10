@@ -16,10 +16,8 @@ import {
   resolveDeepSeekResponsesRequestRoute,
   resolveDeepSeekResponsesRoute
 } from '@/provider/deepseekResponsesAdapter'
-import { recordToChatMessages } from '@/agent/deepchat/runtime/contextBuilder'
 import { createAiSdkProviderContext } from '@/provider/aiSdk/providerFactory'
 import { runAiSdkCoreStream, type AiSdkRuntimeContext } from '@/provider/aiSdk/runtime'
-import type { ChatMessageRecord } from '@shared/types/agent-interface'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { ModelConfig } from '@shared/types/provider'
 
@@ -1135,50 +1133,23 @@ describe('DeepSeek Responses replay', () => {
     ).rejects.toThrow('reserved tool name conflicts with an existing tool')
   })
 
-  it('replays flattened persisted reasoning as one id-less plaintext item', async () => {
-    const record = {
-      id: 'assistant_1',
-      sessionId: 'session_1',
-      orderSeq: 2,
-      role: 'assistant',
-      status: 'sent',
-      isContextEdge: 0,
-      metadata: '{}',
-      createdAt: 1,
-      updatedAt: 1,
-      content: JSON.stringify([
-        {
-          type: 'reasoning_content',
-          content: 'Read the file first. ',
-          status: 'success',
-          timestamp: 1
-        },
-        {
-          type: 'tool_call',
-          status: 'success',
-          timestamp: 1,
-          tool_call: {
+  it('serializes flattened reasoning as one id-less plaintext item', async () => {
+    const history = [
+      {
+        role: 'assistant' as const,
+        content: 'DeepChat is a desktop AI client.',
+        reasoning_content: 'Read the file first. Now summarize it.',
+        tool_calls: [
+          {
             id: 'tc_1',
-            name: 'read_file',
-            params: '{"path":"README.md"}',
-            response: '# DeepChat'
+            type: 'function' as const,
+            function: { name: 'read_file', arguments: '{"path":"README.md"}' }
           }
-        },
-        {
-          type: 'reasoning_content',
-          content: 'Now summarize it.',
-          status: 'success',
-          timestamp: 1
-        },
-        {
-          type: 'content',
-          content: 'DeepChat is a desktop AI client.',
-          status: 'success',
-          timestamp: 1
-        }
-      ])
-    } as ChatMessageRecord
-    const history = recordToChatMessages(record, false, true, true)
+        ]
+      },
+      { role: 'tool' as const, tool_call_id: 'tc_1', content: '# DeepChat' }
+    ]
+
     const fetchMock = vi.fn(async () => {
       throw new Error('request captured')
     })

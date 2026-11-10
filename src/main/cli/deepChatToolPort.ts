@@ -12,14 +12,14 @@ import {
   isProgrammaticExecAttempt,
   type ProgrammaticExecRequest,
   type ProgrammaticToolPort
-} from '@/agent/deepchat/runtime/programmaticExecParent'
+} from '@/cli/programmaticExecParent'
 import { LOCAL_CONTROL_PROGRAMMATIC_ROUTE_SURFACE_VERSION } from '@shared/contracts/localControl'
 import {
   assertProgrammaticToolCapabilityDeferredDispatch,
   assertProgrammaticToolCapabilityViewActive,
   assertProgrammaticToolCapabilityViewCommitted,
   requireProgrammaticToolDeferredResumeCapability
-} from '@/agent/deepchat/runtime/programmaticToolSurface'
+} from '@/tool/catalog/programmaticToolSurface'
 
 function prepareExec(
   input: ProgrammaticExecRequest & {

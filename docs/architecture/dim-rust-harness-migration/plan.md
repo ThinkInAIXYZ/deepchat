@@ -158,6 +158,8 @@
 
 ## 模块进度
 
+- 模块 39：物理删除旧 `src/main/agent/deepchat` 执行树，包括 Harness、loop、driver、调度、压缩和旧执行器；保留的产品默认值、Agent 配置仓库、Memory 策略、工具目录元数据及 CLI 合同迁至各自 owner。旧 Tape 迁移输入仅暴露只读查询。清理只验证旧执行器的测试和 Node verifier，原 test:harness:node/test:agent:eval 命令改验实际 dim Rust；CI 安装锁定工具链并构建薄 host。架构门禁禁止重新引入旧执行树，ACP 和 dim 边界继续独立。421 项保留合同、67 项架构、Memory 类型门禁 78 项、10 项真实 Rust smoke、四项 Electron ACP/Native 验收以及格式/i18n/lint/双端 typecheck 通过。全量 main 的 8604 项通过，仅两项旧 CI 命令断言失败；更新断言后对应 6 项复验通过。后续继续清理旧工具注册、剩余模型入口与产品迁移兼容，尚不宣称整体迁移完成。
+
 - 模块 38：ACP 资源组装只构造 SessionResources/Registry，包含项目目录、身份、启用技能、工具缓存和 staleness fence，没有 generation、queue、模型或执行器状态。七个可复用的提示/目录/身份/状态/Hook owner 与对应测试迁出旧 Harness；工具目录和 hook 通知合同独立，ACP 不再从旧 loop/instance/runtime 导入实现。旧执行器通过窄资源合同复用产品代码，等剩余引用拆完后整体删除。更新架构 owner 路径与源目录证据，并将格式忽略限定到根 assets，确保新共享源码进入格式检查。477 项相关回归、87 项资源/架构复验、86 项资源/ACP 装配复验、主进程构建、四项真实 ACP/dim Electron 联合验收及格式/i18n/lint/双端 typecheck 通过。工具 Surface、Memory 产品策略和 CLI 合同是旧执行树的剩余外部引用，继续收敛。
 
 - 模块 37：修复旧 DeepChat agent + ACP provider/model 兼容选择的创建与恢复。Manager 根据持久选择解析实际 ACP client descriptor，保留公开 shell agentId；首次初始化显式选择目标 client，设置由 client 单次创建，不进入 dim，不构造旧 Harness。后续发送、取消和恢复都选择 ACP client。目标必须是可执行 ACP agent，初始化不得覆盖已有 Native 绑定。辅助 ACP 文本调用继续使用桌面 ACP client，其余文本模型继续由 Native facade 执行。92 项 Manager/provider/lifecycle 回归、主进程构建、四项实际 Electron ACP/Native 联合验收及 format/i18n/lint/双端 typecheck 通过。现存 Native 会话跨 backend 切换仍需独立 handoff，ACP 资源组装与旧实例继续拆解。

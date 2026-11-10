@@ -19,7 +19,7 @@ import type {
   ToolSurfaceActivationCandidate,
   ToolSurfaceExecutionContext,
   ToolSurfaceSnapshot
-} from '@/agent/deepchat/runtime/toolSurface'
+} from '@/tool/catalog/toolSurface'
 
 export const TOOL_SEARCH_MAX_NAME_LENGTH = 256
 export const TOOL_SEARCH_MAX_DESCRIPTION_LENGTH = 240

@@ -71,7 +71,7 @@ import {
   type ToolSurfaceDeferredDispatch,
   type ToolSurfaceExecutionContext,
   type ToolSurfaceSnapshot
-} from '@/agent/deepchat/runtime/toolSurface'
+} from '@/tool/catalog/toolSurface'
 import {
   assertProgrammaticToolChildDefinitionAllowsDispatch,
   assertProgrammaticToolChildRuntimeAllowsDispatch,
@@ -81,7 +81,7 @@ import {
   projectProgrammaticExecDefinition,
   type ProgrammaticToolCapabilityV1,
   type ProgrammaticToolSurfaceEntryV1
-} from '@/agent/deepchat/runtime/programmaticToolSurface'
+} from '@/tool/catalog/programmaticToolSurface'
 import {
   assertIssuedProgrammaticToolAuthorityAssertion,
   type ProgrammaticToolParentRegistration

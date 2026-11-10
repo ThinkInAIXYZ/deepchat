@@ -14,7 +14,7 @@ import type {
 } from '@shared/types/agent-interface'
 import type { SessionResourceReadPort } from '@/session/data/contracts'
 import type {
-  SessionResourceHandle as DeepChatAgentInstance,
+  SessionResourceHandle,
   SessionToolProfileKind as DeepChatToolProfileKind
 } from './sessionResources'
 import {
@@ -40,7 +40,7 @@ import {
   buildExecutionToolCeiling,
   buildExecutionToolTargetKey
 } from '@/tape/domain/executionContract'
-import { buildCanonicalToolCatalog } from '@/agent/deepchat/runtime/toolSurface'
+import { buildCanonicalToolCatalog } from '@/tool/catalog/toolSurface'
 import { resolveToolMode, type ResolvedToolMode, type ToolMode } from '@shared/toolMode'
 
 type ToolResolverSkillPort = Pick<
@@ -257,7 +257,7 @@ function freezeRunToolDefinitionUniverse(
 export class DeepChatToolResolver {
   constructor(private readonly dependencies: DeepChatToolResolverDependencies) {}
 
-  private assertCurrent(sessionId: string, instance: DeepChatAgentInstance): void {
+  private assertCurrent(sessionId: string, instance: SessionResourceHandle): void {
     this.dependencies.registry.scopeFor(toAppSessionId(sessionId), instance).assertCurrent()
   }
 
@@ -289,7 +289,7 @@ export class DeepChatToolResolver {
     sessionId: string,
     projectDir: string | null,
     activeSkillNamesOverride?: string[],
-    providedResourceInstance?: DeepChatAgentInstance,
+    providedResourceInstance?: SessionResourceHandle,
     onResolved?: (snapshot: DeepChatToolCatalogSnapshot) => void
   ): Promise<MCPToolDefinition[]> {
     const resourceInstance =
@@ -313,7 +313,7 @@ export class DeepChatToolResolver {
     sessionId: string,
     projectDir: string | null,
     activeSkillNamesOverride?: string[],
-    providedResourceInstance?: DeepChatAgentInstance,
+    providedResourceInstance?: SessionResourceHandle,
     signal?: AbortSignal
   ): Promise<RunToolDefinitionUniverse> {
     signal?.throwIfAborted()
@@ -731,7 +731,7 @@ export class DeepChatToolResolver {
   createSessionToolCatalogPort(
     sessionId: string,
     projectDir: string | null,
-    resourceInstance: DeepChatAgentInstance,
+    resourceInstance: SessionResourceHandle,
     onResolved?: (snapshot: DeepChatToolCatalogSnapshot) => void,
     trustActiveSkillNamesOverride = false
   ): ToolCatalogPort {
@@ -844,7 +844,7 @@ export class DeepChatToolResolver {
     extensionPolicy: AgentExtensionPolicy,
     disabledAgentTools: string[],
     subagentCapability: DeepChatSubagentCapability,
-    resourceInstance?: DeepChatAgentInstance
+    resourceInstance?: SessionResourceHandle
   ): { kind: DeepChatToolProfileKind; fingerprint: string } {
     const normalizedProjectDir = projectDir?.trim() || null
     const skillsEnabled = this.dependencies.skillSettings.isEnabled()
@@ -900,7 +900,7 @@ export class DeepChatToolResolver {
 
   private async resolveAgentToolPolicy(
     sessionId: string,
-    resourceInstance?: DeepChatAgentInstance,
+    resourceInstance?: SessionResourceHandle,
     options: {
       reportDiagnostics?: boolean
       requireComplete?: boolean
@@ -1019,7 +1019,7 @@ export class DeepChatToolResolver {
 
   async resolveAgentExtensionPolicy(
     sessionId: string,
-    resourceInstance?: DeepChatAgentInstance
+    resourceInstance?: SessionResourceHandle
   ): Promise<AgentExtensionPolicy> {
     return (await this.resolveAgentToolPolicy(sessionId, resourceInstance)).extensionPolicy
   }
@@ -1045,7 +1045,7 @@ export class DeepChatToolResolver {
   async validateSkillNamesForSession(
     sessionId: string,
     skillNames: string[],
-    resourceInstance?: DeepChatAgentInstance
+    resourceInstance?: SessionResourceHandle
   ): Promise<string[]> {
     const agentId =
       resourceInstance?.getAgentId()?.trim() ||

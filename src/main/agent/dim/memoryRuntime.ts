@@ -5,8 +5,8 @@ import type { MemoryRuntimePort } from '@/memory/injection'
 import {
   MemoryRuntimeCoordinator,
   type MemoryRuntimeCoordinatorDependencies
-} from '@/agent/deepchat/memory/memoryRuntimeCoordinator'
-import type { MemorySessionHandle } from '@/agent/deepchat/memory/memoryPromptContributor'
+} from '@/memory/session/memoryRuntimeCoordinator'
+import type { MemorySessionHandle } from '@/memory/session/memoryPromptContributor'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import type { DimSessionBinding } from '@/session/data/tables/dimSessionBindings'
 import type { DimEvent } from './sessionConnection'

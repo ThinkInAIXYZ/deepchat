@@ -27,7 +27,9 @@ type GeneratedAgentBaseline = {
 async function snapshotOutput(outputDir: string): Promise<Record<string, string>> {
   const files = (await readdir(outputDir)).sort()
   return Object.fromEntries(
-    await Promise.all(files.map(async (file) => [file, await readFile(path.join(outputDir, file), 'utf8')]))
+    await Promise.all(
+      files.map(async (file) => [file, await readFile(path.join(outputDir, file), 'utf8')])
+    )
   )
 }
 
@@ -62,21 +64,19 @@ describe('architecture baseline generator', () => {
       const baseline = JSON.parse(
         firstSnapshot['agent-system-layered-runtime-baseline.json']
       ) as GeneratedAgentBaseline
-      expect(baseline.schemaVersion).toBe(2)
+      expect(baseline.schemaVersion).toBe(3)
       expect(Object.values(baseline.expectedFiles)).not.toContain(false)
       expect(
-        Object.values(baseline.ownerEvidence).map(
-          (evidence) => evidence.declarationCount
-        )
+        Object.values(baseline.ownerEvidence).map((evidence) => evidence.declarationCount)
       ).not.toContain(0)
       expect(new Set(Object.values(baseline.retiredSurfaces.paths))).toEqual(new Set([0]))
       expect(new Set(Object.values(baseline.retiredSurfaces.symbols))).toEqual(new Set([0]))
       expect(baseline.dependencyMetrics).toMatchObject({
-        loopToPresenter: 0,
-        loopToSqlite: 0,
-        loopToElectron: 0,
-        loopToRoutes: 0,
-        loopToAcp: 0
+        dimToPresenter: 0,
+        dimToSqlite: 0,
+        dimToElectron: 0,
+        dimToRoutes: 0,
+        dimToAcp: 0
       })
     } finally {
       await rm(outputDir, { recursive: true, force: true })
@@ -84,9 +84,11 @@ describe('architecture baseline generator', () => {
   })
 
   it('refuses canonical output from a dirty relevant tree but permits temp output', () => {
-    expect(() => assertBaselineOutputSafety(CANONICAL_OUTPUT, ['src/main/agent/manager/example.ts']))
-      .toThrow('Refusing to update canonical architecture baselines')
-    expect(() => assertBaselineOutputSafety(path.join(tmpdir(), 'baseline-output'), ['dirty.ts']))
-      .not.toThrow()
+    expect(() =>
+      assertBaselineOutputSafety(CANONICAL_OUTPUT, ['src/main/agent/manager/example.ts'])
+    ).toThrow('Refusing to update canonical architecture baselines')
+    expect(() =>
+      assertBaselineOutputSafety(path.join(tmpdir(), 'baseline-output'), ['dirty.ts'])
+    ).not.toThrow()
   })
 })

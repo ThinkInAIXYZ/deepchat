@@ -206,7 +206,7 @@ import { AcpAgentRuntime } from '@/agent/acp/instance'
 import { createAcpRuntimeOwner } from '@/agent/acp/createRuntimeOwner'
 import { createAcpRoutes } from '@/agent/acp/routes'
 import { AcpSessionPersistence } from '@/agent/acp/runtime'
-import type { MemoryIngestionDrainOutcome } from '@/agent/deepchat/memory/memoryIngestionObserver'
+import type { MemoryIngestionDrainOutcome } from '@/memory/session/memoryIngestionObserver'
 import { MemoryService, isSafeAgentId, type MemoryServicePort } from '../memory'
 import { createMemoryVectorStorePaths, MemoryVectorStore } from '../memory/infra/memoryVectorStore'
 import { ProjectService } from '../project'
@@ -235,7 +235,7 @@ import { createPluginRoutes } from '../plugin/routes'
 import { PluginRuntimeSupervisor } from '../plugin/runtimeSupervisor'
 import { AgentRepository } from '../agent/repository'
 import { AgentDatabase } from '@/agent/data/database'
-import { DeepChatDefaults } from '../agent/deepchat/defaults'
+import { DeepChatDefaults } from '@/agent/agentDefaults'
 import { CommandShellService } from '@/agent/shared/process/commandShellService'
 import { AgentTraceSettings } from '../agent/traceSettings'
 import type { MainDatabase } from '../data/mainDatabase'
@@ -2144,7 +2144,7 @@ export async function createMainProcessControl(dependencies: {
     legacy: new DimLegacySource({
       database: sessionData.database,
       transcript: sessionData.transcript,
-      tape: sessionData.database.deepchatTapeEntriesTable,
+      tape: sessionData.legacyTape,
       summary: sessionData.settings,
       pending: sessionData.pendingInputs
     }),

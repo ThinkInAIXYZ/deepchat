@@ -20,8 +20,8 @@ import type {
   ExecutionJournalWriter,
   NestedExecutionJournalWriter
 } from '@/tape/ports/capabilities'
-import type { ProgrammaticToolCapabilityV1 } from '@/agent/deepchat/runtime/programmaticToolSurface'
-import type { ToolSurfaceSnapshot } from '@/agent/deepchat/runtime/toolSurface'
+import type { ProgrammaticToolCapabilityV1 } from '@/tool/catalog/programmaticToolSurface'
+import type { ToolSurfaceSnapshot } from '@/tool/catalog/toolSurface'
 
 type ProgrammaticParentExecutionJournal = Pick<ExecutionJournalWriter, 'commitToolOutcome'> &
   NestedExecutionJournalWriter

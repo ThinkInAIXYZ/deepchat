@@ -91,6 +91,14 @@ export class SessionDatabase {
     return new DimInputIntentsTable(this.getDatabase())
   }
 
+  /** Read-only archive port for first-continuation migration; never bootstraps a Tape. */
+  get legacyTape() {
+    return {
+      getEffectiveViewInputRows: (sessionId: string) =>
+        this.deepchatTapeEntriesTable.getEffectiveViewInputRows(sessionId)
+    }
+  }
+
   get dimSessionBindingsTable() {
     return new DimSessionBindingsTable(this.getDatabase())
   }

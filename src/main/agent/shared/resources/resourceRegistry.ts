@@ -2,7 +2,7 @@ import type { AppSessionId } from '../agentSessionIds'
 import type { DeepChatSessionState } from '@shared/types/agent-interface'
 import { SessionResources, type SessionResourceHandle } from './sessionResources'
 
-const STALE_RESOURCE_NAME = 'StaleDeepChatAgentInstanceError'
+const STALE_RESOURCE_NAME = 'StaleSessionResourceHandleError'
 export function isStaleSessionResourceError(error: unknown): boolean {
   return error instanceof Error && error.name === STALE_RESOURCE_NAME
 }

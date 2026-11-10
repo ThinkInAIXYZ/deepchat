@@ -27,7 +27,7 @@ import { AcpLaunchSpecService } from '@/agent/acp/launch/acpLaunchSpecService'
 import {
   normalizeAutoCompactionRetainRecentPairs,
   normalizeAutoCompactionTriggerThreshold
-} from '@/agent/deepchat/defaults'
+} from '@/agent/agentDefaults'
 import { AgentRepository, BUILTIN_DEEPCHAT_AGENT_ID } from '@/agent/repository'
 import type { AgentLifecycleGatePort } from '@/agent/lifecycleGate'
 

@@ -11,7 +11,6 @@ import * as sessionVisionResolverModule from '@/agent/vision/sessionVisionResolv
 import { createAgentToolDependencies } from './agentToolDependencies'
 import { CommandPermissionService } from '@/tool/permission'
 import { getYoBrowserToolDefinitions } from '@/tool/browser/definitions'
-import { selectToolBatchExecutionMode } from '@/agent/deepchat/runtime/toolExecutionPolicy'
 
 vi.mock('fs', async (importOriginal) => {
   const actual = (await importOriginal()) as typeof import('fs')
@@ -288,13 +287,6 @@ describe('AgentToolManager read routing', () => {
         selectedDefinitions.map(({ function: { name }, execution }) => [name, execution])
       )
     ).toEqual(Object.fromEntries(names.map((name) => [name, { effect: 'read', mode: 'parallel' }])))
-    expect(
-      selectToolBatchExecutionMode({
-        permissionMode: 'full_access',
-        toolCalls: names.map((name) => ({ name })),
-        toolDefinitions: selectedDefinitions
-      })
-    ).toBe('parallel')
   })
 
   it('commits process mutations after local validation and before the utility target', async () => {
