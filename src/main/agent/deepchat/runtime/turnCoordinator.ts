@@ -35,13 +35,13 @@ import type { PostCompactionPromptAssembler } from '@/agent/deepchat/loop/ports'
 import {
   renderSessionActiveSkillsContext,
   resolveEffectiveActiveSkillNames
-} from '@/agent/deepchat/resources/systemPromptBuilder'
+} from '@/agent/shared/resources/systemPromptBuilder'
 import {
   assemblePromptSections,
   appendAttachmentTextSafetySection,
   appendPromptAssemblySection,
   createPromptAssemblySection
-} from '@/agent/deepchat/resources/promptAssembly'
+} from '@/agent/shared/resources/promptAssembly'
 import { setMessageSkillActiveTurnContext } from './contextContributions'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import {
@@ -78,7 +78,7 @@ import {
   buildTapeChatView,
   buildTapeResumeView
 } from './tapeViewAssembler'
-import type { DeepChatToolCatalogSnapshot, DeepChatToolResolver } from './toolResolver'
+import type { DeepChatToolCatalogSnapshot, DeepChatToolResolver } from '@/agent/shared/resources/toolResources'
 import type { ToolOutputGuard, ToolOutputGuardResult } from './toolOutputGuard'
 import type { ResumeBudgetToolCall } from './turnResumeContract'
 import { parseMessageMetadata } from '@/session/data/messageContent'
@@ -103,9 +103,9 @@ import {
 } from '@/agent/shared/providerModelRuntimeFacts'
 import { PENDING_INPUT_ABORT_REASON, throwIfAbortRequested } from './abortErrors'
 import type { RunLifecycleCoordinator } from './runLifecycleCoordinator'
-import type { RuntimeHookSink } from './runtimeHookSink'
+import type { RuntimeHookSink } from '@/agent/shared/resources/sessionHooks'
 import type { DeepChatTaskContractContextPort } from '@/agent/deepchat/loop/ports'
-import type { SessionIdentityService } from './sessionIdentityService'
+import type { SessionIdentityService } from '@/agent/shared/resources/sessionIdentity'
 import { meetTaskContractToolDefinitions } from './taskContractCapability'
 import type {
   ClaimedPendingInputHandle,

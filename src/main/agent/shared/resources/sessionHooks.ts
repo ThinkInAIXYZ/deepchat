@@ -1,24 +1,26 @@
 import type { DeepChatSessionState } from '@shared/types/agent-interface'
-import type {
-  HookErrorFacts,
-  HookEventBody,
-  HookSessionFacts,
-  HookUsageFacts
-} from '@/hook/events'
+import type { HookErrorFacts, HookEventBody, HookSessionFacts, HookUsageFacts } from '@/hook/events'
 import type { HookObserver } from '@/hook/observer'
 import type {
-  DeepChatLoopNotification,
-  DeepChatLoopNotificationObserver
-} from '@/agent/deepchat/loop/ports'
-import type { ProcessResult } from './types'
-import type { SessionIdentityService } from './sessionIdentityService'
-import type { SessionSettingsCoordinator } from './sessionSettingsCoordinator'
+  SessionToolNotification as DeepChatLoopNotification,
+  SessionToolObserver as DeepChatLoopNotificationObserver
+} from '@/hook/toolObserver'
+interface SessionTerminalResult {
+  status: 'completed' | 'paused' | 'aborted' | 'error'
+  stopReason?: string
+  usage?: Record<string, number>
+  errorMessage?: string
+  terminalError?: string
+}
+import type { SessionIdentityService } from '@/agent/shared/resources/sessionIdentity'
 
 export interface RuntimeHookSinkDependencies {
   observer: HookObserver
   onSessionCompleted?: (sessionId: string) => void
   identity: Pick<SessionIdentityService, 'getAgentId'>
-  sessionSettings: Pick<SessionSettingsCoordinator, 'resolveProjectDir'>
+  sessionSettings: {
+    resolveProjectDir(sessionId: string, projectDir?: string | null): string | null
+  }
 }
 
 export interface RuntimeHookScopeInput {
@@ -121,7 +123,7 @@ export class RuntimeHookSink {
   observeTerminal(
     sessionId: string,
     state: DeepChatSessionState | undefined,
-    result: ProcessResult
+    result: SessionTerminalResult
   ): void {
     if (!state || result.status === 'paused') {
       return

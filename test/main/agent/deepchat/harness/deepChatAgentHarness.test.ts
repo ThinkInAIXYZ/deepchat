@@ -130,7 +130,7 @@ const skillServiceMock = {
   discardDraftSkill: vi.fn()
 }
 
-vi.mock('@/agent/deepchat/resources/systemEnvPromptBuilder', () => {
+vi.mock('@/agent/shared/resources/systemEnvPromptBuilder', () => {
   const buildSystemEnvPrompt = vi.fn(
     async (options?: {
       providerId?: string
@@ -182,7 +182,7 @@ import { processStream } from '@/agent/deepchat/runtime/process'
 import {
   buildRuntimeCapabilitiesPrompt,
   buildSystemEnvPrompt
-} from '@/agent/deepchat/resources/systemEnvPromptBuilder'
+} from '@/agent/shared/resources/systemEnvPromptBuilder'
 
 function getPublishedPayloads(eventName: string): any[] {
   return (publishDeepchatEvent as ReturnType<typeof vi.fn>).mock.calls

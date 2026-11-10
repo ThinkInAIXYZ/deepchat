@@ -13,6 +13,8 @@ const AGENT_SYSTEM_SOURCE_ROOTS = [
   'src/main/agent/shared',
   'src/main/agent/manager',
   'src/main/agent/deepchat',
+  'src/main/agent/dim',
+  'src/main/agent/shared',
   'src/main/agent/acp'
 ]
 const AGENT_SYSTEM_RUNTIME_BOUNDARY_FILES = [
@@ -23,13 +25,13 @@ const AGENT_SYSTEM_RUNTIME_BOUNDARY_FILES = [
   'src/main/agent/deepchat/harness/deepChatAgentHarness.ts',
   'src/main/agent/deepchat/harness/createDeepChatAgentHarness.ts',
   'src/main/agent/deepchat/runtime/runLifecycleCoordinator.ts',
-  'src/main/agent/deepchat/runtime/sessionStatusPublisher.ts',
+  'src/main/agent/shared/resources/sessionStatus.ts',
   'src/main/agent/deepchat/runtime/pendingInputAdmissionCoordinator.ts',
   'src/main/agent/deepchat/runtime/pendingInputPump.ts',
   'src/main/agent/deepchat/runtime/turnCoordinator.ts',
   'src/main/agent/deepchat/runtime/compactionRuntimeCoordinator.ts',
   'src/main/agent/deepchat/runtime/sessionSettingsCoordinator.ts',
-  'src/main/agent/deepchat/runtime/runtimeHookSink.ts',
+  'src/main/agent/shared/resources/sessionHooks.ts',
   'src/main/agent/deepchat/runtime/process.ts',
   'src/main/agent/deepchat/runtime/dispatch.ts',
   'src/main/session/data/transcript.ts',
@@ -145,7 +147,7 @@ const AGENT_SYSTEM_OWNER_EVIDENCE = [
   ],
   [
     'sessionStatusPublisher',
-    'src/main/agent/deepchat/runtime/sessionStatusPublisher.ts',
+    'src/main/agent/shared/resources/sessionStatus.ts',
     /\bclass SessionStatusPublisher\b/g
   ],
   [
@@ -175,7 +177,7 @@ const AGENT_SYSTEM_OWNER_EVIDENCE = [
   ],
   [
     'runtimeHookSink',
-    'src/main/agent/deepchat/runtime/runtimeHookSink.ts',
+    'src/main/agent/shared/resources/sessionHooks.ts',
     /\bclass RuntimeHookSink\b/g
   ]
 ]

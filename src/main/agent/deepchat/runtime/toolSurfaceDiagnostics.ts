@@ -5,7 +5,7 @@ import type {
   DeepChatToolProfileKind
 } from '@/agent/deepchat/instance/deepChatAgentInstance'
 import { hashJsonData } from '@/tape/domain/canonicalJson'
-import type { RunToolDefinitionUniverse } from './toolResolver'
+import type { RunToolDefinitionUniverse } from '@/agent/shared/resources/toolResources'
 import {
   buildCanonicalToolCatalog,
   computeToolSurfaceShadowDecision,

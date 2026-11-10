@@ -57,7 +57,7 @@ import { parseMessageMetadata } from '@/session/data/messageContent'
 import { MAX_TOOL_CALLS } from '@/agent/deepchat/loop/deepChatLoopEngine'
 import { throwIfAbortRequested } from './abortErrors'
 import type { RunLifecycleCoordinator } from './runLifecycleCoordinator'
-import type { RuntimeHookScope, RuntimeHookSink } from './runtimeHookSink'
+import type { RuntimeHookScope, RuntimeHookSink } from '@/agent/shared/resources/sessionHooks'
 import { ExecutionJournalError, isExecutionJournalError } from '@/tape/domain/executionJournal'
 import type { InteractionParkingRegistry } from './interactionParkingRegistry'
 import type {

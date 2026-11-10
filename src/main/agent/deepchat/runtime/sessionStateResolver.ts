@@ -7,7 +7,7 @@ import type {
 import type { SessionSettingsPort } from '@/session/data/contracts'
 import type { PersistedSessionGenerationRow } from '@/agent/shared/generationSettings'
 import type { RunLifecycleCoordinator } from './runLifecycleCoordinator'
-import type { SessionIdentityService } from './sessionIdentityService'
+import type { SessionIdentityService } from '@/agent/shared/resources/sessionIdentity'
 import type { SessionSettingsCoordinator } from './sessionSettingsCoordinator'
 import { revokeToolSurfaceDeferredDispatchesForSession } from './toolSurface'
 

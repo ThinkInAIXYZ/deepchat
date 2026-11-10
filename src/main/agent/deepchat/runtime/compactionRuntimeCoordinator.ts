@@ -14,7 +14,7 @@ import {
 import type { SessionTranscriptPort } from '@/session/data/contracts'
 import type { SessionSettingsPort, SessionSummaryState } from '@/session/data/contracts'
 import { isAbortError, throwIfAbortRequested } from './abortErrors'
-import type { DeepChatToolResolver } from './toolResolver'
+import type { DeepChatToolResolver } from '@/agent/shared/resources/toolResources'
 import type { RunLifecycleCoordinator } from './runLifecycleCoordinator'
 import type { SessionSettingsCoordinator } from './sessionSettingsCoordinator'
 import type { TapeReconciliationPort } from '@/tape/ports/capabilities'

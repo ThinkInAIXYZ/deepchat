@@ -12,7 +12,7 @@ import type {
   SessionScopeRegistry
 } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
-import type { SessionIdentityService } from './sessionIdentityService'
+import type { SessionIdentityService } from '@/agent/shared/resources/sessionIdentity'
 import { BUILTIN_DEEPCHAT_AGENT_ID } from '@/agent/shared/agentDescriptors'
 import type { SessionPermissionPort } from '@/session/contracts'
 import {
@@ -26,7 +26,7 @@ import {
   type ProviderModelRuntimeFacts
 } from '@/agent/shared/providerModelRuntimeFacts'
 import type { SessionSettingsPort } from '@/session/data/contracts'
-import type { DeepChatToolResolver } from './toolResolver'
+import type { DeepChatToolResolver } from '@/agent/shared/resources/toolResources'
 import type { PromptSettingsPort } from '@/agent/promptSettings'
 
 interface SessionSettingsCoordinatorDependencies {

@@ -5,7 +5,7 @@ import { TOOL_EXECUTION } from '@shared/types/core/mcp'
 import type { DeepChatToolProfileKind } from '@/agent/deepchat/instance/deepChatAgentInstance'
 import { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAgentInstance'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
-import type { RunToolDefinitionUniverse } from '@/agent/deepchat/runtime/toolResolver'
+import type { RunToolDefinitionUniverse } from '@/agent/shared/resources/toolResources'
 import { buildCanonicalToolCatalog } from '@/agent/deepchat/runtime/toolSurface'
 import {
   TOOL_SURFACE_P0A_SHADOW_POLICY,

@@ -9,17 +9,17 @@ import type {
 import type { SkillServicePort } from '@shared/types/skill'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { ToolServicePort } from '@shared/types/tool'
-import type { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAgentInstance'
+import type { SessionResourceHandle as DeepChatAgentInstance } from './sessionResources'
 import type { ProviderCatalogPort } from '@/provider/ports'
 import {
   buildRuntimeCapabilitiesPrompt,
   buildSystemEnvPromptAssembly
-} from './systemEnvPromptBuilder'
+} from '@/agent/shared/resources/systemEnvPromptBuilder'
 import {
   appendPromptAssemblySection,
   assemblePromptSections,
   createPromptAssemblySection
-} from './promptAssembly'
+} from '@/agent/shared/resources/promptAssembly'
 import type { SkillSettingsPort } from '@/skill/settings'
 import { ResolvedCommandShellSchema, type ResolvedCommandShell } from '@shared/commandShell'
 import { LIVE_DELEGATION_AGENT_TOOL_NAME } from '@shared/agentTools'
@@ -197,7 +197,9 @@ export async function buildSystemPromptAssemblyWithSkills(
   if (skillsEnabled) {
     const metadataStartedAt = Date.now()
     try {
-      const metadataList = sessionAgentId ? await skillService.getMetadataList(sessionAgentId, { conversationId: sessionId }) : []
+      const metadataList = sessionAgentId
+        ? await skillService.getMetadataList(sessionAgentId, { conversationId: sessionId })
+        : []
       for (const metadata of metadataList) {
         const skillName = metadata?.name?.trim()
         if (skillName) {

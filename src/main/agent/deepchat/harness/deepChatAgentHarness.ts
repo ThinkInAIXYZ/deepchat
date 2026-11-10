@@ -14,7 +14,7 @@ import type {
   ToolInteractionResult
 } from '@shared/types/agent-interface'
 import type { MemoryIngestionDrainOutcome } from '@/agent/deepchat/memory/memoryIngestionObserver'
-import { resolveDeepChatToolProfileKind } from '@/agent/deepchat/runtime/toolResolver'
+import { resolveDeepChatToolProfileKind } from '@/agent/shared/resources/toolResources'
 import type { ToolSurfaceShadowDiagnosticsSnapshot } from '@/agent/deepchat/runtime/toolSurfaceDiagnostics'
 import type { ToolSurfaceCanaryDiagnosticsSnapshot } from '@/agent/deepchat/runtime/toolSurfaceCanaryDiagnostics'
 import type { TurnStartContext } from '@/agent/deepchat/runtime/turnCoordinator'

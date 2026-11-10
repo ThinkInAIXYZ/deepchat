@@ -72,7 +72,7 @@ import {
   resolveProviderTerminalDecision
 } from '@/agent/deepchat/runtime/process'
 import { TRUNCATED_TOOL_CALL_ERROR } from '@/agent/deepchat/runtime/dispatch'
-import { createOpaquePromptAssembly } from '@/agent/deepchat/resources/promptAssembly'
+import { createOpaquePromptAssembly } from '@/agent/shared/resources/promptAssembly'
 import {
   buildExecutionContract,
   buildExecutionContractBinding

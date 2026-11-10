@@ -6,7 +6,7 @@ import {
 } from '@/agent/deepchat/runtime/deferredToolExecutor'
 import { ExecutionJournalError } from '@/tape/domain/executionJournal'
 import { TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/core/mcp'
-import { createOpaquePromptAssembly } from '@/agent/deepchat/resources/promptAssembly'
+import { createOpaquePromptAssembly } from '@/agent/shared/resources/promptAssembly'
 import { buildExecutionContract } from '@/tape/domain/executionContract'
 import { GIT_BASH_COMMAND_SHELL, POSIX_COMMAND_SHELL } from '../../../../helpers/commandShell'
 import {

@@ -29,7 +29,7 @@ import type {
   NestedExecutionJournalWriter
 } from '@/tape/ports/capabilities'
 import type { SessionPermissionPort } from '@/session/contracts'
-import type { SessionStatusPublisherPorts } from '@/agent/deepchat/runtime/sessionStatusPublisher'
+import type { SessionStatusPublisherPorts } from '@/agent/shared/resources/sessionStatus'
 import type { SkillSettingsPort } from '@/skill/settings'
 import type { CacheImageOptions } from '@shared/types/attachment'
 import type { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'

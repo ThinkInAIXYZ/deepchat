@@ -1,5 +1,5 @@
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
-import type { SessionScopeRegistry } from '@/agent/deepchat/instance/deepChatAgentRuntime'
+import type { SessionResourceRegistryPort as SessionScopeRegistry } from './resourceRegistry'
 import type { SessionResourceReadPort } from '@/session/data/contracts'
 import type { SessionKind } from '@shared/types/agent-interface'
 

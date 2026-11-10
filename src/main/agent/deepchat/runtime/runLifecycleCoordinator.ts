@@ -24,7 +24,7 @@ import {
 import { resolveProviderPermissionSafely } from './providerPermissionResolution'
 import { redactRuntimeErrorForLog } from './runtimeErrorLogging'
 import { buildUsageFromMetadata, stampInteractionResolution } from './runtimeMetadata'
-import type { SessionStatusPublisher } from './sessionStatusPublisher'
+import type { SessionStatusPublisher } from '@/agent/shared/resources/sessionStatus'
 import type { MessageProjectionService } from './messageProjectionService'
 import { resolveStreamRequestId as resolveRegistryStreamRequestId } from './streamRequestId'
 import { revokeToolSurfaceDeferredDispatchesForSession } from './toolSurface'

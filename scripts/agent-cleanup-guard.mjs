@@ -88,7 +88,7 @@ const DEEPCHAT_COMPACTION_SERVICE_FILE = path.join(
 )
 const DEEPCHAT_SYSTEM_PROMPT_BUILDER_FILE = path.join(
   ROOT,
-  'src/main/agent/deepchat/resources/systemPromptBuilder.ts'
+  'src/main/agent/shared/resources/systemPromptBuilder.ts'
 )
 const DEEPCHAT_TOOL_ADAPTERS_FILE = path.join(
   ROOT,

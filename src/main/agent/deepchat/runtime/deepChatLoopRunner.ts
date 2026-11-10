@@ -44,13 +44,13 @@ import type { SessionPendingInputsPort } from '@/session/data/contracts'
 import {
   appendCliProgrammaticToolAdapterSection,
   resolveEffectiveActiveSkillNames
-} from '@/agent/deepchat/resources/systemPromptBuilder'
+} from '@/agent/shared/resources/systemPromptBuilder'
 import {
   appendAttachmentTextSafetySection,
   appendPromptAssemblySection,
   createOpaquePromptAssembly,
   reconcilePromptAssembly
-} from '@/agent/deepchat/resources/promptAssembly'
+} from '@/agent/shared/resources/promptAssembly'
 import type { SessionPermissionPort } from '@/session/contracts'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import {
@@ -105,13 +105,13 @@ import {
   isExecutionJournalError
 } from '@/tape/domain/executionJournal'
 import type { AgentTraceSettingsPort } from '@/agent/traceSettings'
-import type { RuntimeHookSink } from './runtimeHookSink'
+import type { RuntimeHookSink } from '@/agent/shared/resources/sessionHooks'
 import {
   resolveDeepChatToolProfileKind,
   type DeepChatToolCatalogSnapshot,
   type DeepChatToolResolver,
   type RunSkillToolRequirements
-} from '@/agent/deepchat/runtime/toolResolver'
+} from '@/agent/shared/resources/toolResources'
 import type {
   ToolSurfaceProviderAttemptDiagnostic,
   ToolSurfaceShadowDiagnosticsRegistryPort
@@ -217,7 +217,7 @@ import {
   resolveExecutionContractSubagentDepth
 } from './taskContractCapability'
 import type { PromptAssemblyService } from './promptAssemblyService'
-import type { SessionIdentityService } from './sessionIdentityService'
+import type { SessionIdentityService } from '@/agent/shared/resources/sessionIdentity'
 import type { SessionSettingsCoordinator } from './sessionSettingsCoordinator'
 import type { ClosedToolResultPruner, ToolPermissionReviewer } from './toolRuntimeBindings'
 import type { ProgrammaticToolPort } from '@/agent/deepchat/runtime/programmaticExecParent'

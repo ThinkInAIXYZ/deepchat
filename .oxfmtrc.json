@@ -15,7 +15,7 @@
     "CONTRIBUTING*.md",
     "README*.md",
     "docs",
-    "resources",
+    "resources/**",
     "runtime",
     "native/dim-source",
     "native/**/target",

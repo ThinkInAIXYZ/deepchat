@@ -7,7 +7,7 @@ import type { SessionScopeRegistry } from '@/agent/deepchat/instance/deepChatAge
 import type { ToolResultPort } from '@/agent/deepchat/loop/ports'
 import type { SessionSettingsPort } from '@/session/data/contracts'
 import type { RunLifecycleCoordinator } from './runLifecycleCoordinator'
-import type { SessionIdentityService } from './sessionIdentityService'
+import type { SessionIdentityService } from '@/agent/shared/resources/sessionIdentity'
 import { normalizeToolResultContent } from './toolAdapters'
 import { reviewAutoApproveToolPermission } from './toolPermissionReviewer'
 import {

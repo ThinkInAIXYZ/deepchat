@@ -14,7 +14,7 @@ import {
 import {
   SessionStatusPublisher,
   type SessionStatusPublisherPorts
-} from '@/agent/deepchat/runtime/sessionStatusPublisher'
+} from '@/agent/shared/resources/sessionStatus'
 import * as toolSurface from '@/agent/deepchat/runtime/toolSurface'
 import { POSIX_COMMAND_SHELL } from '../../../../helpers/commandShell'
 

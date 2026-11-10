@@ -158,6 +158,8 @@
 
 ## 模块进度
 
+- 模块 38：ACP 资源组装只构造 SessionResources/Registry，包含项目目录、身份、启用技能、工具缓存和 staleness fence，没有 generation、queue、模型或执行器状态。七个可复用的提示/目录/身份/状态/Hook owner 与对应测试迁出旧 Harness；工具目录和 hook 通知合同独立，ACP 不再从旧 loop/instance/runtime 导入实现。旧执行器通过窄资源合同复用产品代码，等剩余引用拆完后整体删除。更新架构 owner 路径与源目录证据，并将格式忽略限定到根 assets，确保新共享源码进入格式检查。477 项相关回归、87 项资源/架构复验、86 项资源/ACP 装配复验、主进程构建、四项真实 ACP/dim Electron 联合验收及格式/i18n/lint/双端 typecheck 通过。工具 Surface、Memory 产品策略和 CLI 合同是旧执行树的剩余外部引用，继续收敛。
+
 - 模块 37：修复旧 DeepChat agent + ACP provider/model 兼容选择的创建与恢复。Manager 根据持久选择解析实际 ACP client descriptor，保留公开 shell agentId；首次初始化显式选择目标 client，设置由 client 单次创建，不进入 dim，不构造旧 Harness。后续发送、取消和恢复都选择 ACP client。目标必须是可执行 ACP agent，初始化不得覆盖已有 Native 绑定。辅助 ACP 文本调用继续使用桌面 ACP client，其余文本模型继续由 Native facade 执行。92 项 Manager/provider/lifecycle 回归、主进程构建、四项实际 Electron ACP/Native 联合验收及 format/i18n/lint/双端 typecheck 通过。现存 Native 会话跨 backend 切换仍需独立 handoff，ACP 资源组装与旧实例继续拆解。
 
 - 模块 36：ACP client 的流消息聚合、刷新、终态、权限展示和请求脱敏改为共享桌面投影，直接依赖独立展示合同，不再导入旧 Harness 的 process/dispatch/types。旧 runtime 下四个纯展示实现及对应兼容入口已物理删除，测试迁至 shared；旧执行器暂时复用共享投影，等待后续整体删除。原方法、权限块、timing、状态、分段输出和脱敏逻辑保持，未增加模型或调度实现。533 项相关回归、主进程构建、format/i18n/lint 和双端 typecheck 通过。Electron 的 ACP 设置、composer warmup 与 Native 聊天/Inspector 三项通过；ACP extensions 用例的 Direct client 问答、用量及 child 展示通过，末段 ACP-as-provider 兼容入口未执行，已定位为主入口切换后的独立缺口，下一模块修复。ACP 的资源组装与旧实例依赖继续拆解。

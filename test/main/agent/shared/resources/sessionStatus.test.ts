@@ -1,9 +1,9 @@
 import { createSessionStatusProjection } from '@/session/sessionStatusProjection'
 import { SyncSessionActivity } from '@/sync/sessionActivity'
 import { describe, expect, it, vi } from 'vitest'
-import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
+import { SessionResourcesRegistry as DeepChatAgentRuntime } from '@/agent/shared/resources/resourceRegistry'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
-import { SessionStatusPublisher } from '@/agent/deepchat/runtime/sessionStatusPublisher'
+import { SessionStatusPublisher } from '@/agent/shared/resources/sessionStatus'
 
 function createPublisher() {
   const wake = vi.fn()

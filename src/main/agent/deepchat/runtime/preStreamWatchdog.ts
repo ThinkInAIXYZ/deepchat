@@ -1,5 +1,4 @@
 
-const PRE_STREAM_SLOW_STEP_MS = 500
 export const PRE_STREAM_STUCK_WARN_MS = 5_000
 export const PRE_STREAM_STUCK_ESCALATION_MS = 30_000
 
@@ -15,16 +14,8 @@ export interface PreStreamStepInput {
   signal?: AbortSignal
 }
 
-export function logSlowPreStreamStep(sessionId: string, step: string, startedAt: number): void {
-  const elapsed = Date.now() - startedAt
-  if (elapsed < PRE_STREAM_SLOW_STEP_MS) {
-    return
-  }
-
-  console.warn(
-    `[DeepChatAgent] pre-stream step slow session=${sessionId} step=${step} elapsed=${elapsed}ms`
-  )
-}
+export { logSlowPreStreamStep } from '@/agent/shared/resources/resourceTiming'
+import { logSlowPreStreamStep } from '@/agent/shared/resources/resourceTiming'
 
 function startPreStreamStepWatchdog(input: PreStreamStepInput): PreStreamBoundary {
   const { sessionId, messageId, step, signal } = input

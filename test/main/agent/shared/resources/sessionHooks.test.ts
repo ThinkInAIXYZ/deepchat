@@ -1,6 +1,6 @@
 import type { HookEvent } from '@/hook/events'
 import type { HookObserver } from '@/hook/observer'
-import { RuntimeHookSink } from '@/agent/deepchat/runtime/runtimeHookSink'
+import { RuntimeHookSink } from '@/agent/shared/resources/sessionHooks'
 import type { DeepChatSessionState } from '@shared/types/agent-interface'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -248,7 +248,10 @@ describe('RuntimeHookSink terminal projection', () => {
     })
 
     expect(events.map((event) => event.event)).toEqual(['Stop', 'SessionEnd'])
-    expect(events[1]).toMatchObject({ usage: { totalTokens: 5 }, error: { message: 'tool exploded' } })
+    expect(events[1]).toMatchObject({
+      usage: { totalTokens: 5 },
+      error: { message: 'tool exploded' }
+    })
   })
 
   it('normalizes a missing usage or error into an explicit null', () => {

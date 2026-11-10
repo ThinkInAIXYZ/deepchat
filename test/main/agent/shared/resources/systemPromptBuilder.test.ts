@@ -2,16 +2,16 @@ import type { ProviderSettingsPort } from '@/provider/settings'
 import { describe, expect, it, vi } from 'vitest'
 import fs from 'fs'
 
-import type { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAgentInstance'
+import type { SessionResourceHandle as DeepChatAgentInstance } from '@/agent/shared/resources/sessionResources'
 import {
   appendCliProgrammaticToolAdapterSection,
   buildSystemPromptAssemblyWithSkills,
   buildSystemPromptWithSkills
-} from '@/agent/deepchat/resources/systemPromptBuilder'
+} from '@/agent/shared/resources/systemPromptBuilder'
 import {
   assemblePromptSections,
   createPromptAssemblySection
-} from '@/agent/deepchat/resources/promptAssembly'
+} from '@/agent/shared/resources/promptAssembly'
 import { LIVE_DELEGATION_AGENT_TOOL_NAME } from '@shared/agentTools'
 import { UNTRUSTED_CHILD_OUTPUT_POLICY } from '@shared/orchestration/resultSafety'
 import { POSIX_COMMAND_SHELL } from '../../../../helpers/commandShell'
@@ -440,10 +440,12 @@ describe('DeepChat system prompt builder', () => {
 
       expect(loadSkillContent).not.toHaveBeenCalled()
       expect(assembly.prompt).not.toContain('### skill-a\nskill-a instructions')
-      expect(assembly.sections.find((section) => section.kind === 'skills_metadata')).toMatchObject({
-        inclusion: 'omitted',
-        degradationCodes: ['skill_metadata_unavailable']
-      })
+      expect(assembly.sections.find((section) => section.kind === 'skills_metadata')).toMatchObject(
+        {
+          inclusion: 'omitted',
+          degradationCodes: ['skill_metadata_unavailable']
+        }
+      )
       const pinnedSkills = assembly.sections.find((section) => section.kind === 'pinned_skills')
       expect(pinnedSkills).toMatchObject({ inclusion: 'omitted' })
       expect(pinnedSkills).not.toHaveProperty('degradationCodes')
@@ -494,7 +496,9 @@ describe('DeepChat system prompt builder', () => {
       toolDefinitions: [],
       activeSkillNamesOverride: ['skill-a'],
       sessionActiveSkillNamesOverride: ['skill-a'],
-      sessionSkillBodiesOverride: [{ name: 'skill-a', content: 'exact materialized body \t\n\n\n' }],
+      sessionSkillBodiesOverride: [
+        { name: 'skill-a', content: 'exact materialized body \t\n\n\n' }
+      ],
       commandShell: POSIX_COMMAND_SHELL,
       resourceInstance: instance
     })

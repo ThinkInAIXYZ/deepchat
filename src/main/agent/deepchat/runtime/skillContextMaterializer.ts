@@ -6,7 +6,7 @@ import type {
   DeepChatTapeSkillMaterializationRef,
   DeepChatTapeViewManifestRecord
 } from '@shared/types/tape-view-manifest'
-import { renderSessionSkillBody } from '../resources/systemPromptBuilder'
+import { renderSessionSkillBody } from '@/agent/shared/resources/systemPromptBuilder'
 import type {
   TapeEffectiveUserMessageSourceReader,
   TapeIncarnationReader,

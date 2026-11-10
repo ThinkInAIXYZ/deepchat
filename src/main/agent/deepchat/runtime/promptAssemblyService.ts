@@ -1,3 +1,5 @@
+import type { SessionResourceHandle } from '@/agent/shared/resources/sessionResources'
+import { createStaleDeepChatInstanceError } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { DeepChatPromptAssembly } from '@shared/types/prompt-assembly'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
@@ -12,11 +14,11 @@ import {
   buildSystemPromptAssemblyWithSkills,
   buildSystemPromptWithSkills,
   type SystemPromptBuilderDependencies
-} from '@/agent/deepchat/resources/systemPromptBuilder'
+} from '@/agent/shared/resources/systemPromptBuilder'
 import { buildContextCheckpoint } from './contextContributions'
 import { logSlowPreStreamStep } from './preStreamWatchdog'
-import type { SessionIdentityService } from './sessionIdentityService'
-import type { DeepChatToolResolver } from './toolResolver'
+import type { SessionIdentityService } from '@/agent/shared/resources/sessionIdentity'
+import type { DeepChatToolResolver } from '@/agent/shared/resources/toolResources'
 import type { ResolvedCommandShell } from '@shared/commandShell'
 
 export interface PromptAssemblyProjectDirPort {
@@ -43,6 +45,12 @@ export class PromptAssemblyService {
   private readonly builderDependencies: SystemPromptBuilderDependencies
 
   constructor(private readonly deps: PromptAssemblyServiceDependencies) {
+    const current = (sessionId: string, resource: SessionResourceHandle) => {
+      const scope = deps.registry.getHydratedScope(toAppSessionId(sessionId))
+      if (!scope || scope.instance !== resource) throw createStaleDeepChatInstanceError(sessionId)
+      scope.assertCurrent()
+      return scope.instance
+    }
     this.builderDependencies = {
       providerSettings: deps.providerSettings,
       skillSettings: deps.skillSettings,
@@ -50,11 +58,11 @@ export class PromptAssemblyService {
       providerCatalogPort: deps.providerCatalogPort,
       toolService: deps.toolService,
       assertCurrent: (sessionId, instance) =>
-        deps.registry.scopeFor(toAppSessionId(sessionId), instance).assertCurrent(),
+        void current(sessionId, instance),
       isAcpBackedSubagentSession: (sessionId, providerId) =>
         deps.identity.isAcpBackedSubagentSession(sessionId, providerId),
       resolveProjectDir: (sessionId, projectDir, instance) =>
-        deps.projectDir.resolveProjectDir(sessionId, projectDir, instance),
+        deps.projectDir.resolveProjectDir(sessionId, projectDir, current(sessionId, instance)),
       logSlowStep: logSlowPreStreamStep
     }
   }

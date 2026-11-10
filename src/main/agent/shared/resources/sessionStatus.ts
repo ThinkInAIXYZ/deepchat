@@ -1,5 +1,5 @@
 import type { DeepChatSessionState } from '@shared/types/agent-interface'
-import type { SessionRuntimeScope } from '@/agent/deepchat/instance/deepChatAgentRuntime'
+import type { SessionResourceScope as SessionRuntimeScope } from './resourceRegistry'
 
 import type { SessionStatusPublisherPorts } from '@/agent/shared/output'
 export type { SessionStatusPublisherPorts } from '@/agent/shared/output'

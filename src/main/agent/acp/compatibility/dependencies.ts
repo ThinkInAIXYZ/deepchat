@@ -11,30 +11,28 @@ import type { HookObserver } from '@/hook/observer'
 import type { CommandShellService } from '@/agent/shared/process/commandShellService'
 import type { AcpAgentInstanceDependencyFactory } from '@/agent/acp/instance'
 import { AcpCompatibilityPromptBuilder } from '@/agent/acp/runtime'
-import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
-import { SessionIdentityService } from '@/agent/deepchat/runtime/sessionIdentityService'
+import { SessionResourcesRegistry } from '@/agent/shared/resources/resourceRegistry'
+import { SessionIdentityService } from '@/agent/shared/resources/sessionIdentity'
 import {
   SessionStatusPublisher,
   type SessionStatusPublisherPorts
-} from '@/agent/deepchat/runtime/sessionStatusPublisher'
-import { DeepChatToolResolver } from '@/agent/deepchat/runtime/toolResolver'
-import { RuntimeHookSink } from '@/agent/deepchat/runtime/runtimeHookSink'
+} from '@/agent/shared/resources/sessionStatus'
+import { DeepChatToolResolver } from '@/agent/shared/resources/toolResources'
+import { RuntimeHookSink } from '@/agent/shared/resources/sessionHooks'
 import { createRateLimitBlock } from '@/agent/shared/streamEcho'
-import { logSlowPreStreamStep } from '@/agent/deepchat/runtime/preStreamWatchdog'
+import { logSlowPreStreamStep } from '@/agent/shared/resources/resourceTiming'
 import {
   resolveSessionGenerationSettings,
   type PersistedSessionGenerationRow
 } from '@/agent/shared/generationSettings'
-import {
-  capAgentRequestMaxTokens,
-  estimateToolReserveTokens
-} from '@/agent/deepchat/runtime/contextBudget'
+import { capAgentRequestMaxTokens } from '@/agent/shared/generationLimits'
+import { estimateToolReserveTokens } from '@/agent/shared/resources/toolEstimates'
 import { createUserChatMessage } from '@/agent/shared/inputContent'
 import {
   resolveEffectiveActiveSkillNames,
   buildSystemPromptWithSkills,
   type SystemPromptBuilderDependencies
-} from '@/agent/deepchat/resources/systemPromptBuilder'
+} from '@/agent/shared/resources/systemPromptBuilder'
 import type { DeepChatOutputPort } from '@/agent/shared/output'
 import { createProviderViewManifest } from '@/tape/application/providerViewManifest'
 import type {
@@ -84,7 +82,7 @@ export function createAcpCompatibilityDependencies(
 ): ReturnType<AcpAgentInstanceDependencyFactory> {
   const { runtime, session } = input
   const sessionId = session.sessionId
-  const registry = new DeepChatAgentRuntime()
+  const registry = new SessionResourcesRegistry()
   const scope = registry.getOrHydrateScope(session.sessionId)
   const resourceInstance = scope.instance
   const identity = new SessionIdentityService({ registry, sessions: dependencies.sessionStore })

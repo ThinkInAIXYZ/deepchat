@@ -29,11 +29,11 @@ import {
   type PendingToolInteraction,
   type RunJournalObserver
 } from './types'
-import type { DeepChatToolResolver } from './toolResolver'
+import type { DeepChatToolResolver } from '@/agent/shared/resources/toolResources'
 import type { MessageProjectionService } from './messageProjectionService'
 import type { RunLifecycleCoordinator } from './runLifecycleCoordinator'
 import { elapsedMonotonicMs, readMonotonicNow, type MonotonicClock } from '@/lib/monotonicTime'
-import type { SessionIdentityService } from './sessionIdentityService'
+import type { SessionIdentityService } from '@/agent/shared/resources/sessionIdentity'
 import type { SessionSettingsCoordinator } from './sessionSettingsCoordinator'
 import type { SessionStateResolver } from './sessionStateResolver'
 import { toolContentToText } from './toolAdapters'

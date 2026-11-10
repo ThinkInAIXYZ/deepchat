@@ -12,7 +12,7 @@ import {
 import {
   assemblePromptSections,
   createPromptAssemblySection
-} from '@/agent/deepchat/resources/promptAssembly'
+} from '@/agent/shared/resources/promptAssembly'
 import type { ContextRuntimeContributions } from '@/agent/deepchat/runtime/contextContributions'
 
 vi.mock('tokenx', () => ({

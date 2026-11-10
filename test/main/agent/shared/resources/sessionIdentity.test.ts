@@ -1,11 +1,11 @@
 import { SessionSettingsStore } from '@/session/data/settings'
 import { describe, expect, it, vi } from 'vitest'
-import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
+import { SessionResourcesRegistry as DeepChatAgentRuntime } from '@/agent/shared/resources/resourceRegistry'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import {
   SessionIdentityService,
   type SessionIdentityServiceDependencies
-} from '@/agent/deepchat/runtime/sessionIdentityService'
+} from '@/agent/shared/resources/sessionIdentity'
 
 const SESSION_ID = 'session'
 

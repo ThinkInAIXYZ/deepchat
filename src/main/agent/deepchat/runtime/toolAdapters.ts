@@ -1,7 +1,6 @@
+export { createToolCatalogPort, type ToolCatalogCacheEntry } from '@/agent/shared/resources/toolCatalog'
 import type { ProviderModelResolutionPort } from '@/provider/settings'
 import type {
-  ToolCatalogPort,
-  ToolCatalogRequest,
   ToolExecutionPort,
   ToolExecutionOptions,
   ToolExecutionPreCheckOptions,
@@ -9,18 +8,12 @@ import type {
 } from '@/agent/deepchat/loop/ports'
 import type { ProviderExecutionPort } from '@shared/types/provider'
 import type { ChatMessage } from '@shared/types/core/chat-message'
-import type { MCPToolDefinition, MCPToolResponse } from '@shared/types/core/mcp'
-import type { ToolServicePort, ToolDefinitionContext } from '@shared/types/tool'
+import type { MCPToolResponse } from '@shared/types/core/mcp'
+import type { ToolServicePort } from '@shared/types/tool'
 import { CUA_PLUGIN_ID } from '@shared/types/plugin'
 import { resolveSessionVisionTarget } from '@/agent/vision/sessionVisionResolver'
 import type { ToolOutputGuard } from './toolOutputGuard'
 import type { AgentSettingsPort } from '@/agent/settings'
-
-export interface ToolCatalogCacheEntry<TProfile extends string = string> {
-  profile: TProfile
-  fingerprint: string
-  tools: MCPToolDefinition[]
-}
 
 type MainProcessToolExecutionService = Pick<ToolServicePort, 'preCheckToolPermission'> & {
   assertToolSurfaceAuthority?(
@@ -35,47 +28,6 @@ type MainProcessToolExecutionService = Pick<ToolServicePort, 'preCheckToolPermis
     request: Parameters<ToolServicePort['callTool']>[0],
     options?: ToolExecutionOptions
   ): ReturnType<ToolServicePort['callTool']>
-}
-
-export function createToolCatalogPort<TProfile extends string>(input: {
-  toolService: ToolServicePort
-  resolveContext(request?: ToolCatalogRequest): Promise<{
-    profile: TProfile
-    fingerprint: string
-    context: ToolDefinitionContext
-    cached?: ToolCatalogCacheEntry<TProfile>
-  }>
-  commitCache(entry: ToolCatalogCacheEntry<TProfile>): void
-  onResolved?(input: {
-    context: ToolDefinitionContext
-    tools: MCPToolDefinition[]
-  }): void
-}): ToolCatalogPort {
-  return {
-    resolve: async (request) => {
-      const resolved = await input.resolveContext(request)
-      if (
-        resolved.cached?.profile === resolved.profile &&
-        resolved.cached.fingerprint === resolved.fingerprint
-      ) {
-        input.toolService.syncAgentToolContext({
-          chatMode: resolved.context.chatMode,
-          agentWorkspacePath: resolved.context.agentWorkspacePath
-        })
-        input.onResolved?.({ context: resolved.context, tools: resolved.cached.tools })
-        return resolved.cached.tools
-      }
-
-      const tools = await input.toolService.getAllToolDefinitions(resolved.context)
-      input.commitCache({
-        profile: resolved.profile,
-        fingerprint: resolved.fingerprint,
-        tools
-      })
-      input.onResolved?.({ context: resolved.context, tools })
-      return tools
-    }
-  }
 }
 
 export function createToolExecutionPort(

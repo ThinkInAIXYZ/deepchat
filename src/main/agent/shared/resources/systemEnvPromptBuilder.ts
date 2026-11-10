@@ -7,7 +7,10 @@ import type {
 } from '@shared/types/prompt-assembly'
 import { formatCommandShellPromptLine, type ResolvedCommandShell } from '@shared/commandShell'
 import type { ProviderCatalogPort } from '@/provider/ports'
-import { assemblePromptSections, createPromptAssemblySection } from './promptAssembly'
+import {
+  assemblePromptSections,
+  createPromptAssemblySection
+} from '@/agent/shared/resources/promptAssembly'
 
 export interface BuildSystemEnvPromptOptions {
   providerId?: string
@@ -332,8 +335,6 @@ export async function buildSystemEnvPromptAssembly(
   ])
 }
 
-export async function buildSystemEnvPrompt(
-  options: BuildSystemEnvPromptOptions
-): Promise<string> {
+export async function buildSystemEnvPrompt(options: BuildSystemEnvPromptOptions): Promise<string> {
   return (await buildSystemEnvPromptAssembly(options)).prompt
 }

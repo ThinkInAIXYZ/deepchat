@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import type { DeepChatPromptAssembly } from '@shared/types/prompt-assembly'
 import type { PluginContextPort } from '@shared/types/userPlugin'
-import { assemblePromptSections, createPromptAssemblySection } from '../resources/promptAssembly'
+import { assemblePromptSections, createPromptAssemblySection } from '@/agent/shared/resources/promptAssembly'
 
 export function projectPluginContext(assembly: DeepChatPromptAssembly, port: PluginContextPort | undefined, sessionId: string, messageId: string): DeepChatPromptAssembly {
   if (!port) return assembly

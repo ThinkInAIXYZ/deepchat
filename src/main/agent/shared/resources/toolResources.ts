@@ -14,41 +14,34 @@ import type {
 } from '@shared/types/agent-interface'
 import type { SessionResourceReadPort } from '@/session/data/contracts'
 import type {
-  DeepChatAgentInstance,
-  DeepChatToolProfileKind
-} from '@/agent/deepchat/instance/deepChatAgentInstance'
+  SessionResourceHandle as DeepChatAgentInstance,
+  SessionToolProfileKind as DeepChatToolProfileKind
+} from './sessionResources'
 import {
-  isStaleDeepChatInstanceError,
-  type DeepChatAgentRuntime,
-  type SessionScopeRegistry
-} from '@/agent/deepchat/instance/deepChatAgentRuntime'
+  isStaleSessionResourceError as isStaleDeepChatInstanceError,
+  type SessionResourceRegistryPort
+} from './resourceRegistry'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
-import type { SessionIdentityService } from './sessionIdentityService'
-import type { ToolCatalogPort } from '@/agent/deepchat/loop/ports'
+import type { SessionIdentityService } from '@/agent/shared/resources/sessionIdentity'
+import type { ToolCatalogPort } from './toolCatalog'
 import {
   normalizeStringList,
   type AgentExtensionPolicy
-} from '@/agent/deepchat/resources/systemPromptBuilder'
-import { createToolCatalogPort } from './toolAdapters'
+} from '@/agent/shared/resources/systemPromptBuilder'
+import { createToolCatalogPort } from './toolCatalog'
 import type { SkillSettingsPort } from '@/skill/settings'
 import type { AgentSettingsPort } from '@/agent/settings'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import { resolveDeepChatSubagentCapability } from '@shared/lib/deepchatSubagents'
-import {
-  type OrchestrationPolicy
-} from '@shared/orchestration/policy'
+import { type OrchestrationPolicy } from '@shared/orchestration/policy'
 import { composeSubagentAuthority } from '@/session/subagentAuthority'
 import { normalizeSkillToolName } from '@/skill/toolNameMapping'
 import {
   buildExecutionToolCeiling,
   buildExecutionToolTargetKey
 } from '@/tape/domain/executionContract'
-import { buildCanonicalToolCatalog } from './toolSurface'
-import {
-  resolveToolMode,
-  type ResolvedToolMode,
-  type ToolMode
-} from '@shared/toolMode'
+import { buildCanonicalToolCatalog } from '@/agent/deepchat/runtime/toolSurface'
+import { resolveToolMode, type ResolvedToolMode, type ToolMode } from '@shared/toolMode'
 
 type ToolResolverSkillPort = Pick<
   SkillServicePort,
@@ -121,7 +114,7 @@ export interface DeepChatToolResolverDependencies {
   sessions: SessionResourceReadPort
   toolService: ToolServicePort
   skillService: ToolResolverSkillPort
-  registry: SessionScopeRegistry & Pick<DeepChatAgentRuntime, 'getToolRegistryRevision'>
+  registry: SessionResourceRegistryPort & { getToolRegistryRevision(): number }
   identity: Pick<SessionIdentityService, 'getAgentId' | 'isAcpBackedSubagentSession'>
 }
 
@@ -273,7 +266,10 @@ export class DeepChatToolResolver {
   }
 
   resolveToolMode(sessionId: string, catalogDefault?: ToolMode): ResolvedToolMode {
-    return resolveToolMode(this.dependencies.sessions.getToolModeOverride(sessionId), catalogDefault)
+    return resolveToolMode(
+      this.dependencies.sessions.getToolModeOverride(sessionId),
+      catalogDefault
+    )
   }
 
   configureToolMode(input: ToolModeConfiguration): MCPToolDefinition[] {
@@ -368,7 +364,12 @@ export class DeepChatToolResolver {
     if (skillsEnabled) {
       try {
         const metadataSnapshot = projectDir?.trim()
-          ? { state: 'ready' as const, skills: await this.dependencies.skillService.getMetadataList(agentId, { conversationId: sessionId }) }
+          ? {
+              state: 'ready' as const,
+              skills: await this.dependencies.skillService.getMetadataList(agentId, {
+                conversationId: sessionId
+              })
+            }
           : this.dependencies.skillService.snapshotCachedMetadataList(agentId, {
               maxItems: MAX_RUN_TOOL_UNIVERSE_SKILLS
             })
@@ -745,11 +746,9 @@ export class DeepChatToolResolver {
           this.dependencies.identity.getAgentId(sessionId)?.trim() ||
           null
         const agentId = scopedAgentId ?? 'deepchat'
-        const toolPolicy = await this.resolveAgentToolPolicy(
-          sessionId,
-          resourceInstance,
-          { requireComplete: failClosed }
-        )
+        const toolPolicy = await this.resolveAgentToolPolicy(sessionId, resourceInstance, {
+          requireComplete: failClosed
+        })
         const policy = toolPolicy.extensionPolicy
         const requestedActiveSkillNames = failClosed
           ? normalizeStringList([
@@ -1076,7 +1075,9 @@ export class DeepChatToolResolver {
     try {
       if ((await this.dependencies.agentSettings.getAgentType(agentId)) !== 'acp') {
         const validatedSkillNames = normalizeStringList(
-          await this.dependencies.skillService.validateSkillNames(agentId, normalizedSkillNames, { conversationId })
+          await this.dependencies.skillService.validateSkillNames(agentId, normalizedSkillNames, {
+            conversationId
+          })
         )
         if (
           failClosed &&
@@ -1108,8 +1109,7 @@ export class DeepChatToolResolver {
   getDisabledAgentTools(sessionId: string): string[] {
     const sessions = this.dependencies.sessions
     const session = sessions.getIdentity(sessionId)
-    const parentSessionId =
-      session?.kind === 'subagent' ? session.parentSessionId?.trim() : null
+    const parentSessionId = session?.kind === 'subagent' ? session.parentSessionId?.trim() : null
     return composeSubagentAuthority(
       { disabledAgentTools: sessions.getDisabledAgentTools(sessionId) },
       {

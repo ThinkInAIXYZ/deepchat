@@ -27,7 +27,7 @@ const buildSystemPromptAssemblyWithSkills = vi.hoisted(() =>
   }))
 )
 
-vi.mock('@/agent/deepchat/resources/systemPromptBuilder', () => ({
+vi.mock('@/agent/shared/resources/systemPromptBuilder', () => ({
   buildSystemPromptAssemblyWithSkills,
   buildSystemPromptWithSkills
 }))

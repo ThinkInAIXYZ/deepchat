@@ -27,7 +27,7 @@ import {
 import { resolveDeepChatSubagentCapability } from '@shared/lib/deepchatSubagents'
 import { parseChildAgentResultEnvelope } from '@shared/orchestration/resultSafety'
 import { LiveDelegationConsentAuthority } from '@/orchestration/liveDelegationConsent'
-import { createOpaquePromptAssembly } from '@/agent/deepchat/resources/promptAssembly'
+import { createOpaquePromptAssembly } from '@/agent/shared/resources/promptAssembly'
 import { buildExecutionContract } from '@/tape/domain/executionContract'
 import {
   buildCanonicalToolCatalog,
