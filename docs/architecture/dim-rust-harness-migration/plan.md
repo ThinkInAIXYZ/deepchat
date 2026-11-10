@@ -158,6 +158,8 @@
 
 ## 模块进度
 
+- 模块 43：按已批准的 Code Mode 暂停范围，物理删除旧 Node Code Mode runtime、utility host、协议、生成工具与打包入口，共移除约 4600 行源码/旧执行器测试。ToolService 不再创建或调度 Code Mode；Agent/Minimal 仅转交 owner 目录，Code 明确拒绝。架构门禁禁止恢复旧目录和运行器。435 项工具/权限/架构回归及格式/i18n/lint/双端 typecheck 通过；完整 Electron 构建和四项 ACP/dim 桌面联合验收通过（84s）。
+
 - 模块 42：Native 会话引用使用独立产品 epoch，清空/删除会话撤销旧引用，普通代次更新保留引用身份。preview/search/context 读取 Native 同步后的有界派生索引，原始消息详情经独立 storage 插件从 dim 公开 transcript owner 读取，不以 SQL 缓存或 Tape 校验 Native 内容；授权在 Native I/O 前及每次 await 后重验，scope/generation 变化拒绝过期结果。保留旧历史读取兼容，不在选择 Native 引用时创建 Tape。48 项会话引用、投影和 schema 回归通过；真实 Electron 新建/重启/续聊用 Native read_session 连续读取列表和原文，31s 通过；主进程构建、格式/i18n/lint/双端 typecheck 通过。
 
 - 模块 41：工具管理器缩减为产品扩展，移除旧文件、命令/进程、搜索、问题、技能发现/执行、调度与子代理派发入口；物理删除 Node 文件/命令/搜索/Minimal 编辑器处理器及模型侧 Tape handler。保留桌面浏览器、长期记忆、会话引用，并把图像生成、桌面设置与技能草稿管理纳入统一 ToolProvider 桥；图像结果的展示回执/预览随 Native 事实投影恢复。MCP 桥按会话工具偏好过滤，调用仍受版本与作用域 fence 约束。原生 smoke 新增 registry 临时 scope 清理、真实 Native exec 及 disallowedTools 拒绝/重新启用；10 项 Rust smoke 和 134 项产品/投影/边界回归通过。全量 main 为 8413 项通过、四项失败：旧数组顺序断言已更新为原生偏好合同，两个 mac 打包断言来自 shell umask 0077，架构生成遇到 10s 超时；标准 umask 022 下三套共 161 项定向复验通过，未修改产品打包或放宽超时。Memory 类型门禁 78 项、scope、格式/i18n/lint/双端 typecheck 通过。主进程复构建通过；四项 Electron 流程中三项一次通过，ACP 工作区一次性错误模拟遇到竞态，单独复验 30s 通过。遗留 Code Mode/调度/委派的无入口代码、其余 Tape API 及产品兼容继续清理。

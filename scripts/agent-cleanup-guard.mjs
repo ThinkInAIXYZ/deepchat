@@ -7,6 +7,7 @@ const ROOT = process.cwd()
 const MAIN = path.join(ROOT, 'src/main')
 const RETIRED = [
   path.join(MAIN, 'agent/deepchat'),
+  path.join(MAIN, 'tool/codeMode'),
   path.join(MAIN, 'presenter/agentPresenter'),
   path.join(MAIN, 'presenter/sessionPresenter')
 ]
@@ -28,7 +29,7 @@ const RENDERER_CHAT = [
 ].map((p) => path.join(ROOT, 'src/renderer/src', p))
 const EXTENSIONS = new Set(['.js', '.jsx', '.mjs', '.cjs', '.ts', '.tsx', '.mts', '.cts', '.vue'])
 const RETIRED_EXECUTORS =
-  '(?:DeepChatAgentHarness|DeepChatAgentInstance|DeepChatAgentRuntime|DeepChatLoopEngine|DeepChatLoopRunner|LoopRun|AgentFileSystemHandler|AgentBashHandler|AgentFffSearchHandler)'
+  '(?:DeepChatAgentHarness|DeepChatAgentInstance|DeepChatAgentRuntime|DeepChatLoopEngine|DeepChatLoopRunner|LoopRun|AgentFileSystemHandler|AgentBashHandler|AgentFffSearchHandler|RunCodeRuntimeManager)'
 const under = (file, directory) => file === directory || file.startsWith(`${directory}${path.sep}`)
 const within = (file, roots) => roots.some((root) => under(file, root))
 const relative = (file) => path.relative(ROOT, file).split(path.sep).join('/')

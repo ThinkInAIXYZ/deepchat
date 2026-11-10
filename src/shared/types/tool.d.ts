@@ -167,8 +167,6 @@ export interface ToolServicePort {
 
   configureToolMode(input: ToolModeConfiguration): MCPToolDefinition[]
 
-  shutdownCodeRuntime(): Promise<void>
-
   /**
    * Build system prompt section for tool-related behavior.
    */

@@ -11,7 +11,9 @@ describe('agent execution boundaries', () => {
     for (const [file, code] of [
       ['app/composition.ts', "import { factory } from '@/agent/deepchat/harness'"],
       ['agent/dim/backend.ts', "import type { LoopRun } from '../deepchat/loop/loopRun'"],
-      ['app/composition.ts', 'new DeepChatAgentHarness(dependencies)']
+      ['app/composition.ts', 'new DeepChatAgentHarness(dependencies)'],
+      ['tool/index.ts', 'new RunCodeRuntimeManager(options)'],
+      ['tool/index.ts', "import { Runtime } from './codeMode/runtime'"]
     ])
       expect(findAgentBoundaryViolations(code, source(file)).length).toBeGreaterThan(0)
     expect(
