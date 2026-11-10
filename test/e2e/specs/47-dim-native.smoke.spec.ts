@@ -141,6 +141,23 @@ test('desktop chat uses persistent native dim sessions @smoke', async ({ app, la
       providerId
     )
     expect(checked).toEqual({ isOk: true, errorMsg: null })
+    const draft = await app.page.evaluate(
+      ({ providerId, baseUrl }) =>
+        window.deepchat.invoke('providers.validateDraft', {
+          provider: {
+            id: providerId,
+            name: 'Unsaved Native draft',
+            apiType: 'openai-completions',
+            enable: false,
+            apiKey: 'unsaved-draft-key',
+            baseUrl
+          },
+          loadModels: false
+        }),
+      { providerId, baseUrl: `http://127.0.0.1:${(server.address() as { port: number }).port}/v1` }
+    )
+    expect(draft).toEqual({ isOk: true, errorMsg: null, models: [] })
+
     const cli = await promisify(execFile)(
       process.execPath,
       [

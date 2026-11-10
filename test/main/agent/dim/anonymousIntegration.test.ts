@@ -1,10 +1,12 @@
+import { randomUUID } from 'node:crypto'
 import { expect, it } from 'vitest'
 import { createServer } from 'node:http'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, rm, readdir, readFile, stat } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import type { ModelConfig } from '@shared/types/provider'
 import type { ProviderSettingsPort } from '@/provider/settings'
+import { DimAuxiliaryModels } from '@/agent/dim/auxiliaryModels'
 import { DimModelBridge } from '@/agent/dim/modelBridge'
 import { DimModelCatalog } from '@/agent/dim/modelCatalog'
 import { DimProductGateway } from '@/agent/dim/productGateway'
@@ -27,7 +29,13 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
       for await (const chunk of request) body += chunk
       calls++
       expect(request.url).toBe('/v1/chat/completions')
-      expect(request.headers.authorization).toBe(apiKey ? `Bearer ${apiKey}` : undefined)
+      expect(request.headers.authorization).toBe(
+        body.includes('DRAFT_MODEL_TEST')
+          ? 'Bearer draft-only-key'
+          : apiKey
+            ? `Bearer ${apiKey}`
+            : undefined
+      )
       expect(JSON.stringify({ headers: request.headers, body })).not.toContain(
         'deepchat-admission-v1'
       )
@@ -95,10 +103,10 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
       },
       models: bridge,
       grants: database.data.dimProviderGrantsTable,
-      credential: async () => {
+      credential: async (current) => {
         apiKeyLookups++
-        if (!apiKey) throw new Error('Local connection has no API key')
-        return apiKey
+        if (!current.apiKey) throw new Error('Local connection has no API key')
+        return current.apiKey
       }
     })
     try {
@@ -141,6 +149,78 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
       expect(calls).toBe(2)
       expect(grants).toBeGreaterThanOrEqual(5)
       expect(apiKeyLookups).toBe(apiKey ? 2 : 0)
+      const client = await host.start()
+      const before = await client.call<{ providers: Array<{ providerId: string }> }>(
+        'provider.management',
+        {}
+      )
+      await expect(
+        new DimAuxiliaryModels({ models: catalog, bridge }).completeDraft(
+          { ...provider, apiKey: 'draft-only-key' },
+          'local',
+          'DRAFT_MODEL_TEST'
+        )
+      ).resolves.toMatchObject({ text: 'anonymous native answer' })
+      const after = await client.call<{ providers: Array<{ providerId: string }> }>(
+        'provider.management',
+        {}
+      )
+      expect(after.providers.map((item) => item.providerId).sort()).toEqual(
+        before.providers.map((item) => item.providerId).sort()
+      )
+      expect(provider.apiKey).toBe(apiKey)
+      expect(provider.enable).toBe(true)
+      if (apiType === 'ollama' && !apiKey) {
+        const id = randomUUID()
+        // Simulate an exit after owner creation, before the caller can release its draft.
+        const orphan = await client.call<{ providerId: string }>('deepchat.model.configure', {
+          key: `deepchat/draft/v1/${id}/interrupted`,
+          displayName: `DeepChat draft validation ${id}`,
+          connection: {
+            driverKind: 'openai-compatible',
+            baseUrl: provider.baseUrl,
+            auth: { type: 'anonymous' },
+            credential: { action: 'set_ref', reference: 'revoked-orphan-draft' }
+          },
+          model: {
+            modelId: 'orphan',
+            displayName: 'Orphan',
+            status: 'active',
+            capabilities: {
+              modalities: ['text'],
+              toolCalling: false,
+              streaming: true,
+              structuredOutput: false,
+              vision: false,
+              audio: false,
+              reasoning: false,
+              contextWindow: 8192,
+              maxOutputTokens: 1024
+            },
+            metadata: {
+              metadataSource: 'deepchat',
+              raw: { deepchatDraftId: id },
+              reasoning: { supported: false }
+            }
+          }
+        })
+        await host.stop()
+        await catalog.admit(provider.id, 'local')
+        const restored = await (
+          await host.start()
+        )
+          .call<{ providers: Array<{ providerId: string }> }>('provider.management', {
+            providerId: orphan.providerId
+          })
+          .catch(() => ({ providers: [] }))
+        expect(restored.providers.some((item) => item.providerId === orphan.providerId)).toBe(false)
+      }
+      await host.stop()
+      for (const name of await readdir(path.join(profile, 'dim', 'rust'), { recursive: true })) {
+        const file = path.join(profile, 'dim', 'rust', name)
+        if ((await stat(file)).isFile())
+          expect((await readFile(file)).includes(Buffer.from('draft-only-key')), file).toBe(false)
+      }
     } finally {
       await host.stop()
       await gateway.stop()

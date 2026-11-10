@@ -1208,7 +1208,18 @@ export class ProviderRuntime
     }
 
     try {
-      const checkResult = await instance.check()
+      const definition = resolveAiSdkProviderDefinition(draft)
+      const checkResult =
+        definition?.checkStrategy === 'generate-text'
+          ? await this.requireNativeModels()
+              .completeDraft(
+                draft,
+                definition.checkModelId || '',
+                definition.checkPrompt || 'Hello',
+                AbortSignal.timeout(60_000)
+              )
+              .then(() => ({ isOk: true, errorMsg: null }))
+          : await instance.check()
       if (!checkResult.isOk) {
         return { ...checkResult, models: [] }
       }

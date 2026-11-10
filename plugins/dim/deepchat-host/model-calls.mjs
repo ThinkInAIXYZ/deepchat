@@ -37,10 +37,42 @@ export default definePlugin({
   async apply(ctx, config) {
     const auxiliary = ctx.use('auxiliaryModel')
     const admitted = new Set()
+    const temporary = new Set()
     const configuring = new Map()
+    let recovered
+    const recoverDrafts = () =>
+      (recovered ??= withNativeClient(
+        config.hostAddress,
+        { profile: 'product', methods: ['provider.management', 'provider.delete'] },
+        async (native) => {
+          const view = await native('provider.management', {})
+          for (const record of view.providers) {
+            const match = /^DeepChat draft validation ([0-9a-f-]{36})$/.exec(
+              record.displayName ?? ''
+            )
+            if (
+              !match ||
+              record.source !== 'custom' ||
+              record.credentialAuthority !== 'static' ||
+              !record.models?.some(
+                (item) => item.model?.metadata?.raw?.deepchatDraftId === match[1]
+              )
+            )
+              continue
+            await native('provider.delete', {
+              providerId: record.providerId,
+              expectedVersion: record.version
+            })
+          }
+        }
+      ).catch(() => {
+        recovered = undefined
+        console.warn('[dim] Could not remove orphaned draft configurations')
+      }))
     const configure = async (params) => {
       if (!params || typeof params.key !== 'string' || !params.connection || !params.model?.modelId)
         throw new Error('Invalid product model configuration')
+      await recoverDrafts()
       const id = providerId(params)
       if (admitted.has(id)) return { providerId: id, modelId: params.model.modelId }
       if (configuring.has(id)) return configuring.get(id)
@@ -73,6 +105,7 @@ export default definePlugin({
             throw new Error('Native product provider identity has conflicting configuration')
           }
           admitted.add(id)
+          if (params.key.startsWith('deepchat/draft/v1/')) temporary.add(id)
           return { providerId: id, modelId: params.model.modelId }
         }
       )
@@ -99,6 +132,12 @@ export default definePlugin({
           progress: false
         },
         {
+          name: 'deepchat.model.release',
+          mutating: true,
+          interruption: 'drain',
+          progress: false
+        },
+        {
           name: 'deepchat.model.complete',
           mutating: false,
           interruption: 'report',
@@ -109,6 +148,27 @@ export default definePlugin({
         if (call.method === 'deepchat.model.capabilities')
           return { kind: 'value', value: { plugin: 'deepchat-model', apiVersion: 1 } }
         try {
+          if (call.method === 'deepchat.model.release') {
+            const id = call.params?.providerId
+            if (typeof id !== 'string' || !temporary.has(id))
+              throw new Error('Only temporary product model configurations may be released')
+            await withNativeClient(
+              config.hostAddress,
+              { profile: 'product', methods: ['provider.management', 'provider.delete'] },
+              async (native) => {
+                const view = await native('provider.management', { providerId: id })
+                const record = view.providers.find((item) => item.providerId === id)
+                if (record)
+                  await native('provider.delete', {
+                    providerId: id,
+                    expectedVersion: record.version
+                  })
+              }
+            )
+            temporary.delete(id)
+            admitted.delete(id)
+            return { kind: 'value', value: {} }
+          }
           if (call.method === 'deepchat.model.configure')
             return { kind: 'value', value: await configure(call.params) }
           const closed = call.origin?.connectionId

@@ -49,9 +49,13 @@ export class DimModelBridge {
       'deepchat.model.configure',
       config as unknown as JsonValue
     )
-    if (this.host.usesNativePlugins)
+    if (this.host.usesNativePlugins && !config.key.startsWith('deepchat/draft/v1/'))
       await client.call('deepchat.native_media.refresh', { providerId: target.providerId })
     return target
+  }
+
+  async releaseConfiguration(providerId: string): Promise<void> {
+    await (await this.host.start()).call('deepchat.model.release', { providerId })
   }
 
   async embed(

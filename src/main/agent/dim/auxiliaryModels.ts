@@ -1,3 +1,4 @@
+import type { LLM_PROVIDER } from '@shared/types/provider'
 import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import type { ChatMessage, ChatMessageContent } from '@shared/types/core/chat-message'
 import type { JsonValue } from '@shared/contracts/json'
@@ -18,7 +19,7 @@ interface AuxiliaryInput {
   signal?: AbortSignal
 }
 interface AuxiliaryOptions {
-  models: Pick<DimModelCatalog, 'admit'>
+  models: Pick<DimModelCatalog, 'admit'> & Partial<Pick<DimModelCatalog, 'withDraft'>>
   bridge: Pick<DimModelBridge, 'complete'> & Partial<Pick<DimModelBridge, 'stream'>>
   parameters?(providerId: string, modelId: string): DimModelParameters
 }
@@ -26,6 +27,26 @@ interface AuxiliaryOptions {
 /** Product catalog admission and neutral messages. Rust owns every model invocation. */
 export class DimAuxiliaryModels {
   constructor(private readonly options: AuxiliaryOptions) {}
+
+  async completeDraft(
+    provider: LLM_PROVIDER,
+    modelId: string,
+    prompt: string,
+    signal?: AbortSignal
+  ): Promise<DimAuxiliaryReply> {
+    if (!this.options.models.withDraft)
+      throw new Error('Native draft model validation is unavailable')
+    return this.options.models.withDraft(provider, async (models) => {
+      const scoped = new DimAuxiliaryModels({ models, bridge: this.options.bridge })
+      return scoped.complete({
+        providerId: provider.id,
+        modelId,
+        messages: [{ role: 'user', content: prompt }],
+        parameters: { temperature: 0.2, maxTokens: 16 },
+        signal
+      })
+    })
+  }
 
   async complete(input: AuxiliaryInput): Promise<DimAuxiliaryReply> {
     const { model, request, parameters } = await this.prepare(input)

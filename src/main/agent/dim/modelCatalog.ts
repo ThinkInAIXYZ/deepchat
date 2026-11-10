@@ -1,10 +1,13 @@
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import type { JsonValue } from '@shared/contracts/json'
 import type { LLM_PROVIDER, ModelConfig } from '@shared/types/provider'
 import type { SessionGenerationSettings } from '@shared/types/agent-interface'
 import { ModelType } from '@shared/model'
 import type { ProviderSettingsPort } from '@/provider/settings'
-import type { DimProviderGrantsTable } from '@/session/data/tables/dimProviderGrants'
+import type {
+  DimProviderGrantsTable,
+  DimProviderGrant
+} from '@/session/data/tables/dimProviderGrants'
 import { resolveAiSdkProviderDefinition } from '@/provider/providerRegistry'
 import { resolveProviderTransport } from '@/provider/providerTransport'
 import { DimModelBridge, type DimModelId, type DimModelParameters } from './modelBridge'
@@ -26,14 +29,95 @@ interface CatalogOptions {
     | 'getProviderModelRouteMetadata'
     | 'getModelStatus'
   >
-  models: Pick<DimModelBridge, 'configure'>
+  models: Pick<DimModelBridge, 'configure'> & Partial<Pick<DimModelBridge, 'releaseConfiguration'>>
   grants: Pick<DimProviderGrantsTable, 'get' | 'put'>
   credential(provider: LLM_PROVIDER, signal: AbortSignal): Promise<DimCredential>
 }
 
 /** Converts product catalog facts, never an inference request or a provider response. */
 export class DimModelCatalog {
+  private readonly drafts = new Map<string, DimModelCatalog>()
+  private activeDrafts = 0
   constructor(private readonly options: CatalogOptions) {}
+
+  /** Draft credentials are scoped to this call and never replace persisted product grants. */
+  async withDraft<T>(
+    provider: LLM_PROVIDER,
+    work: (catalog: DimModelCatalog) => Promise<T>
+  ): Promise<T> {
+    const release = this.options.models.releaseConfiguration
+    if (!release) throw new Error('Native draft configuration lifecycle is unavailable')
+    if (this.activeDrafts >= 32) throw new Error('Too many draft model validations')
+    const draft = structuredClone({ ...provider, enable: true })
+    this.activeDrafts++
+    let active = true
+    const identity = randomUUID()
+    const grants = new Map<string, DimProviderGrant>()
+    const configured = new Set<string>()
+    let scoped!: DimModelCatalog
+    scoped = new DimModelCatalog({
+      settings: {
+        getProviderById: (id) => (active && id === draft.id ? draft : undefined),
+        getModelStatus: () => true,
+        getModelConfig: (modelId) => ({
+          ...this.options.settings.getModelConfig(modelId, draft.id),
+          type: ModelType.Chat,
+          functionCall: false,
+          vision: false,
+          reasoning: false
+        }),
+        getProviderModelRouteMetadata: () => undefined,
+        getCapabilitySnapshot: (input) => ({
+          ...this.options.settings.getCapabilitySnapshot(input),
+          supportsAudioInput: false,
+          supportsReasoning: false,
+          reasoningPortrait: null
+        })
+      },
+      models: {
+        configure: async (config) => {
+          const metadata = config.model.metadata as JsonObject
+          const target = await this.options.models.configure({
+            ...config,
+            model: {
+              ...config.model,
+              metadata: {
+                ...metadata,
+                raw: { ...(metadata.raw as JsonObject), deepchatDraftId: identity }
+              }
+            },
+            key: `deepchat/draft/v1/${identity}/${config.key}`,
+            displayName: `DeepChat draft validation ${identity}`
+          })
+          configured.add(target.providerId)
+          this.drafts.set(target.providerId, scoped)
+          return target
+        }
+      },
+      grants: {
+        get: (id) => grants.get(id) ?? null,
+        put: (grant) => {
+          grants.set(grant.nativeProviderId, grant)
+        }
+      },
+      credential: (_provider, signal) => this.options.credential(draft, signal)
+    })
+    try {
+      return await work(scoped)
+    } finally {
+      // Revoke first: a late native request cannot use a draft after the caller has settled.
+      active = false
+      this.activeDrafts--
+      grants.clear()
+      for (const id of configured) this.drafts.delete(id)
+      const failures = await Promise.allSettled(
+        [...configured].map((providerId) => release.call(this.options.models, providerId))
+      )
+      for (const result of failures)
+        if (result.status === 'rejected')
+          console.warn('[dim] Could not remove a revoked draft model configuration')
+    }
+  }
 
   async admit(
     providerId: string,
@@ -141,6 +225,8 @@ export class DimModelCatalog {
     signal: AbortSignal
   ): Promise<DimCredential> {
     signal.throwIfAborted()
+    const draft = this.drafts.get(nativeProviderId)
+    if (draft) return draft.credential(nativeProviderId, reference, signal)
     const grant = this.options.grants.get(nativeProviderId)
     if (!grant) throw new Error('Unknown native credential grant')
     const provider = this.requireProvider(grant.providerId)

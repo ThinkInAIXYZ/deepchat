@@ -264,6 +264,8 @@ describe('ProviderRuntime Integration Tests', () => {
         providerRuntime = createProviderRuntime(mockProviderSettings)
         const liveInstance = providerRuntime.getProviderInstance(id)
         const draft = { ...saved, enable: true, apiKey: 'replacement-key' }
+        const completeDraft = vi.fn().mockResolvedValue({ text: 'checked', stopReason: 'end_turn' })
+        providerRuntime.setNativeModels({ completeDraft } as never)
 
         await expect(providerRuntime.validateDraft(draft, { loadModels: false })).resolves.toEqual({
           isOk: true,
@@ -271,17 +273,14 @@ describe('ProviderRuntime Integration Tests', () => {
           models: []
         })
 
-        expect(mockRunAiSdkGenerateText).toHaveBeenCalledTimes(1)
-        expect(mockRunAiSdkGenerateText).toHaveBeenCalledWith(
-          expect.objectContaining({
-            provider: expect.objectContaining({ id, apiKey: 'replacement-key', enable: false })
-          }),
-          expect.any(Array),
+        expect(completeDraft).toHaveBeenCalledOnce()
+        expect(completeDraft).toHaveBeenCalledWith(
+          draft,
           modelId,
-          expect.any(Object),
-          expect.any(Number),
-          expect.any(Number)
+          expect.any(String),
+          expect.any(AbortSignal)
         )
+        expect(mockRunAiSdkGenerateText).not.toHaveBeenCalled()
         expect(global.fetch).not.toHaveBeenCalled()
         expect(mockProviderSettings.setProviderModels).not.toHaveBeenCalled()
         expect(mockProviderSettings.enableModel).not.toHaveBeenCalled()
@@ -292,7 +291,8 @@ describe('ProviderRuntime Integration Tests', () => {
     )
 
     it('returns the upstream credential error without saving the rejected draft', async () => {
-      mockRunAiSdkGenerateText.mockRejectedValueOnce(new Error('Invalid API-key provided'))
+      const completeDraft = vi.fn().mockRejectedValue(new Error('Invalid API-key provided'))
+      providerRuntime.setNativeModels({ completeDraft } as never)
 
       await expect(
         providerRuntime.validateDraft(
@@ -309,7 +309,8 @@ describe('ProviderRuntime Integration Tests', () => {
         errorMsg: 'Invalid API-key provided',
         models: []
       })
-      expect(mockRunAiSdkGenerateText).toHaveBeenCalledTimes(1)
+      expect(completeDraft).toHaveBeenCalledOnce()
+      expect(mockRunAiSdkGenerateText).not.toHaveBeenCalled()
       expect(global.fetch).not.toHaveBeenCalled()
       expect(mockProviderSettings.setProviderModels).not.toHaveBeenCalled()
       expect(mockProviderSettings.enableModel).not.toHaveBeenCalled()

@@ -158,6 +158,8 @@
 
 ## 模块进度
 
+- 模块 47：未保存 provider 草稿的生成式连接验证改走 Native auxiliary owner；临时准入和凭据只在内存中，测试不保存/启用产品 provider，不替换正在使用的实例。结束时先撤权并拒绝迟到回调，再用公开 provider.delete CAS 清理临时 Native 配置；重启时仅按专用命名空间及模型 UUID 标记清理可识别的草稿残留。1092 项 provider/草稿回归通过；三项实际 Rust 连接验证覆盖临时 key、清理、重启残留恢复及 profile 无明文 key。主进程构建和实际 Electron 草稿验证、CLI、聊天、重启、引用与 Inspector 联合验收通过（30s）。格式/i18n/lint/双端 typecheck 通过。
+
 - 模块 46：非 ACP 的已配置文本调用、流、标题、摘要及向量入口要求 Native owner，缺少接线时显式失败，不再静默调用旧 Provider；物理删除 Node EmbeddingManager。ACP 辅助调用继续原 client。配置 key 升为 v2，认证权限 fingerprint 扩展形成新的不可变 Native provider identity，避免旧 grant 被就地重指向。1116 项 provider/CLI/辅助模型回归、模型授权回归、实际三种连接 smoke 通过；主进程构建及 ACP/Native（含实际 CLI 与模型测试）两项 Electron 联合验收通过（34s）。格式/i18n/lint/双端 typecheck 通过。未保存 provider 草稿验证及媒体旧回退将继续迁移。
 
 - 模块 45：CLI streamChat 与显式/默认生成式模型测试转交 Rust 插件；模型配置默认值、reasoning 参数与辅助摘要指令进入 Native 请求。插件仅适配单次流，使用 dim 的公开 ModelSelection、ModelHost、ConnectionResolver 与 invoke_with_recovery，不增加 agent loop 或重试策略。采用原生 management.progress，序号和终态计数检测最佳努力通道丢帧，TS 队列有界、退出/取消关闭独立连接并等待请求结束。桥升级 0.11.0。无 key 的 OpenAI 兼容连接使用 Anonymous，带 key 的 Ollama 连接保留 Bearer，认证模式变化撤销旧 grant；Native 每次仍重验产品启用状态，admission 回执不进入 HTTP。69 项模型/CLI/流生命周期回归通过，三种实际连接的定向流/撤销验证通过；完整真实 Rust smoke 12 项通过（242s），包含 HTTP 未结束时收到增量及关闭连接取消上游。主进程与打包 CLI 构建通过，Electron 从 providers.testConnection、实际 CLI model invoke --jsonl 和聊天/重启/会话读取验证统一 Native 执行，24s 通过。格式/i18n/lint/双端 typecheck 通过。
