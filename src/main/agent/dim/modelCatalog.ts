@@ -8,6 +8,7 @@ import type {
 } from '@shared/types/provider'
 import type { SessionGenerationSettings } from '@shared/types/agent-interface'
 import { ModelType } from '@shared/model'
+import type { DimOAuthConnection } from './providerCredentials'
 import type { ProviderSettingsPort } from '@/provider/settings'
 import type {
   DimProviderGrantsTable,
@@ -17,6 +18,7 @@ import { resolveAiSdkProviderDefinition } from '@/provider/providerRegistry'
 import { resolveProviderTransport } from '@/provider/providerTransport'
 import { GITHUB_COPILOT_CHAT_HEADERS } from '@/provider/auth/githubCopilotProtocol'
 import { resolveVertexSettings } from '@/provider/vertexSettings'
+import { normalizeOpenAICodexBaseUrl } from '@/provider/openaiCodexAdapter'
 import { DimModelBridge, type DimModelId, type DimModelParameters } from './modelBridge'
 
 type JsonObject = { [key: string]: JsonValue }
@@ -39,6 +41,11 @@ interface CatalogOptions {
   models: Pick<DimModelBridge, 'configure'> & Partial<Pick<DimModelBridge, 'releaseConfiguration'>>
   grants: Pick<DimProviderGrantsTable, 'get' | 'put'>
   credential(provider: LLM_PROVIDER, signal: AbortSignal): Promise<DimCredential>
+  connectionAuth?(
+    provider: LLM_PROVIDER,
+    rejectedLease: string | undefined,
+    signal: AbortSignal
+  ): Promise<DimOAuthConnection | null>
 }
 
 /** Converts product catalog facts, never an inference request or a provider response. */
@@ -107,7 +114,9 @@ export class DimModelCatalog {
           grants.set(grant.nativeProviderId, grant)
         }
       },
-      credential: (_provider, signal) => this.options.credential(draft, signal)
+      credential: (_provider, signal) => this.options.credential(draft, signal),
+      connectionAuth: (_provider, rejectedLease, signal) =>
+        this.options.connectionAuth?.(draft, rejectedLease, signal) ?? Promise.resolve(null)
     })
     try {
       return await work(scoped)
@@ -226,6 +235,34 @@ export class DimModelCatalog {
     return target
   }
 
+  async connectionAuth(
+    nativeProviderId: string,
+    modelId: string,
+    rejectedLease: string | undefined,
+    signal: AbortSignal
+  ): Promise<DimOAuthConnection | null> {
+    signal.throwIfAborted()
+    const draft = this.drafts.get(nativeProviderId)
+    if (draft) return draft.connectionAuth(nativeProviderId, modelId, rejectedLease, signal)
+    const grant = this.options.grants.get(nativeProviderId)
+    if (!grant) return null
+    if (grant.modelId !== modelId) throw new Error('Native connection has a different model grant')
+    const current = () => {
+      signal.throwIfAborted()
+      const provider = this.requireProvider(grant.providerId)
+      if (!this.options.settings.getModelStatus(grant.providerId, grant.modelId))
+        throw new Error('Model is disabled')
+      if (fingerprint(this.credentialScope(provider)) !== grant.connectionFingerprint)
+        throw new Error('Provider connection was replaced')
+      return provider
+    }
+    const provider = current()
+    const connection =
+      (await this.options.connectionAuth?.(provider, rejectedLease, signal)) ?? null
+    current()
+    return connection
+  }
+
   async credential(
     nativeProviderId: string,
     reference: string,
@@ -292,6 +329,8 @@ export class DimModelCatalog {
   }
 
   private credentialReference(provider: LLM_PROVIDER): string {
+    if (resolveAiSdkProviderDefinition(provider)?.runtimeKind === 'openai-codex')
+      return `deepchat/codex/v1/${encodeURIComponent(provider.id)}/${fingerprint(this.credentialScope(provider))}`
     return isBedrock(provider) || isCopilot(provider) || isVertex(provider)
       ? `deepchat/provider/scoped/v1/${encodeURIComponent(provider.id)}/${fingerprint(this.credentialScope(provider))}`
       : `deepchat/provider/v1/${encodeURIComponent(provider.id)}`
@@ -346,6 +385,7 @@ export class DimModelCatalog {
       /\/+$/,
       ''
     )
+    if (kind === 'openai-codex') baseUrl = normalizeOpenAICodexBaseUrl(provider.baseUrl)
     if (vertex) baseUrl = vertex.baseUrl
     if (kind === 'aws-bedrock' && !baseUrl)
       baseUrl = `https://bedrock-runtime.${bedrockRegion(provider)}.amazonaws.com`

@@ -197,6 +197,7 @@ import { DimAuxiliaryModels } from '@/agent/dim/auxiliaryModels'
 import { DimMediaModels } from '@/agent/dim/mediaModels'
 import { DimModality } from '@/agent/dim/modality'
 import { DimProviderCredentials } from '@/agent/dim/providerCredentials'
+import { resolveAiSdkProviderDefinition } from '@/provider/providerRegistry'
 import { DimContent } from '@/agent/dim/content'
 import { DimTimelineInspector } from '@/agent/dim/timelineInspector'
 import { DimScopes } from '@/agent/dim/scopes'
@@ -1061,7 +1062,9 @@ export async function createMainProcessControl(dependencies: {
       scope.assertCurrent()
       return configuration.servers
     },
-    credential: (id, reference, signal) => dimModels.credential(id, reference, signal)
+    credential: (id, reference, signal) => dimModels.credential(id, reference, signal),
+    connectionAuth: (id, modelId, rejectedLease, signal) =>
+      dimModels.connectionAuth(id, modelId, rejectedLease, signal)
   })
   const nativeRuntimeRoot = app.isPackaged
     ? path.join(process.resourcesPath, 'app.asar.unpacked', 'runtime')
@@ -1084,7 +1087,11 @@ export async function createMainProcessControl(dependencies: {
     settings: providerSettings,
     models: dimModelBridge,
     grants: sessionData.database.dimProviderGrantsTable,
-    credential: (provider, signal) => dimCredentials.resolve(provider, signal)
+    credential: (provider, signal) => dimCredentials.resolve(provider, signal),
+    connectionAuth: (provider, rejectedLease, signal) =>
+      resolveAiSdkProviderDefinition(provider)?.runtimeKind === 'openai-codex'
+        ? dimCredentials.codexConnection(signal, rejectedLease)
+        : Promise.resolve(null)
   })
   const dimAuxiliary = new DimAuxiliaryModels({
     models: dimModels,

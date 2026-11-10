@@ -6,13 +6,23 @@ import {
   getGitHubCopilotToken,
   type CopilotTokenResponse
 } from '@/provider/auth/githubCopilotDeviceFlow'
+import { getGlobalOpenAICodexAuth, type OpenAICodexAuth } from '@/provider/auth/openaiCodex'
+import { resolveAiSdkProviderDefinition } from '@/provider/providerRegistry'
 import type { DimCredential } from './modelCatalog'
+
+export interface DimOAuthConnection {
+  preset: 'openai-codex'
+  bearer: string
+  accountId?: string
+  lease: string
+}
 
 interface CredentialOptions {
   copilotToken?: typeof getGitHubCopilotToken
   awsChain?: typeof fromNodeProviderChain
   now?: () => number
   vertexAuth?: (options: GoogleAuthOptions) => Pick<GoogleAuth, 'getAccessToken'>
+  codexAuth?: () => Pick<OpenAICodexAuth, 'getBackendAuth' | 'forceRefreshBackendAuth'>
 }
 
 /** Authentication only. Native ProviderSecretHost owns each model connection. */
@@ -33,7 +43,9 @@ export class DimProviderCredentials {
     signal.throwIfAborted()
     try {
       let credential: DimCredential
-      if (provider.apiType === 'aws-bedrock' || provider.id === 'aws-bedrock') {
+      if (resolveAiSdkProviderDefinition(provider)?.runtimeKind === 'openai-codex') {
+        credential = (await this.codexConnection(signal)).bearer
+      } else if (provider.apiType === 'aws-bedrock' || provider.id === 'aws-bedrock') {
         credential = await this.bedrock(provider as AWS_BEDROCK_PROVIDER)
       } else if (provider.apiType === 'github-copilot' || provider.id === 'github-copilot') {
         credential = await this.copilotToken(provider, signal)
@@ -48,6 +60,23 @@ export class DimProviderCredentials {
     } catch {
       signal.throwIfAborted()
       throw new Error('Provider credential is unavailable')
+    }
+  }
+
+  /** The native recovery owner supplies a rejected lease only after an authorized 401. */
+  async codexConnection(signal: AbortSignal, rejectedLease?: string): Promise<DimOAuthConnection> {
+    signal.throwIfAborted()
+    const auth = (this.options.codexAuth ?? getGlobalOpenAICodexAuth)()
+    const credential = rejectedLease
+      ? await auth.forceRefreshBackendAuth(rejectedLease)
+      : await auth.getBackendAuth()
+    signal.throwIfAborted()
+    if (!credential.accessToken) throw new Error('Provider credential is unavailable')
+    return {
+      preset: 'openai-codex',
+      bearer: credential.accessToken,
+      ...(credential.accountId ? { accountId: credential.accountId } : {}),
+      lease: createHash('sha256').update(credential.accessToken).digest('hex')
     }
   }
 

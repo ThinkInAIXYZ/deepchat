@@ -65,7 +65,7 @@ const headersExpected = assembled.replace(headerBefore, headerAfter)
 const activityBefore = `    async fn owned<T: Send + 'static, E: From<HostError> + Send + 'static>(`
 if (headersExpected.split(activityBefore).length !== 2)
   throw new Error('Native provider activity seam changed')
-const expected = headersExpected.replace(
+const activityExpected = headersExpected.replace(
   activityBefore,
   `    /// Whether this owner has accepted work that has not settled yet.
     pub fn has_active_work(&self) -> bool {
@@ -73,11 +73,86 @@ const expected = headersExpected.replace(
     }
 ${activityBefore}`
 )
+let expected = activityExpected
+for (const [before, after] of [
+  [
+    '    secret_host: Option<Arc<ProviderSecretHost>>,',
+    '    secret_host: Option<Arc<ProviderSecretHost>>,\n    connection_host: Option<Arc<ProviderConnectionHost>>,'
+  ],
+  [
+    '    secret_host: Option<Key<ProviderSecretHost>>,',
+    '    secret_host: Option<Key<ProviderSecretHost>>,\n    connection_host: Option<Key<ProviderConnectionHost>>,'
+  ],
+  ['        Self::keyed(names, true, true)', '        Self::with_connection_host(names)'],
+  [
+    `    fn keyed(names: &Names<'_>, secret_host: bool, lifecycle: bool) -> rutis::Result<Self> {`,
+    `    /// The embedding host supplies ProviderConnectionHost and ProviderSecretHost.
+    pub fn with_connection_host(names: &Names<'_>) -> rutis::Result<Self> {
+        Self::keyed_with_connection_host(names, true, true, true)
+    }
+    fn keyed(names: &Names<'_>, secret_host: bool, lifecycle: bool) -> rutis::Result<Self> {
+        Self::keyed_with_connection_host(names, secret_host, lifecycle, false)
+    }
+    fn keyed_with_connection_host(names: &Names<'_>, secret_host: bool, lifecycle: bool, connection_host: bool) -> rutis::Result<Self> {`
+  ],
+  [
+    '            secret_host: secret_host.then(|| names.key()).transpose()?,',
+    '            secret_host: secret_host.then(|| names.key()).transpose()?,\n            connection_host: connection_host.then(|| names.key()).transpose()?,'
+  ],
+  [
+    '        keys.extend(self.secret_host.as_ref().map(Key::erase));',
+    '        keys.extend(self.secret_host.as_ref().map(Key::erase));\n        keys.extend(self.connection_host.as_ref().map(Key::erase));'
+  ],
+  [
+    '            let host = ctx.require_at(&self.host)?;',
+    `            let connection_host = self.connection_host.as_ref()
+                .map(|key| ctx.require_at(key)).transpose()?;
+            let host = ctx.require_at(&self.host)?;`
+  ],
+  [
+    '                    secret_host,',
+    '                    secret_host,\n                    connection_host,'
+  ],
+  [
+    `            return Ok(Resolution {
+                connection: ResolvedModelConnection {
+                    connection: ModelConnection::Http(connection),
+                    failure_policy: None,
+                    recovery: None,
+                },
+                protocol,
+                realtime,
+            });`,
+    `            let mut resolved = ResolvedModelConnection {
+                connection: ModelConnection::Http(connection),
+                failure_policy: None,
+                recovery: None,
+            };
+            if let Some(host) = &self.connection_host {
+                let reference = match &record.credential {
+                    Some(StaticCredential::Reference { reference }) => Some(reference.clone()),
+                    _ => None,
+                };
+                resolved = host.0.prepare(
+                    provider_id.to_owned(), model_id.to_owned(), reference, resolved, cancel.clone()
+                ).await?;
+                self.check(cancel)?;
+            }
+            return Ok(Resolution { connection: resolved, protocol, realtime });`
+  ]
+]) {
+  if (expected.split(before).length !== 2)
+    throw new Error('Native provider connection host seam changed')
+  expected = expected.replace(before, after)
+}
+expected +=
+  '\n' + (await readFile(path.join(root, 'resources/dim-sdk/provider-connection-host.rs'), 'utf8'))
 const current = await readFile(path.join(directory, filename), 'utf8')
 if (
   current !== original &&
   current !== assembled &&
   current !== headersExpected &&
+  current !== activityExpected &&
   current !== expected
 )
   throw new Error('Pinned dim provider source has unexpected changes')
@@ -110,12 +185,25 @@ const docStates = await Promise.all(
     if (digest(original) !== entry.originalSha256)
       throw new Error('Pinned dim architecture baseline mismatch')
     const current = digest(await readFile(path.join(directory, entry.path)))
-    if (current !== entry.originalSha256 && current !== entry.sha256)
+    if (
+      current !== entry.originalSha256 &&
+      current !== entry.sha256 &&
+      current !== entry.previousSha256
+    )
       throw new Error('Pinned dim architecture has unexpected changes')
-    return current === entry.sha256
+    return { original, current }
   })
 )
-if (docStates.some(Boolean) && !docStates.every(Boolean))
+const docsPrepared = docStates.every(
+  (entry, index) => entry.current === generatedDocs[index].sha256
+)
+const docsOriginal = docStates.every(
+  (entry, index) => entry.current === generatedDocs[index].originalSha256
+)
+const docsPrevious = docStates.every(
+  (entry, index) => entry.current === generatedDocs[index].previousSha256
+)
+if (!docsPrepared && !docsOriginal && !docsPrevious)
   throw new Error('Pinned dim architecture is only partially prepared')
 git([
   'diff',
@@ -418,8 +506,20 @@ if (decisionCurrent !== decisionOriginal && decisionCurrent !== decisionExpected
   throw new Error('Pinned native Jev transport has unexpected changes')
 if (decisionCurrent !== decisionExpected)
   await writeFile(path.join(directory, decisionFile), decisionExpected)
-if (!docStates.every(Boolean)) {
+if (!docsPrepared) {
   const patch = path.join(root, 'resources/dim-sdk/generated-docs.patch')
+  const body = await readFile(patch, 'utf8')
+  const headers = [...body.matchAll(/^diff --git a\/(.+) b\/(.+)$/gm)]
+  if (
+    headers.length !== generatedPaths.length ||
+    headers.some(
+      (entry, index) => entry[1] !== generatedPaths[index] || entry[2] !== generatedPaths[index]
+    )
+  )
+    throw new Error('Unexpected paths in generated dim architecture patch')
+  if (docsPrevious)
+    for (const [index, entry] of docStates.entries())
+      await writeFile(path.join(directory, generatedDocs[index].path), entry.original)
   git(['apply', '--check', patch])
   git(['apply', patch])
 }

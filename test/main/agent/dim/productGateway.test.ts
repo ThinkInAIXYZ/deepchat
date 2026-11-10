@@ -271,3 +271,49 @@ it('validates native context identities and full u64 positions before reading de
     await gateway.stop()
   }
 })
+
+it('validates OAuth recovery leases and redacts connection-owner failures', async () => {
+  let reads = 0
+  const gateway = new DimProductGateway({
+    resolve: async () => {
+      throw new Error('No product tool expected')
+    },
+    connectionAuth: async (providerId, modelId, rejectedLease, signal) => {
+      signal.throwIfAborted()
+      reads++
+      if (providerId === 'ordinary') return null
+      if (providerId !== 'bound' || modelId !== 'model') throw new Error('private OAuth token')
+      expect(rejectedLease).toBe('a'.repeat(64))
+      return { preset: 'openai-codex', bearer: 'private OAuth token', lease: 'b'.repeat(64) }
+    }
+  })
+  try {
+    const address = await gateway.start()
+    for (const rejectedLease of ['', 'wrong', 1])
+      expect(
+        await request(address, {
+          kind: 'model_connection',
+          providerId: 'bound',
+          modelId: 'model',
+          rejectedLease
+        })
+      ).toEqual({ error: 'Provider connection is unavailable' })
+    expect(reads).toBe(0)
+    expect(
+      await request(address, { kind: 'model_connection', providerId: 'other', modelId: 'model' })
+    ).toEqual({ error: 'Provider connection is unavailable' })
+    expect(
+      await request(address, { kind: 'model_connection', providerId: 'ordinary', modelId: 'model' })
+    ).toEqual({ result: null })
+    expect(
+      await request(address, {
+        kind: 'model_connection',
+        providerId: 'bound',
+        modelId: 'model',
+        rejectedLease: 'a'.repeat(64)
+      })
+    ).toMatchObject({ result: { preset: 'openai-codex', bearer: 'private OAuth token' } })
+  } finally {
+    await gateway.stop()
+  }
+})

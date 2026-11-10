@@ -22,6 +22,7 @@ mod payload;
 mod permissions;
 mod profile;
 mod product_tools;
+mod provider_connections;
 mod queue;
 mod scopes;
 mod secrets;
@@ -57,6 +58,7 @@ fn install(builder: &mut dim_agent_runtime::AgentBuilder) {
     embeddings::install(builder);
     decisions::install(builder);
     secrets::install(builder);
+    provider_connections::install(builder);
     inputs::install(builder);
     migration::install(builder);
     queue::install(builder);

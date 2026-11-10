@@ -2,11 +2,13 @@
   {
     "path": "docs/architecture/rust-agent/generated/modules.json",
     "originalSha256": "ab0875b62baca25edb9f03356f6bf7f041a3f582da7ee5da8370b28031dd2cf6",
-    "sha256": "b421b7504fbd1346f72201823b45107a9c7c4331206f4b841fe84c3aaa8ce14f"
+    "sha256": "a5e4423f1e49978976ac41c2fd74c716e563e8aec23564c64914599ac369a1fd",
+    "previousSha256": "b421b7504fbd1346f72201823b45107a9c7c4331206f4b841fe84c3aaa8ce14f"
   },
   {
     "path": "docs/architecture/rust-agent/generated/modules.mmd",
     "originalSha256": "d647da9aa2771dc5f0f480187707d126ad2103591eae536e9520c679a48dabc3",
-    "sha256": "5fe8e1fa5b2829b230071c834868712221b0b4cefd677f097b11408dc3dd0141"
+    "sha256": "5fe8e1fa5b2829b230071c834868712221b0b4cefd677f097b11408dc3dd0141",
+    "previousSha256": "5fe8e1fa5b2829b230071c834868712221b0b4cefd677f097b11408dc3dd0141"
   }
 ]

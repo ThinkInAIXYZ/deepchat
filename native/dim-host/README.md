@@ -149,7 +149,7 @@ crates/dim-agent-aimux/examples/offline.json`. Their original and generated hash
 and exact patch are pinned alongside code extensions; preparation accepts only a
 complete original or complete prepared graph. Source/crate boundaries and plugin
 documents pass. The stock SDK `xtask check` service catalogue profile cannot
-initialize the embedding-specific ProviderSecretHost; the actual DeepChat
+initialize the embedding credential/connection hosts; the actual DeepChat
 profile is verified by native integration and packaged-runtime smoke tests.
 
 The decision plugin admits `decision.decide` through the public non-chat connection
@@ -163,3 +163,20 @@ versioned model identity, confidence and score legends. No vendor headers or raw
 failures cross the product boundary. A scoped RPC caller owns cancellation and
 joins the native operation. Node providers retain catalogue administration and
 contain no Jev or Workers AI judgment executor.
+
+The optional ProviderConnectionHost runs after the native static resolver has
+validated a model and resolved its credential. Existing Provider constructors
+retain their dependencies; the embedding constructor also requires this port.
+Only DeepChat's `deepchat/codex/v1/` references activate the product OAuth bridge.
+Native Codex request rules and model execution stay with dim. The product supplies
+its existing account lease and client headers without moving the account into
+dim's managed OAuth registry. Native recovery classifies 401, controls replay and
+owns cancellation. The product account owner refreshes only the rejected lease;
+a late rejection reuses its already refreshed credential. Product grants and model
+enablement are checked before and after account work. Native managed providers
+retain their original authority and bypass this static-connection port.
+
+Generated graph preparation accepts the exact previous complete graph in addition
+to the original and current graph. It validates patch paths, resets only a known
+previous graph to the pinned original, and applies the generated patch. Unknown
+changes or partially prepared graphs still fail before mutation.

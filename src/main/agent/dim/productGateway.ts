@@ -6,6 +6,7 @@ import path from 'node:path'
 import type { JsonValue } from '@shared/contracts/json'
 import type { DimMcpServer } from './mcp'
 import type { DimModelId } from './modelBridge'
+import type { DimOAuthConnection } from './providerCredentials'
 
 type JsonObject = { [key: string]: JsonValue }
 
@@ -60,6 +61,12 @@ export interface DimProductGatewayOptions {
   context?(request: DimProductContextRequest, signal: AbortSignal): Promise<DimProductContextReply>
   mcp?(sessionId: string, signal: AbortSignal): Promise<Record<string, DimMcpServer>>
   titleModel?(sessionId: string, signal: AbortSignal): Promise<DimModelId | null>
+  connectionAuth?(
+    providerId: string,
+    modelId: string,
+    rejectedLease: string | undefined,
+    signal: AbortSignal
+  ): Promise<DimOAuthConnection | null>
   credential?(
     providerId: string,
     reference: string,
@@ -236,6 +243,32 @@ export class DimProductGateway {
       const servers = (await this.options.mcp?.(request.sessionId, signal)) ?? {}
       signal.throwIfAborted()
       return { servers: servers as unknown as JsonValue }
+    }
+    if (request.kind === 'model_connection') {
+      if (
+        typeof request.providerId !== 'string' ||
+        !request.providerId ||
+        request.providerId.length > 4096 ||
+        typeof request.modelId !== 'string' ||
+        !request.modelId ||
+        request.modelId.length > 4096 ||
+        (request.rejectedLease !== undefined &&
+          (typeof request.rejectedLease !== 'string' ||
+            !/^[a-f0-9]{64}$/.test(request.rejectedLease)))
+      )
+        throw new Error('Provider connection is unavailable')
+      try {
+        const connection = await this.options.connectionAuth?.(
+          request.providerId,
+          request.modelId,
+          request.rejectedLease as string | undefined,
+          signal
+        )
+        signal.throwIfAborted()
+        return connection ? { ...connection } : null
+      } catch {
+        throw new Error('Provider connection is unavailable')
+      }
     }
     if (request.kind === 'credential') {
       if (

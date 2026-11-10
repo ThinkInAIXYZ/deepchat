@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import * as fs from 'fs'
 import * as path from 'path'
 import { shell } from 'electron'
@@ -154,6 +155,38 @@ describe('OpenAI Codex auth', () => {
       accountId: 'account-123456789'
     })
     expect(status.accountId).toBe('acco...6789')
+  })
+
+  it('refreshes one rejected credential lease and reuses the replacement for late rejections', async () => {
+    const store = new OpenAICodexCredentialStore(path.join(tempDir, 'credentials.json'))
+    store.save({
+      accessToken: 'old-token',
+      refreshToken: 'refresh-token',
+      tokenType: 'Bearer',
+      expiresAt: Date.now() + 3600_000,
+      updatedAt: Date.now()
+    })
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          access_token: 'new-token',
+          refresh_token: 'new-refresh-token',
+          expires_in: 3600,
+          token_type: 'Bearer'
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const auth = new OpenAICodexAuth(store, vi.fn())
+    const rejected = createHash('sha256').update('old-token').digest('hex')
+    const values = await Promise.all([
+      auth.forceRefreshBackendAuth(rejected),
+      auth.forceRefreshBackendAuth(rejected)
+    ])
+    expect(values.map((value) => value.accessToken)).toEqual(['new-token', 'new-token'])
+    expect((await auth.forceRefreshBackendAuth(rejected)).accessToken).toBe('new-token')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
   it('refreshes expired access tokens with single-flight coordination', async () => {

@@ -1,5 +1,5 @@
 diff --git a/docs/architecture/rust-agent/generated/modules.json b/docs/architecture/rust-agent/generated/modules.json
-index 84da150..4b79359 100644
+index 84da150..8a28362 100644
 --- a/docs/architecture/rust-agent/generated/modules.json
 +++ b/docs/architecture/rust-agent/generated/modules.json
 @@ -20670,7 +20670,10 @@
@@ -48,7 +48,16 @@ index 84da150..4b79359 100644
          "use super::server::McpServer",
          "use super::server::McpServerError",
          "use super::server::McpServerPlugin"
-@@ -29686,6 +29693,7 @@
+@@ -27213,6 +27220,8 @@
+         "path ResolvedModelConnection",
+         "path SelectableModels",
+         "path SelectableModelsHost",
++        "path dim_agent_capabilities::host::HostFuture",
++        "path dim_agent_capabilities::host::ResolvedModelConnection",
+         "path dim_agent_capabilities::host::adopted_preferences",
+         "path undeclared_modality_operation"
+       ]
+@@ -29686,6 +29695,7 @@
          "path FileStorageError::Cancelled",
          "path FileStorageError::Closed",
          "path FileStorageError::Io",
@@ -56,7 +65,7 @@ index 84da150..4b79359 100644
          "use dim_agent_capabilities::file_storage::FileStorage",
          "use dim_agent_capabilities::file_storage::FileStorageError"
        ]
-@@ -30303,6 +30311,7 @@
+@@ -30303,6 +30313,7 @@
          "path SessionFiles",
          "path SessionFiles::new",
          "path files",
@@ -64,7 +73,7 @@ index 84da150..4b79359 100644
          "path files::release",
          "path files::share",
          "path files::share_output",
-@@ -47587,6 +47596,7 @@
+@@ -47587,6 +47598,7 @@
        "references": [
          "path AuxiliaryModelHost",
          "path AuxiliaryRequest",
@@ -72,7 +81,7 @@ index 84da150..4b79359 100644
          "use dim_agent_capabilities::host::AuxiliaryModelHost",
          "use dim_agent_capabilities::host::AuxiliaryRequest"
        ]
-@@ -47642,6 +47652,7 @@
+@@ -47642,6 +47654,7 @@
        "to": "dim_agent_runtime::assembly",
        "references": [
          "path AgentBuilder",
@@ -80,7 +89,7 @@ index 84da150..4b79359 100644
          "use dim_agent_runtime::AgentBuilder"
        ]
      },
-@@ -47664,6 +47675,7 @@
+@@ -47664,6 +47677,7 @@
        "to": "dim_agent_runtime::names",
        "references": [
          "path Names",
