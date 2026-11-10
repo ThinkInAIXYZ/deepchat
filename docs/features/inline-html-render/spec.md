@@ -410,11 +410,14 @@ the existing `mcp-app` render item.
   reference.
 - No network requests (`connect-src 'none'`), no forms, no frames, no device permissions, no remote
   scripts, styles, fonts or images.
-- Exception: WebRTC. Chromium does not enforce the CSP `webrtc` directive, so a page can send data
-  out through STUN/TURN. This needs all of: the user enabled the tool, untrusted content in the
-  conversation injected instructions into the model, and the session is not in `full_access` mode
-  (where the agent already has other ways to send data). Add `webrtc 'block'` once Chromium
-  enforces it. Tracked in #2513.
+- Exception: WebRTC. Chromium does not enforce the CSP `webrtc` directive, so any rendered page
+  can send data out through STUN/TURN while it runs. Nothing on the page side stops it: past
+  renders run again when displayed even after the tool is disabled, and the tool can be enabled
+  without the user's opt-in (see Known Limitations). The page HTML comes from the model, so the
+  realistic source is untrusted content in the conversation that steers the model. A session in
+  `full_access` mode already lets the agent send data out through other tools, so the added
+  exposure is mainly in the other modes. Add `webrtc 'block'` once Chromium enforces it. Tracked
+  in #2513.
 - `/lib` serves only names in the instance's `libraries` map.
 - With the bootstrap's link handler suppressed, scripted clicks on `_top`, `_blank`, `_parent` and
   `_self` links, `top.location` and `location` assignment, `window.open`, `fetch` and remote images
