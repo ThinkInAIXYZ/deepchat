@@ -18,6 +18,7 @@ import { SyncReplicaStore } from '@/sync/replica/store'
 import { SyncReplicaNative } from '@/sync/replica/native'
 import { SyncReplicaEndpoint } from '@/sync/replica/endpoint'
 import { AutomaticSync } from '@/sync/replica/automatic'
+import { NativeReplicaRecovery } from '@/sync/replica/nativeRecovery'
 
 vi.unmock('fs')
 vi.unmock('node:fs')
@@ -229,6 +230,32 @@ describeIfNativeSqlite('Native device sync', () => {
         await expect.poll(() => interrupted, { timeout: 45_000 }).toBe(true)
         await automatic.close()
         expect(automatic.status().lastSuccessAt).toBeNull()
+        expect(
+          peer.db
+            .prepare("SELECT session_id FROM dim_session_bindings WHERE session_id='chat'")
+            .get()
+        ).toBeUndefined()
+        peer.store.started(0)
+        const begin = NativeReplicaRecovery.begin
+        let journalFlushFailed = false
+        const journalFault = vi
+          .spyOn(NativeReplicaRecovery, 'begin')
+          .mockImplementationOnce(async (...args) => {
+            await begin(...args)
+            journalFlushFailed = true
+            throw Object.assign(
+              new Error('Injected directory flush failure after journal publication'),
+              { code: 'ENOSPC' }
+            )
+          })
+        automatic = createAutomatic()
+        await automatic.start()
+        await expect.poll(() => journalFlushFailed, { timeout: 45_000 }).toBe(true)
+        await automatic.close()
+        journalFault.mockRestore()
+        await expect(readFile(join(peer.home, '.dim-replica-import.json'))).rejects.toMatchObject({
+          code: 'ENOENT'
+        })
         expect(
           peer.db
             .prepare("SELECT session_id FROM dim_session_bindings WHERE session_id='chat'")

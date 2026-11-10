@@ -11,6 +11,7 @@ import { DimProfileBackups, DimProfileRecoveryError } from '@/agent/dim/profileB
 import type { DeepChatInternalSessionUpdate } from '@/agent/shared/sessionUpdates'
 import { SyncReplicaStore } from '@/sync/replica/store'
 import { SyncReplicaNative } from '@/sync/replica/native'
+import { NativeReplicaRecovery } from '@/sync/replica/nativeRecovery'
 import type { SyncBatch } from '@shared/contracts/syncReplica'
 import { SyncReplicaEndpoint } from '@/sync/replica/endpoint'
 import { AutomaticSync } from '@/sync/replica/automatic'
@@ -4107,6 +4108,13 @@ export async function createMainProcessControl(dependencies: {
       await suspendSessionRuntimes()
       await dimHost.withStopped(async () => {
         try {
+          // A completed device import may still have durable cleanup pending. Settle
+          // it against the current product SQL before another import can replace SQL.
+          try {
+            await NativeReplicaRecovery.recover(app.getPath('userData'), mainDatabase.getDatabase())
+          } catch (error) {
+            throw new DimProfileRecoveryError(app.getPath('userData'), error)
+          }
           operationResult = await operation({
             getDatabasePath: () => mainDatabase.getDatabasePath(),
             checkpointAndClose: () => {

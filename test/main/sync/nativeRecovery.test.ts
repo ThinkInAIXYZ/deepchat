@@ -3,7 +3,8 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { NativeReplicaRecovery } from '@/sync/replica/nativeRecovery'
-import { writeDimProfileRecovery } from '@/agent/dim/profileRecovery'
+import { writeDimProfileRecovery, recoverDimProfile } from '@/agent/dim/profileRecovery'
+import { writeDurableJson } from '@/data/durableFile'
 import { requireDatabase, describeIfNativeSqlite } from '../nativeSqliteHarness'
 
 vi.unmock('fs')
@@ -70,6 +71,22 @@ describeIfNativeSqlite('Native replica recovery', () => {
       await NativeReplicaRecovery.recover(root, db)
     }
   )
+  it('finishes rollback cleanup after the private recovery directory is already removed', async () => {
+    const { root, db, journal, profile } = await admission()
+    await recoverDimProfile(root, profile)
+    await writeDurableJson(join(root, '.dim-replica-import.json'), {
+      ...journal.state,
+      phase: 'rolled-back'
+    })
+    await rm(join(root, profile), { recursive: true })
+    await NativeReplicaRecovery.recover(root, db)
+    expect(await readFile(join(root, 'dim/content'), 'utf8')).toBe('previous')
+    await expect(readFile(join(root, '.dim-replica-import.json'))).rejects.toMatchObject({
+      code: 'ENOENT'
+    })
+    await NativeReplicaRecovery.recover(root, db)
+  })
+
   it('retains both profiles when a receipt conflicts with its journal identity', async () => {
     const { root, db, journal, profile } = await admission()
     db.prepare('INSERT INTO _sync_native_receipts VALUES(?,?,?)').run(

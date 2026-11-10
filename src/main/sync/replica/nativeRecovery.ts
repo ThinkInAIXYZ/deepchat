@@ -10,6 +10,7 @@ const name = '.dim-replica-import.json'
 const Journal = z
   .object({
     version: z.literal(1),
+    phase: z.enum(['pending', 'rolled-back']).default('pending'),
     token: z.string().uuid(),
     replica: z.string().min(1).max(512),
     through: z.number().int().nonnegative().safe(),
@@ -72,7 +73,12 @@ export class NativeReplicaRecovery {
     if (receipt) {
       if (!(await profileExists(path.join(root, 'dim'))))
         throw new Error('Committed Native profile is missing')
-    } else await recoverDimProfile(root, state.profile)
+    } else if (state.phase !== 'rolled-back') {
+      await recoverDimProfile(root, state.profile)
+      // The rollback is durable before cleanup can remove its per-profile state.
+      // A restart after directory removal must not attempt that rollback again.
+      await writeDurableJson(path.join(root, name), { ...state, phase: 'rolled-back' })
+    }
     await rm(directory, { recursive: true, force: true })
     // The marker disappears durably before its SQL receipt can be removed.
     await rm(path.join(root, name), { force: true })

@@ -101,12 +101,21 @@ export class SyncReplicaNative implements SyncReplicaNativePort {
         this.deps.host.withStopped(
           async () => {
             const db = this.deps.database()
-            await NativeReplicaRecovery.recover(this.deps.root, db)
+            try {
+              await NativeReplicaRecovery.recover(this.deps.root, db)
+            } catch (error) {
+              const recovery = new Error('Native replica storage requires recovery', {
+                cause: error
+              })
+              this.deps.host.requireProfileRecovery(recovery)
+              throw recovery
+            }
             let prepared: PreparedDimProfile | undefined
             let installed: Awaited<ReturnType<PreparedDimProfile['install']>> | undefined
             let journal: NativeReplicaRecovery | undefined
             let committed = false
             let applied = false
+            let recoveryUncertain = false
             const failures: unknown[] = []
             try {
               prepared = await this.deps.backups.prepareReplica(incoming, source, local)
@@ -130,13 +139,16 @@ export class SyncReplicaNative implements SyncReplicaNativePort {
                 // SQL and canonical content are committed. The receipt preserves cleanup on restart.
                 console.warn('[Sync] Committed Native profile requires cleanup', error)
               }
-            } else if (journal) {
+            } else if (prepared) {
+              // Journal publication can succeed before its final directory flush fails,
+              // leaving begin() without a returned handle. Recover that durable marker too.
               try {
                 if (installed) {
                   await installed.rollback()
-                  await journal.clear(db)
+                  await journal!.clear(db)
                 } else await NativeReplicaRecovery.recover(this.deps.root, db)
               } catch (error) {
+                recoveryUncertain = true
                 const recovery = new Error('Native replica storage requires recovery', {
                   cause: error
                 })
@@ -145,7 +157,7 @@ export class SyncReplicaNative implements SyncReplicaNativePort {
               }
             }
             try {
-              await prepared?.dispose()
+              if (!recoveryUncertain) await prepared?.dispose()
             } catch (error) {
               if (committed) console.warn('[Sync] Committed Native staging cleanup failed', error)
               else failures.push(error)

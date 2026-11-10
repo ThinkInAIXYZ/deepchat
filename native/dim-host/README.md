@@ -199,8 +199,13 @@ That transaction rechecks winners, authorization and the peer cursor and writes 
 unique per-admission receipt with metadata. A durable journal checks that exact
 receipt at startup before Native starts: committed installs finish cleanup;
 uncommitted installs roll back. Another batch's cursor cannot stand in for the
-receipt. Changed winners or revoked authorization restore the prior Native
-profile. Derived input and Inspector indexes are rebuilt for replaced Sessions.
+receipt. Journal publication followed by a failed directory flush is recovered
+even when the caller never received its journal handle. A durable rollback phase
+precedes recovery-directory cleanup, so interrupted cleanup can resume without
+repeating rollback against removed files. Unconfirmed recovery retains staging
+and fences Native. Manual database imports settle any older device-import
+journal before replacing product SQL. Changed winners or revoked authorization
+restore the prior Native profile. Derived input and Inspector indexes are rebuilt for replaced Sessions.
 No bridge reads Native SQLite tables or combines live databases.
 Receiver admission waits for Native execution to become idle before taking the
 cold-profile barrier. Busy receivers retain the pending transfer and do not
