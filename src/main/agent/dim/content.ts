@@ -43,6 +43,7 @@ export class DimContent {
     let summary: string | null = null
     let contextFromOrderSeq = 1
     let pendingInputs: PendingSessionInputRecord[] = []
+    const legacyAdmissions = new Map<string, string>()
     const excluded = new Set<string>()
     let fixed = through
     while (true) {
@@ -52,6 +53,25 @@ export class DimContent {
       )
       fixed ??= String(page.through)
       for (const event of page.events) {
+        if (event.type === 'deepchat' && event.name === 'legacy-queue-state') {
+          if (!Array.isArray(event.data.inputs))
+            throw new Error('Invalid native legacy draft state')
+          pendingInputs = event.data.inputs as unknown as PendingSessionInputRecord[]
+        }
+        if (event.type === 'deepchat' && event.name === 'input-representation') {
+          const draft = event.data.legacyDraft
+          if (
+            draft &&
+            typeof draft === 'object' &&
+            !Array.isArray(draft) &&
+            typeof draft.id === 'string'
+          )
+            legacyAdmissions.set(String(event.data.submissionId), draft.id)
+        }
+        if (event.type === 'input' && event.name === 'message') {
+          const id = legacyAdmissions.get(String(event.data.submission_id))
+          if (id) pendingInputs = pendingInputs.filter((item) => item.id !== id)
+        }
         if (event.type === 'deepchat' && event.name === 'history-sealed') {
           const imported = readDimImportedSnapshot(binding, event, (id) => inputs.get(id) ?? null)
           summary = imported.snapshot.summary

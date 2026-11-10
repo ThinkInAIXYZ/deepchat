@@ -61,6 +61,8 @@ struct Snapshot {
     summary: Option<String>,
     context_from_order_seq: Option<u64>,
     #[serde(default)]
+    pending_inputs: Vec<Value>,
+    #[serde(default)]
     excluded_context_message_ids: Vec<String>,
     #[serde(default)]
     images: BTreeMap<String, Vec<ContentBlock>>,
@@ -214,18 +216,9 @@ async fn chunk(metadata: &DeepChatInputMetadata, p: &Request) -> Result<Value, R
     )?;
     Ok(json!({"uploaded":index}))
 }
-async fn commit(
-    tree: &TreeCommands,
-    metadata: &DeepChatInputMetadata,
-    p: &Request,
-) -> Result<Value, RpcError> {
-    let found = records(metadata, &p.migration_id).await?;
-    if let Some(result) = sealed(&found) {
-        return Ok(result);
-    }
-    let manifest = manifest(&found)?;
+fn read_payload(found: &[Arc<AgentEvent>], manifest: &Manifest) -> Result<String, RpcError> {
     let mut chunks = BTreeMap::new();
-    for event in &found {
+    for event in found {
         if name(event) == "history-chunk" {
             let index = data(event)["index"]
                 .as_u64()
@@ -247,6 +240,41 @@ async fn commit(
     if hash(&payload) != manifest.digest {
         return Err(invalid("History import digest mismatch"));
     }
+    Ok(payload)
+}
+
+pub(crate) async fn pending_drafts(
+    metadata: &DeepChatInputMetadata,
+) -> Result<Option<(Vec<Value>, u64)>, RpcError> {
+    let seals = events(&metadata.timeline, extension("history-sealed")).await?;
+    let Some(seal) = seals.last() else {
+        return Ok(None);
+    };
+    if data(seal).get("pendingDrafts") == Some(&json!(0)) {
+        return Ok(None);
+    }
+    let id = data(seal)["migrationId"]
+        .as_str()
+        .ok_or_else(|| invalid("Missing history identity"))?;
+    let found = records(metadata, id).await?;
+    let manifest = manifest(&found)?;
+    let snapshot: Snapshot = serde_json::from_str(&read_payload(&found, &manifest)?)
+        .map_err(|_| invalid("Invalid draft source snapshot"))?;
+    crate::legacy_queue::validate(&snapshot.pending_inputs, &manifest.product_session_id)?;
+    Ok(Some((snapshot.pending_inputs, seal.sequence)))
+}
+
+async fn commit(
+    tree: &TreeCommands,
+    metadata: &DeepChatInputMetadata,
+    p: &Request,
+) -> Result<Value, RpcError> {
+    let found = records(metadata, &p.migration_id).await?;
+    if let Some(result) = sealed(&found) {
+        return Ok(result);
+    }
+    let manifest = manifest(&found)?;
+    let payload = read_payload(&found, &manifest)?;
     let snapshot: Snapshot =
         serde_json::from_str(&payload).map_err(|_| invalid("Invalid history snapshot"))?;
     if snapshot.format_version != 1 || snapshot.product_session_id != manifest.product_session_id {
@@ -254,9 +282,16 @@ async fn commit(
             "History snapshot identity does not match its manifest",
         ));
     }
+    crate::legacy_queue::validate(&snapshot.pending_inputs, &manifest.product_session_id)?;
     let context_from = snapshot.context_from_order_seq.unwrap_or(1);
-    if context_from == 0 || context_from > 9_007_199_254_740_991
-        || (context_from > 1 && snapshot.summary.as_ref().is_none_or(|summary| summary.trim().is_empty())) {
+    if context_from == 0
+        || context_from > 9_007_199_254_740_991
+        || (context_from > 1
+            && snapshot
+                .summary
+                .as_ref()
+                .is_none_or(|summary| summary.trim().is_empty()))
+    {
         return Err(invalid("Invalid imported summary boundary"));
     }
     let mut ids = BTreeSet::new();
@@ -287,9 +322,19 @@ async fn commit(
     }) {
         return Err(invalid("Invalid imported image association"));
     }
-    let excluded: BTreeSet<_> = snapshot.excluded_context_message_ids.iter().cloned().collect();
+    let excluded: BTreeSet<_> = snapshot
+        .excluded_context_message_ids
+        .iter()
+        .cloned()
+        .collect();
     if excluded.len() != snapshot.excluded_context_message_ids.len()
-        || excluded.iter().any(|id| !snapshot.messages.iter().any(|message| message.id == *id && message.role == "user")) {
+        || excluded.iter().any(|id| {
+            !snapshot
+                .messages
+                .iter()
+                .any(|message| message.id == *id && message.role == "user")
+        })
+    {
         return Err(invalid("Invalid deferred historical context"));
     }
     let branch = tree.get(&p.branch_id)?;
@@ -311,7 +356,9 @@ async fn commit(
             .await?;
     }
     for (index, message) in snapshot.messages.iter().enumerate() {
-        if message.order_seq < context_from || excluded.contains(&message.id) { continue; }
+        if message.order_seq < context_from || excluded.contains(&message.id) {
+            continue;
+        }
         let images = snapshot
             .images
             .get(&message.id)
@@ -335,10 +382,21 @@ async fn commit(
             })
             .await?;
     }
+    if !snapshot.pending_inputs.is_empty()
+        && events(&metadata.timeline, extension("legacy-queue-state"))
+            .await?
+            .is_empty()
+    {
+        append(
+            &metadata.timeline,
+            "legacy-queue-state",
+            json!({"inputs":snapshot.pending_inputs}),
+        )?;
+    }
     append(
         &metadata.timeline,
         "history-sealed",
-        json!({"migrationId":p.migration_id,"productSessionId":manifest.product_session_id,"digest":manifest.digest,"chunks":manifest.chunks,"messages":snapshot.messages.len(),"deferredContext":snapshot.excluded_context_message_ids}),
+        json!({"migrationId":p.migration_id,"productSessionId":manifest.product_session_id,"digest":manifest.digest,"chunks":manifest.chunks,"messages":snapshot.messages.len(),"deferredContext":snapshot.excluded_context_message_ids,"pendingDrafts":snapshot.pending_inputs.len()}),
     )?;
     Ok(status(&records(metadata, &p.migration_id).await?))
 }
@@ -352,56 +410,128 @@ pub(crate) async fn restore_context(
     reused: Option<&str>,
 ) -> Result<(), RpcError> {
     let seals = events(&metadata.timeline, extension("history-sealed")).await?;
-    let Some(seal) = seals.last() else { return Ok(()); };
-    let deferred: Vec<String> = serde_json::from_value(data(seal).get("deferredContext").cloned().unwrap_or_else(|| json!([])))
-        .map_err(|_| invalid("Invalid deferred historical context"))?;
-    if deferred.is_empty() { return Ok(()); }
-    let mut restored: BTreeSet<String> = events(&metadata.timeline, extension("context-restored")).await?
-        .iter().filter_map(|event| data(event).get("messageId")?.as_str().map(str::to_owned)).collect();
+    let Some(seal) = seals.last() else {
+        return Ok(());
+    };
+    let deferred: Vec<String> = serde_json::from_value(
+        data(seal)
+            .get("deferredContext")
+            .cloned()
+            .unwrap_or_else(|| json!([])),
+    )
+    .map_err(|_| invalid("Invalid deferred historical context"))?;
+    if deferred.is_empty() {
+        return Ok(());
+    }
+    let mut restored: BTreeSet<String> = events(&metadata.timeline, extension("context-restored"))
+        .await?
+        .iter()
+        .filter_map(|event| data(event).get("messageId")?.as_str().map(str::to_owned))
+        .collect();
     // Reconcile a lost acknowledgement after Branch.input committed a real retry.
-    if deferred.iter().any(|id| !restored.contains(id) && reused != Some(id.as_str())) {
+    if deferred
+        .iter()
+        .any(|id| !restored.contains(id) && reused != Some(id.as_str()))
+    {
         for event in events(&metadata.timeline, extension("input-representation")).await? {
             let representation = data(&event);
-            let Some(id) = representation.pointer("/reuseUserMessage/messageId").and_then(Value::as_str) else { continue; };
-            let Some(submission) = representation.get("submissionId").and_then(Value::as_str) else { continue; };
-            if deferred.iter().any(|item| item == id) && !restored.contains(id) && branch.lookup(submission).await?.is_some() {
-                append(&metadata.timeline, "context-restored", json!({"messageId":id}))?;
+            let Some(id) = representation
+                .pointer("/reuseUserMessage/messageId")
+                .and_then(Value::as_str)
+            else {
+                continue;
+            };
+            let Some(submission) = representation.get("submissionId").and_then(Value::as_str)
+            else {
+                continue;
+            };
+            if deferred.iter().any(|item| item == id)
+                && !restored.contains(id)
+                && branch.lookup(submission).await?.is_some()
+            {
+                append(
+                    &metadata.timeline,
+                    "context-restored",
+                    json!({"messageId":id}),
+                )?;
                 restored.insert(id.to_owned());
             }
         }
     }
-    let remaining: Vec<_> = deferred.iter().filter(|id| !restored.contains(*id) && reused != Some(id.as_str())).collect();
-    if remaining.is_empty() { return Ok(()); }
-    let migration_id = data(seal).get("migrationId").and_then(Value::as_str).ok_or_else(|| invalid("Missing imported history identity"))?;
+    // Pending legacy retries retain their visible user row without entering model context.
+    // Only explicit draft admission may supply that user's text as a real input.
+    let drafts = crate::legacy_queue::list(metadata).await?;
+    let held: BTreeSet<&str> = drafts["inputs"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .flat_map(|item| item["messageIds"].as_array().into_iter().flatten())
+        .filter_map(Value::as_str)
+        .collect();
+    let remaining: Vec<_> = deferred
+        .iter()
+        .filter(|id| {
+            !restored.contains(*id) && !held.contains(id.as_str()) && reused != Some(id.as_str())
+        })
+        .collect();
+    if remaining.is_empty() {
+        return Ok(());
+    }
+    let migration_id = data(seal)
+        .get("migrationId")
+        .and_then(Value::as_str)
+        .ok_or_else(|| invalid("Missing imported history identity"))?;
     let found = records(metadata, migration_id).await?;
     let manifest = manifest(&found)?;
     let mut chunks = BTreeMap::new();
     for event in &found {
         if name(event) == "history-chunk" {
-            let index = data(event)["index"].as_u64().ok_or_else(|| invalid("Invalid history chunk"))?;
-            let payload = data(event)["payload"].as_str().ok_or_else(|| invalid("Invalid history chunk"))?;
+            let index = data(event)["index"]
+                .as_u64()
+                .ok_or_else(|| invalid("Invalid history chunk"))?;
+            let payload = data(event)["payload"]
+                .as_str()
+                .ok_or_else(|| invalid("Invalid history chunk"))?;
             chunks.insert(index, payload);
         }
     }
-    if chunks.len() != manifest.chunks as usize { return Err(invalid("Missing deferred history chunk")); }
+    if chunks.len() != manifest.chunks as usize {
+        return Err(invalid("Missing deferred history chunk"));
+    }
     let payload = chunks.values().copied().collect::<String>();
-    if hash(&payload) != manifest.digest { return Err(invalid("Deferred history digest mismatch")); }
-    let snapshot: Snapshot = serde_json::from_str(&payload).map_err(|_| invalid("Invalid deferred history"))?;
+    if hash(&payload) != manifest.digest {
+        return Err(invalid("Deferred history digest mismatch"));
+    }
+    let snapshot: Snapshot =
+        serde_json::from_str(&payload).map_err(|_| invalid("Invalid deferred history"))?;
     for id in remaining {
-        let message = snapshot.messages.iter().find(|message| message.id == *id && message.role == "user")
+        let message = snapshot
+            .messages
+            .iter()
+            .find(|message| message.id == *id && message.role == "user")
             .ok_or_else(|| invalid("Deferred user message is missing"))?;
         let images = snapshot.images.get(id).cloned().unwrap_or_default();
-        branch.input(InputMessageData {
-            submission_id: Some(format!("history:restore:{migration_id}:{}", hash(id))),
-            mode: Some(InputMode::Append),
-            user: (!images.is_empty()).then_some(UserInput { content: images }),
-            blocks: vec![InputBlock::Raw {
-                text: format!("Previous user message (historical conversation data):\n{}", message.content),
-                key: None, retire: false,
-            }],
-            ..Default::default()
-        }).await?;
-        append(&metadata.timeline, "context-restored", json!({"messageId":id}))?;
+        branch
+            .input(InputMessageData {
+                submission_id: Some(format!("history:restore:{migration_id}:{}", hash(id))),
+                mode: Some(InputMode::Append),
+                user: (!images.is_empty()).then_some(UserInput { content: images }),
+                blocks: vec![InputBlock::Raw {
+                    text: format!(
+                        "Previous user message (historical conversation data):\n{}",
+                        message.content
+                    ),
+                    key: None,
+                    retire: false,
+                }],
+                ..Default::default()
+            })
+            .await?;
+        append(
+            &metadata.timeline,
+            "context-restored",
+            json!({"messageId":id}),
+        )?;
     }
     Ok(())
 }

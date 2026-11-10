@@ -3,6 +3,7 @@ mod embeddings;
 mod facts;
 mod gateway;
 mod inputs;
+mod legacy_queue;
 mod media;
 mod memory;
 mod migration;

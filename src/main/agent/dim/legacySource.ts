@@ -12,13 +12,25 @@ interface LegacySourceOptions {
   transcript: { getMessages(sessionId: string): ChatMessageRecord[] }
   tape: { getEffectiveViewInputRows(sessionId: string): DeepChatTapeEntryRow[] }
   summary: { getSummaryState(sessionId: string): SessionSummaryState }
-  pending: { listPendingInputs(sessionId: string): PendingSessionInputRecord[] }
+  pending: {
+    listPendingInputs(sessionId: string): PendingSessionInputRecord[]
+    listMigrationInputs?(sessionId: string): PendingSessionInputRecord[]
+  }
   images?(messages: ChatMessageRecord[]): Promise<Record<string, JsonValue[]>>
 }
 
 /** Read-only legacy conversion source. Browsing and startup never call this boundary. */
 export class DimLegacySource {
   constructor(private readonly options: LegacySourceOptions) {}
+
+  pendingInputs(sessionId: string): PendingSessionInputRecord[] {
+    const records =
+      this.options.pending.listMigrationInputs?.(sessionId) ??
+      this.options.pending.listPendingInputs(sessionId)
+    if (records.some((record) => record.sessionId !== sessionId))
+      throw new Error('Legacy pending input belongs to another session')
+    return records
+  }
 
   async snapshot(sessionId: string): Promise<DimHistorySnapshot> {
     const snapshot = this.options.database.getDatabase().transaction((): DimHistorySnapshot => {
@@ -38,7 +50,7 @@ export class DimLegacySource {
       const ordered = [...messages.values()].sort((left, right) => left.orderSeq - right.orderSeq)
       if (ordered.some((message) => message.sessionId !== sessionId))
         throw new Error('Legacy content belongs to another session')
-      const pendingInputs = this.options.pending.listPendingInputs(sessionId)
+      const pendingInputs = this.pendingInputs(sessionId)
       if (pendingInputs.some((item) => item.sessionId !== sessionId))
         throw new Error('Legacy pending input belongs to another session')
       return {
@@ -48,6 +60,13 @@ export class DimLegacySource {
         summary: text,
         contextFromOrderSeq,
         pendingInputs,
+        excludedContextMessageIds: ordered
+          .filter(
+            (message) =>
+              message.role === 'user' &&
+              pendingInputs.some((item) => item.messageIds.includes(message.id))
+          )
+          .map((message) => message.id),
         source: {
           kind: 'legacy',
           tapeHead: rows.reduce((head, row) => Math.max(head, row.entry_id), 0),

@@ -51,6 +51,21 @@ it('converts canonical edits and retractions without resurrecting stale transcri
       createdAt: 3
     })
     const head = tape.getMaxEntryId('legacy')
+    const draft = {
+      id: 'retry',
+      sessionId: 'legacy',
+      mode: 'queue' as const,
+      state: 'retry_required' as const,
+      payload: { text: 'before Tape existed' },
+      messageIds: ['sql-only'],
+      assistantMessageId: null,
+      queueOrder: 0,
+      blocking: null,
+      claimedAt: null,
+      consumedAt: null,
+      createdAt: 1,
+      updatedAt: 1
+    }
     const source = new DimLegacySource({
       database: data,
       tape,
@@ -62,7 +77,7 @@ it('converts canonical edits and retractions without resurrecting stale transcri
           summaryUpdatedAt: 3
         })
       },
-      pending: { listPendingInputs: () => [] }
+      pending: { listPendingInputs: () => [], listMigrationInputs: () => [draft] }
     })
     const snapshot = await source.snapshot('legacy')
     expect(snapshot.messages.map((message) => message.id)).toEqual([
@@ -72,6 +87,8 @@ it('converts canonical edits and retractions without resurrecting stale transcri
     ])
     expect(JSON.parse(snapshot.messages[0].content).text).toBe('canonical edit')
     expect(snapshot).toMatchObject({ summary: 'Retained summary', contextFromOrderSeq: 3 })
+    expect(snapshot.pendingInputs).toEqual([draft])
+    expect(snapshot.excludedContextMessageIds).toEqual(['sql-only'])
     expect(dimHistoryPlan(await source.snapshot('legacy')).digest).toBe(
       dimHistoryPlan(snapshot).digest
     )

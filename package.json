@@ -97,7 +97,7 @@
     "installRuntime:duckdb:vss:linux:arm64": "node scripts/installVss.js --platform linux --arch arm64",
     "smoke:duckdb:vss": "node scripts/smoke-duckdb-vss.js",
     "smoke:light-ocr": "node scripts/smoke-light-ocr.js",
-    "smoke:dim": "cross-env DEEPCHAT_DIM_SMOKE=1 vitest run --project main --no-file-parallelism test/main/agent/dim/runtimeIntegration.test.ts test/main/agent/dim/mediaIntegration.test.ts test/main/agent/dim/anonymousIntegration.test.ts test/main/agent/dim/skillIntegration.test.ts test/main/agent/dim/profileReadinessIntegration.test.ts",
+    "smoke:dim": "cross-env DEEPCHAT_DIM_SMOKE=1 vitest run --project main --no-file-parallelism test/main/agent/dim/runtimeIntegration.test.ts test/main/agent/dim/mediaIntegration.test.ts test/main/agent/dim/anonymousIntegration.test.ts test/main/agent/dim/skillIntegration.test.ts test/main/agent/dim/profileReadinessIntegration.test.ts test/main/agent/dim/legacyQueueIntegration.test.ts",
     "smoke:backup": "cross-env DEEPCHAT_LARGE_BACKUP_SMOKE=1 vitest run --project main --no-file-parallelism test/main/sync/backupArchive.test.ts",
     "smoke:opendal:native": "node scripts/smoke-opendal-native.js",
     "i18n": "pnpm run i18n:validate && i18n-check -s zh-CN -f i18next --locales src/renderer/src/i18n",

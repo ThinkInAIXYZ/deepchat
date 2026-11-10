@@ -45,7 +45,9 @@ fn conflict() -> RpcError {
     )
 }
 /// A query projection of the native queue, including applied inputs until consumed.
-pub(crate) async fn pending(metadata: &DeepChatInputMetadata) -> Result<Vec<Arc<AgentEvent>>, RpcError> {
+pub(crate) async fn pending(
+    metadata: &DeepChatInputMetadata,
+) -> Result<Vec<Arc<AgentEvent>>, RpcError> {
     events(&metadata.timeline, and(vec![
         equal("kind", json!("input/message")),
         json!({"op":"not","condition":{"op":"present","value":field("data.handover")}}),
@@ -98,7 +100,7 @@ async fn representations(
         .filter_map(|event| match &event.kind {
             EventKind::Extension(data) => Some((
                 data.data().get("submissionId")?.as_str()?.to_owned(),
-                data.data().get("content")?.clone(),
+                data.data().clone(),
             )),
             _ => None,
         })
@@ -116,12 +118,13 @@ async fn list(metadata: &DeepChatInputMetadata) -> Result<Value, RpcError> {
         })
         .collect();
     let representations = representations(metadata, &inputs).await?;
+    let drafts = crate::legacy_queue::list(metadata).await?;
     Ok(json!({"inputs":inputs.iter().map(|event| {
         let EventKind::InputMessage(input) = &event.kind else { unreachable!() };
         json!({"inputId":event.id,"sequence":event.sequence.to_string(),"createdAt":event.create_at,
             "input":input,"applied":applied.contains(&event.id),
-            "representation":input.submission_id.as_ref().and_then(|id|representations.get(id))})
-    }).collect::<Vec<_>>()}))
+            "representation":input.submission_id.as_ref().and_then(|id|representations.get(id)).and_then(|value|value.get("content"))})
+    }).collect::<Vec<_>>(),"drafts":drafts}))
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -296,15 +299,19 @@ async fn finish(
         let mut input = replacement
             .map(|value| value.input.clone())
             .unwrap_or_else(|| original.clone());
-        let representation = replacement
-            .map(|value| value.representation.clone())
-            .or_else(|| {
-                original
-                    .submission_id
-                    .as_ref()
-                    .and_then(|id| reprs.get(id))
-                    .cloned()
-            });
+        let mut representation = original
+            .submission_id
+            .as_ref()
+            .and_then(|id| reprs.get(id))
+            .cloned();
+        if let Some(replacement) = replacement {
+            if let Some(value) = representation.as_mut() {
+                value["content"] = replacement.representation.clone();
+            } else {
+                representation = Some(json!({"content":replacement.representation}));
+            }
+        }
+        // Preserve historical identity through native queue replacement.
         let submission = format!("qop:{}:{id}", plan.operation_id);
         input.submission_id = Some(submission.clone());
         input.mode = Some(if plan.steer && !conflicted {
@@ -312,12 +319,9 @@ async fn finish(
         } else {
             InputMode::Queue
         });
-        if let Some(content) = representation {
-            append(
-                &metadata.timeline,
-                "input-representation",
-                json!({"submissionId":submission,"content":content}),
-            )?;
+        if let Some(mut value) = representation {
+            value["submissionId"] = json!(submission);
+            append(&metadata.timeline, "input-representation", value)?;
         }
         inputs.push(input);
     }
@@ -460,6 +464,7 @@ impl DynPlugin for Methods {
                 vec![
                     MethodDecl::new("session.deepchat_queue.list", false, Interruption::Report),
                     MethodDecl::new("session.deepchat_queue.mutate", true, Interruption::Drain),
+                    MethodDecl::new("session.deepchat_queue.legacy", true, Interruption::Drain),
                 ],
                 Arc::new(move |call, _, _| {
                     let tree = tree.clone();
@@ -471,6 +476,12 @@ impl DynPlugin for Methods {
                             let _lane = metadata.lane.lock().await;
                             recover(&tree, &p.branch_id, &metadata).await?;
                             reply(list(&metadata).await?)
+                        } else if call.method.ends_with(".legacy") {
+                            let p: crate::legacy_queue::Mutation = params(call.params)?;
+                            let metadata =
+                                tree.get(&p.branch_id)?.service::<DeepChatInputMetadata>()?;
+                            let _lane = metadata.lane.lock().await;
+                            reply(crate::legacy_queue::mutate(&metadata, p).await?)
                         } else {
                             let p: Request = params(call.params)?;
                             let metadata =

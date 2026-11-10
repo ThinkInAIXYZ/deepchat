@@ -155,6 +155,7 @@ export function createDimAgent(options: DimAgentOptions) {
     database,
     host,
     runtime,
+    legacyPendingInputs: (id) => options.legacy.pendingInputs(id),
     prepareNative,
     setProjectDir: (id, directory) => settings.setSessionProjectDir(id, directory),
     prepareInput: options.prepareInput

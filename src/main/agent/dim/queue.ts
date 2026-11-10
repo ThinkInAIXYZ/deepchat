@@ -10,6 +10,7 @@ import type { SessionDatabase } from '@/session/data/database'
 import type { DimRuntimeSupervisor } from './runtimeSupervisor'
 import type { DimSessionRuntime } from './sessionRuntime'
 import type { DimPreparedInput } from './backend'
+import { DimLegacyQueue, isDimLegacyDraft, type DimLegacyDrafts } from './legacyQueue'
 
 interface NativePendingInput {
   inputId: string
@@ -25,6 +26,7 @@ interface QueueOptions {
   database: SessionDatabase
   host: DimRuntimeSupervisor
   runtime: DimSessionRuntime
+  legacyPendingInputs?(sessionId: string): PendingSessionInputRecord[]
   prepareNative(sessionId: string): Promise<void>
   setProjectDir(sessionId: string, directory: string | null): Promise<void>
   prepareInput(
@@ -36,19 +38,25 @@ interface QueueOptions {
 
 /** Product queue views and commands. Every admitted item is held and scheduled by dim. */
 export class DimQueue {
-  constructor(private readonly options: QueueOptions) {}
+  private readonly legacy: DimLegacyQueue
+  constructor(private readonly options: QueueOptions) {
+    this.legacy = new DimLegacyQueue(options)
+  }
 
   readonly listPendingInputs = async (sessionId: string): Promise<PendingSessionInputRecord[]> => {
     const binding = this.options.database.dimSessionBindingsTable.get(sessionId)
-    if (!binding) return []
+    if (!binding) return this.legacy.passive(sessionId)
     const client = await this.options.host.start()
-    const { inputs } = await client.call<{ inputs: NativePendingInput[] }>(
-      'session.deepchat_queue.list',
-      { sessionId: binding.dimSessionId, branchId: binding.branchId }
-    )
-    return inputs
+    const { inputs, drafts } = await client.call<{
+      inputs: NativePendingInput[]
+      drafts?: DimLegacyDrafts
+    }>('session.deepchat_queue.list', {
+      sessionId: binding.dimSessionId,
+      branchId: binding.branchId
+    })
+    const native = inputs
       .filter((item) => item.input.user && item.input.mode !== 'append')
-      .map((item, index) => {
+      .map((item, index): PendingSessionInputRecord => {
         const representation = item.representation
         const payload: SendMessageInput = representation
           ? {
@@ -79,6 +87,10 @@ export class DimQueue {
           updatedAt: item.createdAt
         }
       })
+    return [
+      ...native,
+      ...this.legacy.project(drafts ?? { revision: null, inputs: [] }, native.length)
+    ]
   }
 
   readonly queuePendingInput = async (
@@ -120,6 +132,12 @@ export class DimQueue {
     itemId: string,
     content: SendMessageInput
   ): Promise<PendingSessionInputRecord> => {
+    if (isDimLegacyDraft(itemId)) {
+      const state = await this.legacy.mutate(sessionId, itemId, 'update', {
+        payload: content as unknown as JsonValue
+      })
+      return this.legacy.project(state).find((item) => item.id === itemId)!
+    }
     const prepared = await this.prepare(sessionId, content)
     const held = await this.held(sessionId, itemId)
     const tail = held.slice(held.findIndex((item) => item.id === itemId)).map((item) => item.id)
@@ -143,6 +161,13 @@ export class DimQueue {
     itemId: string,
     toIndex: number
   ): Promise<PendingSessionInputRecord[]> => {
+    if (isDimLegacyDraft(itemId)) {
+      const offset = (await this.listPendingInputs(sessionId)).filter(
+        (item) => !isDimLegacyDraft(item.id)
+      ).length
+      await this.legacy.mutate(sessionId, itemId, 'move', { toIndex: toIndex - offset })
+      return this.listPendingInputs(sessionId)
+    }
     const held = await this.held(sessionId, itemId)
     if (!Number.isInteger(toIndex) || toIndex < 0 || toIndex >= held.length)
       throw new Error('Invalid native queue destination')
@@ -157,6 +182,10 @@ export class DimQueue {
   }
 
   readonly deletePendingInput = async (sessionId: string, itemId: string): Promise<void> => {
+    if (isDimLegacyDraft(itemId)) {
+      await this.legacy.mutate(sessionId, itemId, 'delete')
+      return
+    }
     await this.held(sessionId, itemId)
     await this.mutate(sessionId, [itemId], [])
   }
@@ -165,18 +194,25 @@ export class DimQueue {
     sessionId: string,
     itemId: string
   ): Promise<PendingSessionInputRecord> => {
+    if (isDimLegacyDraft(itemId)) {
+      const record = (await this.listPendingInputs(sessionId)).find((item) => item.id === itemId)
+      if (!record) throw new Error('Legacy draft is absent')
+      const admitted = await this.legacy.admit(sessionId, itemId, 'steer')
+      if (!admitted.accepted) throw new Error('Resolve legacy draft attachments before steering')
+      return { ...record, id: admitted.inputId!, mode: 'steer', state: 'claimed' }
+    }
     const record = (await this.held(sessionId, itemId)).find((item) => item.id === itemId)!
     const receipts = await this.mutate(sessionId, [itemId], [itemId], { steer: true })
     return { ...record, id: receipts[0].inputId, mode: 'steer', state: 'claimed' }
   }
 
-  // Native queues recover themselves; no desktop resume flag or queue pump is retained.
-  readonly isPendingQueueResumeAvailable = async (): Promise<boolean> => false
-  readonly resumePendingQueue = async (): Promise<boolean> => false
-  readonly retryPendingQueueInput = async (): Promise<{ accepted: boolean; started: boolean }> => ({
-    accepted: false,
-    started: false
-  })
+  // Native queues recover themselves. Resume only admits unsubmitted legacy drafts.
+  readonly isPendingQueueResumeAvailable = (sessionId: string) => this.legacy.available(sessionId)
+  readonly resumePendingQueue = (sessionId: string) => this.legacy.resume(sessionId)
+  readonly retryPendingQueueInput = (sessionId: string, itemId: string) =>
+    isDimLegacyDraft(itemId)
+      ? this.legacy.admit(sessionId, itemId)
+      : Promise.resolve({ accepted: false, started: false })
   readonly resolveBlockedPendingInput = async (
     sessionId: string,
     itemId: string,
@@ -194,7 +230,7 @@ export class DimQueue {
 
   private async held(sessionId: string, itemId: string) {
     const held = (await this.listPendingInputs(sessionId)).filter(
-      (item) => item.mode === 'queue' && item.state === 'pending'
+      (item) => !isDimLegacyDraft(item.id) && item.mode === 'queue' && item.state === 'pending'
     )
     if (!held.some((item) => item.id === itemId))
       throw new Error('Native input has already started or was removed')

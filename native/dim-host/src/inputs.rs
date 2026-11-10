@@ -11,7 +11,7 @@ use rutis::host::{BoxFuture, CtxHost, DynPlugin, Effect, Key, TypeKey};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, OnceCell};
 
 pub fn install(builder: &mut AgentBuilder) {
     dim_agent_runtime::names::register::<DeepChatInputMetadata>(
@@ -33,6 +33,7 @@ pub fn install(builder: &mut AgentBuilder) {
 pub(crate) struct DeepChatInputMetadata {
     pub(crate) timeline: Arc<Timeline>,
     pub(crate) lane: Mutex<()>,
+    pub(crate) legacy_source: OnceCell<Option<(Vec<Value>, u64)>>,
 }
 impl PublicService for DeepChatInputMetadata {}
 struct InputMetadataPlugin {
@@ -53,6 +54,7 @@ impl DynPlugin for InputMetadataPlugin {
                 Arc::new(DeepChatInputMetadata {
                     timeline: ctx.require_at(&self.timeline)?,
                     lane: Mutex::new(()),
+                    legacy_source: OnceCell::new(),
                 }),
             )?;
             Ok(Effect::Done)
@@ -80,6 +82,7 @@ struct Submit {
     input: InputMessageData,
     representation: Option<Value>,
     reuse_user_message: Option<ReuseUserMessage>,
+    legacy_draft: Option<crate::legacy_queue::DraftRef>,
 }
 
 #[derive(Deserialize, serde::Serialize)]
@@ -198,9 +201,10 @@ impl DynPlugin for Inputs {
                     ensure_active(&metadata).await?;
                     crate::queue::recover(&tree, &value.branch_id, &metadata).await?;
                     crate::migration::check_ready(&metadata).await?;
+                    if let Some(draft) = &value.legacy_draft { crate::legacy_queue::check(&metadata, draft).await?; }
                     crate::migration::restore_context(&branch, &metadata, value.reuse_user_message.as_ref().map(|reuse| reuse.message_id.as_str())).await?;
                     if let Some(representation)=value.representation {metadata.timeline.append(EventKind::Extension(ExtensionEvent::new(
-                        "deepchat", "input-representation", json!({"submissionId": submission, "content": representation, "reuseUserMessage": value.reuse_user_message})
+                        "deepchat", "input-representation", json!({"submissionId": submission, "content": representation, "reuseUserMessage": value.reuse_user_message, "legacyDraft":value.legacy_draft})
                     ).map_err(RpcError::invalid)?).into())?;}
                     let event = match branch.input(value.input).await {
                         Ok(event) => event,
