@@ -54,7 +54,7 @@ async function digest(file: string): Promise<string> {
   return hash.digest('hex')
 }
 
-/** The caller must hold the supervisor's successful graceful-shutdown barrier. */
+/** The caller owns a closed native target or the supervisor's graceful-shutdown barrier. */
 export async function captureDimProfile(
   source: string,
   temporaryRoot: string,

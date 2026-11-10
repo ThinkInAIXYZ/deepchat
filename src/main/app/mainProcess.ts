@@ -21,6 +21,7 @@ import { McpDatabase } from '@/mcp/data/database'
 import { AgentDatabase } from '@/agent/data/database'
 import { mainLogger, setMainLoggingEnabled } from '@/logging'
 import { SyncImportRecovery } from '../sync/importRecovery'
+import { NativeReplicaRecovery } from '../sync/replica/nativeRecovery'
 
 export type { MainProcessControl } from './composition'
 
@@ -96,6 +97,7 @@ export async function startMainProcess(
       active: false,
       safeStorageAvailable: databaseSecurityService.getStatus().safeStorageAvailable
     })
+    await NativeReplicaRecovery.recover(app.getPath('userData'), startupDatabase.getDatabase())
     const settingsDatabase = new SettingsDatabase(database)
     const providerDatabase = new ProviderDatabase(database)
     const mcpDatabase = new McpDatabase(database)

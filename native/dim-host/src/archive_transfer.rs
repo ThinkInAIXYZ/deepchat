@@ -138,19 +138,44 @@ pub(crate) async fn export(
         .await
         .map_err(|_| RpcError::invalid("Native export target is unavailable"))?;
     let installed = super::archive_rebase::installed_home(&input.target_directory).await?;
-    let target_db = SqliteStorage::open(target.join("dimcode.sqlite"))?;
-    let result = merge(
+    let source_store = SessionStore::new(source_db.clone(), ctx.clone(), source_root);
+    let source_records = AgentRecords(source_db.clone());
+    let before = super::archive_live::heads(
         ctx,
-        files,
-        source_db,
-        target_db.clone(),
-        source_root,
-        target_root,
-        Some(source_home),
-        Some(&installed),
-        Some(&input.session_ids),
+        &source_store,
+        &source_records,
+        &input.session_ids,
         cancel,
     )
+    .await?;
+    let target_db = SqliteStorage::open(target.join("dimcode.sqlite"))?;
+    let result = async {
+        let result = merge(
+            ctx,
+            files,
+            source_db,
+            target_db.clone(),
+            source_root,
+            target_root,
+            Some(source_home),
+            Some(&installed),
+            Some(&input.session_ids),
+            cancel,
+        )
+        .await?;
+        let after = super::archive_live::heads(
+            ctx,
+            &source_store,
+            &source_records,
+            &input.session_ids,
+            cancel,
+        )
+        .await?;
+        if before != after {
+            return Err(super::archive_live::busy());
+        }
+        Ok::<_, RpcError>(result)
+    }
     .await;
     let closed = target_db.close().await;
     let result = result?;

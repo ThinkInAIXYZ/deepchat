@@ -9,6 +9,7 @@ import {
   rename,
   rm
 } from 'node:fs/promises'
+import { constants } from 'node:fs'
 import path from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 import { DimMethodError } from './pluginClient'
@@ -59,7 +60,7 @@ export class DimProfileBackups implements SyncNativeProfilePort {
       profileRoot: string
       temporaryRoot: string
       host: DimRuntimeSupervisor
-      readers(): DimSessionRuntime
+      readers(): Pick<DimSessionRuntime, 'withSuspendedReaders'>
     }
   ) {}
 
@@ -300,7 +301,7 @@ export class DimProfileBackups implements SyncNativeProfilePort {
       for (const file of manifest.files) {
         const output = path.join(next, file.path)
         await mkdir(path.dirname(output), { recursive: true, mode: 0o700 })
-        await copyFile(path.join(directory, file.path), output)
+        await copyFile(path.join(directory, file.path), output, constants.COPYFILE_FICLONE)
         await chmod(output, 0o600)
         const handle = await open(output, 'r+')
         try {

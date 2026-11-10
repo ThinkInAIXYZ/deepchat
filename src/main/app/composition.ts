@@ -10,6 +10,8 @@ import { SyncSessionActivity } from '@/sync/sessionActivity'
 import { DimProfileBackups, DimProfileRecoveryError } from '@/agent/dim/profileBackups'
 import type { DeepChatInternalSessionUpdate } from '@/agent/shared/sessionUpdates'
 import { SyncReplicaStore } from '@/sync/replica/store'
+import { SyncReplicaNative } from '@/sync/replica/native'
+import type { SyncBatch } from '@shared/contracts/syncReplica'
 import { SyncReplicaEndpoint } from '@/sync/replica/endpoint'
 import { AutomaticSync } from '@/sync/replica/automatic'
 import { SyncPeerService } from '../sync/peer'
@@ -1396,6 +1398,13 @@ export async function createMainProcessControl(dependencies: {
     dependencies.settingsStore,
     dependencies.mcpSettings
   )
+  const dimProfileBackups = new DimProfileBackups({
+    runtimeRoot: path.join(nativeRuntimeRoot, 'dim'),
+    profileRoot: app.getPath('userData'),
+    temporaryRoot: app.getPath('temp'),
+    host: dimHost,
+    readers: () => dimAgent.runtime
+  })
   syncService = new SyncService(
     syncSettings,
     mainDatabase,
@@ -1404,13 +1413,7 @@ export async function createMainProcessControl(dependencies: {
     publishDeepchatEvent,
     (source, target, password) =>
       databaseSecurityService.decryptLegacyBackup(source, target, password),
-    new DimProfileBackups({
-      runtimeRoot: path.join(nativeRuntimeRoot, 'dim'),
-      profileRoot: app.getPath('userData'),
-      temporaryRoot: app.getPath('temp'),
-      host: dimHost,
-      readers: () => dimAgent.runtime
-    })
+    dimProfileBackups
   )
   const syncTokenStorage = {
     protectToken: (token: string) => {
@@ -1440,11 +1443,14 @@ export async function createMainProcessControl(dependencies: {
   syncReplica = new SyncReplicaStore({
     database: () => mainDatabase.getDatabase(),
     directory: path.join(app.getPath('userData'), 'sync-replica'),
+    nativeProfiles: true,
     canApply: (kind, id) =>
       databaseMaintenanceState === 'running' &&
       (kind === 'session'
         ? !syncActiveSessions.has(id) &&
           !sessionData.pendingInputs.hasUnconsumedInputs(id) &&
+          !sessionData.database.dimScopeChangesTable.get(id) &&
+          sessionData.database.dimInputIntentsTable.pending(id).length === 0 &&
           (syncAppliedSessions.has(id) || !sessionDeletionGate.hasActiveOperations(id))
         : syncActiveSessions.size === 0 &&
           !sessionDeletionGate.hasActiveOperationsOutside(syncAppliedSessions)),
@@ -1458,12 +1464,17 @@ export async function createMainProcessControl(dependencies: {
         if (
           syncActiveSessions.has(id) ||
           sessionData.pendingInputs.hasUnconsumedInputs(id) ||
+          sessionData.database.dimScopeChangesTable.get(id) ||
+          sessionData.database.dimInputIntentsTable.pending(id).length > 0 ||
           sessionDeletionGate.hasActiveOperations(id)
         )
           return false
         return sessionDeletionGate.runWithSessionDeletion(id, async () => {
           if (syncActiveSessions.has(id)) return false
-          await dimAgent.backend.cleanupSession(toAppSessionId(id))
+          // Incoming LWW admission must not cancel an idle Native branch and create
+          // a new local business fact before deciding which history wins.
+          if (sessionData.database.dimSessionBindingsTable.get(id)) await dimAgent.runtime.close(id)
+          else await dimAgent.backend.cleanupSession(toAppSessionId(id))
           await acpAgentRuntime.cleanupSession(toAppSessionId(id))
           syncAppliedSessions.add(id)
           try {
@@ -1557,8 +1568,40 @@ export async function createMainProcessControl(dependencies: {
       publishDeepchatEvent('sync.device.changed', { version: Date.now() })
     }
   })
+  const nativeReplica = new SyncReplicaNative({
+    root: app.getPath('userData'),
+    database: () => mainDatabase.getDatabase(),
+    backups: dimProfileBackups,
+    host: dimHost,
+    readers: () => dimAgent.runtime,
+    exportGuard: async <T>(batch: SyncBatch, operation: () => Promise<T>): Promise<T> => {
+      const ids = [
+        ...new Set(batch.units.filter((unit) => unit.kind === 'session').map((unit) => unit.id))
+      ].sort()
+      const acquire = async (index: number): Promise<T> => {
+        if (databaseMaintenanceState !== 'running') throw new Error('sync.tunnel.error.busy')
+        if (index === ids.length) return operation()
+        const id = ids[index]
+        if (
+          syncActiveSessions.has(id) ||
+          sessionData.pendingInputs.hasUnconsumedInputs(id) ||
+          sessionData.database.dimScopeChangesTable.get(id) ||
+          sessionData.database.dimInputIntentsTable.pending(id).length > 0 ||
+          sessionDeletionGate.hasActiveOperations(id)
+        )
+          throw new Error('sync.tunnel.error.busy')
+        return sessionDeletionGate.runWithSessionDeletion(id, async () => {
+          if (syncActiveSessions.has(id) || sessionData.pendingInputs.hasUnconsumedInputs(id))
+            throw new Error('sync.tunnel.error.busy')
+          return acquire(index + 1)
+        })
+      }
+      return acquire(0)
+    }
+  })
   const replicaEndpoint = new SyncReplicaEndpoint({
     store: syncReplica,
+    native: nativeReplica,
     directory: path.join(app.getPath('userData'), 'sync-host'),
     hostId: () => syncHostService.getHostId(),
     available: () =>
@@ -1568,6 +1611,7 @@ export async function createMainProcessControl(dependencies: {
   })
   automaticSync = new AutomaticSync({
     store: syncReplica,
+    native: nativeReplica,
     directory: path.join(app.getPath('userData'), 'sync-peer'),
     connection: () => syncPeerService.connection(),
     available: () =>

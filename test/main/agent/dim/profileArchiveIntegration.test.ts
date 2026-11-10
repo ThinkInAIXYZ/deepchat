@@ -507,6 +507,9 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
         content: [{ type: 'text', text: 'Keep this unrelated inference running during export.' }]
       })
       await expect.poll(() => !!held, { timeout: 10_000 }).toBe(true)
+      await expect(backups.exportSessions([busy.sessionId])).rejects.toMatchObject({
+        data: { appError: 'daemon_busy' }
+      })
       const live = await backups.exportSessions([sessions[0].id])
       try {
         expect(await source.start()).toBe(client)
@@ -682,6 +685,10 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
           tools: []
         })
         ids.push(created.sessionId)
+        await client.call('deepchat.storage.rename_title', {
+          sessionId: created.sessionId,
+          title: `Replica ${i}`
+        })
         await append(source, created.sessionId, `Common prefix ${i}`)
       }
       await source.stop()
@@ -701,6 +708,13 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
         name: 'winner.txt',
         text: 'Native replica winner bytes'
       })
+      await expect
+        .poll(
+          async () =>
+            (await (await source.start()).call<{ idle: boolean }>('deepchat.storage.readiness'))
+              .idle
+        )
+        .toBe(true)
       const remote = await history(source, ids[0])
       const incoming = await backups(source, 'source').exportSessions([ids[0]])
       try {

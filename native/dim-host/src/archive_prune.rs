@@ -34,13 +34,22 @@ pub(crate) async fn replace(
         .map_err(|_| RpcError::invalid("Replacement files are unavailable"))?;
     let db = SqliteStorage::open(root.join("dimcode.sqlite"))?;
     let store = SessionStore::new(db.clone(), ctx.clone(), root_index);
-    let result = prune(
-        &store,
-        &AgentRecords(db.clone()),
-        &root,
-        &input.session_ids,
-        cancel,
-    )
+    let records = AgentRecords(db.clone());
+    let result = async {
+        let owners = records.owners().await?;
+        let known: Vec<_> = input
+            .session_ids
+            .iter()
+            .filter(|id| owners.iter().any(|owner| &owner.session_id == *id))
+            .cloned()
+            .collect();
+        if !known.is_empty() {
+            // A paused native queue can be idle without being safe to replace. Read its
+            // committed input state through the same native query owner as export.
+            super::archive_live::heads(ctx, &store, &records, &known, cancel).await?;
+        }
+        prune(&store, &records, &root, &input.session_ids, cancel).await
+    }
     .await;
     let closed = db.close().await;
     result?;

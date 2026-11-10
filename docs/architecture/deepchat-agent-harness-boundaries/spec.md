@@ -1,8 +1,9 @@
 # DeepChat Runtime, Tool Execution and Hooks
 
-> Planned replacement: [dim Rust harness migration](../dim-rust-harness-migration/spec.md).
-> This document remains the current implementation contract until the migration gates pass;
-> the new RFC is not yet implemented.
+> Superseded by the [dim Rust integration](../dim-rust-harness-migration/spec.md).
+> The TypeScript runtime owners described below have been retired. Current built-in execution
+> belongs to dim Rust; DeepChat supplies product plugins and the independent Direct ACP client.
+> These sections remain historical context for legacy data readers and migration.
 
 The [Main host contract](../main-harness-portability/spec.md) defines the production entry and
 execution/persistence/output ports. This document defines the runtime owners beneath that boundary.

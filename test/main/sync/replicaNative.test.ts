@@ -277,4 +277,58 @@ describeIfNativeSqlite('Device sync durable merge', () => {
     await a.store.apply(b.store.export(0))
     expect(a.db.prepare('SELECT id FROM agent_memory').all()).toEqual([])
   })
+  it('rejects an async Native admission when a local edit changes its winner', async () => {
+    const source = device(),
+      target = device()
+    source.db.exec(
+      "INSERT INTO new_sessions(id,title,created_at,updated_at) VALUES('race','remote',1,1)"
+    )
+    const batch = source.store.export(0)
+    batch.units[0].modifiedAt = 0
+    const admitted = await target.store.apply(
+      batch,
+      () => true,
+      async (winners, commit) => {
+        expect(winners.map((unit) => unit.id)).toEqual(['race'])
+        target.db.exec(
+          "INSERT INTO new_sessions(id,title,created_at,updated_at) VALUES('race','local concurrent edit',2,2)"
+        )
+        await Promise.resolve()
+        return commit('uncommitted-native-admission')
+      }
+    )
+    expect(admitted).toBe(false)
+    expect(target.store.cursor(source.store.replicaId)).toBe(0)
+    expect(target.db.prepare("SELECT title FROM new_sessions WHERE id='race'").get()).toEqual({
+      title: 'local concurrent edit'
+    })
+    expect(target.db.prepare('SELECT * FROM _sync_native_receipts').all()).toEqual([])
+  })
+
+  it('commits a Native receipt with metadata and does not repeat admission after replay', async () => {
+    const source = device(),
+      target = device()
+    source.db.exec(
+      "INSERT INTO new_sessions(id,title,created_at,updated_at) VALUES('receipt','remote',1,1)"
+    )
+    const batch = source.store.export(0)
+    const token = 'native-admission-receipt'
+    expect(
+      await target.store.apply(
+        batch,
+        () => true,
+        async (_winners, commit) => commit(token)
+      )
+    ).toBe(true)
+    expect(target.db.prepare('SELECT * FROM _sync_native_receipts').all()).toEqual([
+      { token, replica: source.store.replicaId, through: batch.through }
+    ])
+    expect(target.store.cursor(source.store.replicaId)).toBe(batch.through)
+    expect(target.db.prepare("SELECT title FROM new_sessions WHERE id='receipt'").get()).toEqual({
+      title: 'remote'
+    })
+    const again = vi.fn()
+    expect(await target.store.apply(batch, () => true, again)).toBe(true)
+    expect(again).not.toHaveBeenCalled()
+  })
 })

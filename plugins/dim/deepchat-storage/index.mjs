@@ -149,17 +149,23 @@ export default definePlugin({
                   : 'deepchat.native_archive.catalog'
           if (!config.rawHistory)
             return { code: 'unsupported', message: 'Native archive owner is unavailable' }
-          return {
-            kind: 'value',
-            value: await withNativeClient(
-              config.hostAddress,
-              {
-                profile: config.profile,
-                methods: [operation],
-                timeoutMs: /archive_(transfer|export|prune)$/.test(method) ? 30 * 60_000 : 120000
-              },
-              (call) => call(operation, params)
-            )
+          try {
+            return {
+              kind: 'value',
+              value: await withNativeClient(
+                config.hostAddress,
+                {
+                  profile: config.profile,
+                  methods: [operation],
+                  timeoutMs: /archive_(transfer|export|prune)$/.test(method) ? 30 * 60_000 : 120000
+                },
+                (call) => call(operation, params)
+              )
+            }
+          } catch (error) {
+            if (error?.code === 'daemon_busy')
+              return { code: 'daemon_busy', message: 'Selected Native Sessions are not settled' }
+            throw error
           }
         }
         if (

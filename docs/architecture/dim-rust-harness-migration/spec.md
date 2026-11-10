@@ -1,6 +1,6 @@
 # DeepChat 以 dim Rust 替换内置 Agent Harness
 
-状态：实施中。已交付 release/插件宿主、持久会话读写核心及产品工具网关；主产品 backend 尚未切换。执行顺序与完成状态见 [plan.md](./plan.md)。
+状态：实施与最终验收中。主产品内置 backend 已切换为 dim Rust，旧 Harness、Node 模型执行器与重复内置工具已删除；保留 Direct ACP client、只读旧历史与按需转换器。原生内容的设备同步正在完成联合验收。执行与验证记录见 [plan.md](./plan.md)。
 
 ## 1. 决策与范围
 
@@ -17,7 +17,7 @@
 
 这里“DeepChat 管理存储”指产品对数据的生命周期和存放位置有控制权；dim 是自己物理格式的唯一写入者。DeepChat 经注入的 storage 插件查询 dim 内容，继续管理 profile 与桌面数据操作，不替换 dim 底层存储实现。
 
-当前已开始按模块实现；基础运行模块已完成验证，聊天 UI、队列绑定与旧会话转换仍按计划实施。按用户明确的范围落实以下决定：
+聊天 UI、队列、模型与产品辅助入口、旧会话按需转换和一次性解密已接入；设备同步采用原生选择性导出与冷暂存安装，完整验收仍在进行。按用户明确的范围落实以下决定：
 
 - Code Mode 按用户决定暂时不可用，等待 dim 原生实现；不迁移 DeepChat 旧 Code Mode、ToolSearch 或 programmatic dispatch。dim 有同等功能的内置工具直接替换 DeepChat 对应工具，插件只注入剩余产品能力。
 - 队列直接复用 dim 的完整实现，DeepChat 只接 UI 和命令，不另建队列或预设上游缺口。
@@ -28,6 +28,22 @@
 - 备份、同步、Inspector 和多窗口仍是 desktop 功能；移除数据库内容的持续加解密，只保留旧加密数据的一次性解密迁移。
 
 除明确移除持续加解密外，功能验收关注接入后既有用户操作是否可用，而非要求重新证明 dim 实现了这些功能。
+
+## 当前实现边界
+
+| 入口或数据 | 当前所有者 |
+| --- | --- |
+| 桌面、CLI、Remote、计划任务 | 现有产品入口经 AgentManager 调用 dim backend；外部 agent 仍走独立 ACP client。 |
+| 内置 loop、队列、模型、上下文与压缩 | 锁定的 dim Rust owner；Node 负责配置与授权，不执行模型。 |
+| 原生默认工具、MCP、Skills、hooks | dim 原生实现；产品专有能力经 `deepchat-host` 和受限能力网关注入。 |
+| 内容、事件与附件 | `deepchat-storage` 调用原生 SessionStore、TimelineStore、FileStorage；不查询 Native SQLite 表。 |
+| 产品元数据与只读投影 | DeepChat 的 `app_db/agent.db`；内置内容的事实源位于 `<userData>/dim/rust`。 |
+| 备份与恢复 | 冷 Native 快照与产品 SQL 同窗口采集，使用清单、校验、目录安装与恢复日志。 |
+| 自动设备同步 | 产品 SQL 批次附独立原生文件清单；稳定闭包导出、有界分块与续传、会话 LWW 冷暂存替换、独立提交回执恢复。 |
+| 旧 Tape 和旧加密库 | 保留只读历史与首次续聊转换；旧库/备份一次性解密，不再持续加密新数据。 |
+
+私有桥与插件版本由锁文件校验。当前桥版本为 `0.43.0`，底层 dim source/store 锁定值未随
+设备同步模块改变。原生 profile 的唯一写入者仍是 dim；DeepChat 管理目录、生命周期与产品事务。
 
 ## 2. 调研基线与证据
 

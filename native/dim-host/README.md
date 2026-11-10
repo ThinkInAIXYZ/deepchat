@@ -184,6 +184,30 @@ private `dim` staging home, prunes obsolete owners, transfers only winning sourc
 Sessions, and rebases again for installation. The same durable profile swap can
 roll back an uncommitted admission. Tombstones require no incoming content.
 
+Automatic device sync sends Native binding/scope/import metadata with its product
+SQL batch and a separate SHA manifest for opaque native files. File parts are
+bounded to 16 MiB, checked before assembly, and resumed from private disk staging.
+A cached export is tied to the SQL batch hash, so reconnecting does not regenerate
+its SQLite snapshot or rerun Source Sessions. Export checks native activity and
+unconsumed queue/steer inputs, then compares committed branch heads before and
+after transfer. Unrelated Sessions may continue. A cold replacement also checks
+paused queues before deleting any staged owner.
+
+The receiver selects LWW winners under desktop Session gates, fences Native,
+stages canonical replacement, and installs it before the product SQL transaction.
+That transaction rechecks winners, authorization and the peer cursor and writes a
+unique per-admission receipt with metadata. A durable journal checks that exact
+receipt at startup before Native starts: committed installs finish cleanup;
+uncommitted installs roll back. Another batch's cursor cannot stand in for the
+receipt. Changed winners or revoked authorization restore the prior Native
+profile. Derived input and Inspector indexes are rebuilt for replaced Sessions.
+No bridge reads Native SQLite tables or combines live databases.
+Receiver admission waits for Native execution to become idle before taking the
+cold-profile barrier. Busy receivers retain the pending transfer and do not
+advance its cursor. The source can export while unrelated Sessions execute.
+Staging uses best-effort filesystem reflinks with ordinary-copy fallback and
+preserves the same independent ownership and durable installation checks.
+
 The SDK file-owner seam adds `SessionStore.adopt_file` for an exclusively leased
 cold profile. It validates the copied immutable directory with FileStorage before
 recording ownership through the native writer. The schema and sweeper are dim's
