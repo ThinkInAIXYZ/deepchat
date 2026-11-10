@@ -396,6 +396,20 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
           { timeout: 10_000 }
         )
         .toBeTruthy()
+      expect(await client.call('deepchat.storage.readiness')).toMatchObject({
+        idle: false,
+        media: true
+      })
+      let accessedProfile = false
+      await expect(
+        host.withStopped(
+          async () => {
+            accessedProfile = true
+          },
+          { ifIdle: true }
+        )
+      ).rejects.toMatchObject({ data: { appError: 'daemon_busy' } })
+      expect(accessedProfile).toBe(false)
       expect((await media.cancel(cancelledVideo.task_id)).state).toBe('cancelled')
       videoPollHeld = false
       const videoModel = await catalog.admit(provider.id, 'sora-2')

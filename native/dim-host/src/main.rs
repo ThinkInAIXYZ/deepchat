@@ -9,6 +9,7 @@ mod migration;
 mod model_stream;
 mod models;
 mod permissions;
+mod profile;
 mod product_tools;
 mod queue;
 mod scopes;
@@ -44,6 +45,7 @@ fn install(builder: &mut dim_agent_runtime::AgentBuilder) {
     storage::install(builder);
     memory::install(builder);
     scopes::install(builder);
+    profile::install(builder);
 }
 
 fn main() {

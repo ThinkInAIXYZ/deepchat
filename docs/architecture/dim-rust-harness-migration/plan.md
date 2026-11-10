@@ -158,6 +158,8 @@
 
 ## 模块进度
 
+- 模块 58：storage 插件新增 Native profile readiness，读取各分支 Session.in_use（含 detached exec 活动 hold）、ModalityTasks 的 queued/running 及 ProviderService 的辅助请求。薄桥升 0.14.0；SDK 只新增公开 AgentIndex 的重导出与只读 provider 活动 getter，分别精确锁定源码 hash，不复制任务调度。空闲维护遇到任一 owner 有工作即拒绝，保留原连接与任务。实际 Rust 联合用例（66s）验证主回合结束后的自动标题 HTTP 仍存活、后台 exec 阻止复制、显式 stop 后允许复制，以及视频运行中拒绝维护。64 项相关回归、格式/i18n/lint/双端类型与主进程构建通过；桥 0.14 的完整实际 Rust smoke 14 项串行通过（262s）；数据设置与 Native 两项 Electron 联合验收通过（47s）。首轮重启后的窗口加载期间调试连接关闭，保留 trace；同代码独立复验通过。profile 文件备份/恢复仍在接线。
+
 - 模块 57：冷 profile 维护可选择 dim 原生 daemon.shutdown.ifIdle，由 Native 原子检查其他连接、已附着会话及 main 上运行中的回合；daemon_busy 时保留主连接、作用域连接与运行工作，不进入文件回调，不强杀宿主。仅确认 graceful exit=0 才开放冷数据访问，未知退出状态也拒绝复制。三组真实 Rust 用例（56s）验证活跃连接保持可调用、busy 时无 profile 访问，以及空闲关闭后的启动屏障/恢复；3 项生命周期回归、格式/i18n/lint/双端类型和主进程构建通过。此入口供备份协调器使用，媒体/后台执行 owner 的空闲检查与 profile 内容接线仍继续实施。
 
 - 模块 56：Native supervisor 增加共用的停机维护栅栏，先完成原生 graceful shutdown，再允许回调访问冷 profile；维护期间所有主连接/辅助连接的 start 等待同一屏障，维护串行化，失败时等待者在准入前明确拒绝。主 composition 的导入/重置维护在 SQL 恢复可用前保持屏障，随后恢复 Native reader、目录与产品后台服务，避免辅助模型在数据库关闭窗口重启宿主。3 项生命周期回归与三组真实 Rust 凭据/重启用例（58s）、222 项相关回归、格式/i18n/lint/双端类型及主进程构建通过。数据设置与 Native 两项 Electron（43s）验证失败导入后消息/标题不丢失、重启和续聊正常；原生 profile 的备份/同步内容接线继续实施。

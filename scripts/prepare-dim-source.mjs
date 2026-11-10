@@ -58,13 +58,41 @@ const headerAfter = `            let mut headers = record.headers;
             let mut bearer = None;`
 if (assembled.split(headerBefore).length !== 2)
   throw new Error('Native header reference extension seam changed')
-const expected = assembled.replace(headerBefore, headerAfter)
+const headersExpected = assembled.replace(headerBefore, headerAfter)
+// Expose the existing owner's activity without a second product counter. This includes
+// internal auxiliary work (for example SessionTitle) that has no RPC client lease.
+const activityBefore = `    async fn owned<T: Send + 'static, E: From<HostError> + Send + 'static>(`
+if (headersExpected.split(activityBefore).length !== 2)
+  throw new Error('Native provider activity seam changed')
+const expected = headersExpected.replace(
+  activityBefore,
+  `    /// Whether this owner has accepted work that has not settled yet.
+    pub fn has_active_work(&self) -> bool {
+        self.tasks.len() > 0
+    }
+${activityBefore}`
+)
 const current = await readFile(path.join(directory, filename), 'utf8')
-if (current !== original && current !== assembled && current !== expected)
+if (
+  current !== original &&
+  current !== assembled &&
+  current !== headersExpected &&
+  current !== expected
+)
   throw new Error('Pinned dim provider source has unexpected changes')
 const assemblyFile = 'crates/dim-agent-runtime/src/assembly.rs'
 const secretsFile = 'crates/dim-app-server/src/provider/secrets.rs'
-git(['diff', '--exit-code', '--', '.', `:!${filename}`, `:!${assemblyFile}`, `:!${secretsFile}`])
+const servicesFile = 'crates/dim-app-server/src/lib.rs'
+git([
+  'diff',
+  '--exit-code',
+  '--',
+  '.',
+  `:!${filename}`,
+  `:!${assemblyFile}`,
+  `:!${secretsFile}`,
+  `:!${servicesFile}`
+])
 if (current !== expected) await writeFile(path.join(directory, filename), expected)
 // Add an explicit host-value replacement to the builder's assembly API. It changes no
 // existing registration behavior; product plugins can replace the stock IdentityContext
@@ -120,11 +148,33 @@ if (secretsCurrent !== secretsOriginal && secretsCurrent !== secretsExpected)
   throw new Error('Pinned dim secret source has unexpected changes')
 if (secretsCurrent !== secretsExpected)
   await writeFile(path.join(directory, secretsFile), secretsExpected)
+// The index already exposes typed native Session activity. Make that existing process
+// service available to an embedding plugin without accessing private storage or agents.
+const servicesOriginal = git(['show', `HEAD:${servicesFile}`]) + '\n'
+const indexImport = 'use agents::{AgentIndex, AgentsPlugin};'
+const indexExport = 'pub use agents::{SessionPermissions, SessionRef, SessionsError};'
+if (
+  servicesOriginal.split(indexImport).length !== 2 ||
+  servicesOriginal.split(indexExport).length !== 2
+)
+  throw new Error('Native session activity export seam changed')
+const servicesExpected = servicesOriginal
+  .replace(indexImport, 'use agents::AgentsPlugin;')
+  .replace(
+    indexExport,
+    'pub use agents::{AgentIndex, SessionPermissions, SessionRef, SessionsError};'
+  )
+const servicesCurrent = await readFile(path.join(directory, servicesFile), 'utf8')
+if (servicesCurrent !== servicesOriginal && servicesCurrent !== servicesExpected)
+  throw new Error('Pinned dim service exports have unexpected changes')
+if (servicesCurrent !== servicesExpected)
+  await writeFile(path.join(directory, servicesFile), servicesExpected)
 export const nativeSource = {
   sourceRevision: lock.sourceCommit,
   assemblyPatch: { path: filename, sha256: createHash('sha256').update(expected).digest('hex') },
   extensionPatches: [
     { path: assemblyFile, sha256: createHash('sha256').update(assemblyExpected).digest('hex') },
-    { path: secretsFile, sha256: createHash('sha256').update(secretsExpected).digest('hex') }
+    { path: secretsFile, sha256: createHash('sha256').update(secretsExpected).digest('hex') },
+    { path: servicesFile, sha256: createHash('sha256').update(servicesExpected).digest('hex') }
   ]
 }

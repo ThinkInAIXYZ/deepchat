@@ -1,0 +1,198 @@
+import { expect, it } from 'vitest'
+import { createServer, type ServerResponse } from 'node:http'
+import { mkdtemp, readdir, rm } from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
+import { randomUUID } from 'node:crypto'
+import { DimRuntimeSupervisor } from '@/agent/dim/runtimeSupervisor'
+import { DimModelBridge } from '@/agent/dim/modelBridge'
+
+it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
+  'keeps an internal native title request alive while profile capture is refused',
+  async () => {
+    const profile = await mkdtemp(path.join(os.tmpdir(), 'dc-dim-profile-'))
+    let title: ServerResponse | undefined
+    let agent: ServerResponse | undefined
+    let titleCancelled = false
+    let automatic = false
+    const tools: Array<{ name: string; arguments: Record<string, unknown> }> = []
+    const reply = (response: ServerResponse, text: string) => {
+      response.writeHead(200, { 'Content-Type': 'text/event-stream' })
+      response.end(
+        `data: ${JSON.stringify({ id: 'profile', object: 'chat.completion.chunk', model: 'fixture', created: 0, choices: [{ index: 0, delta: { role: 'assistant', content: text }, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`
+      )
+    }
+    const fixture = createServer(async (request, response) => {
+      const chunks: Buffer[] = []
+      for await (const chunk of request) chunks.push(Buffer.from(chunk))
+      const body = Buffer.concat(chunks).toString()
+      if (body.includes('Write a short title for this conversation:')) {
+        title = response
+        response.once('close', () => {
+          if (!response.writableFinished) titleCancelled = true
+        })
+      } else if (automatic) {
+        const tool = tools.shift()
+        if (tool) {
+          response.writeHead(200, { 'Content-Type': 'text/event-stream' })
+          response.end(
+            `data: ${JSON.stringify({ id: 'profile-tool', object: 'chat.completion.chunk', model: 'fixture', created: 0, choices: [{ index: 0, delta: { role: 'assistant', tool_calls: [{ index: 0, id: randomUUID(), type: 'function', function: { name: tool.name, arguments: JSON.stringify(tool.arguments) } }] }, finish_reason: 'tool_calls' }] })}\n\ndata: [DONE]\n\n`
+          )
+        } else reply(response, 'Profile tool complete')
+      } else agent = response
+    })
+    await new Promise<void>((resolve) => fixture.listen(0, '127.0.0.1', resolve))
+    const host = new DimRuntimeSupervisor({
+      runtimeRoot: path.resolve('runtime/dim'),
+      profileRoot: profile,
+      nodeExecutable: path.resolve(
+        'runtime/node',
+        ...(process.platform === 'win32' ? ['node.exe'] : ['bin', 'node'])
+      ),
+      nativePlugins: true
+    })
+    let observer: Awaited<ReturnType<DimRuntimeSupervisor['openConnection']>> | undefined
+    try {
+      const client = await host.start()
+      const model = await new DimModelBridge(host).configure({
+        key: 'profile-readiness',
+        displayName: 'Profile fixture',
+        connection: {
+          driverKind: 'openai-compatible',
+          baseUrl: `http://127.0.0.1:${(fixture.address() as { port: number }).port}/v1`,
+          auth: { type: 'anonymous' }
+        },
+        model: {
+          modelId: 'fixture',
+          displayName: 'Fixture',
+          status: 'active',
+          capabilities: {
+            modalities: ['text'],
+            toolCalling: true,
+            streaming: true,
+            structuredOutput: true,
+            vision: false,
+            audio: false,
+            reasoning: false,
+            contextWindow: 64000,
+            maxOutputTokens: 1000
+          }
+        }
+      })
+      const created = await client.call<{ sessionId: string }>('deepchat.host.launch', {
+        cwd: profile,
+        model: { ...model },
+        policy: { preset: 'full-access', allowedTools: [], disallowedTools: [] }
+      })
+      const ref = { sessionId: created.sessionId, branchId: 'main' }
+      observer = await host.openConnection()
+      await observer.call('session.attach', { sessionId: ref.sessionId })
+      await client.call('deepchat.host.input', {
+        ...ref,
+        mode: 'queue',
+        submissionId: randomUUID(),
+        rawBlocks: [],
+        content: [{ type: 'text', text: 'Profile capture must wait for native work.' }]
+      })
+      await expect.poll(() => !!agent && !!title, { timeout: 10_000 }).toBe(true)
+      expect(await client.call('deepchat.storage.readiness')).toMatchObject({
+        idle: false,
+        sessions: true,
+        provider: true
+      })
+      observer.close()
+      reply(agent!, 'Agent ready')
+      await client.call('deepchat.host.idle', ref, 30_000)
+      await expect
+        .poll(async () => (await client.call<{ connections: number }>('daemon.ping')).connections)
+        .toBe(1)
+      expect(await client.call('deepchat.storage.readiness')).toMatchObject({
+        idle: false,
+        sessions: false,
+        provider: true
+      })
+      let copied = false
+      await expect(
+        host.withStopped(
+          async () => {
+            copied = true
+          },
+          { ifIdle: true }
+        )
+      ).rejects.toMatchObject({ data: { appError: 'daemon_busy' } })
+      expect(copied).toBe(false)
+      expect(titleCancelled).toBe(false)
+      expect(title!.destroyed).toBe(false)
+      reply(title!, 'PROFILE_NATIVE_TITLE')
+      await expect
+        .poll(
+          async () =>
+            (
+              await client.call<{ title: { text: string } | null }>('deepchat.storage.scope', {
+                sessionId: ref.sessionId
+              })
+            ).title?.text
+        )
+        .toBe('PROFILE_NATIVE_TITLE')
+      await expect
+        .poll(async () => (await client.call<{ idle: boolean }>('deepchat.storage.readiness')).idle)
+        .toBe(true)
+      automatic = true
+      const quote = (value: string) =>
+        process.platform === 'win32'
+          ? `'${value.replaceAll("'", "''")}'`
+          : `'${value.replaceAll("'", "'\\''")}'`
+      const command = `${process.platform === 'win32' ? '& ' : ''}${quote(process.execPath)} -e 'setInterval(()=>{},1000)'`
+      tools.push({ name: 'exec', arguments: { command, runInBackground: true, timeoutMs: -1 } })
+      await client.call('deepchat.host.input', {
+        ...ref,
+        mode: 'queue',
+        submissionId: randomUUID(),
+        rawBlocks: [],
+        content: [{ type: 'text', text: 'Launch the profile background task.' }]
+      })
+      await client.call('deepchat.host.idle', ref, 30_000)
+      const events = await client.call<{
+        events: Array<{ type: string; name: string; data: { task_id?: string } }>
+      }>('deepchat.storage.history', { ...ref, limit: 200 })
+      const taskId = events.events.findLast(
+        (event) => event.type === 'exec' && event.name === 'started'
+      )?.data.task_id
+      expect(typeof taskId).toBe('string')
+      expect(await client.call('deepchat.storage.readiness')).toMatchObject({
+        idle: false,
+        sessions: true
+      })
+      await expect(
+        host.withStopped(
+          async () => {
+            copied = true
+          },
+          { ifIdle: true }
+        )
+      ).rejects.toMatchObject({ data: { appError: 'daemon_busy' } })
+      expect(copied).toBe(false)
+      await client.call('session.exec.stop', { ...ref, taskId: taskId! })
+      await expect
+        .poll(async () => (await client.call<{ idle: boolean }>('deepchat.storage.readiness')).idle)
+        .toBe(true)
+      await host.withStopped(
+        async () => {
+          await readdir(path.join(profile, 'dim', 'rust'))
+          copied = true
+        },
+        { ifIdle: true }
+      )
+      expect(copied).toBe(true)
+    } finally {
+      observer?.close()
+      if (agent && !agent.writableEnded) reply(agent, 'cleanup')
+      if (title && !title.writableEnded) reply(title, 'cleanup')
+      await host.stop()
+      fixture.closeAllConnections()
+      await new Promise<void>((resolve) => fixture.close(() => resolve()))
+      await rm(profile, { recursive: true, force: true })
+    }
+  },
+  60_000
+)

@@ -389,6 +389,14 @@ export class DimRuntimeSupervisor {
       return
     }
     const client = this.connection ?? (await this.attach(this.address!, this.identity!))
+    if (this.options.nativePlugins) {
+      const readiness = await client.call<{ idle: boolean }>('deepchat.storage.readiness')
+      if (typeof readiness.idle !== 'boolean') throw new Error('Invalid native profile readiness')
+      if (!readiness.idle)
+        throw new DimMethodError(-32000, 'Native profile has active work', {
+          appError: 'daemon_busy'
+        })
+    }
     // Preserve scoped callers. The native decision is atomic with connection/attach admission
     // and checks running Sessions; daemon_busy leaves this host and its work untouched.
     await client.call('daemon.shutdown', { ifIdle: true }, 10_000)
