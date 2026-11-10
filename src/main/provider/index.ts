@@ -51,6 +51,7 @@ import type {
 } from './ports'
 import {
   BaseLLMProvider,
+  SUMMARY_TITLES_PROMPT,
   isAudioTranscriptionNotSupportedError,
   type ProviderGenerateTextOptions
 } from './baseProvider'
@@ -59,7 +60,6 @@ import { RateLimitManager } from './managers/rateLimitManager'
 import { ProviderInstanceManager } from './managers/providerInstanceManager'
 import { ModelManager } from './managers/modelManager'
 import { OllamaManager } from './managers/ollamaManager'
-import { EmbeddingManager } from './managers/embeddingManager'
 import { ModelScopeSyncManager } from './managers/modelScopeSyncManager'
 import type { McpSettings } from '@/mcp/settings'
 import type { OllamaProvider } from './providers/ollamaProvider'
@@ -157,7 +157,6 @@ export class ProviderRuntime
   private readonly providerCatalogService: ProviderCatalogService
   private readonly modelManager: ModelManager
   private readonly ollamaManager: OllamaManager
-  private readonly embeddingManager: EmbeddingManager
   private readonly modelScopeSyncManager: ModelScopeSyncManager
   private readonly acpRuntimeOwner: AcpRuntimeOwner
   private readonly acpSessionPersistence: AcpSessionPersistence
@@ -179,6 +178,15 @@ export class ProviderRuntime
     this.nativeMedia = media
   }
 
+  private requireNativeModels(): DimAuxiliaryModels {
+    if (!this.nativeModels) throw new Error('Native dim model service is unavailable')
+    return this.nativeModels
+  }
+  private requireNativeEmbedding(): DimEmbeddingModels {
+    if (!this.nativeEmbedding) throw new Error('Native dim embedding service is unavailable')
+    return this.nativeEmbedding
+  }
+
   private async nativeCompletion(
     providerId: string,
     modelId: string,
@@ -187,7 +195,7 @@ export class ProviderRuntime
     maxTokens?: number,
     signal?: AbortSignal
   ): Promise<LLMResponse> {
-    const reply = await this.nativeModels!.complete({
+    const reply = await this.requireNativeModels().complete({
       providerId,
       modelId,
       messages,
@@ -255,9 +263,6 @@ export class ProviderRuntime
     this.ollamaManager = new OllamaManager({
       getProviderInstance: this.getProviderInstance.bind(this),
       publishEvent: this.publishEvent
-    })
-    this.embeddingManager = new EmbeddingManager({
-      getProviderInstance: this.getProviderInstance.bind(this)
     })
     this.modelScopeSyncManager = new ModelScopeSyncManager({
       providerSettings,
@@ -468,10 +473,10 @@ export class ProviderRuntime
     tools: MCPToolDefinition[],
     options?: ProviderStreamOptions
   ): AsyncGenerator<LLMCoreStreamEvent> {
-    if (this.nativeModels && this.providerSettings.getProviderById(providerId)?.apiType !== 'acp') {
+    if (this.providerSettings.getProviderById(providerId)?.apiType !== 'acp') {
       if (tools.length)
         throw new Error('Agent tools must be dispatched by the native session owner')
-      return this.nativeModels.stream({
+      return this.requireNativeModels().stream({
         providerId,
         modelId,
         messages,
@@ -603,7 +608,7 @@ export class ProviderRuntime
     temperature?: number,
     maxTokens?: number
   ): Promise<string> {
-    if (this.nativeModels && this.providerSettings.getProviderById(providerId)?.apiType !== 'acp')
+    if (this.providerSettings.getProviderById(providerId)?.apiType !== 'acp')
       return (await this.nativeCompletion(providerId, modelId, messages, temperature, maxTokens))
         .content
     // Record input messages to the large model
@@ -620,7 +625,7 @@ export class ProviderRuntime
     temperature?: number,
     maxTokens?: number
   ): Promise<LLMResponse> {
-    if (this.nativeModels && this.providerSettings.getProviderById(providerId)?.apiType !== 'acp')
+    if (this.providerSettings.getProviderById(providerId)?.apiType !== 'acp')
       return this.nativeCompletion(
         providerId,
         modelId,
@@ -645,7 +650,7 @@ export class ProviderRuntime
     maxTokens?: number,
     options?: Pick<ProviderGenerateTextOptions, 'signal'>
   ): Promise<LLMResponse> {
-    if (this.nativeModels && this.providerSettings.getProviderById(providerId)?.apiType !== 'acp')
+    if (this.providerSettings.getProviderById(providerId)?.apiType !== 'acp')
       return this.nativeCompletion(
         providerId,
         modelId,
@@ -668,7 +673,8 @@ export class ProviderRuntime
     maxTokens?: number,
     options?: { signal?: AbortSignal; swallowErrors?: boolean }
   ): Promise<string> {
-    if (this.nativeModels && this.providerSettings.getProviderById(providerId)?.apiType !== 'acp') {
+    if (this.providerSettings.getProviderById(providerId)?.apiType !== 'acp') {
+      this.requireNativeModels()
       try {
         return (
           await this.nativeCompletion(
@@ -1110,7 +1116,7 @@ export class ProviderRuntime
   ): Promise<{ isOk: boolean; errorMsg: string | null }> {
     try {
       const configured = this.providerSettings.getProviderById(providerId)
-      if (this.nativeModels && configured && configured.apiType !== 'acp' && !modelId) {
+      if (configured && configured.apiType !== 'acp' && !modelId) {
         const definition = resolveAiSdkProviderDefinition(configured)
         if (definition?.checkStrategy === 'generate-text') modelId = definition.checkModelId
       }
@@ -1121,7 +1127,6 @@ export class ProviderRuntime
         try {
           const testMessage = [{ role: 'user' as const, content: 'hi' }]
           const response: LLMResponse | null = await Promise.race([
-            this.nativeModels &&
             this.providerSettings.getProviderById(providerId)?.apiType !== 'acp'
               ? this.nativeCompletion(
                   providerId,
@@ -1280,6 +1285,16 @@ export class ProviderRuntime
     providerId: string,
     modelId: string
   ): Promise<string> {
+    if (this.providerSettings.getProviderById(providerId)?.apiType !== 'acp') {
+      const response = await this.nativeCompletion(
+        providerId,
+        modelId,
+        [{ role: 'system', content: SUMMARY_TITLES_PROMPT }, ...messages],
+        0.5,
+        128
+      )
+      return response.content.replace(/["']/g, '').trim()
+    }
     const provider = this.getProviderInstance(providerId)
     return provider.summaryTitles(messages, modelId)
   }
@@ -1314,9 +1329,7 @@ export class ProviderRuntime
     texts: string[],
     signal?: AbortSignal
   ): Promise<number[][]> {
-    if (this.nativeEmbedding)
-      return this.nativeEmbedding.getEmbeddings(providerId, modelId, texts, signal)
-    return this.embeddingManager.getEmbeddings(providerId, modelId, texts, signal)
+    return this.requireNativeEmbedding().getEmbeddings(providerId, modelId, texts, signal)
   }
 
   /**
@@ -1330,8 +1343,7 @@ export class ProviderRuntime
     modelId: string,
     signal?: AbortSignal
   ): Promise<{ data: LLM_EMBEDDING_ATTRS; errorMsg?: string }> {
-    if (this.nativeEmbedding) return this.nativeEmbedding.getDimensions(providerId, modelId, signal)
-    return this.embeddingManager.getDimensions(providerId, modelId, signal)
+    return this.requireNativeEmbedding().getDimensions(providerId, modelId, signal)
   }
 
   async syncModelScopeMcpServers(

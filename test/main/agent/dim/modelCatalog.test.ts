@@ -64,6 +64,7 @@ it('persists non-secret grants, rotates credentials and fences replaced or disab
     await catalog.admit('custom', 'fixture')
     expect(JSON.stringify(connection)).not.toContain(provider.apiKey)
     expect(connection).toMatchObject({
+      key: 'deepchat/provider/v2/custom/fixture',
       connection: { credential: { action: 'set_ref', reference } }
     })
     db.sqlite.close()

@@ -112,7 +112,7 @@ export class DimModelCatalog {
       }
     }
     const target = await this.options.models.configure({
-      key: `${providerId}/${modelId}`,
+      key: `deepchat/provider/v2/${providerId}/${modelId}`,
       displayName: provider.name,
       connection,
       model

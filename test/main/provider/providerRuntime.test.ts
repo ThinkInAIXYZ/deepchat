@@ -332,40 +332,6 @@ describe('ProviderRuntime Integration Tests', () => {
       expect(provider.apiType).toBe('openai-compatible')
     })
 
-    it('streams through the provider runtime boundary', () => {
-      const provider = providerRuntime.getProviderInstance('mock-openai-api')
-      const stream = (async function* () {})()
-      const coreStream = vi.spyOn(provider, 'coreStream').mockReturnValue(stream)
-      const messages: ChatMessage[] = [{ role: 'user', content: 'hello' }]
-      const signal = new AbortController().signal
-      const modelConfig = mockProviderSettings.getModelConfig(
-        'mock-gpt-thinking',
-        'mock-openai-api'
-      )
-
-      expect(
-        providerRuntime.streamChat(
-          'mock-openai-api',
-          messages,
-          'mock-gpt-thinking',
-          modelConfig,
-          0.7,
-          100,
-          [],
-          { signal }
-        )
-      ).toBe(stream)
-      expect(coreStream).toHaveBeenCalledWith(
-        messages,
-        'mock-gpt-thinking',
-        modelConfig,
-        0.7,
-        100,
-        [],
-        { signal }
-      )
-    })
-
     it('should set current provider', async () => {
       await providerRuntime.setCurrentProvider('mock-openai-api')
       const currentProvider = providerRuntime.getCurrentProvider()
@@ -655,92 +621,6 @@ describe('ProviderRuntime Integration Tests', () => {
       expect(legacy).not.toHaveBeenCalled()
     })
 
-    it('should generate completion without streaming', async () => {
-      const messages = [{ role: 'user' as const, content: '1' }]
-
-      const response = await providerRuntime.generateCompletion(
-        'mock-openai-api',
-        messages,
-        'mock-gpt-thinking',
-        0.7,
-        100
-      )
-
-      expect(typeof response).toBe('string')
-      expect(response.length).toBeGreaterThan(0)
-    }, 15000)
-
-    it('forwards text-generation cancellation options to the provider', async () => {
-      const provider = providerRuntime.getProviderInstance('mock-openai-api')
-      const generateTextSpy = vi
-        .spyOn(provider, 'generateText')
-        .mockResolvedValue({ content: 'generated' })
-      const signal = new AbortController().signal
-
-      await expect(
-        providerRuntime.generateText('mock-openai-api', 'prompt', 'mock-gpt-thinking', 0.2, 128, {
-          signal
-        })
-      ).resolves.toEqual({ content: 'generated' })
-
-      expect(generateTextSpy).toHaveBeenCalledWith('prompt', 'mock-gpt-thinking', 0.2, 128, {
-        signal
-      })
-    })
-
-    it('should generate completion standalone', async () => {
-      const messages: ChatMessage[] = [{ role: 'user', content: '1' }]
-
-      const response = await providerRuntime.generateCompletionStandalone(
-        'mock-openai-api',
-        messages,
-        'mock-gpt-thinking',
-        0.7,
-        100
-      )
-
-      expect(typeof response).toBe('string')
-      expect(response.length).toBeGreaterThan(0)
-    }, 15000)
-
-    it('observes a completion failure that arrives after standalone cancellation', async () => {
-      let rejectCompletion!: (reason?: unknown) => void
-      const completion = new Promise<never>((_, reject) => {
-        rejectCompletion = reject
-      })
-      const provider = providerRuntime.getProviderInstance('mock-openai-api')
-      const completionsSpy = vi.spyOn(provider, 'completions').mockReturnValue(completion)
-      const abortController = new AbortController()
-      const lateError = new Error('late standalone completion failure')
-      const unhandled = vi.fn()
-
-      try {
-        const generating = providerRuntime.generateCompletionStandalone(
-          'mock-openai-api',
-          [{ role: 'user', content: 'cancel me' }],
-          'mock-gpt-thinking',
-          undefined,
-          undefined,
-          { signal: abortController.signal }
-        )
-        abortController.abort()
-
-        await expect(generating).rejects.toMatchObject({ name: 'AbortError' })
-
-        process.on('unhandledRejection', unhandled)
-        try {
-          rejectCompletion(lateError)
-          await new Promise<void>((resolve) => setImmediate(resolve))
-          await new Promise<void>((resolve) => setImmediate(resolve))
-          expect(unhandled.mock.calls.some(([reason]) => reason === lateError)).toBe(false)
-        } finally {
-          process.off('unhandledRejection', unhandled)
-        }
-      } finally {
-        completionsSpy.mockRestore()
-      }
-    })
-
     it('consumes an iterator teardown failure during standalone image cancellation', async () => {
       const lateError = new Error('image iterator teardown failed')
       const stream = {
@@ -778,42 +658,6 @@ describe('ProviderRuntime Integration Tests', () => {
         coreStreamSpy.mockRestore()
       }
     })
-
-    it('falls back to completion transcription when audio endpoint is unsupported', async () => {
-      vi.stubGlobal(
-        'fetch',
-        vi.fn().mockImplementation(async (input: string | URL | Request) => {
-          const url =
-            typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
-
-          if (url.endsWith('/audio/transcriptions')) {
-            return {
-              ok: false,
-              status: 404,
-              text: vi.fn().mockResolvedValue('mock transcription failure')
-            }
-          }
-
-          return {
-            ok: true,
-            json: vi.fn().mockResolvedValue({
-              data: [{ id: 'mock-gpt-thinking' }, { id: 'gpt-4-mock' }, { id: 'mock-gpt-markdown' }]
-            }),
-            text: vi.fn().mockResolvedValue('')
-          }
-        })
-      )
-
-      const transcript = await providerRuntime.transcribeAudioStandalone(
-        'mock-openai-api',
-        'mock-gpt-thinking',
-        'AQID',
-        'audio/wav',
-        'recording.wav'
-      )
-
-      expect(transcript).toBe('mock completion')
-    }, 15000)
 
     it('normalizes audio MIME type casing before transcription validation', async () => {
       const transcribeSpy = vi
@@ -943,24 +787,56 @@ describe('ProviderRuntime Integration Tests', () => {
       ).rejects.toMatchObject({ message: 'provider rejected request', failure })
     })
 
-    it('should summarize titles', async () => {
-      const messages = [
-        { role: 'user' as const, content: 'Hello, I want to learn about artificial intelligence' },
-        {
-          role: 'assistant' as const,
-          content: 'I can help you learn about AI. What specific aspects interest you?'
-        }
-      ]
-
-      const title = await providerRuntime.summaryTitles(
-        messages,
+    it('routes title and summary helpers through the native model service', async () => {
+      const complete = vi.fn().mockResolvedValue({ text: 'Native title', stopReason: 'end_turn' })
+      const provider = providerRuntime.getProviderInstance('mock-openai-api')
+      const legacyTitle = vi.spyOn(provider, 'summaryTitles')
+      const legacySummary = vi.spyOn(provider, 'summaries')
+      providerRuntime.setNativeModels(
+        new DimAuxiliaryModels({
+          models: { admit: async () => ({ providerId: 'native', modelId: 'fixture' }) },
+          bridge: { complete }
+        })
+      )
+      await expect(
+        providerRuntime.summaryTitles(
+          [{ role: 'user', content: 'conversation' }],
+          'mock-openai-api',
+          'mock-gpt-thinking'
+        )
+      ).resolves.toBe('Native title')
+      await providerRuntime.generateSummary(
         'mock-openai-api',
+        'content to summarize',
         'mock-gpt-thinking'
       )
+      expect(complete).toHaveBeenCalledTimes(2)
+      expect(complete.mock.calls[0][1].system).toBeTruthy()
+      expect(JSON.stringify(complete.mock.calls[1][1])).toContain('concise summary')
+      expect(legacyTitle).not.toHaveBeenCalled()
+      expect(legacySummary).not.toHaveBeenCalled()
+    })
 
-      expect(typeof title).toBe('string')
-      expect(title.length).toBeGreaterThan(0)
-    }, 15000)
+    it('rejects missing native model and embedding owners instead of falling back', async () => {
+      const provider = providerRuntime.getProviderInstance('mock-openai-api')
+      const completion = vi.spyOn(provider, 'completions')
+      const embedding = vi.spyOn(provider, 'getEmbeddings')
+      await expect(
+        providerRuntime.generateText('mock-openai-api', 'prompt', 'mock-gpt-thinking')
+      ).rejects.toThrow('Native dim model service is unavailable')
+      await expect(
+        providerRuntime.generateCompletionStandalone(
+          'mock-openai-api',
+          [{ role: 'user', content: 'prompt' }],
+          'mock-gpt-thinking'
+        )
+      ).rejects.toThrow('Native dim model service is unavailable')
+      await expect(
+        providerRuntime.getEmbeddings('mock-openai-api', 'mock-gpt-thinking', ['text'])
+      ).rejects.toThrow('Native dim embedding service is unavailable')
+      expect(completion).not.toHaveBeenCalled()
+      expect(embedding).not.toHaveBeenCalled()
+    })
   })
 
   describe('Error Handling', () => {

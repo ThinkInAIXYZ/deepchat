@@ -158,6 +158,8 @@
 
 ## 模块进度
 
+- 模块 46：非 ACP 的已配置文本调用、流、标题、摘要及向量入口要求 Native owner，缺少接线时显式失败，不再静默调用旧 Provider；物理删除 Node EmbeddingManager。ACP 辅助调用继续原 client。配置 key 升为 v2，认证权限 fingerprint 扩展形成新的不可变 Native provider identity，避免旧 grant 被就地重指向。1116 项 provider/CLI/辅助模型回归、模型授权回归、实际三种连接 smoke 通过；主进程构建及 ACP/Native（含实际 CLI 与模型测试）两项 Electron 联合验收通过（34s）。格式/i18n/lint/双端 typecheck 通过。未保存 provider 草稿验证及媒体旧回退将继续迁移。
+
 - 模块 45：CLI streamChat 与显式/默认生成式模型测试转交 Rust 插件；模型配置默认值、reasoning 参数与辅助摘要指令进入 Native 请求。插件仅适配单次流，使用 dim 的公开 ModelSelection、ModelHost、ConnectionResolver 与 invoke_with_recovery，不增加 agent loop 或重试策略。采用原生 management.progress，序号和终态计数检测最佳努力通道丢帧，TS 队列有界、退出/取消关闭独立连接并等待请求结束。桥升级 0.11.0。无 key 的 OpenAI 兼容连接使用 Anonymous，带 key 的 Ollama 连接保留 Bearer，认证模式变化撤销旧 grant；Native 每次仍重验产品启用状态，admission 回执不进入 HTTP。69 项模型/CLI/流生命周期回归通过，三种实际连接的定向流/撤销验证通过；完整真实 Rust smoke 12 项通过（242s），包含 HTTP 未结束时收到增量及关闭连接取消上游。主进程与打包 CLI 构建通过，Electron 从 providers.testConnection、实际 CLI model invoke --jsonl 和聊天/重启/会话读取验证统一 Native 执行，24s 通过。格式/i18n/lint/双端 typecheck 通过。
 
 - 模块 44：旧加密库在 MainDatabase 校验后、desktop services 构造前一次性解密；原加密库 checkpoint 后按唯一文件名保留 0600 恢复副本，空间预检、全部迁移表计数和 quick_check 校验，替换无法重开即恢复原库。文件已切换而 metadata 未写完时，下次启动验证明文文件后修复 metadata，无需再次输入旧密码。停用开启/改密码实现，旧客户端请求在进入数据库维护前拒绝；设置页移除持续加密表单，保留 OS 凭据保护与数据库修复。旧加密备份新增仅导入使用的密码参数，先在 staging 解密校验，再进入增量/覆盖导入；密码不持久化到配置。实际 SQLCipher 解密、恢复和备份转明文测试通过；142 项主进程回归、88 项界面回归通过。进一步移除通用重新加密分支后 18 项迁移回归和 Node 类型复验通过。完整 Electron 构建、主进程复构建、数据设置及 Native 重启续聊两项桌面验收通过（30s）；格式/i18n/lint/双端 typecheck 通过。Native profile 备份/同步仍独立待接线。
