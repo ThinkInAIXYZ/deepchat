@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto'
 import type { JsonValue } from '@shared/contracts/json'
-import type { LLM_PROVIDER, ModelConfig } from '@shared/types/provider'
+import type { AWS_BEDROCK_PROVIDER, LLM_PROVIDER, ModelConfig } from '@shared/types/provider'
 import type { SessionGenerationSettings } from '@shared/types/agent-interface'
 import { ModelType } from '@shared/model'
 import type { ProviderSettingsPort } from '@/provider/settings'
@@ -10,6 +10,7 @@ import type {
 } from '@/session/data/tables/dimProviderGrants'
 import { resolveAiSdkProviderDefinition } from '@/provider/providerRegistry'
 import { resolveProviderTransport } from '@/provider/providerTransport'
+import { GITHUB_COPILOT_CHAT_HEADERS } from '@/provider/auth/githubCopilotProtocol'
 import { DimModelBridge, type DimModelId, type DimModelParameters } from './modelBridge'
 
 type JsonObject = { [key: string]: JsonValue }
@@ -207,7 +208,7 @@ export class DimModelCatalog {
     if (fingerprint(this.connection(current, modelId, config)) !== fingerprint(connection))
       throw new Error('Provider connection changed during native configuration')
     if (connection.credential) {
-      const reference = credentialReference(provider.id)
+      const reference = this.credentialReference(provider)
       this.options.grants.put({
         nativeProviderId: target.providerId,
         providerId,
@@ -270,14 +271,30 @@ export class DimModelCatalog {
       openaiAuthMode: provider.openaiAuthMode ?? 'api-key',
       anonymous: isAnonymous(provider),
       copilotClientId: provider.copilotClientId ?? '',
+      ...(isBedrock(provider)
+        ? {
+            aws: {
+              authMode: (provider as AWS_BEDROCK_PROVIDER).credential?.authMode ?? 'accessKeys',
+              profile: (provider as AWS_BEDROCK_PROVIDER).credential?.profile ?? '',
+              region: bedrockRegion(provider)
+            }
+          }
+        : {}),
       customHeaders: provider.customHeaders ?? {}
     }
+  }
+
+  private credentialReference(provider: LLM_PROVIDER): string {
+    return isBedrock(provider) || isCopilot(provider)
+      ? `deepchat/provider/scoped/v1/${encodeURIComponent(provider.id)}/${fingerprint(this.credentialScope(provider))}`
+      : `deepchat/provider/v1/${encodeURIComponent(provider.id)}`
   }
 
   private connection(provider: LLM_PROVIDER, modelId: string, config: ModelConfig): JsonObject {
     const definition = resolveAiSdkProviderDefinition(provider)
     const anonymous = isAnonymous(provider)
-    if (!definition && !anonymous && !isOllama(provider))
+    const copilot = isCopilot(provider)
+    if (!definition && !anonymous && !isOllama(provider) && !copilot)
       throw new Error('Provider needs a native product connection adapter')
     const kind = definition
       ? resolveProviderTransport(
@@ -312,6 +329,8 @@ export class DimModelCatalog {
               ? { type: 'aws_bedrock' }
               : { type: 'bearer' }
     let baseUrl = provider.baseUrl.replace(/\/+$/, '')
+    if (kind === 'aws-bedrock' && !baseUrl)
+      baseUrl = `https://bedrock-runtime.${bedrockRegion(provider)}.amazonaws.com`
     if (isOllama(provider)) baseUrl = baseUrl.replace(/\/(api|v1)$/, '') + '/v1'
     const url = new URL(baseUrl)
     if (
@@ -328,10 +347,11 @@ export class DimModelCatalog {
       baseUrl,
       credential: {
         action: 'set_ref',
-        reference: credentialReference(provider.id)
+        reference: this.credentialReference(provider)
       },
       headers: {
         ...definition?.defaultHeadersPatch,
+        ...(copilot ? GITHUB_COPILOT_CHAT_HEADERS : {}),
         ...Object.fromEntries(
           Object.entries(provider.customHeaders ?? {}).map(([name, value]) => [
             name,
@@ -342,6 +362,19 @@ export class DimModelCatalog {
       ...(config.timeout && config.timeout > 0 ? { network: { timeoutMs: config.timeout } } : {})
     }
   }
+}
+
+function isBedrock(provider: LLM_PROVIDER): boolean {
+  return provider.apiType === 'aws-bedrock' || provider.id === 'aws-bedrock'
+}
+function isCopilot(provider: LLM_PROVIDER): boolean {
+  return provider.apiType === 'github-copilot' || provider.id === 'github-copilot'
+}
+function bedrockRegion(provider: LLM_PROVIDER): string {
+  const region =
+    (provider as AWS_BEDROCK_PROVIDER).credential?.region || process.env.AWS_REGION || 'us-east-1'
+  if (!/^[a-z][a-z0-9-]{1,63}$/.test(region)) throw new Error('Invalid native AWS region')
+  return region
 }
 
 function isOllama(provider: LLM_PROVIDER): boolean {
@@ -356,9 +389,6 @@ function isAnonymous(provider: LLM_PROVIDER): boolean {
   )
 }
 
-function credentialReference(providerId: string): string {
-  return `deepchat/provider/v1/${encodeURIComponent(providerId)}`
-}
 function headerReference(providerId: string, name: string, value: string): string {
   // Rotation creates a different immutable connection and revokes previous grants. Only a
   // digest is durable; the product's protected credential owner retains the actual value.

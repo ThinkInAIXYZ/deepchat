@@ -160,6 +160,8 @@
 
 ## 模块进度
 
+- 模块 67：新增仅负责认证的产品凭据桥。AWS 显式 key/session token、Profile 与默认凭据链由既有 AWS SDK 认证 owner 提供，刷新与过期仍交给该 owner；不在 Node 执行模型或 SigV4。空 Bedrock 地址按区域生成 Native 支持的官方端点，签名/请求使用 dim 原生 driver。Copilot 复用 DeepChat 登录 token exchange，向 Native 连接只提供短期 Copilot token，并保留集成 Header；缓存按 OAuth 身份隔离，处理过期、旋转与取消，错误不回传秘密。AWS Profile/区域与 Copilot client scope 进入不可变 Native 配置引用，准入前后重验，旧 owner 在重新准入后也不能借用新作用域。1100 项供应商/授权回归与双端类型、格式/i18n/lint 通过；四种 Native 连接分别实际通过，包含 Copilot 流式、禁用/地址变化/重启、草稿清理、client scope 换代拒绝旧连接及 profile 无明文 token。Native Bedrock 配置准入通过，没有向 AWS 发送推理。最终 Copilot 联合复验 8s，主进程最终构建及实际 Electron 联合验收（29s）通过。Vertex 与 ChatGPT/Codex 产品凭据接线继续实施，dim 自身 OAuth 不适配。
+
 - 模块 66：独立转写等大媒体输入使用受管文件传输与独立 Native media-input 插件。插件通过公开 PluginFileTransactions 准备私有原始文件，把 node_path 交给 ModalityTasks；执行/排队/取消/恢复仍属于 dim。文件保留到 Native 任务终态，未知准入保留输入且不自动重送；启动等原生恢复完成后，按公开任务记录清理终态与未提交孤儿，卸载等待观察任务结束。提交使用独立连接保护准备阶段，避免备份按空闲停机。桥 0.18.0，无新增 SDK 补丁。18 MiB + 17 字节的真实转写、重复准入去重、取消、丢失回执及重启清理通过；完整 release Native 16 项通过（118s），独立连接最终媒体联合复验通过（24s）。15 项相关回归、双端类型及格式/i18n/lint 通过；主进程最终构建和实际 Electron 聊天/CLI/备份恢复/重启/Inspector 联合验收通过（30s）。
 
 - 模块 65 macOS runner 修正：macOS arm64 实际 release 编译成功，16 项 Native 中 15 项通过；剩余一项把 /var 临时路径与 dim 返回的 /private/var canonical CWD 作字符串比较。迁移与换代的 CWD 验证改为 realpath 后比较同一物理目录，保留 tools 身份断言；Linux 的完整 Native owner 联合用例定向复验通过。macOS 仍待新一轮实际 runner，不跳过该检查。

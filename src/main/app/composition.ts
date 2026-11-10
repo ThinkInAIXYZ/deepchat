@@ -195,6 +195,7 @@ import { DimEmbeddingModels } from '@/agent/dim/embeddingModels'
 import { DimAuxiliaryModels } from '@/agent/dim/auxiliaryModels'
 import { DimMediaModels } from '@/agent/dim/mediaModels'
 import { DimModality } from '@/agent/dim/modality'
+import { DimProviderCredentials } from '@/agent/dim/providerCredentials'
 import { DimContent } from '@/agent/dim/content'
 import { DimTimelineInspector } from '@/agent/dim/timelineInspector'
 import { DimScopes } from '@/agent/dim/scopes'
@@ -1047,15 +1048,12 @@ export async function createMainProcessControl(dependencies: {
     gatewayAddress: await dimGateway.start()
   })
   const dimModelBridge = new DimModelBridge(dimHost)
+  const dimCredentials = new DimProviderCredentials()
   const dimModels = new DimModelCatalog({
     settings: providerSettings,
     models: dimModelBridge,
     grants: sessionData.database.dimProviderGrantsTable,
-    credential: async (provider, signal) => {
-      signal.throwIfAborted()
-      if (!provider.apiKey) throw new Error('Provider credential is unavailable')
-      return provider.apiKey
-    }
+    credential: (provider, signal) => dimCredentials.resolve(provider, signal)
   })
   const dimAuxiliary = new DimAuxiliaryModels({
     models: dimModels,

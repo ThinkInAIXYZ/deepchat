@@ -3,6 +3,8 @@ import { exec } from 'child_process'
 import logger from '@shared/logger'
 import { z } from 'zod'
 import { createProviderHttpErrorFromResponse, type ProviderHttpError } from '../providerFailure'
+import { GITHUB_COPILOT_CHAT_HEADERS } from './githubCopilotProtocol'
+export { GITHUB_COPILOT_CHAT_HEADERS } from './githubCopilotProtocol'
 
 const GITHUB_DEVICE_URL = 'https://github.com/login/device'
 const GITHUB_COPILOT_DEVICE_FLOW_CLIENT_ID = 'Iv1.b507a08c87ecfe98'
@@ -33,15 +35,6 @@ export interface CopilotTokenResponse {
   token: string
   expires_at: number
   refresh_in?: number
-}
-
-// Copilot chat uses VS Code integration metadata independently of the DeepChat app version.
-export const GITHUB_COPILOT_CHAT_HEADERS = {
-  'User-Agent': 'GitHubCopilotChat/0.44.0',
-  'Editor-Version': 'vscode/1.115.0',
-  'Editor-Plugin-Version': 'copilot-chat/0.44.0',
-  'Copilot-Integration-Id': 'vscode-chat',
-  'X-GitHub-Api-Version': '2026-08-01'
 }
 
 const CopilotTokenSchema = z.object({

@@ -166,6 +166,7 @@ export interface AwsBedrockCredential {
   authMode?: 'accessKeys' | 'profile'
   accessKeyId: string
   secretAccessKey: string
+  sessionToken?: string
   region?: string
   profile?: string
 }

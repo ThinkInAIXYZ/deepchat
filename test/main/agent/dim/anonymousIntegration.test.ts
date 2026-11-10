@@ -11,12 +11,15 @@ import { DimModelBridge } from '@/agent/dim/modelBridge'
 import { DimModelCatalog } from '@/agent/dim/modelCatalog'
 import { DimProductGateway } from '@/agent/dim/productGateway'
 import { DimRuntimeSupervisor } from '@/agent/dim/runtimeSupervisor'
+import { DimProviderCredentials } from '@/agent/dim/providerCredentials'
+import { GITHUB_COPILOT_CHAT_HEADERS } from '@/provider/auth/githubCopilotProtocol'
 import { dimDatabase } from './fixtures/database'
 
 it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
   { apiType: 'ollama', apiKey: '' },
   { apiType: 'openai-completions', apiKey: '' },
-  { apiType: 'ollama', apiKey: 'ollama-cloud-key' }
+  { apiType: 'ollama', apiKey: 'ollama-cloud-key' },
+  { apiType: 'github-copilot', apiKey: 'github-oauth-fixture' }
 ])(
   'reauthorizes cached $apiType connections with key=$apiKey without leaking product admission',
   async ({ apiType, apiKey }) => {
@@ -29,16 +32,28 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
       for await (const chunk of request) body += chunk
       calls++
       expect(request.url).toBe('/v1/chat/completions')
+      const draft = body.includes('DRAFT_MODEL_TEST')
       expect(request.headers.authorization).toBe(
-        body.includes('DRAFT_MODEL_TEST')
-          ? 'Bearer draft-only-key'
-          : apiKey
-            ? `Bearer ${apiKey}`
-            : undefined
+        apiType === 'github-copilot'
+          ? `Bearer ${draft ? 'copilot-draft-token' : 'copilot-native-token'}`
+          : draft
+            ? 'Bearer draft-only-key'
+            : apiKey
+              ? `Bearer ${apiKey}`
+              : undefined
       )
       expect(JSON.stringify({ headers: request.headers, body })).not.toContain(
         'deepchat-admission-v1'
       )
+      if (apiType === 'github-copilot') {
+        expect(JSON.stringify({ headers: request.headers, body })).not.toContain(apiKey)
+        for (const [key, value] of Object.entries(GITHUB_COPILOT_CHAT_HEADERS))
+          if (key === 'User-Agent')
+            expect(request.headers[key.toLowerCase()]).toMatch(
+              new RegExp(`^${value.replaceAll('.', '\\.').replaceAll('/', '\\/')}(?: |$)`)
+            )
+          else expect(request.headers[key.toLowerCase()]).toBe(value)
+      }
       response
         .writeHead(200, { 'Content-Type': 'text/event-stream' })
         .end(
@@ -53,6 +68,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
       name: 'Local',
       apiType,
       apiKey,
+      copilotClientId: '',
       enable: true,
       baseUrl: `http://127.0.0.1:${(fixture.address() as { port: number }).port}/v1`
     }
@@ -81,6 +97,12 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
       gatewayAddress: await gateway.start()
     })
     const bridge = new DimModelBridge(host)
+    const credentials = new DimProviderCredentials({
+      copilotToken: async (oauthToken) => ({
+        token: oauthToken === 'draft-only-key' ? 'copilot-draft-token' : 'copilot-native-token',
+        expires_at: Date.now() / 1000 + 3600
+      })
+    })
     catalog = new DimModelCatalog({
       settings: {
         getProviderById: () => provider,
@@ -103,10 +125,9 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
       },
       models: bridge,
       grants: database.data.dimProviderGrantsTable,
-      credential: async (current) => {
+      credential: async (current, signal) => {
         apiKeyLookups++
-        if (!current.apiKey) throw new Error('Local connection has no API key')
-        return current.apiKey
+        return credentials.resolve(current, signal)
       }
     })
     try {
@@ -211,6 +232,44 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
       )
       expect(provider.apiKey).toBe(apiKey)
       expect(provider.enable).toBe(true)
+      if (apiType === 'github-copilot') {
+        const previousCalls = calls
+        provider.copilotClientId = 'rotated-client'
+        const replaced = await catalog.admit(provider.id, 'local')
+        expect(replaced.providerId).not.toBe(model.providerId)
+        await expect(complete()).rejects.toThrow()
+        expect(calls).toBe(previousCalls)
+        // Exercise native Bedrock configuration without sending credentials or inference
+        // to AWS. SigV4, model execution and endpoint admission remain upstream owners.
+        await catalog.withDraft(
+          {
+            ...provider,
+            id: 'aws-fixture',
+            apiType: 'aws-bedrock',
+            apiKey: '',
+            baseUrl: '',
+            credential: {
+              authMode: 'profile',
+              profile: 'fixture',
+              accessKeyId: '',
+              secretAccessKey: '',
+              region: 'eu-west-2'
+            }
+          },
+          async (draft) => {
+            const model = await draft.admit(
+              'aws-fixture',
+              'anthropic.claude-3-5-sonnet-20241022-v2:0'
+            )
+            const view = await client.call('provider.management', { providerId: model.providerId })
+            expect(JSON.stringify(view)).toContain('amazon-bedrock')
+            expect(JSON.stringify(view)).toContain(
+              'https://bedrock-runtime.eu-west-2.amazonaws.com'
+            )
+          }
+        )
+        expect(calls).toBe(previousCalls)
+      }
       if (apiType === 'ollama' && !apiKey) {
         const id = randomUUID()
         // Simulate an exit after owner creation, before the caller can release its draft.
@@ -260,7 +319,13 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
       for (const name of await readdir(path.join(profile, 'dim', 'rust'), { recursive: true })) {
         const file = path.join(profile, 'dim', 'rust', name)
         if ((await stat(file)).isFile())
-          expect((await readFile(file)).includes(Buffer.from('draft-only-key')), file).toBe(false)
+          for (const secret of [
+            'draft-only-key',
+            ...(apiType === 'github-copilot'
+              ? [apiKey, 'copilot-native-token', 'copilot-draft-token']
+              : [])
+          ])
+            expect((await readFile(file)).includes(Buffer.from(secret)), file).toBe(false)
       }
     } finally {
       await host.stop()
