@@ -17,7 +17,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use std::{
     collections::{BTreeMap, BTreeSet},
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::Arc,
 };
 use tokio_util::sync::CancellationToken;
@@ -58,37 +58,38 @@ impl DynPlugin for Archives {
             ctx.require_at(&self.methods)?.register(
                 ctx,
                 "deepchat.native_archive",
-                vec![MethodDecl::new(
-                    "deepchat.native_archive.catalog",
-                    false,
-                    Interruption::Report,
-                )],
+                vec![
+                    MethodDecl::new(
+                        "deepchat.native_archive.catalog",
+                        false,
+                        Interruption::Report,
+                    ),
+                    MethodDecl::new(
+                        "deepchat.native_archive.transfer",
+                        true,
+                        Interruption::Report,
+                    ),
+                ],
                 Arc::new(move |call, cancel, _| {
                     let (files, context) = (files.clone(), context.clone());
                     Box::pin(async move {
+                        if call.method.ends_with(".transfer") {
+                            return reply(
+                                super::archive_transfer::transfer(
+                                    &context,
+                                    &files,
+                                    params(call.params)?,
+                                    &cancel,
+                                )
+                                .await?,
+                            );
+                        }
                         let input: Catalog = params(call.params)?;
-                        if !(1..=64).contains(&input.limit) || !input.directory.is_absolute() {
-                            return Err(RpcError::invalid(
-                                "Archive catalog requires an absolute directory and limit 1..64",
-                            ));
+                        if !(1..=64).contains(&input.limit) {
+                            return Err(RpcError::invalid("Archive catalog requires limit 1..64"));
                         }
-                        let root = tokio::fs::canonicalize(input.directory.join("rust"))
-                            .await
-                            .map_err(|_| {
-                                RpcError::invalid("Native archive directory is unavailable")
-                            })?;
+                        let root = root(&input.directory).await?;
                         let database = root.join("dimcode.sqlite");
-                        let kind = tokio::fs::symlink_metadata(&database)
-                            .await
-                            .map_err(|_| {
-                                RpcError::invalid("Native archive database is unavailable")
-                            })?
-                            .file_type();
-                        if !kind.is_file() || kind.is_symlink() {
-                            return Err(RpcError::invalid(
-                                "Native archive database must be a regular file",
-                            ));
-                        }
                         let root = files.register_root(root, &cancel).await.map_err(|_| {
                             RpcError::invalid("Native archive files are unavailable")
                         })?;
@@ -199,4 +200,24 @@ async fn catalog(
         ));
     }
     Ok(value)
+}
+
+/// Fixed native-store location, checked before any owner opens it.
+pub(crate) async fn root(directory: &Path) -> Result<PathBuf, RpcError> {
+    if !directory.is_absolute() {
+        return Err(RpcError::invalid("Archive requires an absolute directory"));
+    }
+    let root = tokio::fs::canonicalize(directory.join("rust"))
+        .await
+        .map_err(|_| RpcError::invalid("Native archive directory is unavailable"))?;
+    let kind = tokio::fs::symlink_metadata(root.join("dimcode.sqlite"))
+        .await
+        .map_err(|_| RpcError::invalid("Native archive database is unavailable"))?
+        .file_type();
+    if !kind.is_file() || kind.is_symlink() {
+        return Err(RpcError::invalid(
+            "Native archive database must be a regular file",
+        ));
+    }
+    Ok(root)
 }

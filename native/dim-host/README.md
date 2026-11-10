@@ -88,3 +88,12 @@ native storage owners. It opens a read-only snapshot without restoring Agents.
 The pinned assembly re-exports the existing AgentRecords/AgentRecord/SessionOwner
 types; it adds no schema or storage queries outside those owners. This catalog is
 the preflight boundary for canonical incremental transfer and portable files.
+
+`deepchat.storage.archive_transfer` transfers complete native Session histories into
+an exclusive, disposable cold destination. AgentRecords and SessionStore preserve
+Agent/Session identities and parentage; TimelineStore reads and appends complete
+atomic batches, including trace data and child-branch creation facts. Existing
+Session identities retain the destination's content. Conflicting Agent or Session
+ownership is rejected. A failed staging profile must be discarded. Sessions with
+owned files remain blocked until their native ownership can be transferred; this
+primitive does not enable incremental product imports by itself.

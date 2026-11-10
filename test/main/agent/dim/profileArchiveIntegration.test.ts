@@ -93,6 +93,23 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
           title: `归档会话 ${index}`
         })
       }
+      await client.call('deepchat.host.input', {
+        sessionId: ids[0],
+        branchId: 'main',
+        mode: 'append',
+        submissionId: 'archive-append',
+        content: [{ type: 'text', text: '归档输入：保持事件身份与批次' }],
+        rawBlocks: []
+      })
+      await client.call('deepchat.host.idle', { sessionId: ids[0], branchId: 'main' })
+      await source.stop()
+      const closedReader = await source.start()
+      const originalHistory = await closedReader.call('deepchat.storage.history', {
+        sessionId: ids[0],
+        branchId: 'main',
+        after: '0',
+        limit: 100
+      })
       await source.stop()
       const archive = path.join(root, 'archive')
       await cp(path.join(root, 'source/dim'), archive, { recursive: true })
@@ -102,7 +119,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
           .update(await readFile(database))
           .digest('hex')
       const before = await digest()
-      const reader = await target.start()
+      let reader = await target.start()
       let after: string | null = null
       const found: string[] = []
       do {
@@ -136,6 +153,51 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
       expect(await digest()).toBe(before)
       await target.stop()
       expect(await digest()).toBe(before)
+      const staging = path.join(root, 'staging')
+      await cp(path.join(root, 'target/dim'), staging, { recursive: true })
+      reader = await target.start()
+      const transferred = await reader.call<{
+        imported: string[]
+        skipped: string[]
+        events: string
+      }>('deepchat.storage.archive_transfer', {
+        sourceDirectory: archive,
+        targetDirectory: staging
+      })
+      expect(transferred.imported.sort()).toEqual([...ids].sort())
+      expect(transferred.skipped).toEqual([])
+      expect(BigInt(transferred.events)).toBeGreaterThan(0n)
+      const imported = await reader.call<ArchivePage>('deepchat.storage.archive_catalog', {
+        directory: staging,
+        limit: 64
+      })
+      expect(imported.sessions.map((session) => session.sessionId)).toEqual([...ids].sort())
+      expect(imported.sessions.every((session) => session.title?.source === 'manual')).toBe(true)
+      await expect(
+        reader.call('deepchat.storage.archive_transfer', {
+          sourceDirectory: archive,
+          targetDirectory: staging
+        })
+      ).resolves.toEqual({ imported: [], skipped: [...ids].sort(), events: '0' })
+      await expect(
+        reader.call('deepchat.storage.archive_transfer', {
+          sourceDirectory: archive,
+          targetDirectory: path.join(root, 'target/dim')
+        })
+      ).rejects.toThrow()
+      expect(await digest()).toBe(before)
+      await target.stop()
+      await rm(path.join(root, 'target/dim'), { recursive: true, force: true })
+      await cp(staging, path.join(root, 'target/dim'), { recursive: true })
+      reader = await target.start()
+      expect(
+        await reader.call('deepchat.storage.history', {
+          sessionId: ids[0],
+          branchId: 'main',
+          after: '0',
+          limit: 100
+        })
+      ).toEqual(originalHistory)
       expect(requests).toBe(0)
     } finally {
       await Promise.all([source.stop(), target.stop()])

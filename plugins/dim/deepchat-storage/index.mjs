@@ -90,10 +90,11 @@ export default definePlugin({
         'seed_title',
         'rename_title',
         'readiness',
-        'archive_catalog'
+        'archive_catalog',
+        'archive_transfer'
       ].map((name) => ({
         name: `deepchat.storage.${name}`,
-        mutating: name === 'seed_title' || name === 'rename_title',
+        mutating: name === 'seed_title' || name === 'rename_title' || name === 'archive_transfer',
         interruption: 'report',
         progress: false
       })),
@@ -105,12 +106,26 @@ export default definePlugin({
               plugin: 'deepchat-storage',
               apiVersion: 1,
               operations: config.rawHistory
-                ? ['history', 'scope', 'seed_title', 'rename_title', 'readiness', 'archive_catalog']
+                ? [
+                    'history',
+                    'scope',
+                    'seed_title',
+                    'rename_title',
+                    'readiness',
+                    'archive_catalog',
+                    'archive_transfer'
+                  ]
                 : ['history']
             }
           }
         }
-        if (method === 'deepchat.storage.archive_catalog') {
+        if (
+          method === 'deepchat.storage.archive_catalog' ||
+          method === 'deepchat.storage.archive_transfer'
+        ) {
+          const operation = method.endsWith('archive_transfer')
+            ? 'deepchat.native_archive.transfer'
+            : 'deepchat.native_archive.catalog'
           if (!config.rawHistory)
             return { code: 'unsupported', message: 'Native archive owner is unavailable' }
           return {
@@ -119,10 +134,10 @@ export default definePlugin({
               config.hostAddress,
               {
                 profile: config.profile,
-                methods: ['deepchat.native_archive.catalog'],
+                methods: [operation],
                 timeoutMs: 120000
               },
-              (call) => call('deepchat.native_archive.catalog', params)
+              (call) => call(operation, params)
             )
           }
         }

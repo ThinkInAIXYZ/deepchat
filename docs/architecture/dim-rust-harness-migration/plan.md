@@ -160,6 +160,8 @@
 
 ## 模块进度
 
+- 模块 70：storage 插件新增冷 profile Timeline 合并原语，AgentRecords/SessionStore/TimelineStore 公开 owner 接纳归属与完整批次，保留原事件 ID、序号、trace、分支和标题；已存在会话保留目标内容，归属冲突与运行中目标拒绝。关闭后的完整原生历史/重启/重复导入真实验证通过（18s），双端类型与门禁通过。桥 0.20.0；release 构建、完整 8 文件 20 项 Native 回归（147s）和 Electron 聊天/CLI/备份恢复/重启/Inspector（31s）通过。文件归属接纳与产品增量导入继续实施，当前不开放不完整导入。
+
 - 模块 65 Windows 校验修正：Windows x64 实际 release 编译成功（34 分钟），随后发现 Git 默认 CRLF 检出使 Cargo.lock 的精确字节 SHA 不一致。为锁文件声明 LF 检出，保留原 SHA 与构建后校验；不把换行差异归一化以绕过校验。
 
 - 模块 65 依赖链接测量修正：Linux x64/arm64 实际 release Native 19 项及完整打包通过，后续 OCR 组件测量因 dim 的 pnpm 包内链接被拒绝。测量现仅为 dim 依赖树接受指向自身目录内的链接，外部链接继续拒绝，按实体文件计量一次。11 项相关回归、实际解包目录组件测量及双端类型/门禁通过。
