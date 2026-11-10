@@ -15,6 +15,7 @@ mod scopes;
 mod secrets;
 mod settings;
 mod storage;
+mod video_compat;
 static CONTEXT_ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
 static GATEWAY: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
 
@@ -23,7 +24,7 @@ fn install(builder: &mut dim_agent_runtime::AgentBuilder) {
     dim_agent_scheduler::install(builder);
     dim_goal::install(builder);
     media::install(builder);
-    dim_modality::install_with(
+    media::install_tasks(
         builder,
         dim_modality::InstallOptions {
             ocr_helper: std::env::current_exe().ok(),

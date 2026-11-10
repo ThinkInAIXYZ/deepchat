@@ -158,6 +158,8 @@
 
 ## 模块进度
 
+- 模块 48：图片、视频、TTS 与 ASR facade 均要求 Native Modality，删除 Node 媒体推理回退。视频优先复用 dim 默认适配器；当前锁定版本未提供的 OpenAI 兼容 /videos 协议以 Rust ModalityAdapter 扩展实现，任务准入、排队、持久化、恢复与取消继续属于 dim，网络复用 Native Aimux transport/guard。保留原请求选项、两种 body 格式、参考素材与提示词时长提取，流式写入有界结果文件，不持久化连接或响应 URL。实际恢复用例发现 Native Modality 在产品 adapter 就绪前读取可选绑定，通过公开插件装配依赖修正启动顺序，无新增 SDK 补丁。桥 0.12.0。1107 项 provider/CLI compute 回归、真实 Rust 媒体联合用例（含视频取消及重启不重复提交）通过；主进程构建、Electron 草稿/模型测试/CLI/聊天/重启/引用/Inspector 联合验收通过（35s）；格式/i18n/lint/双端 typecheck 通过。媒体聊天会话、聊天音频输入及特殊供应商仍继续接线。
+
 - 模块 47：未保存 provider 草稿的生成式连接验证改走 Native auxiliary owner；临时准入和凭据只在内存中，测试不保存/启用产品 provider，不替换正在使用的实例。结束时先撤权并拒绝迟到回调，再用公开 provider.delete CAS 清理临时 Native 配置；重启时仅按专用命名空间及模型 UUID 标记清理可识别的草稿残留。1092 项 provider/草稿回归通过；三项实际 Rust 连接验证覆盖临时 key、清理、重启残留恢复及 profile 无明文 key。主进程构建和实际 Electron 草稿验证、CLI、聊天、重启、引用与 Inspector 联合验收通过（30s）。格式/i18n/lint/双端 typecheck 通过。
 
 - 模块 46：非 ACP 的已配置文本调用、流、标题、摘要及向量入口要求 Native owner，缺少接线时显式失败，不再静默调用旧 Provider；物理删除 Node EmbeddingManager。ACP 辅助调用继续原 client。配置 key 升为 v2，认证权限 fingerprint 扩展形成新的不可变 Native provider identity，避免旧 grant 被就地重指向。1116 项 provider/CLI/辅助模型回归、模型授权回归、实际三种连接 smoke 通过；主进程构建及 ACP/Native（含实际 CLI 与模型测试）两项 Electron 联合验收通过（34s）。格式/i18n/lint/双端 typecheck 通过。未保存 provider 草稿验证及媒体旧回退将继续迁移。

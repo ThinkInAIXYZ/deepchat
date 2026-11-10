@@ -2,19 +2,26 @@ import path from 'node:path'
 import type { JsonValue } from '@shared/contracts/json'
 import type {
   StandaloneImageGenerationResult,
-  StandaloneSpeechGenerationResult
+  StandaloneSpeechGenerationResult,
+  StandaloneVideoGenerationResult
 } from '@shared/types/provider'
 import {
   normalizeImageGenerationOptions,
   type ImageGenerationOptions
 } from '@shared/imageGenerationSettings'
+import {
+  resolveVideoGenerationRequestOptions,
+  resolveOpenAICompatibleVideoRequestBodyShape,
+  type VideoGenerationOptions
+} from '@shared/videoGenerationSettings'
 import { normalizeTtsSettings, type TtsSettings } from '@shared/ttsSettings'
 import type { ProviderSettingsPort } from '@/provider/settings'
 import type { DimModelCatalog } from './modelCatalog'
 import type { DimModality, DimMediaSubmission, DimMediaTask } from './modality'
 
 interface MediaOptions {
-  settings: Pick<ProviderSettingsPort, 'getModelConfig'>
+  settings: Pick<ProviderSettingsPort, 'getModelConfig'> &
+    Partial<Pick<ProviderSettingsPort, 'getProviderById'>>
   models: Pick<DimModelCatalog, 'admit'>
   media: Pick<DimModality, 'submit' | 'wait' | 'readResult'>
 }
@@ -58,6 +65,53 @@ export class DimMediaModels {
     const images = await this.files(task, 'image/', options?.signal)
     if (!images.length) throw new Error('Image generation completed without image output')
     return { providerId, modelId, ...(normalized ? { options: normalized } : {}), images }
+  }
+
+  async generateVideoStandalone(
+    providerId: string,
+    prompt: string,
+    modelId: string,
+    videoOptions?: VideoGenerationOptions,
+    options?: { signal?: AbortSignal }
+  ): Promise<StandaloneVideoGenerationResult> {
+    const text = prompt.trim()
+    if (!text) throw new Error('Video generation prompt is required')
+    const config = this.options.settings.getModelConfig(modelId, providerId)
+    const normalized = resolveVideoGenerationRequestOptions(text, modelId, {
+      ...config.videoGeneration,
+      ...videoOptions
+    })
+    const provider = this.options.settings.getProviderById?.(providerId)
+    const seconds = normalized?.duration ?? Number(normalized?.seconds)
+    const task = await this.run(
+      providerId,
+      modelId,
+      {
+        category: 'video',
+        operation: 'generate',
+        params: compact({
+          prompt: text,
+          aspectRatio: normalized?.ratio,
+          resolution: normalized?.resolution ?? normalized?.size,
+          durationSeconds:
+            Number.isFinite(seconds) && seconds > 0 ? Math.round(seconds) : undefined,
+          generateAudio: normalized?.generateAudio,
+          providerOptions: {
+            deepchat: normalized,
+            deepchatBodyShape: resolveOpenAICompatibleVideoRequestBodyShape({
+              providerId,
+              providerApiType: provider?.apiType,
+              baseUrl: provider?.baseUrl,
+              modelId
+            })
+          }
+        })
+      },
+      options?.signal
+    )
+    const videos = await this.files(task, 'video/', options?.signal)
+    if (!videos.length) throw new Error('Video generation completed without video output')
+    return { providerId, modelId, ...(normalized ? { options: normalized } : {}), videos }
   }
 
   async generateSpeechStandalone(

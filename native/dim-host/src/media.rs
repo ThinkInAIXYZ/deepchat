@@ -1,5 +1,6 @@
 //! Custom desktop providers retain their UUID identity. Only their media vendor
 //! name is adapted; execution, connections, files and task recovery belong to dim.
+use crate::video_compat;
 use dim_agent_capabilities::host::ModalityConnection;
 use dim_agent_capabilities::methods::{Interruption, MethodDecl, RpcError, params, reply};
 use dim_agent_runtime::{AgentBuilder, Names};
@@ -25,6 +26,34 @@ type Aliases = HashMap<(String, String), String>;
 pub fn install(builder: &mut AgentBuilder) {
     dim_agent_runtime::names::register::<ModalityAdapterService>(builder.catalog_mut(), None);
     builder.plugin(|names| Ok(Box::new(Media::new(names)?)));
+}
+/// Native startup recovery must see the product adapter and its restored aliases.
+/// The SDK plugin reads this optional binding without declaring a dependency;
+/// compose its public plugin with that dependency instead of changing recovery.
+pub fn install_tasks(builder: &mut AgentBuilder, options: dim_modality::InstallOptions) {
+    builder.optional_plugin(move |names| {
+        Ok(Box::new(OrderedModality {
+            native: dim_modality::ModalityPlugin::new(names, options.clone())?,
+            adapter: names.key()?,
+        }) as Box<dyn DynPlugin>)
+    });
+}
+struct OrderedModality {
+    native: dim_modality::ModalityPlugin,
+    adapter: Key<ModalityAdapterService>,
+}
+impl DynPlugin for OrderedModality {
+    fn name(&self) -> &str {
+        "Modality"
+    }
+    fn injects(&self) -> Vec<TypeKey> {
+        let mut keys = self.native.injects();
+        keys.push(self.adapter.erase());
+        keys
+    }
+    fn apply<'a>(&'a self, ctx: &'a Ctx) -> BoxFuture<'a, rutis::Result<Effect>> {
+        self.native.apply(ctx)
+    }
 }
 struct Media {
     providers: Key<ProviderService>,
@@ -184,9 +213,12 @@ impl ModalityAdapter for DesktopMedia {
         self.native.available()
     }
     fn operations(&self, model: &ModelId) -> Vec<AdapterOperation> {
-        self.model(model)
-            .map(|model| self.native.operations(&model))
-            .unwrap_or_else(|| self.native.operations(model))
+        let model = self.model(model).unwrap_or_else(|| model.clone());
+        let mut operations = self.native.operations(&model);
+        if model.provider_id == "openai" && !operations.iter().any(|op| op.category == "video") {
+            operations.push(video_compat::operation());
+        }
+        operations
     }
     fn submit(
         &self,
@@ -198,6 +230,12 @@ impl ModalityAdapter for DesktopMedia {
             job.model = self
                 .model(&job.model)
                 .ok_or_else(|| AdapterError::unavailable("Native media vendor is unavailable"))?;
+            if job.category == "video"
+                && job.operation == "generate"
+                && job.model.provider_id == "openai"
+            {
+                return video_compat::submit(job, connection, cancel).await;
+            }
             self.native.submit(job, connection, cancel).await
         })
     }
@@ -209,6 +247,10 @@ impl ModalityAdapter for DesktopMedia {
         progress: ProgressSink,
         cancel: CancellationToken,
     ) -> AdapterFuture<'_, AdapterOutput> {
+        if video_compat::handles(handle) {
+            let handle = handle.unwrap().to_owned();
+            return Box::pin(async move { video_compat::wait(&handle, connection, cancel).await });
+        }
         self.native
             .wait(task_id, handle, connection, progress, cancel)
     }
@@ -217,6 +259,9 @@ impl ModalityAdapter for DesktopMedia {
         handle: &str,
         connection: ModalityConnection,
     ) -> AdapterFuture<'_, RemoteCancel> {
+        if video_compat::handles(Some(handle)) {
+            return Box::pin(async { Ok(RemoteCancel::Unsupported) });
+        }
         self.native.cancel_remote(handle, connection)
     }
     fn realtime_open(

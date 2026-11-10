@@ -21,6 +21,7 @@ export interface DimMediaSubmission {
 export interface DimMediaTask {
   task_id: string
   client_task_id: string | null
+  remote_handle?: string | null
   state: 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled' | 'interrupted'
   result: {
     files: Array<{ name: string; media_type: string; bytes: number; sha256: string }>

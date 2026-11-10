@@ -20,12 +20,15 @@ interface TaskReply {
   task: DimMediaTask
 }
 it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
-  'runs UUID provider image, speech, transcription and embedding requests through native dim owners',
+  'runs UUID provider image, speech, video, transcription and embedding requests through native dim owners',
   async () => {
     const png = Buffer.from(
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
       'base64'
     )
+    const video = Buffer.from('native-video-bytes')
+    let videoPollHeld = false
+    let resumeVideo = false
     const wave = Buffer.from('RIFF\u0004\u0000\u0000\u0000WAVE')
     const requests: Array<{
       url: string
@@ -63,6 +66,36 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
         }
         response.writeHead(200, { 'Content-Type': 'application/json' })
         response.end(JSON.stringify({ created: 0, data: [{ b64_json: png.toString('base64') }] }))
+      } else if (request.url === '/v1/videos') {
+        response.writeHead(200, { 'Content-Type': 'application/json' })
+        response.end(
+          JSON.stringify({
+            id: JSON.parse(body.toString()).prompt.includes('resume')
+              ? 'native-resume-video'
+              : JSON.parse(body.toString()).prompt.includes('cancel')
+                ? 'native-cancel-video'
+                : 'native-video',
+            status: 'queued'
+          })
+        )
+      } else if (
+        request.url === '/v1/videos/native-video' ||
+        request.url === '/v1/videos/native-resume-video' ||
+        request.url === '/v1/videos/native-cancel-video'
+      ) {
+        videoPollHeld = true
+        response.writeHead(200, { 'Content-Type': 'application/json' })
+        response.end(
+          JSON.stringify({
+            status:
+              request.url.includes('cancel') || (request.url.includes('resume') && !resumeVideo)
+                ? 'in_progress'
+                : 'completed'
+          })
+        )
+      } else if (request.url?.endsWith('/content')) {
+        response.writeHead(200, { 'Content-Type': 'video/mp4' })
+        response.end(video)
       } else if (request.url === '/v1/embeddings') {
         const values = JSON.parse(body.toString()).input as string[]
         if (values[0] === 'native embedding hold') {
@@ -151,11 +184,13 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
         type:
           id === 'gpt-image-1'
             ? ModelType.ImageGeneration
-            : id === 'tts-1'
-              ? ModelType.TTS
-              : id === 'text-embedding-3-small'
-                ? ModelType.Embedding
-                : ModelType.Chat,
+            : id === 'sora-2' || id.startsWith('doubao-seedance-')
+              ? ModelType.VideoGeneration
+              : id === 'tts-1'
+                ? ModelType.TTS
+                : id === 'text-embedding-3-small'
+                  ? ModelType.Embedding
+                  : ModelType.Chat,
         speechRecognition: id === 'whisper-1',
         contextLength: 8192,
         maxTokens: 1024,
@@ -288,10 +323,108 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
           provider.id,
           'whisper-1',
           wave.toString('base64'),
-          'audio/wav',
+          'Audio/WAV',
           'C:\\recordings\\sample.wav'
         )
       ).toBe('native transcription')
+      const generatedVideo = await desktopMedia.generateVideoStandalone(
+        provider.id,
+        'native video facade',
+        'sora-2',
+        {
+          seconds: '8',
+          size: '1280x720',
+          ratio: '16:9',
+          resolution: '720p',
+          watermark: false,
+          generateAudio: true,
+          inputReference: { data: 'AQID', mimeType: 'image/png' },
+          references: [{ type: 'image', url: 'https://example.com/reference.png' }]
+        }
+      )
+      expect(generatedVideo.videos).toEqual([
+        { data: video.toString('base64'), mimeType: 'video/mp4' }
+      ])
+      expect(requests.findLast((request) => request.url === '/v1/videos')?.body).toMatchObject({
+        model: 'sora-2',
+        prompt: 'native video facade',
+        seconds: '8',
+        size: '1280x720',
+        input_reference: { data: 'AQID', mime_type: 'image/png' },
+        extra_body: {
+          ratio: '16:9',
+          resolution: '720p',
+          watermark: false,
+          generate_audio: true,
+          content: [
+            {
+              type: 'image_url',
+              image_url: { url: 'https://example.com/reference.png' },
+              role: 'reference_image'
+            }
+          ]
+        }
+      })
+      await desktopMedia.generateVideoStandalone(
+        provider.id,
+        'native video flat',
+        'doubao-seedance-2',
+        { seconds: '5', ratio: '16:9', generateAudio: false }
+      )
+      const flatVideo = requests.findLast((request) => request.url === '/v1/videos')?.body
+      expect(flatVideo).toMatchObject({
+        model: 'doubao-seedance-2',
+        duration: 5,
+        ratio: '16:9',
+        generate_audio: false
+      })
+      expect(flatVideo).not.toHaveProperty('extra_body')
+      const cancelledVideo = await media.submit({
+        category: 'video',
+        operation: 'generate',
+        model: await catalog.admit(provider.id, 'sora-2'),
+        params: { prompt: 'native video cancel' }
+      })
+      await expect
+        .poll(
+          async () =>
+            (
+              await client.call<TaskReply>('modality.task.status', {
+                task_id: cancelledVideo.task_id
+              })
+            ).task.remote_handle,
+          { timeout: 10_000 }
+        )
+        .toBeTruthy()
+      expect((await media.cancel(cancelledVideo.task_id)).state).toBe('cancelled')
+      videoPollHeld = false
+      const videoModel = await catalog.admit(provider.id, 'sora-2')
+      const resumable = await media.submit({
+        category: 'video',
+        operation: 'generate',
+        model: videoModel,
+        params: { prompt: 'native video resume' }
+      })
+      await expect.poll(() => videoPollHeld, { timeout: 10_000 }).toBe(true)
+      await expect
+        .poll(
+          async () =>
+            (await client.call<TaskReply>('modality.task.status', { task_id: resumable.task_id }))
+              .task.remote_handle,
+          { timeout: 10_000 }
+        )
+        .toBeTruthy()
+      await host.stop()
+      resumeVideo = true
+      client = await host.start()
+      const resumed = await wait(resumable.task_id)
+      expect(await media.readResult(resumed, resumed.result!.files[0].name, 1024)).toEqual(video)
+      expect(
+        requests.filter(
+          (request) =>
+            request.url === '/v1/videos' && request.body?.prompt === 'native video resume'
+        )
+      ).toHaveLength(1)
       const values = Array.from({ length: 35 }, (_, index) => `vector-${index}`)
       expect(await embedding.getEmbeddings(provider.id, 'text-embedding-3-small', values)).toEqual(
         values.map((_, index) => [1, index])

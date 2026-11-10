@@ -26,18 +26,11 @@ import type {
   ProviderStreamOptions
 } from '@shared/types/provider'
 import type { AcpConfigState, AcpDebugRequest, AcpDebugRunResult } from '@shared/types/acp'
-import { ApiEndpointType, ModelType } from '@shared/model'
 import type { JevJudgmentResult, JevQuestion } from '@shared/jevProtocol'
 import { supportsJevJudgment } from './providers/jevProvider'
-import {
-  normalizeImageGenerationOptions,
-  type ImageGenerationOptions
-} from '@shared/imageGenerationSettings'
-import {
-  normalizeVideoGenerationOptions,
-  type VideoGenerationOptions
-} from '@shared/videoGenerationSettings'
-import { normalizeTtsSettings, type TtsSettings } from '@shared/ttsSettings'
+import type { ImageGenerationOptions } from '@shared/imageGenerationSettings'
+import type { VideoGenerationOptions } from '@shared/videoGenerationSettings'
+import type { TtsSettings } from '@shared/ttsSettings'
 import {
   ProviderChange,
   ProviderBatchUpdate,
@@ -52,7 +45,6 @@ import type {
 import {
   BaseLLMProvider,
   SUMMARY_TITLES_PROMPT,
-  isAudioTranscriptionNotSupportedError,
   type ProviderGenerateTextOptions
 } from './baseProvider'
 import { ProviderConfig, StreamState } from './types'
@@ -120,24 +112,6 @@ const createAbortPromise = (
     }
   }
 }
-
-const closeAsyncIterator = <T>(stream: AsyncIterator<T>): void => {
-  try {
-    const closing = stream.return?.()
-    if (closing) void closing.catch(() => undefined)
-  } catch {
-    // Iterator teardown is best effort and must not replace the cancellation outcome.
-  }
-}
-
-const AUDIO_TRANSCRIPTION_PROMPT = [
-  'Transcribe the provided audio.',
-  'Return only the transcription text of the audio content.',
-  'Do not translate, summarize, explain, add speaker labels, or use markdown.',
-  'If there is no discernible speech, return an empty string.',
-  '请只返回音频中的转写文本，不要翻译、总结、解释、添加说话人标签或 Markdown。',
-  '如果没有可辨识的语音，请返回空字符串。'
-].join(' ')
 
 export class ProviderRuntime
   implements
@@ -772,63 +746,14 @@ export class ProviderRuntime
 
     await this.executeWithRateLimit(providerId, { signal })
 
-    if (this.nativeMedia)
-      return this.nativeMedia.transcribeAudioStandalone(
-        providerId,
-        modelId,
-        audioBase64,
-        mimeType,
-        filename,
-        options
-      )
-
-    const provider = this.getProviderInstance(providerId)
-    try {
-      return (
-        await provider.transcribeAudio(
-          modelId,
-          normalizedAudioBase64,
-          normalizedMimeType,
-          filename,
-          {
-            signal
-          }
-        )
-      ).trim()
-    } catch (error) {
-      if (!isAudioTranscriptionNotSupportedError(error)) {
-        throw error
-      }
-    }
-
-    const text = await this.generateCompletionStandalone(
+    return this.requireNativeMedia().transcribeAudioStandalone(
       providerId,
-      [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'text',
-              text: AUDIO_TRANSCRIPTION_PROMPT
-            },
-            {
-              type: 'input_audio',
-              input_audio: {
-                data: normalizedAudioBase64,
-                media_type: normalizedMimeType,
-                ...(filename?.trim() ? { filename: filename.trim() } : {})
-              }
-            }
-          ]
-        }
-      ],
       modelId,
-      0,
-      undefined,
-      { signal, swallowErrors: false }
+      normalizedAudioBase64,
+      normalizedMimeType,
+      filename,
+      options
     )
-
-    return text.trim()
   }
 
   async generateImageStandalone(
@@ -850,75 +775,13 @@ export class ProviderRuntime
 
     await this.executeWithRateLimit(providerId, { signal })
 
-    if (this.nativeMedia)
-      return this.nativeMedia.generateImageStandalone(
-        providerId,
-        prompt,
-        modelId,
-        imageOptions,
-        options
-      )
-
-    const provider = this.getProviderInstance(providerId)
-    const modelConfig = this.providerSettings.getModelConfig(modelId, providerId)
-    const mergedImageOptions = normalizeImageGenerationOptions({
-      ...modelConfig.imageGeneration,
-      ...imageOptions
-    })
-    const resolvedModelConfig: ModelConfig = {
-      ...modelConfig,
-      type: ModelType.ImageGeneration,
-      apiEndpoint: ApiEndpointType.Image,
-      imageGeneration: mergedImageOptions
-    }
-    const stream = provider.coreStream(
-      [{ role: 'user', content: normalizedPrompt }],
-      modelId,
-      resolvedModelConfig,
-      modelConfig.temperature ?? 0.7,
-      modelConfig.maxTokens ?? 1024,
-      [],
-      { signal }
-    )
-    const images: StandaloneImageGenerationResult['images'] = []
-    const abort = createAbortPromise(signal, () => {
-      closeAsyncIterator(stream)
-    })
-
-    const collect = async () => {
-      for await (const event of stream) {
-        if (signal?.aborted) {
-          throw createAbortError()
-        }
-
-        if (event.type === 'image_data') {
-          images.push({
-            data: event.image_data.data,
-            mimeType: event.image_data.mimeType
-          })
-        }
-        if (event.type === 'error') {
-          throw Object.assign(new Error(event.error_message), { failure: event.failure })
-        }
-      }
-    }
-
-    try {
-      await (abort.promise ? Promise.race([collect(), abort.promise]) : collect())
-    } finally {
-      abort.cleanup()
-    }
-
-    if (images.length === 0) {
-      throw new Error('Image generation completed without image output')
-    }
-
-    return {
+    return this.requireNativeMedia().generateImageStandalone(
       providerId,
+      normalizedPrompt,
       modelId,
-      ...(mergedImageOptions ? { options: mergedImageOptions } : {}),
-      images
-    }
+      imageOptions,
+      options
+    )
   }
 
   async generateVideoStandalone(
@@ -940,69 +803,13 @@ export class ProviderRuntime
 
     await this.executeWithRateLimit(providerId, { signal })
 
-    const provider = this.getProviderInstance(providerId)
-    const modelConfig = this.providerSettings.getModelConfig(modelId, providerId)
-    const mergedVideoOptions = normalizeVideoGenerationOptions({
-      ...modelConfig.videoGeneration,
-      ...videoOptions
-    })
-    const resolvedModelConfig: ModelConfig = {
-      ...modelConfig,
-      type: ModelType.VideoGeneration,
-      apiEndpoint: ApiEndpointType.Video,
-      videoGeneration: mergedVideoOptions
-    }
-    const stream = provider.coreStream(
-      [{ role: 'user', content: normalizedPrompt }],
-      modelId,
-      resolvedModelConfig,
-      modelConfig.temperature ?? 0.7,
-      modelConfig.maxTokens ?? 1024,
-      [],
-      { signal }
-    )
-    const videos: StandaloneVideoGenerationResult['videos'] = []
-    const abort = createAbortPromise(signal, () => {
-      closeAsyncIterator(stream)
-    })
-
-    const collect = async () => {
-      for await (const event of stream) {
-        if (signal?.aborted) {
-          throw createAbortError()
-        }
-
-        if (
-          event.type === 'image_data' &&
-          event.image_data.mimeType.trim().toLowerCase().startsWith('video/')
-        ) {
-          videos.push({
-            data: event.image_data.data,
-            mimeType: event.image_data.mimeType
-          })
-        }
-        if (event.type === 'error') {
-          throw Object.assign(new Error(event.error_message), { failure: event.failure })
-        }
-      }
-    }
-
-    try {
-      await (abort.promise ? Promise.race([collect(), abort.promise]) : collect())
-    } finally {
-      abort.cleanup()
-    }
-
-    if (videos.length === 0) {
-      throw new Error('Video generation completed without video output')
-    }
-
-    return {
+    return this.requireNativeMedia().generateVideoStandalone(
       providerId,
+      normalizedPrompt,
       modelId,
-      ...(mergedVideoOptions ? { options: mergedVideoOptions } : {}),
-      videos
-    }
+      videoOptions,
+      options
+    )
   }
 
   async generateSpeechStandalone(
@@ -1024,81 +831,18 @@ export class ProviderRuntime
 
     await this.executeWithRateLimit(providerId, { signal })
 
-    if (this.nativeMedia)
-      return this.nativeMedia.generateSpeechStandalone(
-        providerId,
-        text,
-        modelId,
-        speechOptions,
-        options
-      )
-
-    const provider = this.getProviderInstance(providerId)
-    const modelConfig = this.providerSettings.getModelConfig(modelId, providerId)
-    const mergedSpeechOptions = normalizeTtsSettings({
-      ...modelConfig.tts,
-      ...speechOptions
-    })
-    const resolvedModelConfig: ModelConfig = {
-      ...modelConfig,
-      type: ModelType.TTS,
-      apiEndpoint: ApiEndpointType.AudioSpeech,
-      tts: mergedSpeechOptions
-    }
-    const stream = provider.coreStream(
-      [{ role: 'user', content: normalizedText }],
-      modelId,
-      resolvedModelConfig,
-      modelConfig.temperature ?? 0.7,
-      modelConfig.maxTokens ?? 1024,
-      [],
-      { signal }
-    )
-    let audio: StandaloneSpeechGenerationResult['audio'] | undefined
-    const abort = createAbortPromise(signal, () => {
-      closeAsyncIterator(stream)
-    })
-
-    const collect = async () => {
-      for await (const event of stream) {
-        if (signal?.aborted) {
-          throw createAbortError()
-        }
-
-        if (
-          event.type === 'image_data' &&
-          event.image_data.mimeType.trim().toLowerCase().startsWith('audio/')
-        ) {
-          if (audio) {
-            throw new Error('Speech generation returned multiple audio outputs')
-          }
-          audio = {
-            data: event.image_data.data,
-            mimeType: event.image_data.mimeType
-          }
-        }
-        if (event.type === 'error') {
-          throw Object.assign(new Error(event.error_message), { failure: event.failure })
-        }
-      }
-    }
-
-    try {
-      await (abort.promise ? Promise.race([collect(), abort.promise]) : collect())
-    } finally {
-      abort.cleanup()
-    }
-
-    if (!audio) {
-      throw new Error('Speech generation completed without audio output')
-    }
-
-    return {
+    return this.requireNativeMedia().generateSpeechStandalone(
       providerId,
+      normalizedText,
       modelId,
-      ...(mergedSpeechOptions ? { options: mergedSpeechOptions } : {}),
-      audio
-    }
+      speechOptions,
+      options
+    )
+  }
+
+  private requireNativeMedia(): DimMediaModels {
+    if (!this.nativeMedia) throw new Error('Native dim media service is unavailable')
+    return this.nativeMedia
   }
 
   // 配置相关方法

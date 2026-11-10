@@ -5,7 +5,7 @@ import type { LLM_PROVIDER } from '@shared/types/provider'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { MainDatabase } from '../../../src/main/data/mainDatabase'
 import { AiSdkProvider } from '../../../src/main/provider/providers/aiSdkProvider'
-import { ApiEndpointType, ModelType } from '../../../src/shared/model'
+import { ModelType } from '../../../src/shared/model'
 import { AcpRuntimeOwner } from '@/agent/acp/client'
 import { AcpSessionPersistence } from '@/agent/acp/runtime'
 import { DEFAULT_PROVIDERS } from '@/provider/defaults'
@@ -603,6 +603,8 @@ describe('ProviderRuntime Integration Tests', () => {
         () =>
           providerRuntime.generateImageStandalone('mock-openai-api', 'image', 'mock-gpt-thinking'),
         () =>
+          providerRuntime.generateVideoStandalone('mock-openai-api', 'video', 'mock-gpt-thinking'),
+        () =>
           providerRuntime.generateSpeechStandalone(
             'mock-openai-api',
             'speech',
@@ -617,175 +619,34 @@ describe('ProviderRuntime Integration Tests', () => {
           )
       ]
       for (const call of calls) await expect(call()).rejects.toBe(unknown)
-      expect(rateLimit).toHaveBeenCalledTimes(3)
-      expect(submit).toHaveBeenCalledTimes(3)
+      expect(rateLimit).toHaveBeenCalledTimes(4)
+      expect(submit).toHaveBeenCalledTimes(4)
       expect(legacy).not.toHaveBeenCalled()
     })
 
-    it('consumes an iterator teardown failure during standalone image cancellation', async () => {
-      const lateError = new Error('image iterator teardown failed')
-      const stream = {
-        next: vi.fn(() => new Promise<IteratorResult<never>>(() => undefined)),
-        return: vi.fn().mockRejectedValue(lateError),
-        [Symbol.asyncIterator]() {
-          return this
-        }
-      }
+    it('requires native media owners for every standalone media operation', async () => {
       const provider = providerRuntime.getProviderInstance('mock-openai-api')
-      const coreStreamSpy = vi.spyOn(provider, 'coreStream').mockReturnValue(stream as any)
-      const abortController = new AbortController()
-      const unhandled = vi.fn()
-
-      process.on('unhandledRejection', unhandled)
-      try {
-        const generating = providerRuntime.generateImageStandalone(
-          'mock-openai-api',
-          'cancel me',
-          'mock-gpt-thinking',
-          undefined,
-          { signal: abortController.signal }
-        )
-        await vi.waitFor(() => expect(coreStreamSpy).toHaveBeenCalledOnce())
-        expect(coreStreamSpy.mock.calls[0]?.[6]).toEqual({ signal: abortController.signal })
-        abortController.abort()
-
-        await expect(generating).rejects.toMatchObject({ name: 'AbortError' })
-        await new Promise<void>((resolve) => setImmediate(resolve))
-        await new Promise<void>((resolve) => setImmediate(resolve))
-        expect(stream.return).toHaveBeenCalledOnce()
-        expect(unhandled.mock.calls.some(([reason]) => reason === lateError)).toBe(false)
-      } finally {
-        process.off('unhandledRejection', unhandled)
-        coreStreamSpy.mockRestore()
+      const legacy = vi.spyOn(provider, 'coreStream')
+      const legacyTranscribe = vi.spyOn(provider, 'transcribeAudio')
+      for (const method of [
+        'generateImageStandalone',
+        'generateVideoStandalone',
+        'generateSpeechStandalone'
+      ] as const) {
+        await expect(
+          providerRuntime[method]('mock-openai-api', 'hello', 'mock-gpt-thinking')
+        ).rejects.toThrow('Native dim media service is unavailable')
       }
-    })
-
-    it('normalizes audio MIME type casing before transcription validation', async () => {
-      const transcribeSpy = vi
-        .spyOn(AiSdkProvider.prototype, 'transcribeAudio')
-        .mockResolvedValue('mock transcript')
-
-      const transcript = await providerRuntime.transcribeAudioStandalone(
-        'mock-openai-api',
-        'mock-gpt-thinking',
-        'AQID',
-        'Audio/WAV',
-        'recording.wav'
-      )
-
-      expect(transcript).toBe('mock transcript')
-      expect(transcribeSpy).toHaveBeenCalledWith(
-        'mock-gpt-thinking',
-        'AQID',
-        'audio/wav',
-        'recording.wav',
-        expect.any(Object)
-      )
-    }, 15000)
-
-    it('should generate images through the standalone image runtime', async () => {
-      mockProviderSettings.getModelConfig = vi.fn().mockReturnValue({
-        maxTokens: 4096,
-        contextLength: 4096,
-        temperature: 0.7,
-        vision: false,
-        functionCall: false,
-        reasoning: false,
-        type: ModelType.ImageGeneration,
-        imageGeneration: { quality: 'low' }
-      })
-      mockRunAiSdkCoreStream.mockImplementationOnce(async function* () {
-        yield {
-          type: 'image_data',
-          image_data: { data: 'imgcache://generated.png', mimeType: 'image/png' }
-        }
-        yield { type: 'stop', stop_reason: 'complete' }
-      })
-
-      const response = await providerRuntime.generateImageStandalone(
-        'mock-openai-api',
-        'A warm sunset over the ocean',
-        'gpt-image-1',
-        { size: '1024x1024' }
-      )
-
-      expect(response).toEqual({
-        providerId: 'mock-openai-api',
-        modelId: 'gpt-image-1',
-        options: { quality: 'low', size: '1024x1024' },
-        images: [{ data: 'imgcache://generated.png', mimeType: 'image/png' }]
-      })
-      const call = mockRunAiSdkCoreStream.mock.calls.at(-1)
-      expect(call?.[1]).toEqual([{ role: 'user', content: 'A warm sunset over the ocean' }])
-      expect(call?.[2]).toBe('gpt-image-1')
-      expect(call?.[3]).toMatchObject({
-        apiEndpoint: ApiEndpointType.Image,
-        type: ModelType.ImageGeneration,
-        imageGeneration: { quality: 'low', size: '1024x1024' }
-      })
-      expect(call?.[4]).toBe(0.7)
-      expect(call?.[5]).toBe(4096)
-      expect(call?.[6]).toEqual([])
-    }, 15000)
-
-    it('should generate typed audio through the standalone speech runtime', async () => {
-      mockProviderSettings.getModelConfig = vi.fn().mockReturnValue({
-        maxTokens: 4096,
-        contextLength: 4096,
-        temperature: 0.4,
-        vision: false,
-        functionCall: false,
-        reasoning: false,
-        type: ModelType.TTS,
-        tts: { voice: 'alloy', speed: 1 }
-      })
-      mockRunAiSdkCoreStream.mockImplementationOnce(async function* () {
-        yield {
-          type: 'image_data',
-          image_data: { data: 'data:audio/mpeg;base64,AQID', mimeType: 'audio/mpeg' }
-        }
-        yield { type: 'stop', stop_reason: 'complete' }
-      })
-
-      const response = await providerRuntime.generateSpeechStandalone(
-        'mock-openai-api',
-        ' Read this aloud. ',
-        'gpt-4o-mini-tts',
-        { speed: 1.25, responseFormat: 'mp3' }
-      )
-
-      expect(response).toEqual({
-        providerId: 'mock-openai-api',
-        modelId: 'gpt-4o-mini-tts',
-        options: { voice: 'alloy', speed: 1.25, responseFormat: 'mp3' },
-        audio: { data: 'data:audio/mpeg;base64,AQID', mimeType: 'audio/mpeg' }
-      })
-      const call = mockRunAiSdkCoreStream.mock.calls.at(-1)
-      expect(call?.[1]).toEqual([{ role: 'user', content: 'Read this aloud.' }])
-      expect(call?.[2]).toBe('gpt-4o-mini-tts')
-      expect(call?.[3]).toMatchObject({
-        apiEndpoint: ApiEndpointType.AudioSpeech,
-        type: ModelType.TTS,
-        tts: { voice: 'alloy', speed: 1.25, responseFormat: 'mp3' }
-      })
-      expect(call?.[4]).toBe(0.4)
-      expect(call?.[5]).toBe(4096)
-      expect(call?.[6]).toEqual([])
-    }, 15000)
-
-    it.each([
-      'generateImageStandalone',
-      'generateVideoStandalone',
-      'generateSpeechStandalone'
-    ] as const)('preserves provider failure metadata from %s error events', async (method) => {
-      const failure = { statusCode: 401, retryable: false }
-      mockRunAiSdkCoreStream.mockImplementationOnce(async function* () {
-        yield { type: 'error', error_message: 'provider rejected request', failure }
-      })
-
       await expect(
-        providerRuntime[method]('mock-openai-api', 'hello', 'mock-gpt-thinking')
-      ).rejects.toMatchObject({ message: 'provider rejected request', failure })
+        providerRuntime.transcribeAudioStandalone(
+          'mock-openai-api',
+          'mock-gpt-thinking',
+          'AQID',
+          'Audio/WAV'
+        )
+      ).rejects.toThrow('Native dim media service is unavailable')
+      expect(legacy).not.toHaveBeenCalled()
+      expect(legacyTranscribe).not.toHaveBeenCalled()
     })
 
     it('routes title and summary helpers through the native model service', async () => {
