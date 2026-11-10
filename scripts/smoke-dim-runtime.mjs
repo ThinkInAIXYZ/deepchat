@@ -10,6 +10,7 @@ import { verifyDimRuntime } from './package-dim-runtime.mjs'
 const options = {}
 for (let i = 2; i < process.argv.length; i++) {
   const key = process.argv[i]
+  if (key === '--') continue
   if (key === '--development') options.development = true
   else if (['--resources-path', '--runtime-root', '--report-path'].includes(key)) {
     const value = process.argv[++i]

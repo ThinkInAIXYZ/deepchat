@@ -166,6 +166,8 @@
 
 - 模块 66：独立转写等大媒体输入使用受管文件传输与独立 Native media-input 插件。插件通过公开 PluginFileTransactions 准备私有原始文件，把 node_path 交给 ModalityTasks；执行/排队/取消/恢复仍属于 dim。文件保留到 Native 任务终态，未知准入保留输入且不自动重送；启动等原生恢复完成后，按公开任务记录清理终态与未提交孤儿，卸载等待观察任务结束。提交使用独立连接保护准备阶段，避免备份按空闲停机。桥 0.18.0，无新增 SDK 补丁。18 MiB + 17 字节的真实转写、重复准入去重、取消、丢失回执及重启清理通过；完整 release Native 16 项通过（118s），独立连接最终媒体联合复验通过（24s）。15 项相关回归、双端类型及格式/i18n/lint 通过；主进程最终构建和实际 Electron 聊天/CLI/备份恢复/重启/Inspector 联合验收通过（30s）。
 
+- 模块 65 离线探测修正：首轮 Linux x64/arm64 实际 release Native smoke 与完整打包成功；离线探测入口误把 pnpm 传入的独立 -- 当成未知参数。入口现接受该标准分隔符，原有参数校验保留；在禁网 namespace 中按工作流同样的 pnpm 命令，release 0.18.0 的 Rust/Node/独立插件及 Agent owner 启动与正常退出通过，31 项打包回归通过。Rust cache 改为在 Native 构建与 smoke 成功后显式保存，避免后续安装包步骤失败丢失已验证编译缓存。
+
 - 模块 65 macOS runner 修正：macOS arm64 实际 release 编译成功，16 项 Native 中 15 项通过；剩余一项把 /var 临时路径与 dim 返回的 /private/var canonical CWD 作字符串比较。迁移与换代的 CWD 验证改为 realpath 后比较同一物理目录，保留 tools 身份断言；Linux 的完整 Native owner 联合用例定向复验通过。macOS 仍待新一轮实际 runner，不跳过该检查。
 
 - 模块 65 发布验证修正：实际六平台 workflow_dispatch 已启动；Windows x64 发现 Git Bash 的 tar 将盘符路径解释为远程地址。安装器在 Windows 显式使用系统 ZIP-capable tar，并从 staging 工作目录传入相对归档名；保留原有 checksum、路径和链接校验。3 项安装器回归及格式/i18n/lint/双端类型通过，Windows runner 修复结果待新一轮实际验证。
