@@ -532,15 +532,19 @@ export async function runDisabledAgentToolCapabilityCleanupMigration(
 
 // Sessions resolve tools from their own disabled list without falling back to the Agent config,
 // so sessions created before html_render existed would otherwise get it enabled.
+// Writes stay out of device sync: sync replaces a whole session by modification time, so marking
+// every session as edited here would overwrite newer messages from other devices.
 export async function runHtmlRenderSessionToolsSeedMigration({
   sqlitePresenter,
-  agentSettings
+  agentSettings,
+  untracked
 }: {
   sqlitePresenter: Pick<
     SessionDataMigrationSQLitePort,
     'appSettingsTable' | 'getDatabase' | 'newSessionsTable' | 'newSessionDisabledAgentToolsTable'
   >
   agentSettings: Pick<AgentSettingsPort, 'listAgents'>
+  untracked: <T>(write: () => T) => T
 }): Promise<void> {
   if (sqlitePresenter.appSettingsTable.getAppSetting<boolean>(HTML_RENDER_SESSION_TOOLS_SEEDED_KEY))
     return
@@ -553,7 +557,7 @@ export async function runHtmlRenderSessionToolsSeedMigration({
   const updateSessionDisabledTools = db.prepare<[string, string]>(
     'UPDATE new_sessions SET disabled_agent_tools = ?, revision = revision + 1 WHERE id = ?'
   )
-  db.transaction(() => {
+  untracked(() => {
     for (const agent of agents) {
       if (agent.type !== 'deepchat') continue
       for (const { id } of listSessionIds.all(agent.id)) {
@@ -566,6 +570,6 @@ export async function runHtmlRenderSessionToolsSeedMigration({
         sqlitePresenter.newSessionDisabledAgentToolsTable.replaceForSession(id, disabledAgentTools)
       }
     }
-  })()
+  })
   sqlitePresenter.appSettingsTable.setAppSetting(HTML_RENDER_SESSION_TOOLS_SEEDED_KEY, true)
 }

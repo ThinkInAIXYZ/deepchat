@@ -3976,7 +3976,8 @@ export async function createMainProcessControl(dependencies: {
   })
   await runHtmlRenderSessionToolsSeedMigration({
     sqlitePresenter: sessionDataMigrationSQLite,
-    agentSettings
+    agentSettings,
+    untracked: (write) => syncReplica!.untracked(write)
   })
   // Migration must finish before any renderer or background runtime can read a manual Agent scope.
   // A failed migration is startup-fatal; continuing would persist an empty active-Skill selection.

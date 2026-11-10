@@ -1,4 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import {
   runDisabledAgentToolCapabilityCleanupMigration,
   runHtmlRenderSessionToolsSeedMigration,
@@ -7,6 +10,10 @@ import {
 import { TAPE_TOOL_NAMES } from '@shared/agentTools'
 import { HTML_RENDER_SECTION_TOOL_NAME, HTML_RENDER_TOOL_NAME } from '@shared/agentHtmlRenderTool'
 import { NewSessionActiveSkillsTable } from '@/session/data/tables/newSessionActiveSkills'
+import { SyncReplicaStore } from '@/sync/replica/store'
+
+vi.unmock('fs')
+vi.unmock('node:fs')
 
 const sqliteModule = await import('better-sqlite3-multiple-ciphers').catch(() => null)
 const sessionsModule = sqliteModule
@@ -178,8 +185,10 @@ describeIfSqlite('disabled Agent tool capability cleanup SQLite integration', ()
     }
   })
 
-  it('disables html_render tools in pre-upgrade sessions once and keeps later user enables', async () => {
-    const db = new DatabaseCtor(':memory:')
+  it('disables html_render tools in pre-upgrade sessions once, untracked by sync, and keeps later user enables', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'deepchat-html-render-seed-'))
+    const db = new DatabaseCtor(join(directory, 'agent.db'))
+    let syncStore: SyncReplicaStore | undefined
     try {
       const sessions = new NewSessionsTableCtor(db)
       const disabledTools = new NewSessionDisabledAgentToolsTableCtor(db)
@@ -197,6 +206,19 @@ describeIfSqlite('disabled Agent tool capability cleanup SQLite integration', ()
         createdAt: 60,
         updatedAt: 110
       })
+      const store = new SyncReplicaStore({
+        directory,
+        database: () => db,
+        canApply: () => true,
+        applied: () => {}
+      })
+      syncStore = store
+      const countSyncChanges = (): number =>
+        (db.prepare('SELECT COUNT(*) AS count FROM _sync_changes').get() as { count: number }).count
+      const syncRevision = (): number =>
+        (db.prepare('SELECT revision FROM _sync_state').get() as { revision: number }).revision
+      const syncChangesBefore = countSyncChanges()
+      const syncRevisionBefore = syncRevision()
 
       const settings = new Map<string, unknown>()
       const dependencies = {
@@ -214,7 +236,8 @@ describeIfSqlite('disabled Agent tool capability cleanup SQLite integration', ()
             { id: 'deepchat', type: 'deepchat' },
             { id: 'acp-agent', type: 'acp' }
           ])
-        } as never
+        } as never,
+        untracked: <T>(write: () => T) => store.untracked(write)
       }
 
       await runHtmlRenderSessionToolsSeedMigration(dependencies)
@@ -224,6 +247,8 @@ describeIfSqlite('disabled Agent tool capability cleanup SQLite integration', ()
       expect(sessions.get('pre-upgrade')?.disabled_agent_tools).toBe(JSON.stringify(seeded))
       expect(sessions.get('pre-upgrade')?.updated_at).toBe(100)
       expect(sessions.getDisabledAgentTools('acp-session')).toEqual([])
+      expect(countSyncChanges()).toBe(syncChangesBefore)
+      expect(syncRevision()).toBe(syncRevisionBefore)
 
       sessions.updateDisabledAgentTools('pre-upgrade', ['cronjob', HTML_RENDER_SECTION_TOOL_NAME])
       await runHtmlRenderSessionToolsSeedMigration(dependencies)
@@ -233,7 +258,9 @@ describeIfSqlite('disabled Agent tool capability cleanup SQLite integration', ()
         HTML_RENDER_SECTION_TOOL_NAME
       ])
     } finally {
+      syncStore?.close()
       db.close()
+      rmSync(directory, { recursive: true, force: true })
     }
   })
 })

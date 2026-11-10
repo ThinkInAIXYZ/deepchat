@@ -565,6 +565,17 @@ export class SyncReplicaStore {
     for (const listener of this.listeners) listener()
   }
 
+  /** Runs local maintenance writes that other replicas must not receive as user edits. */
+  untracked<T>(write: () => T): T {
+    const db = this.database()
+    return db.transaction(() => {
+      db.exec('UPDATE _sync_state SET suppress=1 WHERE singleton=1')
+      const result = write()
+      db.exec('UPDATE _sync_state SET suppress=0 WHERE singleton=1')
+      return result
+    })()
+  }
+
   close(): void {
     this.unsubscribe?.()
     this.unsubscribe = null
