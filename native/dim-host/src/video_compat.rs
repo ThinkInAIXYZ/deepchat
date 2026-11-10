@@ -130,7 +130,7 @@ pub async fn wait(
     .await
     .map_err(|_| AdapterError::provider_error("Video task exceeded one hour"))?
 }
-fn request(
+pub(crate) fn request(
     connection: &ModalityConnection,
     path: &str,
     signal: &AbortSignal,
@@ -185,7 +185,7 @@ fn request(
         ..Default::default()
     })
 }
-async fn exchange(
+pub(crate) async fn exchange(
     connection: &ModalityConnection,
     path: &str,
     body: Option<Value>,

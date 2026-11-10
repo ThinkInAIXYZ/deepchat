@@ -22,7 +22,15 @@ use std::{
 };
 use tokio_util::sync::CancellationToken;
 
-type Aliases = HashMap<(String, String), String>;
+#[derive(Clone)]
+struct VendorModel {
+    vendor: String,
+    config: Value,
+}
+type Aliases = HashMap<(String, String), VendorModel>;
+fn supported(name: &str) -> bool {
+    vendor::vendor(name).is_some() || crate::media_compat::supports(name)
+}
 pub struct TasksReady;
 pub fn install(builder: &mut AgentBuilder) {
     dim_agent_runtime::names::register::<ModalityAdapterService>(builder.catalog_mut(), None);
@@ -171,7 +179,7 @@ async fn refresh(
                     names
                         .iter()
                         .filter_map(Value::as_str)
-                        .find(|name| vendor::vendor(name).is_some())
+                        .find(|name| supported(name))
                 });
             let inferred = provider.connection.as_ref().and_then(|connection| {
                 match connection.driver_kind.as_str() {
@@ -181,11 +189,18 @@ async fn refresh(
                     _ => None,
                 }
             });
-            if let Some(vendor) = explicit
-                .or(inferred)
-                .filter(|name| vendor::vendor(name).is_some())
-            {
-                aliases.insert((id.into(), model.model.model_id), vendor.into());
+            if let Some(vendor) = explicit.or(inferred).filter(|name| supported(name)) {
+                let raw = model.model.metadata.as_ref().map(|meta| &meta.raw);
+                aliases.insert(
+                    (id.into(), model.model.model_id),
+                    VendorModel {
+                        vendor: vendor.into(),
+                        config: json!({
+                            "voice": raw.and_then(|raw| raw.get("deepchatVoiceAi")),
+                            "route": raw.and_then(|raw| raw.get("deepchatMediaRoute"))
+                        }),
+                    },
+                );
             }
         }
     }
@@ -209,7 +224,7 @@ impl DesktopMedia {
             .unwrap()
             .get(&(model.provider_id.clone(), model.model_id.clone()))
             .map(|vendor| ModelId {
-                provider_id: vendor.clone(),
+                provider_id: vendor.vendor.clone(),
                 model_id: model.model_id.clone(),
             })
     }
@@ -220,6 +235,18 @@ impl ModalityAdapter for DesktopMedia {
     }
     fn operations(&self, model: &ModelId) -> Vec<AdapterOperation> {
         let model = self.model(model).unwrap_or_else(|| model.clone());
+        if model.provider_id == "voiceai" {
+            return crate::media_compat::operations("voiceai");
+        }
+        if model.provider_id == "apimart" {
+            let mut operations = self.native.operations(&ModelId {
+                provider_id: "openai".into(),
+                model_id: model.model_id.clone(),
+            });
+            operations.retain(|operation| operation.category == "speech");
+            operations.extend(crate::media_compat::operations("apimart"));
+            return operations;
+        }
         let mut operations = self.native.operations(&model);
         if model.provider_id == "openai" && !operations.iter().any(|op| op.category == "video") {
             operations.push(video_compat::operation());
@@ -233,9 +260,25 @@ impl ModalityAdapter for DesktopMedia {
         cancel: CancellationToken,
     ) -> AdapterFuture<'_, Submitted> {
         Box::pin(async move {
+            let config = self
+                .aliases
+                .read()
+                .unwrap()
+                .get(&(job.model.provider_id.clone(), job.model.model_id.clone()))
+                .map(|value| value.config.clone())
+                .unwrap_or(Value::Null);
             job.model = self
                 .model(&job.model)
                 .ok_or_else(|| AdapterError::unavailable("Native media vendor is unavailable"))?;
+            if job.model.provider_id == "voiceai"
+                || (job.model.provider_id == "apimart"
+                    && matches!(job.category.as_str(), "image" | "video"))
+            {
+                return crate::media_compat::submit(job, config, connection, cancel).await;
+            }
+            if job.model.provider_id == "apimart" {
+                job.model.provider_id = "openai".into();
+            }
             if job.category == "video"
                 && job.operation == "generate"
                 && job.model.provider_id == "openai"
@@ -253,6 +296,12 @@ impl ModalityAdapter for DesktopMedia {
         progress: ProgressSink,
         cancel: CancellationToken,
     ) -> AdapterFuture<'_, AdapterOutput> {
+        if crate::media_compat::handles(handle) {
+            let handle = handle.unwrap().to_owned();
+            return Box::pin(async move {
+                crate::media_compat::wait(&handle, connection, cancel).await
+            });
+        }
         if video_compat::handles(handle) {
             let handle = handle.unwrap().to_owned();
             return Box::pin(async move { video_compat::wait(&handle, connection, cancel).await });
@@ -265,7 +314,7 @@ impl ModalityAdapter for DesktopMedia {
         handle: &str,
         connection: ModalityConnection,
     ) -> AdapterFuture<'_, RemoteCancel> {
-        if video_compat::handles(Some(handle)) {
+        if video_compat::handles(Some(handle)) || crate::media_compat::handles(Some(handle)) {
             return Box::pin(async { Ok(RemoteCancel::Unsupported) });
         }
         self.native.cancel_remote(handle, connection)

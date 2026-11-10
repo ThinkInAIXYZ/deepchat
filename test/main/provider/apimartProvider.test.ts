@@ -205,7 +205,8 @@ describe('ApimartProvider', () => {
             category: 'image',
             parameters: {
               operation: 'image_generation',
-              endpoint: '/v1/images/generations'
+              endpoint: '/v1/images/generations',
+              input_schema: { properties: { size: {}, quality: {} } }
             }
           },
           {
@@ -282,6 +283,10 @@ describe('ApimartProvider', () => {
         expect.objectContaining({ id: 'whisper-1', type: ModelType.Chat })
       ])
     )
+    expect(models.find((model) => model.id === 'gpt-image-2')?.mediaRoute).toEqual({
+      endpoint: '/v1/images/generations',
+      parameterNames: ['size', 'quality']
+    })
     expect(models.map(({ id }) => id)).not.toContain('suno-v5')
     expect(models.map(({ id }) => id)).not.toContain('omni-moderation-latest')
   })

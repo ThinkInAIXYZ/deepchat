@@ -75,6 +75,14 @@ The desktop authorizes native delegation against the current root binding before
 and after I/O. The dim `agent` tool creates and executes members; this metadata port
 does not create, schedule or invoke them.
 
+Default media operations use dim's adapter. The Rust media compatibility plugin
+adds Voice.ai speech and APIMart asynchronous image/video protocols. It uses the
+same native HTTP transport and keeps remote task handles in Modality; admission,
+files, persistence, cancellation and restart recovery remain native owners.
+The product plugin supplies Voice.ai settings and APIMart's persisted endpoint
+and parameter declarations as non-secret model metadata. APIMart speech continues
+through dim's default OpenAI adapter.
+
 Large independent media inputs use `deepchat.native_media_inputs.submit`. The
 desktop sends a bounded file-backed RPC payload; the plugin prepares private
 binary inputs through public FileStorage/PluginFileTransactions and delegates

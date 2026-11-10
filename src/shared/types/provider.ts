@@ -51,6 +51,11 @@ export type RENDERER_MODEL_META = {
   ownedBy?: string
 }
 
+export interface ProviderMediaRoute {
+  endpoint: string
+  parameterNames?: string[]
+}
+
 export type MODEL_META = {
   id: string
   name: string
@@ -70,6 +75,7 @@ export type MODEL_META = {
   selectableEndpointTypes?: NewApiEndpointType[]
   endpointType?: NewApiEndpointType
   ownedBy?: string
+  mediaRoute?: ProviderMediaRoute
 }
 
 export type LLM_PROVIDER = {

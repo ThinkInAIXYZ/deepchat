@@ -13,6 +13,7 @@ mod gateway;
 mod inputs;
 mod legacy_queue;
 mod media;
+mod media_compat;
 mod media_inputs;
 mod memory;
 mod migration;

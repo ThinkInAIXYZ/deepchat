@@ -37,7 +37,8 @@ interface CatalogOptions {
     | 'getCapabilitySnapshot'
     | 'getProviderModelRouteMetadata'
     | 'getModelStatus'
-  >
+  > &
+    Partial<Pick<ProviderSettingsPort, 'getVoiceAiConfig' | 'getProviderMediaRoute'>>
   models: Pick<DimModelBridge, 'configure'> & Partial<Pick<DimModelBridge, 'releaseConfiguration'>>
   grants: Pick<DimProviderGrantsTable, 'get' | 'put'>
   credential(provider: LLM_PROVIDER, signal: AbortSignal): Promise<DimCredential>
@@ -163,12 +164,14 @@ export class DimModelCatalog {
       throw new Error('Model is disabled')
     const config = {
       ...this.options.settings.getModelConfig(modelId, providerId),
+      ...(isVoiceAi(provider) ? { type: ModelType.TTS } : {}),
       ...(options?.timeout === undefined ? {} : { timeout: options.timeout })
     }
     const connection = this.connection(provider, modelId, config)
     const capability = this.options.settings.getCapabilitySnapshot({ providerId, modelId })
     const portrait = capability.reasoningPortrait
     const modality = dimModality(config)
+    const mediaRoute = this.options.settings.getProviderMediaRoute?.(provider.id, modelId)
     const model: JsonObject & { modelId: string } = {
       modelId,
       displayName: modelId,
@@ -197,7 +200,23 @@ export class DimModelCatalog {
               raw: {
                 type: modality.kind,
                 modalityCapabilities: modality.operations,
+                ...(isVoiceAi(provider)
+                  ? { deepchatVoiceAi: this.options.settings.getVoiceAiConfig?.() ?? {} }
+                  : {}),
+                ...(provider.apiType === 'apimart' || provider.id === 'apimart'
+                  ? {
+                      deepchatMediaRoute: mediaRoute
+                        ? {
+                            endpoint: mediaRoute.endpoint,
+                            ...(mediaRoute.parameterNames
+                              ? { parameterNames: mediaRoute.parameterNames }
+                              : {})
+                          }
+                        : null
+                    }
+                  : {}),
                 deepchatMediaVendors: [
+                  ...(['voiceai', 'apimart'].includes(provider.apiType) ? [provider.apiType] : []),
                   provider.capabilityProviderId,
                   provider.id,
                   provider.apiType
@@ -341,7 +360,14 @@ export class DimModelCatalog {
     const anonymous = isAnonymous(provider)
     const copilot = isCopilot(provider)
     const jev = provider.id === 'jev' || provider.apiType === 'jev'
-    if (!definition && !anonymous && !isOllama(provider) && !copilot && !jev)
+    if (
+      !definition &&
+      !anonymous &&
+      !isOllama(provider) &&
+      !copilot &&
+      !jev &&
+      !isVoiceAi(provider)
+    )
       throw new Error('Provider needs a native product connection adapter')
     const kind = definition
       ? resolveProviderTransport(
@@ -381,10 +407,14 @@ export class DimModelCatalog {
               : kind === 'aws-bedrock'
                 ? { type: 'aws_bedrock' }
                 : { type: 'bearer' }
-    let baseUrl = (provider.baseUrl || (jev ? 'https://api.typesafe.ai/v1/systemone' : '')).replace(
-      /\/+$/,
-      ''
-    )
+    let baseUrl = (
+      provider.baseUrl ||
+      (jev
+        ? 'https://api.typesafe.ai/v1/systemone'
+        : isVoiceAi(provider)
+          ? 'https://dev.voice.ai'
+          : '')
+    ).replace(/\/+$/, '')
     if (kind === 'openai-codex') baseUrl = normalizeOpenAICodexBaseUrl(provider.baseUrl)
     if (vertex) baseUrl = vertex.baseUrl
     if (kind === 'aws-bedrock' && !baseUrl)
@@ -444,6 +474,10 @@ function bedrockRegion(provider: LLM_PROVIDER): string {
     (provider as AWS_BEDROCK_PROVIDER).credential?.region || process.env.AWS_REGION || 'us-east-1'
   if (!/^[a-z][a-z0-9-]{1,63}$/.test(region)) throw new Error('Invalid native AWS region')
   return region
+}
+
+function isVoiceAi(provider: LLM_PROVIDER): boolean {
+  return provider.id === 'voiceai' || provider.apiType === 'voiceai'
 }
 
 function isOllama(provider: LLM_PROVIDER): boolean {

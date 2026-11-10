@@ -199,8 +199,6 @@ function resolveGroup(record: ApimartModelRecord): string {
 }
 
 export class ApimartProvider extends AiSdkProvider {
-  private readonly mediaRoutes = new Map<string, ApimartMediaRoute>()
-
   private getBaseUrl(): string {
     const normalized = (this.provider.baseUrl || APIMART_DEFAULT_BASE_URL)
       .trim()
@@ -246,7 +244,6 @@ export class ApimartProvider extends AiSdkProvider {
       },
       this.getModelFetchTimeout()
     )
-    const nextMediaRoutes = new Map<string, ApimartMediaRoute>()
     const models = extractModelRecords(payload).flatMap((record): MODEL_META[] => {
       const id = record.id.trim()
       if (!id) {
@@ -259,9 +256,6 @@ export class ApimartProvider extends AiSdkProvider {
       }
 
       const mediaRoute = this.resolveMediaRoute(record, type)
-      if (mediaRoute) {
-        nextMediaRoutes.set(id, mediaRoute)
-      }
 
       const { endpointType, supportedEndpointTypes } = resolveModelRoute(record, type)
       const capabilityTags = Array.isArray(record.capability_tags)
@@ -287,6 +281,16 @@ export class ApimartProvider extends AiSdkProvider {
           endpointType,
           supportedEndpointTypes,
           ownedBy,
+          ...(mediaRoute
+            ? {
+                mediaRoute: {
+                  endpoint: mediaRoute.endpoint,
+                  ...(mediaRoute.parameterNames
+                    ? { parameterNames: [...mediaRoute.parameterNames] }
+                    : {})
+                }
+              }
+            : {}),
           ...(capabilityTags.some((tag) => ['vision', 'omni'].includes(tag.toLowerCase()))
             ? { vision: true }
             : {}),
@@ -296,10 +300,6 @@ export class ApimartProvider extends AiSdkProvider {
       ]
     })
 
-    this.mediaRoutes.clear()
-    for (const [modelId, route] of nextMediaRoutes) {
-      this.mediaRoutes.set(modelId, route)
-    }
     return models
   }
 }

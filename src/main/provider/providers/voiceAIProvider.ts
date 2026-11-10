@@ -1,4 +1,5 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
+import { ModelType } from '@shared/model'
 import type { LLM_PROVIDER, MODEL_META } from '@shared/types/provider'
 import { BaseLLMProvider } from '../baseProvider'
 import type { ProviderLocalePort } from '../ports'
@@ -49,7 +50,8 @@ export class VoiceAIProvider extends BaseLLMProvider {
         name: voice.name && voice.name.trim().length > 0 ? voice.name : voice.voice_id,
         group: 'default',
         providerId: this.provider.id,
-        isCustom: false
+        isCustom: false,
+        type: ModelType.TTS
       }))
 
       const defaultVoice: MODEL_META = {
@@ -57,7 +59,8 @@ export class VoiceAIProvider extends BaseLLMProvider {
         name: 'Default Voice',
         group: 'default',
         providerId: this.provider.id,
-        isCustom: false
+        isCustom: false,
+        type: ModelType.TTS
       }
 
       return [defaultVoice, ...models]

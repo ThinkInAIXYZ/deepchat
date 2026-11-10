@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { VoiceAIProvider } from '@/provider/providers/voiceAIProvider'
 
-describe('VoiceAIProvider text cancellation', () => {
+describe('VoiceAIProvider metadata timeouts', () => {
   afterEach(() => {
     vi.useRealTimers()
     vi.unstubAllGlobals()
