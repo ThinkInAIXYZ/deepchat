@@ -1522,7 +1522,10 @@ export async function measurePackagedComponents(layout, { includeCompressed = tr
   const entries = await readdir(runtimeRoot, { withFileTypes: true })
   for (const entry of entries) {
     if (ignoredRuntimeEntries.has(entry.name)) continue
-    const metric = await measureRoots([path.join(runtimeRoot, entry.name)], includeCompressed)
+    const metric = await measureRoots([path.join(runtimeRoot, entry.name)], includeCompressed, {
+      // pnpm links stay inside dim's packaged dependency tree; count their physical targets once.
+      allowInternalSymlinks: entry.name === 'dim'
+    })
     otherRuntimeEntries[entry.name] = metric
   }
 
