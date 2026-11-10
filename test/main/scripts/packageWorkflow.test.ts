@@ -234,7 +234,8 @@ describe('native package reusable workflows', () => {
       const workflow = readWorkflow<ReusableWorkflow>(definition.name)
       const actionSteps = workflow.jobs.package.steps.filter((step) => step.uses)
       for (const step of actionSteps) {
-        expect(step.uses).toMatch(/^[^@]+@[0-9a-f]{40}$/)
+        if (step.uses?.startsWith('./')) expect(step.uses).toBe('./.github/actions/setup-dim')
+        else expect(step.uses).toMatch(/^[^@]+@[0-9a-f]{40}$/)
       }
       const checkout = actionSteps.find((step) => step.uses?.startsWith('actions/checkout@'))
       expect(checkout?.with).toMatchObject({
@@ -242,6 +243,30 @@ describe('native package reusable workflows', () => {
         'fetch-depth': 1,
         'persist-credentials': false
       })
+    }
+  })
+
+  it('builds the locked dim host for each native runner and verifies the packaged runtime offline', () => {
+    const action = parse(
+      fs.readFileSync(path.resolve('.github/actions/setup-dim/action.yml'), 'utf8')
+    )
+    for (const step of action.runs.steps as WorkflowStep[])
+      if (step.uses) expect(step.uses).toMatch(/^[^@]+@[0-9a-f]{40}$/)
+    expect(action.runs.steps).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ run: 'pnpm run installRuntime:dim' }),
+        expect.objectContaining({ run: 'pnpm run build:dim-host' }),
+        expect.objectContaining({ run: 'pnpm run smoke:dim' })
+      ])
+    )
+    for (const definition of Object.values(reusableWorkflows)) {
+      const workflow = readWorkflow<ReusableWorkflow>(definition.name)
+      expect(getStep(workflow, 'Build pinned dim runtime').with).toEqual({
+        platform: '${{ env.TARGET_PLATFORM }}',
+        arch: '${{ inputs.arch }}'
+      })
+      expect(getStep(workflow, 'Verify packaged dim offline').run).toContain('smoke:dim:package')
+      expect(getStep(workflow, 'Verify packaged dim offline').run).toContain('--resources-path')
     }
   })
 

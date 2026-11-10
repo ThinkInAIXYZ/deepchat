@@ -62,6 +62,14 @@ logging into an account; it does not make a real provider request. Profiles are 
 The transport and installer regression suites run with the ordinary Main tests. Native smoke is
 explicit so ordinary tests neither download runtimes nor require an installed Rust executable.
 
+Package jobs build the pinned release host for each of the six native OS/CPU targets and verify its
+ELF/PE/Mach-O architecture. The application includes that host, bundled Node, plugin modules, their
+runtime dependencies and legal assets. `pnpm run smoke:dim:package --resources-path <resources>`
+starts the copied host and plugins from an isolated temporary directory and checks their native
+capabilities and Agent owner. CI runs this probe with external networking blocked. macOS signs the
+host and Node before recording their final digests and sealing the application; the OCR manifest
+uses the same signed Node digest. The runtime checks the packaged Node digest before launching it.
+
 ## Native model calls
 
 The host plugin's `model-calls.mjs` is a separate process row in product profiles. It calls dim's

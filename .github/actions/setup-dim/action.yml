@@ -1,0 +1,54 @@
+name: Build pinned dim runtime
+description: Install the locked release and plugin runtime, then build and test the native host.
+inputs:
+  platform:
+    description: Electron platform (linux, darwin or win32).
+    required: true
+  arch:
+    description: Native process architecture (x64 or arm64).
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Select native Rust target
+      shell: bash
+      env:
+        DIM_PLATFORM: ${{ inputs.platform }}
+        DIM_ARCH: ${{ inputs.arch }}
+      run: |
+        node --input-type=module -e '
+          import { appendFileSync } from "node:fs";
+          import { dimRustTarget } from "./scripts/dim-native-contract.mjs";
+          if (process.platform !== process.env.DIM_PLATFORM || process.arch !== process.env.DIM_ARCH)
+            throw new Error("The Node process must match the package target");
+          appendFileSync(process.env.GITHUB_ENV, `DIM_RUST_TARGET=${dimRustTarget(process.platform, process.arch)}\n`);
+        '
+    - name: Install dim release and plugin runtime
+      shell: bash
+      run: pnpm run installRuntime:dim
+    - name: Install pinned Rust toolchain
+      shell: bash
+      run: rustup toolchain install 1.98.1 --profile minimal --target "${DIM_RUST_TARGET}"
+    - name: Cache native Rust dependencies
+      uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          native/dim-source
+          native/dim-host/target
+        key: ${{ runner.os }}-${{ runner.arch }}-dim-release-1.98.1-${{ hashFiles('native/dim-host/Cargo.lock', 'resources/dim-native-host-lock.json') }}
+        restore-keys: ${{ runner.os }}-${{ runner.arch }}-dim-release-1.98.1-
+    - name: Build pinned native dim host
+      shell: bash
+      env:
+        RUSTUP_TOOLCHAIN: 1.98.1
+        CARGO_BUILD_TARGET: ${{ env.DIM_RUST_TARGET }}
+        CARGO_BUILD_JOBS: '2'
+        CARGO_INCREMENTAL: '0'
+        CARGO_PROFILE_RELEASE_DEBUG: '0'
+        CARGO_PROFILE_RELEASE_STRIP: symbols
+      run: pnpm run build:dim-host
+    - name: Verify native dim owners
+      shell: bash
+      run: pnpm run smoke:dim

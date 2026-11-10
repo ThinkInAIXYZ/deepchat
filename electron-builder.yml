@@ -51,7 +51,7 @@ extraResources:
     filter: ['deepchat', 'deepchat.cmd', 'deepchat.mjs']
   - from: ./runtime/
     to: app.asar.unpacked/runtime
-    filter: ['**/*', '!rtk/**']
+    filter: ['**/*', '!rtk/**', '!dim/releases/**']
   - from: ./resources/cdn/
     to: app.asar.unpacked/resources/cdn
     filter: ['**/*']
@@ -102,6 +102,9 @@ afterPack: scripts/afterPack.js
 mac:
   signIgnore:
     - '/Contents/Helpers/DeepChat Computer Use[.]app(?:/|$)'
+    # afterPack signs these and records their final digests before the application is sealed.
+    - '/Contents/Resources/app[.]asar[.]unpacked/runtime/dim/native/[^/]+/deepchat-dim-host$'
+    - '/Contents/Resources/app[.]asar[.]unpacked/runtime/node/bin/node$'
   entitlementsInherit: build/entitlements.mac.plist
   extraFiles:
     - from: ./build/managed-helpers/

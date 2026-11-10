@@ -4,6 +4,7 @@ import { copyFile, cp, mkdir, readFile, rename, writeFile } from 'node:fs/promis
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { nativeSource } from './prepare-dim-source.mjs'
+import { assertDimBinary, dimRustTarget } from './dim-native-contract.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const source = path.join(root, 'native/dim-host')
@@ -21,6 +22,13 @@ if (
 const target = `${process.platform}-${process.arch}`
 if (!lock.artifacts[target]) throw new Error(`Unsupported native dim host target: ${target}`)
 const profile = process.argv.includes('--dev') ? 'dev' : 'release'
+const expectedRustTarget = dimRustTarget(process.platform, process.arch)
+const rustTarget = process.env.CARGO_BUILD_TARGET
+const cargoTargetDirectory = process.env.CARGO_TARGET_DIR
+  ? path.resolve(source, process.env.CARGO_TARGET_DIR)
+  : path.join(source, 'target')
+if (rustTarget && rustTarget !== expectedRustTarget)
+  throw new Error(`CARGO_BUILD_TARGET must match ${target}: ${expectedRustTarget}`)
 const cargo = process.env.CARGO ?? 'cargo'
 await new Promise((resolve, reject) => {
   const child = spawn(
@@ -30,6 +38,7 @@ await new Promise((resolve, reject) => {
       '--manifest-path',
       path.join(source, 'Cargo.toml'),
       '--locked',
+      ...(rustTarget ? ['--target', rustTarget] : []),
       ...(profile === 'release' ? ['--release'] : [])
     ],
     { stdio: 'inherit', cwd: source }
@@ -41,13 +50,24 @@ const name = process.platform === 'win32' ? 'deepchat-dim-host.exe' : 'deepchat-
 const destination = path.join(root, 'runtime/dim/native', target)
 await mkdir(destination, { recursive: true })
 const binary = await readFile(
-  path.join(source, 'target', profile === 'dev' ? 'debug' : 'release', name)
+  path.join(
+    cargoTargetDirectory,
+    ...(rustTarget ? [rustTarget] : []),
+    profile === 'dev' ? 'debug' : 'release',
+    name
+  )
 )
+assertDimBinary(binary, process.platform, process.arch)
 const cargoLock = await readFile(path.join(source, 'Cargo.lock'))
 if (createHash('sha256').update(cargoLock).digest('hex') !== nativeLock.cargoLockSha256)
   throw new Error('Native Cargo.lock digest mismatch')
 await copyFile(
-  path.join(source, 'target', profile === 'dev' ? 'debug' : 'release', name),
+  path.join(
+    cargoTargetDirectory,
+    ...(rustTarget ? [rustTarget] : []),
+    profile === 'dev' ? 'debug' : 'release',
+    name
+  ),
   path.join(destination, `${name}.tmp`)
 )
 await rename(path.join(destination, `${name}.tmp`), path.join(destination, name))
@@ -74,6 +94,7 @@ await writeFile(
     {
       schemaVersion: 1,
       target,
+      rustTarget: expectedRustTarget,
       profile,
       executable: name,
       sourceRevision: nativeLock.sourceRevision,

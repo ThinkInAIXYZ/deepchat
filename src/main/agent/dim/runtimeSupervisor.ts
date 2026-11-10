@@ -196,6 +196,13 @@ export class DimRuntimeSupervisor {
         .update(await readFile(executable))
         .digest('hex')
       if (digest !== manifest.sha256) throw new Error('Native dim plugin host checksum mismatch')
+      if (manifest.nodeSha256 !== undefined) {
+        const nodeDigest = createHash('sha256')
+          .update(await readFile(nodeExecutable))
+          .digest('hex')
+        if (nodeDigest !== manifest.nodeSha256)
+          throw new Error('Native dim Node runtime checksum mismatch')
+      }
       native = manifest
     }
     const runtimeEntry = JSON.parse(

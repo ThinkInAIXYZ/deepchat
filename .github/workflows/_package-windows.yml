@@ -69,6 +69,7 @@ jobs:
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: '24.22.1'
+          architecture: ${{ inputs.arch }}
           package-manager-cache: false
 
       - name: Validate package request
@@ -107,6 +108,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
 
+      - name: Build pinned dim runtime
+        uses: ./.github/actions/setup-dim
+        with:
+          platform: ${{ env.TARGET_PLATFORM }}
+          arch: ${{ inputs.arch }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
       - name: Install and verify DuckDB VSS
         run: |
           pnpm run installRuntime:duckdb:vss -- --platform win32 --arch ${{ inputs.arch }}
@@ -139,6 +148,29 @@ jobs:
           --platform win32
           --arch "${{ inputs.arch }}"
           --resources-path "dist/${{ env.UNPACKED_DIRECTORY }}/resources"
+
+      - name: Verify packaged dim offline
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          $runtimeDirectory = [IO.Path]::GetFullPath("dist/$env:UNPACKED_DIRECTORY/resources/app.asar.unpacked/runtime")
+          $programs = @(
+            [string](node -p 'process.execPath'),
+            "$runtimeDirectory/node/node.exe",
+            "$runtimeDirectory/dim/native/win32-$env:TARGET_ARCH/deepchat-dim-host.exe"
+          )
+          $rules = @()
+          try {
+            foreach ($program in $programs) {
+              $name = "DeepChat-Dim-Offline-$([guid]::NewGuid())"
+              New-NetFirewallRule -DisplayName $name -Direction Outbound -Program $program -Action Block | Out-Null
+              $rules += $name
+            }
+            pnpm run smoke:dim:package -- --resources-path "dist/$env:UNPACKED_DIRECTORY/resources" --report-path "dist/dim-runtime-smoke-win32-$env:TARGET_ARCH.json"
+          } finally {
+            foreach ($name in $rules) { Remove-NetFirewallRule -DisplayName $name -ErrorAction SilentlyContinue }
+          }
 
       # Blocks outbound traffic from the runner Node used by smoke-light-ocr.
       # That Node version must remain 24.22.1 to match runtime-versions.json.
@@ -220,6 +252,7 @@ jobs:
             package-output/manifest.json
             package-output/reports/
             dist/light-ocr-smoke-win32-${{ inputs.arch }}.json
+            dist/dim-runtime-smoke-*.json
             dist/package-size-win32-${{ inputs.arch }}.json
           if-no-files-found: warn
           retention-days: 7
