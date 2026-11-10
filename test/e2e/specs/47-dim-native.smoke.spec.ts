@@ -20,6 +20,111 @@ import {
 } from '../helpers/chat'
 import { waitForAppReady } from '../helpers/wait'
 
+test('desktop media chat displays a native file through the owner cache @smoke', async ({
+  app
+}) => {
+  const png = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+    'base64'
+  )
+  const prompts: string[] = []
+  const endpoints: string[] = []
+  const server = createServer(async (request, response) => {
+    endpoints.push(request.url ?? '')
+    if (request.url === '/v1/models') {
+      response
+        .writeHead(200, { 'Content-Type': 'application/json' })
+        .end(JSON.stringify({ data: [{ id: 'gpt-image-1' }] }))
+      return
+    }
+    if (request.url !== '/v1/images/generations') {
+      response.writeHead(404).end()
+      return
+    }
+    let text = ''
+    for await (const chunk of request) text += chunk
+    prompts.push(JSON.parse(text).prompt)
+    response
+      .writeHead(200, { 'Content-Type': 'application/json' })
+      .end(JSON.stringify({ created: 0, data: [{ b64_json: png.toString('base64') }] }))
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  try {
+    await waitForAppReady(app.page)
+    const providerId = await app.page.evaluate(
+      async (baseUrl) => {
+        const id = `custom-${crypto.randomUUID()}`
+        await window.deepchat.invoke('providers.add', {
+          provider: {
+            id,
+            name: 'Native media fixture',
+            apiType: 'openai-completions',
+            baseUrl,
+            apiKey: 'fixture',
+            enable: true,
+            custom: true
+          }
+        })
+        await window.deepchat.invoke('models.addCustom', {
+          providerId: id,
+          model: {
+            id: 'gpt-image-1',
+            name: 'Native image',
+            enabled: true,
+            type: 'imageGeneration',
+            vision: false,
+            functionCall: false,
+            reasoning: false,
+            contextLength: 32000,
+            maxTokens: 8000
+          }
+        })
+        await window.deepchat.invoke('models.setStatus', {
+          providerId: id,
+          modelId: 'gpt-image-1',
+          enabled: true
+        })
+        return id
+      },
+      `http://127.0.0.1:${(server.address() as { port: number }).port}/v1`
+    )
+    await selectAgent(app.page)
+    await selectModel(app.page, 'gpt-image-1', providerId)
+    await sendMessage(app.page, 'NATIVE_MEDIA_CHAT')
+    await expect(app.page.getByTestId('chat-page-shell')).toHaveAttribute(
+      'data-generating',
+      'false'
+    )
+    await expect(getAssistantMessages(app.page)).toHaveCount(1)
+    const sessionId = await getActiveSessionId(app.page)
+    const messages = await app.page.evaluate(
+      (id) => window.deepchat.invoke('sessions.listMessagesPage', { sessionId: id }),
+      sessionId
+    )
+    expect(
+      messages.messages.at(-1)?.status,
+      JSON.stringify({ messages: messages.messages, endpoints, prompts })
+    ).toBe('sent')
+    const image = getAssistantMessages(app.page).locator('img[src^="imgcache://dim_"]').first()
+    await expect(image).toBeVisible()
+    await expect
+      .poll(() =>
+        image.evaluate((element: HTMLImageElement) => element.complete && element.naturalWidth > 0)
+      )
+      .toBe(true)
+    const source = await image.getAttribute('src')
+    expect(source).toMatch(/^imgcache:\/\/dim_mt_/)
+    expect(prompts).toEqual(['NATIVE_MEDIA_CHAT'])
+    const cached = await readFile(
+      path.join(app.userDataDir, 'images', source!.slice('imgcache://'.length))
+    )
+    expect(cached).toEqual(png)
+  } finally {
+    server.closeAllConnections()
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+  }
+})
+
 test('desktop chat uses persistent native dim sessions @smoke', async ({
   app,
   launchApp

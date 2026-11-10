@@ -1,3 +1,5 @@
+import type { JsonValue } from '@shared/contracts/json'
+import type { DimMediaFrameRequest } from './productGateway'
 import type { SessionDatabase } from '@/session/data/database'
 import type { DimSessionBinding } from '@/session/data/tables/dimSessionBindings'
 import type { DimRuntimeSupervisor } from './runtimeSupervisor'
@@ -97,6 +99,22 @@ export class DimScopes {
     }
     assertCurrent()
     return { binding: owner, assertCurrent }
+  }
+
+  readonly mediaInput = async (
+    request: DimMediaFrameRequest,
+    signal: AbortSignal
+  ): Promise<JsonValue> => {
+    const owner = await this.owner(request.sessionId, signal)
+    const frame = await (
+      await this.options.host.start()
+    ).call<{ mediaInput?: JsonValue }>('session.deepchat_scope.frame', {
+      ...request,
+      includeInput: true
+    })
+    owner.assertCurrent()
+    if (!frame.mediaInput) throw new Error('Native media input is unavailable')
+    return frame.mediaInput
   }
 
   readonly context = async (

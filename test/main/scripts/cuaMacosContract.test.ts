@@ -90,10 +90,12 @@ driver (architecture arm64):
     ])
   })
 
-  it('excludes only the managed CUA helper subtree from electron-builder signing', async () => {
+  it('excludes only helpers and runtimes signed by their managed owners', async () => {
     const config = parse(await readFile('electron-builder.yml', 'utf8'))
     expect(config.mac.signIgnore).toEqual([
-      '/Contents/Helpers/DeepChat Computer Use[.]app(?:/|$)'
+      '/Contents/Helpers/DeepChat Computer Use[.]app(?:/|$)',
+      '/Contents/Resources/app[.]asar[.]unpacked/runtime/dim/native/[^/]+/deepchat-dim-host$',
+      '/Contents/Resources/app[.]asar[.]unpacked/runtime/node/bin/node$'
     ])
 
     const ignored = config.mac.signIgnore.map((pattern: string) => new RegExp(pattern))
@@ -104,6 +106,12 @@ driver (architecture arm64):
     expect(matches(`${helperPath}/Contents/MacOS/deepchat-cua-driver`)).toBe(true)
     expect(matches(`${helperPath}.backup/Contents/MacOS/deepchat-cua-driver`)).toBe(false)
     expect(matches('/tmp/DeepChat.app/Contents/Helpers/DeepChat Helper.app')).toBe(false)
+    const runtimes = '/tmp/DeepChat.app/Contents/Resources/app.asar.unpacked/runtime'
+    expect(matches(`${runtimes}/dim/native/darwin-arm64/deepchat-dim-host`)).toBe(true)
+    expect(matches(`${runtimes}/node/bin/node`)).toBe(true)
+    expect(matches(`${runtimes}/dim/native/darwin-arm64/deepchat-dim-host.backup`)).toBe(false)
+    expect(matches(`${runtimes}/node/bin/other`)).toBe(false)
+
     expect(
       matches('/tmp/DeepChat.app/Contents/Resources/DeepChat Computer Use.app')
     ).toBe(false)

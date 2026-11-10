@@ -49,6 +49,7 @@ export class DimPluginHooks {
   ): Promise<DimProductContextReply> {
     if (!this.options.hooks.hasHooks()) return { messages: [] }
     const scope = await this.options.resolve(request, signal)
+    if (scope.acceptedInput) request = { ...request, ...scope.acceptedInput }
     const sources = await this.options.hooks.nativeSources(signal)
     scope.assertCurrent()
     const compaction = await this.content.latest(

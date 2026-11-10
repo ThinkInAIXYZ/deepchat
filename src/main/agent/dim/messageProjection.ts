@@ -1,3 +1,4 @@
+import { nativeMediaReference } from '@shared/dimMedia'
 import type {
   AssistantMessageBlock,
   ChatMessageRecord,
@@ -282,6 +283,24 @@ export function projectDimEvent(
   } else if (key === 'step/text' || key === 'step/thinking') {
     const type = key === 'step/text' ? 'content' : 'reasoning_content'
     const delta = typeof event.data.delta === 'string' ? event.data.delta : ''
+    const media =
+      key === 'step/text'
+        ? /^!\[(image\/[a-zA-Z0-9.+-]+|audio\/[a-zA-Z0-9.+-]+|video\/[a-zA-Z0-9.+-]+)\]\((imgcache:\/\/[^)\s]+)\)\n$/.exec(
+            delta
+          )
+        : null
+    if (media && nativeMediaReference(media[2])) {
+      blocks.push({
+        id: event.id,
+        type: 'image',
+        status: 'success',
+        timestamp: now,
+        image_data: { data: media[2], mimeType: media[1] }
+      })
+      message.content = JSON.stringify(blocks)
+      messages.push(message)
+      return result
+    }
     const last = blocks.at(-1)
     if (last?.type === type && last.status === 'loading')
       last.content = (last.content ?? '') + delta

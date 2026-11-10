@@ -1,3 +1,5 @@
+import { ModelType } from '@shared/model'
+import { registerNativeMediaCache } from '@/platform/nativeMediaCache'
 import { createDimSessionReferenceSource } from '@/agent/dim/sessionReferences'
 import { createAcpCompatibilityDependencies } from '@/agent/acp/compatibility/dependencies'
 import { createDeepChatOutputProjection } from '@/session/outputProjection'
@@ -1053,6 +1055,14 @@ export async function createMainProcessControl(dependencies: {
         .filter((source) => source.hooks.length > 0)
     },
     context: (request, signal) => dimContext.prepare(request, signal),
+    mediaInput: async (request, signal) => {
+      const scope = await dimScopes.owner(request.sessionId, signal)
+      authorizeDimScope(scope.binding)
+      const input = await dimScopes.mediaInput(request, signal)
+      scope.assertCurrent()
+      authorizeDimScope(scope.binding)
+      return input
+    },
     titleModel: async (id, signal) => {
       const scope = dimScopes.bound(id, signal)
       if (!scope) return null
@@ -1104,6 +1114,7 @@ export async function createMainProcessControl(dependencies: {
   })
   const dimModelBridge = new DimModelBridge(dimHost)
   const dimCredentials = new DimProviderCredentials()
+  registerNativeMediaCache(new DimModality(dimHost))
   const dimModels = new DimModelCatalog({
     settings: providerSettings,
     models: dimModelBridge,
@@ -2309,7 +2320,10 @@ export async function createMainProcessControl(dependencies: {
           providerId: row.provider_id,
           modelId: row.model_id
         })
-        return { vision: config.vision, audio: capability.supportsAudioInput }
+        return {
+          vision: config.vision || config.type === ModelType.ImageGeneration,
+          audio: capability.supportsAudioInput
+        }
       }
     }).prepare,
     output: createDeepChatOutputProjection({

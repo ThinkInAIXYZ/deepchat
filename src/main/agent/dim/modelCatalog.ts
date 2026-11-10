@@ -1,3 +1,4 @@
+import { resolveOpenAICompatibleVideoRequestBodyShape } from '@shared/videoGenerationSettings'
 import { createHash, randomUUID } from 'node:crypto'
 import type { JsonValue } from '@shared/contracts/json'
 import type {
@@ -139,25 +140,63 @@ export class DimModelCatalog {
   async admit(
     providerId: string,
     modelId: string,
-    options?: { timeout?: number }
+    options?: { timeout?: number; session?: boolean }
   ): Promise<DimModelId> {
-    return this.configure(providerId, modelId, options, false)
+    return options?.session
+      ? this.configureForSession(providerId, modelId, options, false)
+      : this.configure(providerId, modelId, options, false)
   }
 
   /** Register a frozen history container. This never authorizes inference or credential access. */
   async registerForHistory(
     providerId: string,
     modelId: string,
-    options?: { timeout?: number }
+    options?: { timeout?: number; session?: boolean }
   ): Promise<DimModelId> {
-    return this.configure(providerId, modelId, options, true)
+    return options?.session
+      ? this.configureForSession(providerId, modelId, options, true)
+      : this.configure(providerId, modelId, options, true)
+  }
+
+  mediaSettings(providerId: string, modelId: string): JsonObject {
+    const config = this.options.settings.getModelConfig(modelId, providerId)
+    return JSON.parse(
+      JSON.stringify({
+        image: config.imageGeneration ?? {},
+        video: config.videoGeneration ?? {},
+        speech: config.tts ?? {}
+      })
+    ) as JsonObject
+  }
+
+  private async configureForSession(
+    providerId: string,
+    modelId: string,
+    options: { timeout?: number } | undefined,
+    historyOnly: boolean
+  ): Promise<DimModelId> {
+    const target = await this.configure(providerId, modelId, options, historyOnly)
+    const provider = this.requireProvider(providerId, historyOnly)
+    const config = this.options.settings.getModelConfig(modelId, providerId)
+    const category =
+      isVoiceAi(provider) || config.type === ModelType.TTS
+        ? 'speech'
+        : config.type === ModelType.ImageGeneration
+          ? 'image'
+          : config.type === ModelType.VideoGeneration
+            ? 'video'
+            : null
+    return category
+      ? this.configure(providerId, modelId, options, historyOnly, { target, category })
+      : target
   }
 
   private async configure(
     providerId: string,
     modelId: string,
     options: { timeout?: number } | undefined,
-    historyOnly: boolean
+    historyOnly: boolean,
+    conversation?: { target: DimModelId; category: 'image' | 'video' | 'speech' }
   ): Promise<DimModelId> {
     const provider = this.requireProvider(providerId, historyOnly)
     if (!historyOnly && !this.options.settings.getModelStatus(providerId, modelId))
@@ -173,7 +212,7 @@ export class DimModelCatalog {
     const modality = dimModality(config)
     const mediaRoute = this.options.settings.getProviderMediaRoute?.(provider.id, modelId)
     const model: JsonObject & { modelId: string } = {
-      modelId,
+      modelId: conversation ? `deepchat-media/${modelId}` : modelId,
       displayName: modelId,
       status: 'active',
       capabilities: {
@@ -230,8 +269,34 @@ export class DimModelCatalog {
         }
       }
     }
+    if (conversation) {
+      const capabilities = model.capabilities as JsonObject
+      capabilities.vision = config.vision || conversation.category === 'image'
+      capabilities.modalities = ['text', ...(capabilities.vision ? ['image'] : [])]
+      capabilities.toolCalling = false
+      model.metadata = {
+        metadataSource: 'deepchat',
+        raw: {
+          type: 'chat',
+          deepchatMediaConversation: {
+            target: { ...conversation.target },
+            category: conversation.category,
+            ...(conversation.category === 'video'
+              ? {
+                  videoBodyShape: resolveOpenAICompatibleVideoRequestBodyShape({
+                    providerId,
+                    providerApiType: provider.apiType,
+                    baseUrl: provider.baseUrl,
+                    modelId
+                  })
+                }
+              : {})
+          }
+        }
+      }
+    }
     const target = await this.options.models.configure({
-      key: `deepchat/provider/v2/${providerId}/${modelId}`,
+      key: `${conversation ? 'deepchat/media-session/v1' : 'deepchat/provider/v2'}/${providerId}/${modelId}`,
       displayName: provider.name,
       connection,
       model

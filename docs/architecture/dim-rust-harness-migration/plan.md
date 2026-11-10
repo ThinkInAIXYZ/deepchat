@@ -73,7 +73,7 @@
 - [ ] 既有 MCP/插件兼容：in-memory server、MCP Apps、企业身份、知识库和 CUA 经插件注入；保留 consent、撤销、更新与参数/结果语义。作为正常接入实现，不列为 dim 缺失能力。
 - [ ] 模型：将现有设置及连接参数通过插件交给 dim；会话和辅助模型请求都在 Rust 执行，不回调旧 TypeScript Provider。
 - [ ] 辅助调用：标题、摘要、翻译、记忆提取、embedding/rerank、媒体等接入 dim 对应 model/auxiliary/modality；desktop 保留展示、索引与非模型服务。
-- [ ] 图片/视频/TTS 会话与辅助媒体入口直接路由 dim Modality；非聊天模型不能作为聊天 loop 的模型选择，原会话及展示身份保留。当前已验证媒体任务原生执行，产品 backend 路由仍待接线。
+- [ ] 图片/视频/TTS 的独立入口与会话已接入 dim Modality；会话通过独立媒体 alias 选择原生 Agent 模型宿主，实际媒体模型保留非聊天声明。原生 loop/队列管理回合，桌面复用消息身份和媒体展示。媒体历史反馈与增量归档的文件闭包继续验收。
 - [ ] OAuth：dim 自身登录、账号和 refresh 不做适配或迁移，不新增统一认证层；其他凭据/配置按能力所有者，通过插件正常交互，不能进入 timeline 或普通 row config。
 - [ ] Context/Skills/Hooks：dim 负责提示词、上下文、压缩、预算和撤销，产品 context/hook 通过插件接入；不由 TS 拼 provider 请求。
 - [ ] 原生 subagent/branch/collaboration 直接用 dim；ACP 完全由 DeepChat 原有实现处理，不规划 ExternalAgent、dim ACP gateway 或 ACP-as-provider 的 dim 迁移。
@@ -123,7 +123,7 @@
 
 ## P7. 集成审查与验证
 
-按仓库规范完成实现后选择必要的永久测试；现有检查可随时运行。本轮仅修改方案，没有实现 adapter 或产品测试。
+按仓库规范完成实现后选择必要的永久测试；现有检查可随时运行。已实施模块的真实 Native、桌面与平台验证记录在后文；未覆盖的接线仍保留待办。
 
 - [ ] 检查真实路径为 desktop → 注入插件 → dim service，排除 ACP 包装、CLI 文本解析、旧 loop/queue/context 的重复实现。
 - [ ] 运行真实 release + 插件 + 本地模型/MCP fixture，验证发送、队列操作、取消、工具回调、事件补读与重启；不能只测 mock adapter。
@@ -159,6 +159,8 @@
 建议按 release/插件骨架、session/队列绑定、产品能力、解密与按需转换、desktop 读取/Inspector、切换清理拆 PR。取消旧版按推测上游缺口估算的 12–20 人周；首个插件端到端切片完成后，依据实际映射与转换工作量估算，不把 ACP/OAuth 重写或 desktop 重做计入。
 
 ## 模块进度
+
+- 模块 86：图片/视频/TTS 会话以独立媒体 alias 接入 dim 原生 Agent 的作用域模型宿主，实际媒体模型保持非聊天声明。原生 loop、队列和 ModalityTasks 负责输入、执行、幂等、取消与文件；普通调用继续委托原生默认宿主。媒体设置按 Native branch 保存，任务只接收媒体字段。固定请求切点的已消费输入经公开 Timeline owner 读取，媒体保留该回合全部有效输入；Hook 排除 keyed 状态及无 key 的 dim 状态/规则封装，修复 macOS x64 实测提示词污染。桌面复用原有媒体组件，缓存经公开任务文件读取、大小/hash 校验后原子发布，供显示、保存/复制、附件、CLI/远程复用。桥 0.34.0，SDK、存储格式与依赖不变。完整 Native 27 项（243s）通过；桌面发现并修复 temperature 被媒体 schema 拒绝的问题，带默认聊天温度的媒体三例复验（57s）通过。131 项相关回归、双端类型/格式/i18n/lint、最终 release（2m25s）与主进程构建通过。完整 main 为 8050 项通过、3 项失败：修正过时技能/签名测试合同后，与编译期间超时的架构测试独立 25 项复验通过，未放宽时限。实际 Electron 两例（47s）验证图片呈现/缓存、聊天/CLI/备份恢复/重启/会话读取/Inspector；测试显示服务恢复后重新验收。媒体历史反馈与增量归档文件闭包继续实施。
 
 - 模块 85：Voice.ai 与 APIMart 特有媒体协议接入独立 Rust ModalityAdapter，使用 dim 共享 Aimux 传输；任务准入、排队、持久化、取消、结果文件与恢复继续交给 dim。Voice.ai 保留产品模型/语言/温度/格式/voice 配置以及二进制、JSON/base64、URL 三种输出；APIMart 保留异步任务、端点和参数白名单、图像比例、视频参考与下载，语音仍复用 dim 默认适配器。扩展目录将 APIMart 路由声明持久化，Native alias 从公开管理 owner 恢复，不依赖 Node 内存缓存。桥 0.33.0，SDK 与存储格式不变，无新增依赖或 SDK 补丁。21 项相关单元、双端类型/格式/i18n/lint、生产主进程与 release（3m30s）通过；真实媒体联合（41s）验证输出、凭据 Header、参数过滤、取消与重启不重复提交，完整 Native 26 项（250s）、Electron 联合流程（36s）通过。标准媒体与特有协议分为两例，原各例 90s 上限保留；开发构建曾在追加协议前耗尽原整体 90s，未增加时限。媒体聊天会话和其他特殊协议继续接线/核验。
 

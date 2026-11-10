@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -256,14 +257,29 @@ describe('SkillService shared Skills', () => {
       ).success
     ).toBe(false)
     await service.setActiveSkills('a', ['review'])
+    const publish = vi.fn(async (_ref, content: string, signal: AbortSignal) => {
+      signal.throwIfAborted()
+      return {
+        path: '/native/skills/catalog.json',
+        catalogHash: createHash('sha256').update(content).digest('hex'),
+        fileId: 'native-catalog'
+      }
+    })
     const context = new DimSkillContext({
       skills: service,
-      session: (id) => sessions.find((row) => row.id === id)
+      session: (id) => sessions.find((row) => row.id === id),
+      catalog: { publish }
     })
     const contribution = await context.contribute(
-      { sessionId: 'a' } as never,
+      { sessionId: 'a', dimSessionId: 'native-a', branchId: 'main' } as never,
       new AbortController().signal
     )
+    expect(publish).toHaveBeenCalledWith(
+      { sessionId: 'native-a', branchId: 'main' },
+      expect.stringContaining(rootA),
+      expect.any(AbortSignal)
+    )
+    expect(publish.mock.calls[0][1]).not.toContain('global-secret')
     expect(JSON.stringify(contribution.messages)).toContain('# Project A')
     expect(JSON.stringify(contribution.messages)).not.toContain('# Global review')
     expect(JSON.stringify(contribution.messages)).toContain('dim exec')

@@ -646,7 +646,7 @@ checksum = "4583a4551df46e2792f82ceeac45e850d2e2d5debba0b91f102385cda5b11f06"
 
 [[package]]
 name = "deepchat-dim-host"
-version = "0.33.0"
+version = "0.34.0"
 dependencies = [
  "aimux-core",
  "aimux-provider-utils",

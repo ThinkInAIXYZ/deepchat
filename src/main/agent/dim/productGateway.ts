@@ -64,11 +64,18 @@ export interface DimPluginHooksRequest {
   includeUnmatched?: boolean
 }
 
+export interface DimMediaFrameRequest {
+  sessionId: string
+  turnId: string
+  requestId: string
+}
+
 export interface DimProductGatewayOptions {
   // Resolve through the durable native-to-product binding and current product authorization.
   // Only capabilities that dim does not implement belong in this catalog.
   resolve(nativeSessionId: string): Promise<DimProductCapabilitySet>
   context?(request: DimProductContextRequest, signal: AbortSignal): Promise<DimProductContextReply>
+  mediaInput?(request: DimMediaFrameRequest, signal: AbortSignal): Promise<JsonValue>
   mcp?(sessionId: string, signal: AbortSignal): Promise<Record<string, DimMcpServer>>
   titleModel?(sessionId: string, signal: AbortSignal): Promise<DimModelId | null>
   pluginHooks?(request: DimPluginHooksRequest, signal: AbortSignal): Promise<UserPluginHookSource[]>
@@ -322,6 +329,25 @@ export class DimProductGateway {
       } catch {
         throw new Error('Credential reference is unavailable')
       }
+    }
+    if (request.kind === 'media_input') {
+      if (
+        !this.options.mediaInput ||
+        ['sessionId', 'turnId', 'requestId'].some(
+          (key) => typeof request[key] !== 'string' || !request[key] || request[key].length > 4096
+        )
+      )
+        throw new Error('Native media frame is unavailable')
+      const result = await this.options.mediaInput(
+        {
+          sessionId: request.sessionId as string,
+          turnId: request.turnId as string,
+          requestId: request.requestId as string
+        },
+        signal
+      )
+      signal.throwIfAborted()
+      return result
     }
     if (request.kind === 'context') {
       if (

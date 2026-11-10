@@ -104,3 +104,47 @@ pub(crate) async fn decode<T: DeserializeOwned>(
     }
     serde_json::from_slice(&bytes).map_err(|_| invalid())
 }
+
+/// A derived frame payload crosses the plugin boundary by reference, never as a large RPC frame.
+pub(crate) async fn encode(value: &Value) -> Result<Value, RpcError> {
+    let bytes = serde_json::to_vec(value).map_err(|_| invalid())?;
+    if bytes.is_empty() || bytes.len() > MAX_BYTES {
+        return Err(invalid());
+    }
+    let root = super::PAYLOAD_ROOT.get().ok_or_else(invalid)?;
+    tokio::fs::create_dir_all(root)
+        .await
+        .map_err(|_| invalid())?;
+    let directory = tokio::fs::symlink_metadata(root)
+        .await
+        .map_err(|_| invalid())?;
+    if !directory.is_dir() || directory.file_type().is_symlink() {
+        return Err(invalid());
+    }
+    let name = format!("{}.json", uuid::Uuid::new_v4());
+    let mut options = tokio::fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    options.mode(0o600);
+    let mut file = options
+        .open(root.join(&name))
+        .await
+        .map_err(|_| invalid())?;
+    use tokio::io::AsyncWriteExt;
+    file.write_all(&bytes).await.map_err(|_| invalid())?;
+    file.flush().await.map_err(|_| invalid())?;
+    Ok(
+        serde_json::json!({"deepchatPayload":{"name":name,"bytes":bytes.len(),"sha256":format!("{:x}",Sha256::digest(&bytes))}}),
+    )
+}
+
+pub(crate) async fn discard(reference: &Value) {
+    if let (Some(root), Some(name)) = (
+        super::PAYLOAD_ROOT.get(),
+        reference["deepchatPayload"]["name"]
+            .as_str()
+            .filter(|name| valid_name(name)),
+    ) {
+        let _ = tokio::fs::remove_file(root.join(name)).await;
+    }
+}

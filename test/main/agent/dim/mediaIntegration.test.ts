@@ -1,3 +1,8 @@
+import { DimSessionControls } from '@/agent/dim/sessionControls'
+import { DimScopes } from '@/agent/dim/scopes'
+import { DimContent } from '@/agent/dim/content'
+import { DimProjectionStore } from '@/agent/dim/projectionStore'
+import { nativeMediaReference } from '@shared/dimMedia'
 import { expect, it } from 'vitest'
 import { createServer } from 'node:http'
 import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
@@ -22,10 +27,15 @@ interface TaskReply {
 }
 it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
   { label: 'standard image, speech, video, transcription and embeddings', desktopVendors: false },
-  { label: 'Voice.ai and APIMart protocols with native recovery', desktopVendors: true }
+  { label: 'Voice.ai and APIMart protocols with native recovery', desktopVendors: true },
+  {
+    label: 'media conversations with native loop and file projection',
+    desktopVendors: false,
+    mediaChat: true
+  }
 ])(
   'runs $label through native dim owners',
-  async ({ desktopVendors }) => {
+  async ({ desktopVendors, mediaChat }) => {
     const png = Buffer.from(
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
       'base64'
@@ -48,6 +58,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
     let embeddingHeld = false
     let embeddingCancelled = false
     let held = false
+    let releaseImage: (() => void) | undefined
     let cancelled = false
     let credential = 'native-media-first'
     let vendorPhase = 'native'
@@ -150,6 +161,10 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
         expect(JSON.parse(body.toString()).prompt).toContain('native image')
         if (JSON.parse(body.toString()).prompt === 'native image hold') {
           held = true
+          releaseImage = () =>
+            response.end(
+              JSON.stringify({ created: 0, data: [{ b64_json: png.toString('base64') }] })
+            )
           response.writeHead(200, { 'Content-Type': 'application/json' })
           response.flushHeaders()
           response.once('close', () => {
@@ -159,6 +174,11 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
         }
         response.writeHead(200, { 'Content-Type': 'application/json' })
         response.end(JSON.stringify({ created: 0, data: [{ b64_json: png.toString('base64') }] }))
+      } else if (request.url === '/v1/images/edits') {
+        expect(body.includes(png)).toBe(true)
+        response
+          .writeHead(200, { 'Content-Type': 'application/json' })
+          .end(JSON.stringify({ created: 0, data: [{ b64_json: png.toString('base64') }] }))
       } else if (request.url === '/v1/videos') {
         response.writeHead(200, { 'Content-Type': 'application/json' })
         response.end(
@@ -256,6 +276,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
     await new Promise<void>((resolve) => fixture.listen(0, '127.0.0.1', resolve))
     const profile = await mkdtemp(path.join(os.tmpdir(), 'dc-dim-media-'))
     const database = dimDatabase()
+    let scopes!: DimScopes
     let catalog!: DimModelCatalog
     const gateway = new DimProductGateway({
       resolve: async () => ({
@@ -265,7 +286,8 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
           throw new Error('No desktop tool execution is allowed')
         }
       }),
-      credential: (id, reference, signal) => catalog.credential(id, reference, signal)
+      credential: (id, reference, signal) => catalog.credential(id, reference, signal),
+      mediaInput: (request, signal) => scopes.mediaInput(request, signal)
     })
     const host = new DimRuntimeSupervisor({
       runtimeRoot: path.resolve('runtime/dim'),
@@ -277,6 +299,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
       nativePlugins: true,
       gatewayAddress: await gateway.start()
     })
+    scopes = new DimScopes({ database: database.data, host })
     const provider = {
       id: 'desktop-media',
       name: 'Media fixture',
@@ -352,6 +375,155 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
     }
     try {
       let client = await host.start()
+      if (mediaChat) {
+        // A media model is selected by an Agent-local native host. The real model
+        // remains non-chat; only the conversation alias enters the native loop.
+        for (const [modelId, text, mimeType] of [
+          ['gpt-image-1', 'native image', 'image/png'],
+          ['tts-1', 'native speech', 'audio/wav'],
+          ['sora-2', 'native video', 'video/mp4']
+        ]) {
+          const alias = await catalog.admit(provider.id, modelId, { session: true })
+          const created = await client.call<{ sessionId: string }>('deepchat.host.launch', {
+            cwd: profile,
+            model: { ...alias },
+            tools: []
+          })
+          const desktopId = `media-chat-${modelId}`
+          database.data.newSessionsTable.create(desktopId, 'agent', desktopId, profile)
+          database.data.dimSessionBindingsTable.bind(desktopId, created.sessionId)
+          const ref = { sessionId: created.sessionId, branchId: 'main' }
+          await client.call('session.deepchat_native.configure', {
+            ...ref,
+            config: { temperature: 0.7 },
+            mediaOptions: { speech: { voice: 'alloy', responseFormat: 'wav' } }
+          })
+          await client.call('deepchat.host.input', {
+            ...ref,
+            mode: 'queue',
+            submissionId: randomUUID(),
+            rawBlocks: [],
+            content: [{ type: 'text', text }]
+          })
+          await client.call('deepchat.host.idle', ref)
+          const page = await new DimContent(host).events(
+            ref,
+            [
+              'input/message',
+              'input/applied',
+              'input/consumed',
+              'turn/start',
+              'step/text',
+              'turn/end'
+            ],
+            200
+          )
+          const transcript = { events: page.events.map((item) => item.event).reverse() }
+          const ended = transcript.events
+            .filter((event) => event.type === 'turn' && event.name === 'end')
+            .at(-1)?.data
+          expect(ended, JSON.stringify({ ended, requests })).toMatchObject({ status: 'completed' })
+          const output = transcript.events.find(
+            (event) =>
+              event.type === 'step' &&
+              event.name === 'text' &&
+              String(event.data.delta).includes('imgcache://dim_')
+          )
+          expect(output).toBeDefined()
+          const projection = new DimProjectionStore(database.data)
+          const binding = database.data.dimSessionBindingsTable.get(desktopId)!
+          for (const event of transcript.events) projection.apply(binding, event)
+          const messages = database.data.deepchatMessagesTable.getBySession(desktopId)
+          const block = JSON.parse(
+            messages.find((message) => message.role === 'assistant')!.content
+          )[0]
+          expect(block.image_data.mimeType).toBe(mimeType)
+          const file = nativeMediaReference(block.image_data.data)!
+          expect(file).not.toBeNull()
+          const task = await media.status(file.task)
+          expect((await media.readResult(task, file.name, 1024 * 1024)).length).toBeGreaterThan(0)
+          if (modelId === 'gpt-image-1') {
+            await client.call('deepchat.host.input', {
+              ...ref,
+              mode: 'queue',
+              submissionId: randomUUID(),
+              rawBlocks: [],
+              content: [
+                { type: 'text', text: 'native image edit' },
+                {
+                  type: 'image',
+                  source: { type: 'base64', mediaType: 'image/png', data: png.toString('base64') }
+                }
+              ]
+            })
+            await client.call('deepchat.host.idle', ref)
+            expect(requests.filter((request) => request.url === '/v1/images/edits')).toHaveLength(1)
+            const controls = new DimSessionControls(host)
+            const sendMedia = (text: string) =>
+              client.call('deepchat.host.input', {
+                ...ref,
+                mode: 'queue',
+                submissionId: randomUUID(),
+                rawBlocks: [],
+                content: [{ type: 'text', text }]
+              })
+            await sendMedia('native image hold')
+            await expect.poll(() => held, { timeout: 10_000 }).toBe(true)
+            await sendMedia('native image queue one')
+            await sendMedia('native image queue two')
+            releaseImage!()
+            await client.call('deepchat.host.idle', ref)
+            for (const text of ['native image queue one', 'native image queue two'])
+              expect(
+                requests.filter(
+                  (request) =>
+                    typeof request.body?.prompt === 'string' && request.body.prompt.includes(text)
+                )
+              ).toHaveLength(1)
+            held = false
+            cancelled = false
+
+            await client.call('deepchat.host.input', {
+              ...ref,
+              mode: 'queue',
+              submissionId: randomUUID(),
+              rawBlocks: [],
+              content: [{ type: 'text', text: 'native image hold' }]
+            })
+            await expect.poll(() => held, { timeout: 10_000 }).toBe(true)
+            const queued = await client.call<{ inputId: string }>('deepchat.host.input', {
+              ...ref,
+              mode: 'queue',
+              submissionId: randomUUID(),
+              rawBlocks: [],
+              content: [{ type: 'text', text: 'native image withdrawn' }]
+            })
+            expect(await controls.call('withdraw', ref, { inputId: queued.inputId })).toMatchObject(
+              { status: 'deleted' }
+            )
+            await client.call('deepchat.host.stop', ref)
+            await client.call('deepchat.host.idle', ref)
+            await expect.poll(() => cancelled, { timeout: 10_000 }).toBe(true)
+            const listed = await client.call<{ tasks: DimMediaTask[] }>('modality.task.list', {
+              category: 'image',
+              limit: 100
+            })
+            const owned = listed.tasks.filter((task) =>
+              task.client_task_id?.startsWith(`deepchat/media/${created.sessionId}/`)
+            )
+            expect(owned.filter((task) => task.state === 'cancelled')).toHaveLength(1)
+            expect(owned.every((task) => ['succeeded', 'cancelled'].includes(task.state))).toBe(
+              true
+            )
+            expect(new Set(owned.map((task) => task.client_task_id)).size).toBe(owned.length)
+            expect(
+              requests.some((request) => request.body?.prompt === 'native image withdrawn')
+            ).toBe(false)
+          }
+          await client.call('deepchat.host.delete', { sessionId: created.sessionId })
+        }
+        return
+      }
       if (!desktopVendors) {
         const imageModel = await catalog.admit(provider.id, 'gpt-image-1')
         const speechModel = await catalog.admit(provider.id, 'tts-1')

@@ -513,6 +513,16 @@ let input = ''; process.stdin.on('data', x => input += x); process.stdin.on('end
                 text: '<dim-state>late environment state</dim-state>',
                 key: 'fixture-state',
                 retire: false
+              },
+              {
+                type: 'raw',
+                text: '<dim-state source="dim/settings/execution">late unkeyed state</dim-state>',
+                retire: false
+              },
+              {
+                type: 'raw',
+                text: '<dim-rule source="fixture">late runtime rule</dim-rule>',
+                retire: false
               }
             ]
           }

@@ -142,6 +142,8 @@ struct Frame {
     session_id: String,
     request_id: String,
     turn_id: String,
+    #[serde(default)]
+    include_input: bool,
 }
 impl DynPlugin for FrameScope {
     fn name(&self) -> &str {
@@ -176,8 +178,15 @@ impl DynPlugin for FrameScope {
                             let value=serde_json::to_value(&event.event).map_err(|_|RpcError::invalid("Invalid native frame"))?;
                             if event.position.branch_id==branch.id && value["data"]["request_id"]==frame.request_id&&value["data"]["turn_id"]==frame.turn_id {
                                 if found.is_some(){return Err(RpcError::service("ambiguous_scope","Native request belongs to several branches"));}
-                                let prompt=accepted_prompt(&tree,&branch.id,&frame.turn_id,event.event.sequence).await?;
-                                found=Some(json!({"branchId":branch.id,"through":page.through.to_string(),"sequence":event.event.sequence.to_string(),
+                                let content=accepted_content(&tree,&branch.id,&frame.turn_id,event.event.sequence,false).await?;
+                                let prompt=content.iter().filter_map(|block|match block {ContentBlock::Text{text}=>Some(text.as_str()), _=>None}).collect::<Vec<_>>().join("\n");
+                                let media_input=if frame.include_input {
+                                    let content=accepted_content(&tree,&branch.id,&frame.turn_id,event.event.sequence,true).await?;
+                                    Some(super::payload::encode(&json!({
+                                    "sessionId":frame.session_id,"branchId":branch.id,"requestId":frame.request_id,
+                                    "turnId":frame.turn_id,"through":event.event.sequence.to_string(),"content":content
+                                })).await?) } else {None};
+                                found=Some(json!({"mediaInput":media_input,"branchId":branch.id,"through":page.through.to_string(),"sequence":event.event.sequence.to_string(),
                                     "inputQuery":prompt.chars().take(16_384).collect::<String>(),
                                     "hookPromptTooLarge":prompt.len()>1024*1024,
                                     "hookPrompt":if prompt.len()<=1024*1024{Some(prompt)}else{None}}));
@@ -193,13 +202,14 @@ impl DynPlugin for FrameScope {
 }
 
 /// Read the current turn's consumed operator input at the request's fixed prefix.
-/// Queued inputs and keyed environment/state blocks cannot become hook input.
-async fn accepted_prompt(
+/// Queued inputs, runtime envelopes and keyed environment/state blocks cannot become hook input.
+async fn accepted_content(
     tree: &TreeCommands,
     branch: &str,
     turn: &str,
     through: u64,
-) -> Result<String, RpcError> {
+    all: bool,
+) -> Result<Vec<ContentBlock>, RpcError> {
     let latest = |filter| {
         serde_json::from_value::<TimelineQuery>(json!({
         "scope":"branch","through":through,"include_publishing":true,
@@ -224,47 +234,98 @@ async fn accepted_prompt(
         .ok_or_else(|| RpcError::invalid("Missing turn input boundary"))?
         .event
         .sequence;
-    let input=tree.query(branch.to_owned(),latest(super::facts::and(vec![
-        super::facts::equal("kind",json!("input/message")),
+    // Resolve consumed facts in the public branch prefix first. An EXISTS
+    // relation can otherwise see a later consumption beyond this request cut.
+    let mut consumed_query = latest(super::facts::and(vec![
+        super::facts::equal("kind", json!("input/consumed")),
+        json!({"op":"compare","left":super::facts::field("position.sequence"),"comparison":"gt","right":{"kind":"value","value":start}}),
+    ]))?;
+    consumed_query
+        .page
+        .as_mut()
+        .expect("paged consumed query")
+        .limit = std::num::NonZeroU64::new(128).unwrap();
+    let mut consumed_ids = Vec::new();
+    loop {
+        let page = tree
+            .query(branch.to_owned(), consumed_query.clone())
+            .await?;
+        let QueryOutput::Events { events } = page.result else {
+            return Err(RpcError::invalid("Missing consumed input result"));
+        };
+        for event in events {
+            if let EventKind::InputConsumed(data) = &event.event.kind {
+                consumed_ids.push(data.input_id.clone());
+            }
+            if consumed_ids.len() > 4096 {
+                return Err(RpcError::invalid("Consumed input batch exceeds its bound"));
+            }
+        }
+        let Some(next) = page.next else {
+            break;
+        };
+        consumed_query
+            .page
+            .as_mut()
+            .expect("paged consumed query")
+            .after = Some(next);
+    }
+    if consumed_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut query = latest(super::facts::and(vec![
+        super::facts::equal("kind", json!("input/message")),
         json!({"op":"or","conditions":[
             {"op":"present","value":super::facts::field("data.user")},
-            {"op":"any","field":"data.blocks","condition":{"op":"not","condition":{"op":"present","value":{"kind":"element","path":"key"}}}}
+            {"op":"any","field":"data.blocks","condition":{"op":"and","conditions":[
+                {"op":"not","condition":{"op":"present","value":{"kind":"element","path":"key"}}},
+                {"op":"not","condition":{"op":"prefix","value":{"kind":"element","path":"text"},"prefix":"<dim-state "}},
+                {"op":"not","condition":{"op":"prefix","value":{"kind":"element","path":"text"},"prefix":"<dim-rule "}}
+            ]}}
         ]}),
-        json!({"op":"exists","condition":super::facts::and(vec![
-            super::facts::equal("kind",json!("input/consumed")),
-            json!({"op":"compare","left":super::facts::field("position.sequence"),"comparison":"gt","right":{"kind":"value","value":start}}),
-            json!({"op":"compare","left":super::facts::field("data.input_id"),"comparison":"eq","right":{"kind":"outer","path":"id"}})
-        ])})
-    ]))?).await?;
-    let QueryOutput::Events { events } = input.result else {
-        return Err(RpcError::invalid("Missing accepted input result"));
-    };
-    let Some(event) = events.first() else {
-        return Ok(String::new());
-    };
-    let EventKind::InputMessage(input) = &event.event.kind else {
-        return Err(RpcError::invalid("Invalid accepted input source"));
-    };
-    Ok(if let Some(user) = &input.user {
-        user.content
-            .iter()
-            .filter_map(|block| match block {
-                ContentBlock::Text { text } => Some(text.as_str()),
-                _ => None,
-            })
-            .collect::<Vec<_>>()
-            .join("\n")
-    } else {
-        input
-            .blocks
-            .iter()
-            .filter_map(|block| match block {
-                InputBlock::Raw {
-                    text, key: None, ..
-                } => Some(text.as_str()),
-                _ => None,
-            })
-            .collect::<Vec<_>>()
-            .join("\n")
-    })
+        super::facts::one_of("id", json!(consumed_ids)),
+    ]))?;
+    query.page.as_mut().expect("paged input query").limit =
+        std::num::NonZeroU64::new(if all { 128 } else { 1 }).unwrap();
+    let mut found = Vec::new();
+    loop {
+        let page = tree.query(branch.to_owned(), query.clone()).await?;
+        let QueryOutput::Events { events } = page.result else {
+            return Err(RpcError::invalid("Missing accepted input result"));
+        };
+        for event in events {
+            let EventKind::InputMessage(input) = &event.event.kind else {
+                return Err(RpcError::invalid("Invalid accepted input source"));
+            };
+            let content = if let Some(user) = &input.user {
+                user.content.clone()
+            } else {
+                input
+                    .blocks
+                    .iter()
+                    .filter_map(|block| match block {
+                        InputBlock::Raw {
+                            text, key: None, ..
+                        } if !dim_agent_capabilities::context_block::is_state_or_rule(text) => {
+                            Some(ContentBlock::Text { text: text.clone() })
+                        }
+                        _ => None,
+                    })
+                    .collect()
+            };
+            found.push(content);
+            if found.len() > 4096 {
+                return Err(RpcError::invalid("Accepted input batch exceeds its bound"));
+            }
+        }
+        if !all {
+            break;
+        }
+        let Some(next) = page.next else {
+            break;
+        };
+        query.page.as_mut().expect("paged input query").after = Some(next);
+    }
+    found.reverse();
+    Ok(found.into_iter().flatten().collect())
 }

@@ -37,7 +37,8 @@ export class DimToolCatalog {
     if (!selected) return []
     const model = await this.options.models.registerForHistory(
       selected.providerId,
-      selected.modelId
+      selected.modelId,
+      { session: true }
     )
     const client = await this.options.host.start()
     // This isolated catalog scope accepts no input and does not migrate a desktop

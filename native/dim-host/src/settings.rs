@@ -100,6 +100,8 @@ impl DynPlugin for Settings {
                             limits: Option<Limits>,
                             #[serde(default)]
                             product_permission_mode: Option<String>,
+                            #[serde(default)]
+                            media_options: Option<Value>,
                         }
                         let p: Params = params(value)?;
                         let branch = tree.get(&p.branch_id)?;
@@ -175,6 +177,17 @@ impl DynPlugin for Settings {
                         };
                         let config = merge(base, patch)?;
                         let mut metadata = current.metadata;
+                        if let Some(options) = p.media_options {
+                            if !options.is_object() || options.to_string().len() > 64 * 1024 {
+                                return Err(RpcError::invalid(
+                                    "Invalid media conversation options",
+                                ));
+                            }
+                            metadata
+                                .get_or_insert_with(Default::default)
+                                .extensions
+                                .insert("deepchatMedia".into(), options);
+                        }
                         if let Some(mode) = p.product_permission_mode {
                             if !["default", "auto_approve", "full_access"].contains(&mode.as_str())
                             {

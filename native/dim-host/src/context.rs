@@ -69,6 +69,7 @@ impl PrepareContext for DesktopContext {
         cancel: CancellationToken,
     ) -> HostFuture<'_, Arc<ModelRequest>> {
         Box::pin(async move {
+            let request = crate::media_chat::stamp(&self.session_id, &source, request);
             let prompt = request
                 .messages
                 .iter()

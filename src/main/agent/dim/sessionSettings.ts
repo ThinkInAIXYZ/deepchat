@@ -45,7 +45,7 @@ export class DimSessionSettings {
     const model = await this.options.models[historyOnly ? 'registerForHistory' : 'admit'](
       row.provider_id,
       row.model_id,
-      { timeout: generation.timeout }
+      { timeout: generation.timeout, session: true }
     )
     return { ...creation, model: { ...model } }
   }
@@ -96,7 +96,8 @@ export class DimSessionSettings {
     if (adopted.agentId !== agentId)
       checkOutcome(await this.options.controls.call('set_agent', ref, { agentId }))
     const target = await this.options.models.admit(row.provider_id, row.model_id, {
-      timeout: generation.timeout
+      timeout: generation.timeout,
+      session: true
     })
     const current = await this.options.controls.call<{ providerId: string; modelId: string }>(
       'native_settings',
@@ -106,12 +107,27 @@ export class DimSessionSettings {
     if (current.providerId !== target.providerId || current.modelId !== target.modelId)
       checkOutcome(await this.options.controls.call('set_model', ref, { ...target }))
     currentScope()
+    const parameters = dimModelParameters(generation)
+    let mediaOptions: JsonValue = {}
+    if (target.modelId === `deepchat-media/${row.model_id}`) {
+      const defaults = this.options.models.mediaSettings(row.provider_id, row.model_id)
+      mediaOptions = {
+        ...defaults,
+        image: generation.imageGeneration
+          ? JSON.parse(JSON.stringify(generation.imageGeneration))
+          : defaults.image,
+        video: generation.videoGeneration
+          ? JSON.parse(JSON.stringify(generation.videoGeneration))
+          : defaults.video
+      }
+    }
     await this.options.controls.call('native_configure', ref, {
       expectedModel: { ...target },
       replace: true,
-      config: dimModelParameters(generation) as unknown as JsonValue,
+      config: parameters as unknown as JsonValue,
       limits: { contextWindow: generation.contextLength, maxOutputTokens: generation.maxTokens },
-      productPermissionMode: row.permission_mode
+      productPermissionMode: row.permission_mode,
+      mediaOptions
     })
     await this.adoptPermission(binding)
   }

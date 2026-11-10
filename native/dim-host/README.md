@@ -83,6 +83,22 @@ The product plugin supplies Voice.ai settings and APIMart's persisted endpoint
 and parameter declarations as non-secret model metadata. APIMart speech continues
 through dim's default OpenAI adapter.
 
+Media conversations select a separate chat alias without changing the underlying
+media model. Agent-local ModelHost/AuxiliaryModelHost values delegate ordinary
+inference to the native defaults and submit media requests to ModalityTasks.
+The original Agent loop, input queue, cancellation and branch configuration own
+the conversation. Options are adopted into native request metadata per branch.
+Input comes from the consumed operator facts at the model request's fixed cut;
+runtime state/rule envelopes and future queued input are excluded. Large input
+frames cross the private gateway by a verified scratch-file reference.
+
+The native transcript retains generated media as immutable task-file links.
+The desktop projects those links into existing image/audio/video blocks and
+streams task results through public Modality reads into a disposable image-cache
+mirror. Native file size/digest checks precede atomic cache publication; cached
+history can be viewed without restoring an Agent. The same materializer serves
+display, copy/save, model image input, CLI and remote image delivery.
+
 Large independent media inputs use `deepchat.native_media_inputs.submit`. The
 desktop sends a bounded file-backed RPC payload; the plugin prepares private
 binary inputs through public FileStorage/PluginFileTransactions and delegates

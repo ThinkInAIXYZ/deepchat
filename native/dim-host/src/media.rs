@@ -28,11 +28,27 @@ struct VendorModel {
     config: Value,
 }
 type Aliases = HashMap<(String, String), VendorModel>;
+#[derive(Default)]
+pub(crate) struct MediaCatalog {
+    aliases: RwLock<Aliases>,
+    conversations: RwLock<HashMap<(String, String), Value>>,
+}
+impl MediaCatalog {
+    pub(crate) fn conversation(&self, model: &ModelId) -> Option<Value> {
+        self.conversations
+            .read()
+            .unwrap()
+            .get(&(model.provider_id.clone(), model.model_id.clone()))
+            .cloned()
+    }
+}
+
 fn supported(name: &str) -> bool {
     vendor::vendor(name).is_some() || crate::media_compat::supports(name)
 }
 pub struct TasksReady;
 pub fn install(builder: &mut AgentBuilder) {
+    dim_agent_runtime::names::register::<MediaCatalog>(builder.catalog_mut(), None);
     dim_agent_runtime::names::register::<ModalityAdapterService>(builder.catalog_mut(), None);
     dim_agent_runtime::names::register::<TasksReady>(builder.catalog_mut(), None);
     builder.plugin(|names| Ok(Box::new(Media::new(names)?)));
@@ -92,10 +108,12 @@ impl DynPlugin for Media {
         Box::pin(async move {
             let providers = ctx.require_at(&self.providers)?;
             let methods = ctx.require_at(&self.methods)?;
+            let catalog = Arc::new(MediaCatalog::default());
             let adapter = Arc::new(DesktopMedia {
                 native: MediaAdapter::new(),
-                aliases: RwLock::default(),
+                catalog: catalog.clone(),
             });
+            ctx.provide_as::<MediaCatalog>(catalog)?;
             let cancel = ctx.cancellation_token();
             let ids = providers.list(&cancel).await.map_err(|_| {
                 rutis::host::ErrorKind::PluginFailed(
@@ -164,11 +182,23 @@ async fn refresh(
         ));
     }
     let mut aliases = Aliases::new();
+    let mut conversations = HashMap::new();
     for provider in view.providers {
         if provider.provider_id != id {
             continue;
         }
         for model in provider.models.unwrap_or_default() {
+            if let Some(conversation) = model
+                .model
+                .metadata
+                .as_ref()
+                .and_then(|meta| meta.raw.get("deepchatMediaConversation"))
+            {
+                conversations.insert(
+                    (id.to_owned(), model.model.model_id.clone()),
+                    conversation.clone(),
+                );
+            }
             let explicit = model
                 .model
                 .metadata
@@ -205,21 +235,25 @@ async fn refresh(
         }
     }
     let count = aliases.len();
-    let mut current = adapter.aliases.write().unwrap();
+    let mut current = adapter.catalog.aliases.write().unwrap();
     current.retain(|(provider, _), _| provider != id);
     current.extend(aliases);
+    let mut current = adapter.catalog.conversations.write().unwrap();
+    current.retain(|(provider, _), _| provider != id);
+    current.extend(conversations);
     Ok(count)
 }
 struct DesktopMedia {
     native: MediaAdapter,
-    aliases: RwLock<Aliases>,
+    catalog: Arc<MediaCatalog>,
 }
 impl DesktopMedia {
     fn model(&self, model: &ModelId) -> Option<ModelId> {
         if vendor::vendor(&model.provider_id).is_some() {
             return Some(model.clone());
         }
-        self.aliases
+        self.catalog
+            .aliases
             .read()
             .unwrap()
             .get(&(model.provider_id.clone(), model.model_id.clone()))
@@ -261,6 +295,7 @@ impl ModalityAdapter for DesktopMedia {
     ) -> AdapterFuture<'_, Submitted> {
         Box::pin(async move {
             let config = self
+                .catalog
                 .aliases
                 .read()
                 .unwrap()

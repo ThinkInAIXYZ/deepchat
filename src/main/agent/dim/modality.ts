@@ -79,6 +79,26 @@ export class DimModality {
     return task
   }
 
+  async status(taskId: string): Promise<DimMediaTask> {
+    return (
+      await (
+        await this.host.start()
+      ).call<{ task: DimMediaTask }>('modality.task.status', { task_id: taskId })
+    ).task
+  }
+
+  async readChunk(taskId: string, name: string, offset: number, length: number): Promise<Buffer> {
+    const result = await (
+      await this.host.start()
+    ).call<{ data_base64: string }>('modality.task.result', {
+      task_id: taskId,
+      name,
+      offset,
+      length
+    })
+    return Buffer.from(result.data_base64, 'base64')
+  }
+
   async cancel(taskId: string): Promise<DimMediaTask> {
     return (
       await (
