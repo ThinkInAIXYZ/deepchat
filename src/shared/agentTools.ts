@@ -1,3 +1,5 @@
+// Historical server label retained for read-only Tape presentation.
+export const AGENT_TAPE_TOOL_SERVER_NAME = 'agent-tape'
 export const GLOB_TOOL_NAME = 'glob'
 export const GREP_TOOL_NAME = 'grep'
 export const CRON_JOB_AGENT_TOOL_NAME = 'cronjob'

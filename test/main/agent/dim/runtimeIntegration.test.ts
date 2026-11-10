@@ -701,12 +701,18 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
       const admit = () =>
         catalog ? catalog.admit('desktop-fixture', 'fixture') : models.configure(configuration)
       if (nativePlugins) {
+        const nativeSessionsBeforeCatalog = await (
+          await host.start()
+        ).call('session.summaries', { includeClosed: true })
         const definitions = await new DimToolCatalog({
           host,
           models: catalog!,
           cwd: profile,
           defaultModel: async () => ({ providerId: 'desktop-fixture', modelId: 'fixture' })
         }).definitions()
+        expect(
+          await (await host.start()).call('session.summaries', { includeClosed: true })
+        ).toEqual(nativeSessionsBeforeCatalog)
         const names = definitions.map((tool) => tool.function.name)
         expect(names).toEqual(
           expect.arrayContaining([
@@ -2200,6 +2206,47 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
           .toBe('native child approved by policy')
         await (await host.start()).call('deepchat.host.delete', { sessionId: child.ref.sessionId })
         await facade.runtime.waitIdle(facadeId)
+        grants.data.newSessionsTable.updateDisabledAgentTools(facadeId, ['exec'])
+        await facade.settings.refreshToolPreferences(facadeId)
+        nextTools = [
+          {
+            id: 'native-denied-exec',
+            name: 'exec',
+            arguments: { command: 'echo DIM_NATIVE_DENIED', timeoutMs: 10000 }
+          }
+        ]
+        await facade.backend.send(facadeId, { content: { text: 'verify disabled native command' } })
+        await facade.runtime.waitIdle(facadeId)
+        const denied = grants.data.deepchatMessagesTable
+          .getBySession(facadeId)
+          .filter((message) => message.role === 'assistant')
+          .flatMap((message) => JSON.parse(message.content) as AssistantMessageBlock[])
+        expect(denied.find((block) => block.tool_call?.id === 'native-denied-exec')).toMatchObject({
+          status: 'error'
+        })
+        grants.data.newSessionsTable.updateDisabledAgentTools(facadeId, [])
+        await facade.settings.refreshToolPreferences(facadeId)
+        nextTools = [
+          {
+            id: 'native-exec-proof',
+            name: 'exec',
+            arguments: { command: 'echo DIM_NATIVE_EXEC_OK', timeoutMs: 10000 }
+          }
+        ]
+        await facade.backend.send(facadeId, {
+          content: { text: 'verify native command execution' }
+        })
+        await facade.runtime.waitIdle(facadeId)
+        const execBlocks = grants.data.deepchatMessagesTable
+          .getBySession(facadeId)
+          .filter((message) => message.role === 'assistant')
+          .flatMap((message) => JSON.parse(message.content) as AssistantMessageBlock[])
+        expect(
+          execBlocks.find((block) => block.tool_call?.id === 'native-exec-proof')
+        ).toMatchObject({
+          status: 'success',
+          tool_call: { response: expect.stringContaining('DIM_NATIVE_EXEC_OK') }
+        })
         const facadeScopes = grants.data.dimSessionScopesTable.list(facadeId)
         expect(facadeScopes).toHaveLength(4)
         await facade.backend.destroySession(facadeId)

@@ -248,3 +248,59 @@ it('refuses an imported message ID owned by another session and rolls back the v
   expect(data.dimSessionBindingsTable.get('app')?.cursor).toBe(String(plan.chunks.length))
   expect(data.dimInputProjectionTable.get('app', `history:${plan.migrationId}:0`)).not.toBeNull()
 })
+
+it('restores desktop tool presentation and image previews from committed native results', () => {
+  const { data, binding, projection } = database()
+  const response = JSON.stringify({ success: true, imageCount: 1 })
+  projection.apply(binding, event(1, 'turn', 'start', { turn_id: 'turn' }))
+  projection.apply(
+    binding,
+    event(2, 'step', 'tool-call', {
+      turn_id: 'turn',
+      request_id: 'request',
+      calls: [{ id: 'image-call', name: 'image_generate', input: {} }]
+    })
+  )
+  projection.apply(
+    binding,
+    event(3, 'step', 'tool-completed', {
+      turn_id: 'turn',
+      request_id: 'request',
+      call_id: 'image-call',
+      result: {
+        content: 'native result',
+        isError: false,
+        structuredContent: {
+          deepchatDisplay: {
+            response,
+            imagePreviews: [
+              {
+                id: 'generated',
+                data: 'imgcache://generated',
+                mimeType: 'image/png',
+                source: 'tool_output'
+              },
+              { id: 'invalid', data: 12 }
+            ]
+          }
+        }
+      }
+    })
+  )
+  const messages = data.deepchatMessagesTable.getBySession('app')
+  const blocks = JSON.parse(messages[0].content)
+  expect(blocks[0]).toMatchObject({
+    status: 'success',
+    tool_call: {
+      response,
+      imagePreviews: [
+        {
+          id: 'generated',
+          data: 'imgcache://generated',
+          mimeType: 'image/png',
+          source: 'tool_output'
+        }
+      ]
+    }
+  })
+})

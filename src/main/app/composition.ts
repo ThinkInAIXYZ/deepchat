@@ -199,6 +199,7 @@ import { DimLegacySource } from '@/agent/dim/legacySource'
 import { DimInputPreparation } from '@/agent/dim/inputPreparation'
 import { createDimMemoryRuntime } from '@/agent/dim/memoryRuntime'
 import { createDimDesktopTools } from './dimDesktopTools'
+import { AgentToolManager } from '@/tool/agentTools/agentToolManager'
 import { DimToolCatalog } from '@/agent/dim/toolCatalog'
 import { nativeMcpStdio } from '@/mcp/nativeStdio'
 import { RuntimeHelper } from '@/lib/runtimeHelper'
@@ -2133,7 +2134,13 @@ export async function createMainProcessControl(dependencies: {
     database: sessionData.database,
     authorize: authorizeDimScope,
     catalog: createDimDesktopTools({
-      dependencies: agentToolDependencies,
+      desktop: new AgentToolManager({
+        providerSettings,
+        agentSettings,
+        skillSettings,
+        desktopSettings,
+        dependencies: agentToolDependencies
+      }),
       mcp: mcpService,
       selection: async (id) => {
         const session = appSessionService.get(id)
@@ -2141,7 +2148,7 @@ export async function createMainProcessControl(dependencies: {
         const config = await agentSettings.resolveDeepChatAgentConfig(session.agentId)
         return {
           agentId: session.agentId,
-          disabled: config.disabledAgentTools ?? [],
+          disabled: sessionData.settings.getDisabledAgentTools(id),
           enabledServerIds: config.enabledMcpServerIds,
           bridgeServerNames: (await dimMcpConfiguration(id)).bridgeServerNames
         }

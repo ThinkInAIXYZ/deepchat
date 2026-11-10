@@ -28,7 +28,7 @@ const RENDERER_CHAT = [
 ].map((p) => path.join(ROOT, 'src/renderer/src', p))
 const EXTENSIONS = new Set(['.js', '.jsx', '.mjs', '.cjs', '.ts', '.tsx', '.mts', '.cts', '.vue'])
 const RETIRED_EXECUTORS =
-  '(?:DeepChatAgentHarness|DeepChatAgentInstance|DeepChatAgentRuntime|DeepChatLoopEngine|DeepChatLoopRunner|LoopRun)'
+  '(?:DeepChatAgentHarness|DeepChatAgentInstance|DeepChatAgentRuntime|DeepChatLoopEngine|DeepChatLoopRunner|LoopRun|AgentFileSystemHandler|AgentBashHandler|AgentFffSearchHandler)'
 const under = (file, directory) => file === directory || file.startsWith(`${directory}${path.sep}`)
 const within = (file, roots) => roots.some((root) => under(file, root))
 const relative = (file) => path.relative(ROOT, file).split(path.sep).join('/')

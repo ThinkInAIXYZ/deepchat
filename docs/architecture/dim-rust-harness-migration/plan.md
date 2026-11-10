@@ -158,6 +158,8 @@
 
 ## 模块进度
 
+- 模块 41：工具管理器缩减为产品扩展，移除旧文件、命令/进程、搜索、问题、技能发现/执行、调度与子代理派发入口；物理删除 Node 文件/命令/搜索/Minimal 编辑器处理器及模型侧 Tape handler。保留桌面浏览器、长期记忆、会话引用，并把图像生成、桌面设置与技能草稿管理纳入统一 ToolProvider 桥；图像结果的展示回执/预览随 Native 事实投影恢复。MCP 桥按会话工具偏好过滤，调用仍受版本与作用域 fence 约束。原生 smoke 新增 registry 临时 scope 清理、真实 Native exec 及 disallowedTools 拒绝/重新启用；10 项 Rust smoke 和 134 项产品/投影/边界回归通过。全量 main 为 8413 项通过、四项失败：旧数组顺序断言已更新为原生偏好合同，两个 mac 打包断言来自 shell umask 0077，架构生成遇到 10s 超时；标准 umask 022 下三套共 161 项定向复验通过，未修改产品打包或放宽超时。Memory 类型门禁 78 项、scope、格式/i18n/lint/双端 typecheck 通过。主进程复构建通过；四项 Electron 流程中三项一次通过，ACP 工作区一次性错误模拟遇到竞态，单独复验 30s 通过。遗留 Code Mode/调度/委派的无入口代码、其余 Tape API 及产品兼容继续清理。
+
 - 模块 40：工具设置目录改读 Rust ToolRegistry 的公开定义，独立只读用途的临时 Native scope 不提交输入、不迁移旧会话，读取后由 Native owner 删除。旧工具偏好名称在共享产品元数据边界转换为 dim 名称；新会话策略、下一次准入及即时工具开关均采用 Native Permission owner 的 disallowedTools/CAS，禁用 provider 时也能重新启用工具，无需发起模型请求。Agent 设置、会话返回与草稿界面使用同一转换，避免界面显示启用而原生策略仍禁用。删除界面凭空构造的 Minimal 编辑器/进程/子代理工具，只展示 owner 发布的目录；Code Mode 继续暂停。桥升级 0.10.0。10 项完整真实 Rust smoke（含原生目录、旧偏好映射及无需模型准入的权限刷新）、461 项主进程、43 项界面回归、完整构建及四项 Electron ACP/Native 联合验收通过；桌面验收新增目录读取零推理、无旧问题工具与真实会话开关保存检查。格式/i18n/lint/双端 typecheck 与 Memory scope 通过。旧 Node 工具处理器的源码清理及剩余产品工具插件接线继续实施。
 
 - 模块 39：物理删除旧 `src/main/agent/deepchat` 执行树，包括 Harness、loop、driver、调度、压缩和旧执行器；保留的产品默认值、Agent 配置仓库、Memory 策略、工具目录元数据及 CLI 合同迁至各自 owner。旧 Tape 迁移输入仅暴露只读查询。清理只验证旧执行器的测试和 Node verifier，原 test:harness:node/test:agent:eval 命令改验实际 dim Rust；CI 安装锁定工具链并构建薄 host。架构门禁禁止重新引入旧执行树，ACP 和 dim 边界继续独立。421 项保留合同、67 项架构、Memory 类型门禁 78 项、10 项真实 Rust smoke、四项 Electron ACP/Native 验收以及格式/i18n/lint/双端 typecheck 通过。全量 main 的 8604 项通过，仅两项旧 CI 命令断言失败；更新断言后对应 6 项复验通过。后续继续清理旧工具注册、剩余模型入口与产品迁移兼容，尚不宣称整体迁移完成。

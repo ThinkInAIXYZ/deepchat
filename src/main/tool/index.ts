@@ -112,7 +112,7 @@ type MainProcessToolPreCheckOptions = Pick<
   | 'requestSeq'
   | 'toolSurfaceSnapshot'
 >
-import type { AgentCommandEnvironmentPort } from './agentTools/agentBashHandler'
+import type { AgentCommandEnvironmentPort } from '@/cli/agentCommandAccess'
 import type { ToolEffectObserver } from './effectObserver'
 import { resolvePluginToolPolicy } from '@/plugin/toolPolicyStore'
 import { composeSubagentAuthority } from '@/session/subagentAuthority'
@@ -304,16 +304,12 @@ export class ToolService implements ToolServicePort {
     })
   }
 
-  private createAgentToolManager(agentWorkspacePath: string | null): AgentToolManager {
+  private createAgentToolManager(_agentWorkspacePath: string | null): AgentToolManager {
     return new AgentToolManager({
-      agentWorkspacePath,
       providerSettings: this.options.providerSettings,
-      settings: this.options.settings,
       agentSettings: this.options.agentSettings,
       skillSettings: this.options.skillSettings,
       desktopSettings: this.options.desktopSettings,
-      commandPermissionHandler: this.options.commandPermissionHandler,
-      commandEnvironment: this.options.commandEnvironment,
       dependencies: this.options.agentTools
     })
   }
@@ -558,18 +554,11 @@ export class ToolService implements ToolServicePort {
     }
   }
 
-  syncAgentToolContext(context: {
+  syncAgentToolContext(_context: {
     chatMode?: 'agent' | 'acp agent'
     agentWorkspacePath?: string | null
   }): void {
-    const chatMode = context.chatMode || 'agent'
-    const agentWorkspacePath = context.agentWorkspacePath || null
-    const agentToolManager = this.ensureAgentToolManager(agentWorkspacePath)
-
-    agentToolManager.syncContext({
-      chatMode,
-      agentWorkspacePath
-    })
+    this.ensureAgentToolManager(null)
   }
 
   configureToolMode(input: ToolModeConfiguration): MCPToolDefinition[] {
@@ -1207,30 +1196,6 @@ export class ToolService implements ToolServicePort {
       request,
       { snapshot: options.toolSurfaceSnapshot },
       options
-    )
-  }
-
-  /**
-   * Resolves the filesystem paths an agent tool call authorizes so an approval can record the
-   * targets the execution will actually touch.
-   */
-  async resolveAgentToolApprovalPaths(
-    request: MCPToolCall,
-    options?: MainProcessToolPreCheckOptions
-  ): Promise<string[]> {
-    const toolName = request.function.name
-    if (
-      !this.agentToolManager ||
-      this.getToolSource(toolName, request.conversationId) !== 'agent'
-    ) {
-      return []
-    }
-    const args = this.parseAgentToolArguments(request.function.arguments, toolName)
-    return await awaitWithAbort(
-      this.agentToolManager.resolveApprovalPaths(toolName, args, request.conversationId, {
-        commandShell: options?.commandShell
-      }),
-      options?.signal
     )
   }
 
