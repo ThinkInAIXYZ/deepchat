@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { expect, it } from 'vitest'
+import { expect, it, vi } from 'vitest'
 import { createServer } from 'node:http'
 import { mkdtemp, rm, readdir, readFile, stat } from 'node:fs/promises'
 import os from 'node:os'
@@ -19,7 +19,9 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
   { apiType: 'ollama', apiKey: '' },
   { apiType: 'openai-completions', apiKey: '' },
   { apiType: 'ollama', apiKey: 'ollama-cloud-key' },
-  { apiType: 'github-copilot', apiKey: 'github-oauth-fixture' }
+  { apiType: 'github-copilot', apiKey: 'github-oauth-fixture' },
+  { apiType: 'vertex', apiKey: '' },
+  { apiType: 'vertex', apiKey: 'vertex-api-fixture' }
 ])(
   'reauthorizes cached $apiType connections with key=$apiKey without leaking product admission',
   async ({ apiType, apiKey }) => {
@@ -27,38 +29,76 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
     let grants = 0
     let apiKeyLookups = 0
     let modelEnabled = true
+    const fixtureErrors: unknown[] = []
+    if (apiType === 'vertex') vi.stubEnv('GOOGLE_VERTEX_API_KEY', '')
     const fixture = createServer(async (request, response) => {
-      let body = ''
-      for await (const chunk of request) body += chunk
-      calls++
-      expect(request.url).toBe('/v1/chat/completions')
-      const draft = body.includes('DRAFT_MODEL_TEST')
-      expect(request.headers.authorization).toBe(
-        apiType === 'github-copilot'
-          ? `Bearer ${draft ? 'copilot-draft-token' : 'copilot-native-token'}`
-          : draft
-            ? 'Bearer draft-only-key'
-            : apiKey
-              ? `Bearer ${apiKey}`
-              : undefined
-      )
-      expect(JSON.stringify({ headers: request.headers, body })).not.toContain(
-        'deepchat-admission-v1'
-      )
-      if (apiType === 'github-copilot') {
-        expect(JSON.stringify({ headers: request.headers, body })).not.toContain(apiKey)
-        for (const [key, value] of Object.entries(GITHUB_COPILOT_CHAT_HEADERS))
-          if (key === 'User-Agent')
-            expect(request.headers[key.toLowerCase()]).toMatch(
-              new RegExp(`^${value.replaceAll('.', '\\.').replaceAll('/', '\\/')}(?: |$)`)
-            )
-          else expect(request.headers[key.toLowerCase()]).toBe(value)
-      }
-      response
-        .writeHead(200, { 'Content-Type': 'text/event-stream' })
-        .end(
-          `data: ${JSON.stringify({ id: 'local', object: 'chat.completion.chunk', created: 0, model: 'local', choices: [{ index: 0, delta: { content: 'anonymous native answer' }, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`
+      try {
+        let body = ''
+        for await (const chunk of request) body += chunk
+        calls++
+        const draft = body.includes('DRAFT_MODEL_TEST')
+        if (apiType === 'vertex') {
+          expect(request.url).toMatch(
+            /\/models\/local:(?:streamGenerateContent|generateContent)(?:\?|$)/
+          )
+          expect(request.headers.authorization).toBe(
+            !apiKey && !draft ? 'Bearer vertex-native-token' : undefined
+          )
+          expect(request.headers['x-goog-api-key']).toBe(
+            draft ? 'draft-only-key' : apiKey || undefined
+          )
+          const data = {
+            candidates: [
+              {
+                content: { role: 'model', parts: [{ text: 'anonymous native answer' }] },
+                finishReason: 'STOP'
+              }
+            ],
+            usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1, totalTokenCount: 2 }
+          }
+          if (request.url!.includes(':streamGenerateContent'))
+            response
+              .writeHead(200, { 'Content-Type': 'text/event-stream' })
+              .end(`data: ${JSON.stringify(data)}\n\n`)
+          else
+            response
+              .writeHead(200, { 'Content-Type': 'application/json' })
+              .end(JSON.stringify(data))
+          return
+        }
+        expect(request.url).toBe('/v1/chat/completions')
+        expect(request.headers.authorization).toBe(
+          apiType === 'github-copilot'
+            ? `Bearer ${draft ? 'copilot-draft-token' : 'copilot-native-token'}`
+            : draft
+              ? 'Bearer draft-only-key'
+              : apiKey
+                ? `Bearer ${apiKey}`
+                : undefined
         )
+        expect(JSON.stringify({ headers: request.headers, body })).not.toContain(
+          'deepchat-admission-v1'
+        )
+        if (apiType === 'github-copilot') {
+          expect(JSON.stringify({ headers: request.headers, body })).not.toContain(apiKey)
+          for (const [key, value] of Object.entries(GITHUB_COPILOT_CHAT_HEADERS))
+            if (key === 'User-Agent')
+              expect(request.headers[key.toLowerCase()]).toMatch(
+                new RegExp(`^${value.replaceAll('.', '\\.').replaceAll('/', '\\/')}(?: |$)`)
+              )
+            else expect(request.headers[key.toLowerCase()]).toBe(value)
+        }
+        response
+          .writeHead(200, { 'Content-Type': 'text/event-stream' })
+          .end(
+            `data: ${JSON.stringify({ id: 'local', object: 'chat.completion.chunk', created: 0, model: 'local', choices: [{ index: 0, delta: { content: 'anonymous native answer' }, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`
+          )
+      } catch (error) {
+        fixtureErrors.push(error)
+        response
+          .writeHead(400, { 'Content-Type': 'application/json' })
+          .end(JSON.stringify({ error: { message: 'Native fixture rejected the request' } }))
+      }
     })
     await new Promise<void>((resolve) => fixture.listen(0, '127.0.0.1', resolve))
     const profile = await mkdtemp(path.join(os.tmpdir(), 'dc-dim-anonymous-'))
@@ -69,6 +109,8 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
       apiType,
       apiKey,
       copilotClientId: '',
+      projectId: 'fixture-project',
+      location: 'us-central1',
       enable: true,
       baseUrl: `http://127.0.0.1:${(fixture.address() as { port: number }).port}/v1`
     }
@@ -101,7 +143,8 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
       copilotToken: async (oauthToken) => ({
         token: oauthToken === 'draft-only-key' ? 'copilot-draft-token' : 'copilot-native-token',
         expires_at: Date.now() / 1000 + 3600
-      })
+      }),
+      vertexAuth: () => ({ getAccessToken: async () => 'vertex-native-token' })
     })
     catalog = new DimModelCatalog({
       settings: {
@@ -210,7 +253,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
       expect((await complete()).text).toBe('anonymous native answer')
       expect(calls).toBe(2)
       expect(grants).toBeGreaterThanOrEqual(5)
-      expect(apiKeyLookups).toBe(apiKey ? 2 : 0)
+      expect(apiKeyLookups).toBe(apiKey || apiType === 'vertex' ? 2 : 0)
       const client = await host.start()
       const before = await client.call<{ providers: Array<{ providerId: string }> }>(
         'provider.management',
@@ -232,6 +275,13 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
       )
       expect(provider.apiKey).toBe(apiKey)
       expect(provider.enable).toBe(true)
+      if (apiType === 'vertex') {
+        const previousCalls = calls
+        provider.projectId = 'another-project'
+        expect((await catalog.admit(provider.id, 'local')).providerId).not.toBe(model.providerId)
+        await expect(complete()).rejects.toThrow()
+        expect(calls).toBe(previousCalls)
+      }
       if (apiType === 'github-copilot') {
         const previousCalls = calls
         provider.copilotClientId = 'rotated-client'
@@ -334,6 +384,8 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
       fixture.closeAllConnections()
       await new Promise<void>((resolve) => fixture.close(() => resolve()))
       await rm(profile, { recursive: true, force: true })
+      vi.unstubAllEnvs()
+      expect(fixtureErrors).toEqual([])
     }
   },
   60_000

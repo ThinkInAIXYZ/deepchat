@@ -24,6 +24,8 @@ import {
   type OpenAICompatiblePromptCacheMarker
 } from '../promptCacheStrategy'
 import { fetchWithProviderHeaders } from '../providerHeaders'
+import { normalizeVertexBaseUrl } from '../vertexSettings'
+export { normalizeVertexBaseUrl } from '../vertexSettings'
 
 export type AiSdkProviderKind =
   | 'openai-compatible'
@@ -470,31 +472,6 @@ function resolveAnthropicModelId(provider: LLM_PROVIDER, modelId: string): strin
   }
 
   return modelId
-}
-
-export function normalizeVertexBaseUrl(
-  baseUrl: string | undefined,
-  apiKey: string | undefined,
-  apiVersion: 'v1' | 'v1beta1' = 'v1'
-): string | undefined {
-  const normalized = baseUrl?.trim().replace(/\/+$/, '')
-  if (!normalized) {
-    return undefined
-  }
-
-  if (!apiKey) {
-    return normalized
-  }
-
-  if (/\/publishers\/google$/i.test(normalized)) {
-    return normalized
-  }
-
-  if (new RegExp(`/${apiVersion}$`, 'i').test(normalized)) {
-    return `${normalized}/publishers/google`
-  }
-
-  return `${normalized}/${apiVersion}/publishers/google`
 }
 
 export function normalizeAzureBaseUrl(

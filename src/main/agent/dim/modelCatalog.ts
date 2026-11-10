@@ -1,6 +1,11 @@
 import { createHash, randomUUID } from 'node:crypto'
 import type { JsonValue } from '@shared/contracts/json'
-import type { AWS_BEDROCK_PROVIDER, LLM_PROVIDER, ModelConfig } from '@shared/types/provider'
+import type {
+  AWS_BEDROCK_PROVIDER,
+  LLM_PROVIDER,
+  ModelConfig,
+  VERTEX_PROVIDER
+} from '@shared/types/provider'
 import type { SessionGenerationSettings } from '@shared/types/agent-interface'
 import { ModelType } from '@shared/model'
 import type { ProviderSettingsPort } from '@/provider/settings'
@@ -11,6 +16,7 @@ import type {
 import { resolveAiSdkProviderDefinition } from '@/provider/providerRegistry'
 import { resolveProviderTransport } from '@/provider/providerTransport'
 import { GITHUB_COPILOT_CHAT_HEADERS } from '@/provider/auth/githubCopilotProtocol'
+import { resolveVertexSettings } from '@/provider/vertexSettings'
 import { DimModelBridge, type DimModelId, type DimModelParameters } from './modelBridge'
 
 type JsonObject = { [key: string]: JsonValue }
@@ -271,6 +277,7 @@ export class DimModelCatalog {
       openaiAuthMode: provider.openaiAuthMode ?? 'api-key',
       anonymous: isAnonymous(provider),
       copilotClientId: provider.copilotClientId ?? '',
+      ...(isVertex(provider) ? { vertex: resolveVertexSettings(provider as VERTEX_PROVIDER) } : {}),
       ...(isBedrock(provider)
         ? {
             aws: {
@@ -285,7 +292,7 @@ export class DimModelCatalog {
   }
 
   private credentialReference(provider: LLM_PROVIDER): string {
-    return isBedrock(provider) || isCopilot(provider)
+    return isBedrock(provider) || isCopilot(provider) || isVertex(provider)
       ? `deepchat/provider/scoped/v1/${encodeURIComponent(provider.id)}/${fingerprint(this.credentialScope(provider))}`
       : `deepchat/provider/v1/${encodeURIComponent(provider.id)}`
   }
@@ -304,6 +311,8 @@ export class DimModelCatalog {
           this.options.settings.getProviderModelRouteMetadata(provider.id, modelId, config) ?? null
         ).providerKind
       : 'openai-compatible'
+    const vertex =
+      kind === 'vertex' ? resolveVertexSettings(provider as VERTEX_PROVIDER) : undefined
     const driver = {
       'openai-compatible': ['deepseek', 'moonshotai', 'aihubmix', 'zenmux'].includes(provider.id)
         ? provider.id
@@ -319,16 +328,21 @@ export class DimModelCatalog {
     }[kind]
     const auth: JsonObject = anonymous
       ? { type: 'anonymous' }
-      : kind === 'anthropic'
-        ? { type: 'api_key', headerName: 'x-api-key', prefix: '' }
-        : kind === 'gemini'
+      : vertex
+        ? vertex.apiKey
           ? { type: 'api_key', headerName: 'x-goog-api-key', prefix: '' }
-          : kind === 'azure'
-            ? { type: 'api_key', headerName: 'api-key', prefix: '' }
-            : kind === 'aws-bedrock'
-              ? { type: 'aws_bedrock' }
-              : { type: 'bearer' }
+          : { type: 'bearer' }
+        : kind === 'anthropic'
+          ? { type: 'api_key', headerName: 'x-api-key', prefix: '' }
+          : kind === 'gemini'
+            ? { type: 'api_key', headerName: 'x-goog-api-key', prefix: '' }
+            : kind === 'azure'
+              ? { type: 'api_key', headerName: 'api-key', prefix: '' }
+              : kind === 'aws-bedrock'
+                ? { type: 'aws_bedrock' }
+                : { type: 'bearer' }
     let baseUrl = provider.baseUrl.replace(/\/+$/, '')
+    if (vertex) baseUrl = vertex.baseUrl
     if (kind === 'aws-bedrock' && !baseUrl)
       baseUrl = `https://bedrock-runtime.${bedrockRegion(provider)}.amazonaws.com`
     if (isOllama(provider)) baseUrl = baseUrl.replace(/\/(api|v1)$/, '') + '/v1'
@@ -369,6 +383,9 @@ function isBedrock(provider: LLM_PROVIDER): boolean {
 }
 function isCopilot(provider: LLM_PROVIDER): boolean {
   return provider.apiType === 'github-copilot' || provider.id === 'github-copilot'
+}
+function isVertex(provider: LLM_PROVIDER): boolean {
+  return provider.apiType === 'vertex' || provider.id === 'vertex'
 }
 function bedrockRegion(provider: LLM_PROVIDER): string {
   const region =

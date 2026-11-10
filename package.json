@@ -148,6 +148,7 @@
     "fflate": "^0.8.3",
     "font-list": "^2.1.0",
     "glob": "^14.0.2",
+    "google-auth-library": "10.9.1",
     "gray-matter": "^4.0.3",
     "https-proxy-agent": "^9.1.0",
     "jsonrepair": "^3.15.0",
