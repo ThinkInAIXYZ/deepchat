@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto'
+import type { ChatMessageRecord } from '@shared/types/agent-interface'
 import type Database from 'better-sqlite3-multiple-ciphers'
 import { z } from 'zod'
 import {
@@ -50,11 +52,23 @@ const PREVIEW_COLUMNS = `m.id AS messageId, m.order_seq AS orderSeq, m.role, m.s
   CASE WHEN instr(d.content, char(0)) = 0 THEN length(d.content) END AS totalCharacters,
   (d.message_id IS NULL OR instr(d.content, char(0)) > 0) AS previewUnavailable`
 
+export interface SessionReferenceContentSource {
+  has(sessionId: string): boolean
+  prepare(sessionId: string): Promise<{
+    assertCurrent(): void
+    message(messageId: string): Promise<ChatMessageRecord | null>
+  }>
+}
+
 export class SessionReferences {
+  private native: SessionReferenceContentSource | undefined
+  setNativeSource(source: SessionReferenceContentSource): void {
+    this.native = source
+  }
   constructor(
     private readonly database: Pick<
       SessionDatabase,
-      'getDatabase' | 'deepchatSearchDocumentsTable'
+      'getDatabase' | 'deepchatSearchDocumentsTable' | 'sessionReferenceEpochsTable'
     >,
     private readonly tape: TapeSessionReferenceReader,
     private readonly initializeTape: (sessionId: string) => Promise<unknown>
@@ -81,6 +95,12 @@ export class SessionReferences {
 
   async resolve(sessionId: string, expectedIncarnation?: string): Promise<SessionReference> {
     this.requireRegularSession(sessionId)
+    if (this.native?.has(sessionId)) {
+      const epoch = this.nativeIdentity(sessionId)
+      if (expectedIncarnation && expectedIncarnation !== epoch)
+        throw new Error('Session reference is stale because the source session was reset.')
+      return { ...this.requireRegularSession(sessionId), tapeIncarnationId: epoch }
+    }
     let incarnation = this.tape.getSessionReferenceIdentity(sessionId)
     if (incarnation === null) {
       // Only an absent Tape may be initialized during selection, never malformed existing facts.
@@ -116,20 +136,109 @@ export class SessionReferences {
       .get(callerSessionId)
     if (!caller) throw new Error('read_session is available only in regular DeepChat sessions.')
     const session = this.requireRegularSession(input.sessionId)
-    const tapeIncarnationId = this.tape.getSessionReferenceIdentity(input.sessionId)
+    const hasNativeSource = this.native?.has(input.sessionId) === true
+    const tapeIncarnationId = hasNativeSource
+      ? this.nativeIdentity(input.sessionId)
+      : this.tape.getSessionReferenceIdentity(input.sessionId)
     if (tapeIncarnationId === null) throw new Error('Session Tape bootstrap is missing or invalid.')
-    const source: SessionReference = {
-      ...session,
-      tapeIncarnationId
-    }
+    const source: SessionReference = { ...session, tapeIncarnationId }
+    // A persisted grant must precede any source-owner reads or runtime hydration.
     this.assertAuthorized(callerSessionId, source)
+    const assertAuthority = () => {
+      this.requireRegularSession(callerSessionId)
+      this.requireRegularSession(input.sessionId)
+      if (hasNativeSource && this.nativeIdentity(input.sessionId) !== source.tapeIncarnationId)
+        throw new Error('Session reference changed; restart this read.')
+      this.assertAuthorized(callerSessionId, source)
+    }
+    const native = hasNativeSource ? await this.native!.prepare(input.sessionId) : null
+    native?.assertCurrent()
+    assertAuthority()
+    const canonical =
+      native && input.action === 'message' && input.messageId
+        ? await native.message(input.messageId)
+        : null
+    native?.assertCurrent()
+    assertAuthority()
     // No await after checking authority/identity: reset and deletion cannot interleave these reads.
     if (input.action === 'message') {
       // The bounded slice and Tape's content comparison must observe the same SQLite snapshot.
+      if (native) return this.readNativeMessage(source, input, canonical)
       return this.database.getDatabase().transaction(() => this.readMessage(source, input))()
     }
     if (input.action === 'context') return this.readContext(source, input)
     return this.readPage(source, input)
+  }
+
+  private nativeIdentity(sessionId: string): string {
+    const epochs = this.database.sessionReferenceEpochsTable
+    return (
+      epochs.get(sessionId) ??
+      epochs.ensure(sessionId, this.tape.getSessionReferenceIdentity(sessionId))
+    )
+  }
+
+  private readNativeMessage(
+    source: SessionReference,
+    input: ReadSessionInput,
+    record: ChatMessageRecord | null
+  ) {
+    if (
+      !record ||
+      record.sessionId !== source.sessionId ||
+      record.id !== input.messageId ||
+      !['sent', 'error'].includes(record.status) ||
+      !['user', 'assistant'].includes(record.role) ||
+      (input.role && input.role !== record.role)
+    )
+      throw new Error('Referenced message was not found or is not readable.')
+    try {
+      if (JSON.parse(record.metadata)?.messageType === 'compaction')
+        throw new Error('Compaction messages are not readable session references.')
+    } catch (error) {
+      if (!(error instanceof SyntaxError)) throw error
+    }
+    if (record.content.includes('\0'))
+      throw new Error('Referenced message contains NUL in stored text and cannot be read safely.')
+    const offset = input.offset ?? 0
+    if (offset > 0 && !input.revision)
+      throw new Error('Message continuation requires revision from the first chunk at offset 0.')
+    const revision = `${source.tapeIncarnationId}/${createHash('sha256').update(record.content).digest('hex')}`
+    if (input.revision && input.revision !== revision)
+      throw new Error('Referenced message changed. Restart this read at offset 0 without revision.')
+    let totalCharacters = 0
+    let content = ''
+    for (const character of record.content) {
+      if (totalCharacters >= offset && totalCharacters < offset + DETAIL_CHARS) content += character
+      totalCharacters++
+    }
+    if (offset > totalCharacters) throw new Error('Message offset exceeds content length.')
+    let format = 'text'
+    try {
+      JSON.parse(record.content)
+      format = 'stored_message_json'
+    } catch {
+      /* Canonical legacy text can be non-JSON. */
+    }
+    const nextOffset = Math.min(offset + DETAIL_CHARS, totalCharacters)
+    return {
+      source,
+      message: {
+        messageId: record.id,
+        role: record.role,
+        status: record.status,
+        orderSeq: record.orderSeq,
+        content,
+        totalCharacters,
+        format,
+        revision,
+        offset,
+        nextOffset
+      },
+      hasMore: nextOffset < totalCharacters,
+      maxCharacters: DETAIL_CHARS,
+      offsetUnit: 'unicode_code_points'
+    }
   }
 
   private readPage(source: SessionReference, input: ReadSessionInput) {

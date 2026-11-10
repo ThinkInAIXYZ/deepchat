@@ -1,3 +1,4 @@
+import { SessionReferenceEpochsTable } from '@/session/data/tables/sessionReferenceEpochs'
 import { DimTimelineInspectorTable } from '@/session/data/tables/dimTimelineInspector'
 import { DimInputProjectionTable } from '@/session/data/tables/dimInputProjection'
 import { DimSessionImportsTable } from '@/session/data/tables/dimSessionImports'
@@ -91,6 +92,7 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
   { name: 'dim_input_projection', createTable: (db) => new DimInputProjectionTable(db) },
   { name: 'dim_input_intents', createTable: (db) => new DimInputIntentsTable(db) },
   { name: 'dim_timeline_inspector_heads', createTable: (db) => new DimTimelineInspectorTable(db) },
+  { name: 'session_reference_epochs', createTable: (db) => new SessionReferenceEpochsTable(db) },
   { name: 'dim_session_bindings', createTable: (db) => new DimSessionBindingsTable(db) },
   {
     name: 'conversations',
@@ -502,6 +504,7 @@ export function createMainSchemaCatalog(db: Database.Database): MainSchemaCatalo
   const dimScopeChanges = new DimScopeChangesTable(db)
   const dimSessionScopes = new DimSessionScopesTable(db)
   const dimIntents = new DimInputIntentsTable(db)
+  const sessionReferenceEpochs = new SessionReferenceEpochsTable(db)
   const dimBindings = new DimSessionBindingsTable(db)
   const dimTimelineInspector = new DimTimelineInspectorTable(db)
   const dimProviderGrants = new DimProviderGrantsTable(db)
@@ -548,6 +551,7 @@ export function createMainSchemaCatalog(db: Database.Database): MainSchemaCatalo
     sessions,
     projects,
     deepchatSessions,
+    sessionReferenceEpochs,
     dimBindings,
     dimTimelineInspector,
     dimProviderGrants,

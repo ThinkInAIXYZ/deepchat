@@ -1,3 +1,4 @@
+import { SessionReferenceEpochsTable } from './tables/sessionReferenceEpochs'
 import { DimTimelineInspectorTable } from './tables/dimTimelineInspector'
 import { DimInputProjectionTable } from './tables/dimInputProjection'
 import { DimSessionImportsTable } from './tables/dimSessionImports'
@@ -64,6 +65,10 @@ export class SessionDatabase {
 
   get newSessionsTable() {
     return new NewSessionsTable(this.getDatabase())
+  }
+
+  get sessionReferenceEpochsTable() {
+    return new SessionReferenceEpochsTable(this.getDatabase())
   }
 
   get dimTimelineInspectorTable() {

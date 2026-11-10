@@ -26,6 +26,7 @@ export class DimProjectionStore {
           throw new Error('Native transition message belongs to another product session')
       }
       this.database.dimSessionBindingsTable.replace(previous, next)
+      if (messages.length === 0) this.database.sessionReferenceEpochsTable.rotate(next.sessionId)
       this.database.dimTimelineInspectorTable.deleteBySession(next.sessionId)
       this.applier.applyRetractions(
         this.database.deepchatMessagesTable

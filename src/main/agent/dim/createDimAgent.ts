@@ -178,6 +178,7 @@ export function createDimAgent(options: DimAgentOptions) {
       database.dimInputProjectionTable.deleteBySession(sessionId)
       database.dimInputIntentsTable.deleteBySession(sessionId)
       database.dimSessionImportsTable.deleteBySession(sessionId)
+      database.sessionReferenceEpochsTable.delete(sessionId)
       database.dimSessionBindingsTable.delete(sessionId)
       database.dimSessionScopesTable.delete(sessionId)
       if (pending) database.dimScopeChangesTable.finish(pending)

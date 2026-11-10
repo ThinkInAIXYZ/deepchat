@@ -27,6 +27,7 @@ export function dimDatabase(filename = ':memory:') {
   } as unknown as Database.Database
   const data = new SessionDatabase({ getDatabase: () => adapter })
   for (const table of [
+    data.sessionReferenceEpochsTable,
     data.dimSessionBindingsTable,
     data.dimTimelineInspectorTable,
     data.dimSessionImportsTable,

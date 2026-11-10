@@ -1,3 +1,4 @@
+import { createDimSessionReferenceSource } from '@/agent/dim/sessionReferences'
 import { createAcpCompatibilityDependencies } from '@/agent/acp/compatibility/dependencies'
 import { createDeepChatOutputProjection } from '@/session/outputProjection'
 import { createSessionStatusProjection } from '@/session/sessionStatusProjection'
@@ -2226,6 +2227,13 @@ export async function createMainProcessControl(dependencies: {
     finishDestroy: dimMemory.finishDestroy,
     deleteLegacyMetadata: (id) => sessionData.pendingInputs.deleteBySession(id)
   })
+  sessionData.sessionReferences.setNativeSource(
+    createDimSessionReferenceSource({
+      database: sessionData.database,
+      host: dimHost,
+      synchronize: (id) => dimAgent.runtime.synchronize(id)
+    })
+  )
   const sessionTranscriptMutations = new SessionTranscriptMutations({
     transcript: sessionData.transcript,
     settings: sessionData.settings,

@@ -13,6 +13,8 @@ import { waitForAppReady } from '../helpers/wait'
 test('desktop chat uses persistent native dim sessions @smoke', async ({ app, launchApp }) => {
   const requests: Array<{ messages?: unknown[]; tools?: Array<{ function: { name: string } }> }> =
     []
+  let readSession: { sessionId: string; messageId: string; action: 'messages' | 'message' } | null =
+    null
   const server = createServer(async (request, response) => {
     if (request.url === '/v1/models') {
       response
@@ -28,6 +30,21 @@ test('desktop chat uses persistent native dim sessions @smoke', async ({ app, la
     for await (const chunk of request) text += chunk
     const body = JSON.parse(text)
     requests.push(body)
+    if (body.stream && readSession) {
+      const target = readSession
+      const args = {
+        sessionId: target.sessionId,
+        action: target.action,
+        ...(target.action === 'message' ? { messageId: target.messageId } : {})
+      }
+      readSession = target.action === 'messages' ? { ...target, action: 'message' } : null
+      response
+        .writeHead(200, { 'Content-Type': 'text/event-stream' })
+        .end(
+          `data: ${JSON.stringify({ id: 'native-read', object: 'chat.completion.chunk', created: 0, model: 'dim-desktop-fixture', choices: [{ index: 0, delta: { role: 'assistant', tool_calls: [{ index: 0, id: `desktop-read-${target.action}`, type: 'function', function: { name: 'read_session', arguments: JSON.stringify(args) } }] }, finish_reason: 'tool_calls' }] })}\n\ndata: [DONE]\n\n`
+        )
+      return
+    }
     const content = 'NATIVE_DIM_DESKTOP_REPLY'
     if (body.stream) {
       response.writeHead(200, { 'Content-Type': 'text/event-stream' })
@@ -154,6 +171,11 @@ test('desktop chat uses persistent native dim sessions @smoke', async ({ app, la
     await expect(getAssistantMessages(reopened.page).last()).toContainText(
       'NATIVE_DIM_DESKTOP_REPLY'
     )
+    readSession = {
+      sessionId,
+      messageId: firstPage.messages.find((message) => message.role === 'user')!.id,
+      action: 'messages'
+    }
     await sendMessage(reopened.page, 'NATIVE_DIM_AFTER_RESTART')
     await expect(getAssistantMessages(reopened.page)).toHaveCount(2)
     await expect(getAssistantMessages(reopened.page).last()).toContainText(
@@ -167,6 +189,23 @@ test('desktop chat uses persistent native dim sessions @smoke', async ({ app, la
       (id) => window.deepchat.invoke('sessions.listMessagesPage', { sessionId: id }),
       sessionId
     )
+    const referenceBlocks = restored.messages
+      .filter((message) => message.role === 'assistant')
+      .flatMap(
+        (message) =>
+          JSON.parse(message.content) as Array<{
+            status: string
+            tool_call?: { id?: string; response?: string }
+          }>
+      )
+    for (const action of ['messages', 'message']) {
+      expect(
+        referenceBlocks.find((block) => block.tool_call?.id === `desktop-read-${action}`)
+      ).toMatchObject({
+        status: 'success',
+        tool_call: { response: expect.stringContaining('NATIVE_DIM_FIRST_INPUT') }
+      })
+    }
     expect(restored.messages.filter((message) => message.role === 'user')).toHaveLength(2)
     expect(restored.messages.filter((message) => message.role === 'assistant')).toHaveLength(2)
     expect(restored.messages.every((message) => message.status === 'sent')).toBe(true)
