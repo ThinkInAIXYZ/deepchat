@@ -249,7 +249,7 @@ describeIfSqlite('disabled Agent tool capability cleanup SQLite integration', ()
 
       await runHtmlRenderSessionToolsSeedMigration(dependencies)
 
-      const seeded = ['cronjob', HTML_RENDER_TOOL_NAME, HTML_RENDER_SECTION_TOOL_NAME]
+      const seeded = [HTML_RENDER_TOOL_NAME, HTML_RENDER_SECTION_TOOL_NAME, 'schedule']
       expect(sessions.getDisabledAgentTools('pre-upgrade')).toEqual(seeded)
       expect(sessions.get('pre-upgrade')?.disabled_agent_tools).toBe(JSON.stringify(seeded))
       expect(sessions.get('pre-upgrade')?.updated_at).toBe(100)
