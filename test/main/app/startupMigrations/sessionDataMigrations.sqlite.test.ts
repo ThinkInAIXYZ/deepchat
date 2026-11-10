@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   runDisabledAgentToolCapabilityCleanupMigration,
+  HTML_RENDER_SESSION_TOOLS_SEEDED_KEY,
   runHtmlRenderSessionToolsSeedMigration,
   type SessionDataMigrationSQLitePort
 } from '@/app/startupMigrations/sessionDataMigrations'
@@ -272,6 +273,69 @@ describeIfSqlite('disabled Agent tool capability cleanup SQLite integration', ()
         'cronjob',
         HTML_RENDER_SECTION_TOOL_NAME
       ])
+    } finally {
+      syncStore?.close()
+      db.close()
+      rmSync(directory, { recursive: true, force: true })
+    }
+  })
+
+  it('rolls back the html_render seed and resumes sync tracking when a write fails', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'deepchat-html-render-seed-'))
+    const db = new DatabaseCtor(join(directory, 'agent.db'))
+    let syncStore: SyncReplicaStore | undefined
+    try {
+      const sessions = new NewSessionsTableCtor(db)
+      const disabledTools = new NewSessionDisabledAgentToolsTableCtor(db)
+      sessions.createTable()
+      new NewSessionActiveSkillsTable(db).createTable()
+      disabledTools.createTable()
+      sessions.create('pre-upgrade', 'deepchat', 'Old', '/work/app', {
+        disabledAgentTools: ['cronjob'],
+        createdAt: 50,
+        updatedAt: 100
+      })
+      const store = new SyncReplicaStore({
+        directory,
+        database: () => db,
+        canApply: () => true,
+        applied: () => {}
+      })
+      syncStore = store
+      const syncRevision = (): number =>
+        (db.prepare('SELECT revision FROM _sync_state').get() as { revision: number }).revision
+      const settings = new Map<string, unknown>()
+
+      await expect(
+        runHtmlRenderSessionToolsSeedMigration({
+          sqlitePresenter: {
+            appSettingsTable: {
+              getAppSetting: vi.fn((key: string) => settings.get(key)),
+              setAppSetting: vi.fn((key: string, value: unknown) => settings.set(key, value))
+            },
+            getDatabase: vi.fn(() => db),
+            newSessionsTable: sessions,
+            newSessionDisabledAgentToolsTable: {
+              replaceForSession: (sessionId: string, toolNames: string[]) => {
+                disabledTools.replaceForSession(sessionId, toolNames)
+                throw new Error('normalized persistence failed')
+              }
+            }
+          } as unknown as SessionDataMigrationSQLitePort,
+          agentSettings: { listAgents: vi.fn(async () => [{ id: 'deepchat', type: 'deepchat' }]) },
+          untracked: <T>(write: () => T) => store.untracked(write)
+        } as never)
+      ).rejects.toThrow('normalized persistence failed')
+
+      expect(sessions.get('pre-upgrade')?.disabled_agent_tools).toBe(JSON.stringify(['cronjob']))
+      expect(disabledTools.listBySession('pre-upgrade').map((row) => row.tool_name)).toEqual([
+        'cronjob'
+      ])
+      expect(settings.has(HTML_RENDER_SESSION_TOOLS_SEEDED_KEY)).toBe(false)
+
+      const revisionBefore = syncRevision()
+      sessions.update('pre-upgrade', { title: 'Renamed' })
+      expect(syncRevision()).toBeGreaterThan(revisionBefore)
     } finally {
       syncStore?.close()
       db.close()
