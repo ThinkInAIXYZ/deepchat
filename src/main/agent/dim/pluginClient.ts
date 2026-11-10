@@ -109,7 +109,7 @@ export class DimPluginClient extends EventEmitter {
         this.pending.delete(id)
         reject(
           new DimConnectionError(
-            'dim request timed out; query its outcome before retrying',
+            `dim request ${method} timed out; query its outcome before retrying`,
             'unknown'
           )
         )

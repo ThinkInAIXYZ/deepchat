@@ -119,6 +119,7 @@ describe('dim local plugin transport', () => {
     const failure = await client.call('deepchat.host.input', {}, 10).catch((error) => error)
     expect(failure).toBeInstanceOf(DimConnectionError)
     expect(failure.outcome).toBe('unknown')
+    expect(failure.message).toContain('deepchat.host.input timed out')
     await expect(client.call('deepchat.storage.history')).rejects.toMatchObject({
       outcome: 'unknown'
     })
