@@ -389,7 +389,8 @@ describe('smoke-light-ocr', () => {
       })
       await symlink('.pnpm/rutis', dimLink)
       const withDimLink = await measurePackagedComponents(layout)
-      expect(withDimLink.otherRuntime.entries.dim.unpackedBytes).toBe(
+      expect(withDimLink.otherRuntime.unpackedBytes).toBe(Buffer.byteLength('uv-runtime'))
+      expect(withDimLink.dimRuntime.unpackedBytes).toBe(
         Buffer.byteLength('dim-plugin-runtime')
       )
       await rm(dimLink)

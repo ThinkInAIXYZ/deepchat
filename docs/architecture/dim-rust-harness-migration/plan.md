@@ -160,6 +160,8 @@
 
 ## 模块进度
 
+- 模块 65 包体预算修正：六平台实际工作流中 Linux x64 的 20 项 Native 回归、打包及包内离线启动通过；OCR 测量发现旧政策仍要求独立 Node 为 0。实际 CI 测得 Node 压缩 49,895,032 字节、dim 压缩 77,268,592 字节；现为两者分别设置 56/84 MiB 上限，dim 从 otherRuntime 拆出，OCR 与 uv/cloudflared 的既有上限保持。移除不再成立的删除 Node 预期 -50 MiB，总安装包增长/缩小阈值不放宽。33 项包体回归和本地真实解包包的组件测量、OCR 初始化/中英文识别/退出（峰值 RSS 329 MiB）通过。其余平台继续实际验证。
+
 - 模块 70：storage 插件新增冷 profile Timeline 合并原语，AgentRecords/SessionStore/TimelineStore 公开 owner 接纳归属与完整批次，保留原事件 ID、序号、trace、分支和标题；已存在会话保留目标内容，归属冲突与运行中目标拒绝。关闭后的完整原生历史/重启/重复导入真实验证通过（18s），双端类型与门禁通过。桥 0.20.0；release 构建、完整 8 文件 20 项 Native 回归（147s）和 Electron 聊天/CLI/备份恢复/重启/Inspector（31s）通过。文件归属接纳与产品增量导入继续实施，当前不开放不完整导入。
 
 - 模块 65 Windows 校验修正：Windows x64 实际 release 编译成功（34 分钟），随后发现 Git 默认 CRLF 检出使 Cargo.lock 的精确字节 SHA 不一致。为锁文件声明 LF 检出，保留原 SHA 与构建后校验；不把换行差异归一化以绕过校验。

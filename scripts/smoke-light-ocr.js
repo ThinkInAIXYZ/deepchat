@@ -63,6 +63,7 @@ const VALUE_ARGS = new Set([
   'max-compressed-mib',
   'max-duration-ms',
   'max-node-compressed-mib',
+  'max-dim-compressed-mib',
   'max-other-runtime-compressed-mib',
   'max-peak-rss-mib',
   'platform',
@@ -1517,21 +1518,25 @@ export async function measurePackagedComponents(layout, { includeCompressed = tr
     includeCompressed,
     { allowInternalSymlinks: true }
   )
-  const ignoredRuntimeEntries = new Set(['.gitkeep', 'duckdb', 'node', 'ocr'])
+  const dimRoot = path.join(runtimeRoot, 'dim')
+  const dimRuntime = await measureRoots(
+    (await pathExists(dimRoot)) ? [dimRoot] : [],
+    includeCompressed,
+    { allowInternalSymlinks: true }
+  )
+  const ignoredRuntimeEntries = new Set(['.gitkeep', 'duckdb', 'node', 'dim', 'ocr'])
   const otherRuntimeEntries = {}
   const entries = await readdir(runtimeRoot, { withFileTypes: true })
   for (const entry of entries) {
     if (ignoredRuntimeEntries.has(entry.name)) continue
-    const metric = await measureRoots([path.join(runtimeRoot, entry.name)], includeCompressed, {
-      // pnpm links stay inside dim's packaged dependency tree; count their physical targets once.
-      allowInternalSymlinks: entry.name === 'dim'
-    })
+    const metric = await measureRoots([path.join(runtimeRoot, entry.name)], includeCompressed)
     otherRuntimeEntries[entry.name] = metric
   }
 
   return {
     ocrAssets: await measurePackagedOcrAssets(layout, { includeCompressed }),
     nodeRuntime,
+    dimRuntime,
     otherRuntime: {
       ...sumMetrics(Object.values(otherRuntimeEntries), includeCompressed),
       entries: otherRuntimeEntries
@@ -1545,7 +1550,9 @@ export function readComponentBudgets(manifest, target) {
   }
   const { ocrAssetsCompressed, nodeRuntimeCompressed, otherRuntimeCompressedByTarget } =
     manifest.componentBudgetsMiB
+  const dimRuntimeCompressed = manifest.componentBudgetsMiB.dimRuntimeCompressed ?? 0
   if (
+    !Number.isFinite(dimRuntimeCompressed) || dimRuntimeCompressed < 0 ||
     !Number.isFinite(ocrAssetsCompressed) ||
     ocrAssetsCompressed <= 0 ||
     !Number.isFinite(nodeRuntimeCompressed) ||
@@ -1562,7 +1569,7 @@ export function readComponentBudgets(manifest, target) {
   ) {
     throw new Error(`Missing or invalid Light OCR other-runtime budget for ${target}`)
   }
-  return { ocrAssetsCompressed, nodeRuntimeCompressed, otherRuntimeCompressed }
+  return { ocrAssetsCompressed, nodeRuntimeCompressed, dimRuntimeCompressed, otherRuntimeCompressed }
 }
 
 function assertThreshold(value, limit, label) {
@@ -1621,6 +1628,12 @@ export async function main(argv = process.argv.slice(2)) {
       '--max-node-compressed-mib',
       componentBudgets.nodeRuntimeCompressed
     ) * MIB
+  const compressedDimLimitBytes =
+    parseNonNegativeNumber(
+      args['max-dim-compressed-mib'],
+      '--max-dim-compressed-mib',
+      componentBudgets.dimRuntimeCompressed
+    ) * MIB
   const compressedOtherRuntimeLimitBytes =
     parseNonNegativeNumber(
       args['max-other-runtime-compressed-mib'],
@@ -1661,6 +1674,11 @@ export async function main(argv = process.argv.slice(2)) {
       report.componentMetrics.nodeRuntime.compressedBytes,
       compressedNodeLimitBytes,
       'Packaged Node compressed runtime estimate'
+    )
+    assertThreshold(
+      report.componentMetrics.dimRuntime.compressedBytes,
+      compressedDimLimitBytes,
+      'Packaged dim compressed runtime estimate'
     )
     assertThreshold(
       report.componentMetrics.otherRuntime.compressedBytes,
