@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
-import { assertDimBinary, dimRustTarget } from '../../../scripts/dim-native-contract.mjs'
+import { assertDimBinary, dimPipeName, dimRustTarget } from '../../../scripts/dim-native-contract.mjs'
 import { packageDimAssets, verifyDimRuntime } from '../../../scripts/package-dim-runtime.mjs'
 
 vi.unmock('fs')
@@ -14,6 +14,12 @@ vi.mock('../../../scripts/sign-cua-helper.mjs', () => ({
   })
 }))
 const temporary: string[] = []
+
+it('preserves the native Windows local pipe prefix without JavaScript escape loss', () => {
+  const prefix = String.fromCharCode(92,92,46,92,112,105,112,101,92)
+  expect(dimPipeName('deepchat-offline-123')).toBe(prefix+'deepchat-offline-123')
+  expect(()=>dimPipeName('foreign/name')).toThrow('Invalid dim pipe name')
+})
 afterEach(async () => {
   await Promise.all(temporary.splice(0).map((root) => rm(root, { recursive: true, force: true })))
 })

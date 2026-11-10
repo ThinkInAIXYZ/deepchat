@@ -6,6 +6,7 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { setTimeout as delay } from 'node:timers/promises'
 import { verifyDimRuntime } from './package-dim-runtime.mjs'
+import { dimPipeName } from './dim-native-contract.mjs'
 
 const options = {}
 for (let i = 2; i < process.argv.length; i++) {
@@ -33,7 +34,7 @@ const temporary = await mkdtemp(path.join(os.tmpdir(), 'dc-dim-offline-'))
 const home = path.join(temporary, 'home')
 const address =
   process.platform === 'win32'
-    ? `\\.\pipe\deepchat-dim-offline-${path.basename(temporary)}`
+    ? dimPipeName(`deepchat-dim-offline-${path.basename(temporary)}`)
     : path.join(temporary, 'host.sock')
 await mkdir(home)
 const rowsFile = path.join(temporary, 'plugins.json')

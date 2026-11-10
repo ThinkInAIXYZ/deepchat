@@ -7,6 +7,11 @@ const targets = Object.freeze({
   'win32-arm64': 'aarch64-pc-windows-msvc'
 })
 
+export function dimPipeName(name) {
+  if (!/^[A-Za-z0-9-]+$/.test(name)) throw new Error('Invalid dim pipe name')
+  return `\\\\.\\pipe\\${name}`
+}
+
 export function dimRustTarget(platform, arch) {
   const target = targets[`${platform}-${arch}`]
   if (!target) throw new Error(`Unsupported native dim target: ${platform}-${arch}`)
