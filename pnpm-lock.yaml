@@ -204,6 +204,12 @@ importers:
       xml2js:
         specifier: ^0.6.2
         version: 0.6.2
+      yauzl:
+        specifier: 3.4.0
+        version: 3.4.0
+      yazl:
+        specifier: 3.3.1
+        version: 3.3.1
       zod:
         specifier: ^4.6.6
         version: 4.6.7
@@ -292,6 +298,12 @@ importers:
       '@types/qrcode':
         specifier: ^1.5.6
         version: 1.5.6
+      '@types/yauzl':
+        specifier: 3.4.0
+        version: 3.4.0
+      '@types/yazl':
+        specifier: 3.3.1
+        version: 3.3.1
       '@unovis/ts':
         specifier: 1.7.0
         version: 1.7.0
@@ -3096,6 +3108,12 @@ packages:
   '@types/web-bluetooth@0.0.21':
     resolution: {integrity: sha512-oIQLCGWtcFZy2JW77j9k8nHzAOpqMHLQejDA48XXMWH6tjCQHz5RCFz1bzsmROyL6PUm+LLnUiI4BCn221inxA==}
 
+  '@types/yauzl@3.4.0':
+    resolution: {integrity: sha512-NRPn5w6h8dhcnmx3YIRQcqMywY/+nND/uOkJessedcrowO3C0AssHp3tMJpxKAwOhFOo0OV1y9VtsC5hbKKBAw==}
+
+  '@types/yazl@3.3.1':
+    resolution: {integrity: sha512-DIWfCKpsTp6hE5BDBHV3+fIL/bLUF9Bv13iDrWnMlmhQpH67buNvI291ZauQ1xcccxK3FqQ9honnXpq4R8NMuQ==}
+
   '@typescript-native-bridge/darwin-arm64@6.0.3-bridge.16.tsgo.7.0.2':
     resolution: {integrity: sha512-D0yL7T3gDXwn4XiRtA1x7bW+0zedMUVG3PnIt+X4lxblnId+Wo2FBvf+2ZLZpPOO3DILGz5bdX+Aq8tqboeGEg==}
     cpu: [arm64]
@@ -3647,6 +3665,10 @@ packages:
     resolution: {integrity: sha512-JxV13hNrFxqjOc8alRbq9dK1MM79NEXYpma2B2J4wAtpWS5zIEIKqWPGCl7N4o7Uc7B7itylh7SuDujATRyyTw==}
     engines: {node: ^6 || ^7 || ^8 || ^9 || ^10 || ^11 || ^12 || >=13.7}
     hasBin: true
+
+  buffer-crc32@1.0.0:
+    resolution: {integrity: sha512-Db1SbgBS/fg/392AblrMJk97KggmvYhr4pB5ZIMTWtaivCPMWLkmb7m21cJvpvgK+J3nsU2CmmixNBZx4vFj/w==}
+    engines: {node: '>=8.0.0'}
 
   buffer-equal-constant-time@1.0.1:
     resolution: {integrity: sha512-zRpUiDwd/xk6ADqPMATG8vc9VPrkck7T07OIx0gnjmJAnHnTVXNQG3vfvWNuiZIkwu9KrKdA1iJKfsfTVxE6NA==}
@@ -5845,6 +5867,9 @@ packages:
     resolution: {integrity: sha512-eRWB5LBz7PpDu4PUlwT0PhnQfTQJlDDdPa35urV4Osrm0t0AqQFGn+UIkU3klZvwJ8KPO3VbBFsXquA6p6kqZw==}
     engines: {node: '>=12', npm: '>=6'}
 
+  pend@1.2.0:
+    resolution: {integrity: sha512-F3asv42UuXchdzt+xXqfW1OGlVBe+mxa2mqI0pg5yAHZPvFmY3Y6drSf/GQ1A86WgWEN9Kzh/WrgKa6iGcHXLg==}
+
   perfect-debounce@1.0.0:
     resolution: {integrity: sha512-xCy9V055GLEqoFaHoC1SoLIaLmWctgCUaBaWxDZ7/Zx4CTyX7cJQLJOok/orfjZAh9kEYpjJa4d0KcJmCbctZA==}
 
@@ -7161,6 +7186,13 @@ packages:
   yargs@18.0.0:
     resolution: {integrity: sha512-4UEqdc2RYGHZc7Doyqkrqiln3p9X2DZVxaGbwhn2pi7MrRagKaOcIKe8L3OxYcbhXLgLFUS3zAYuQjKBQgmuNg==}
     engines: {node: ^20.19.0 || ^22.12.0 || >=23}
+
+  yauzl@3.4.0:
+    resolution: {integrity: sha512-jIH9yLR9wqr0wOS0TpBvo/g/2UgZH5qePVbjgRliiF0BYvOZyaBknKsF+x9Iht0O6sqgnB93rCICdOZFecJuDw==}
+    engines: {node: '>=12'}
+
+  yazl@3.3.1:
+    resolution: {integrity: sha512-BbETDVWG+VcMUle37k5Fqp//7SDOK2/1+T7X8TD96M3D9G8jK5VLUdQVdVjGi8im7FGkazX7kk5hkU8X4L5Bng==}
 
   yocto-queue@0.1.0:
     resolution: {integrity: sha512-rVksvsnNCdJ/ohGc6xgPwyN8eheCxsiLM8mxuE/t/mOVqJewPuO1miLpTHQiRgTKCLexL4MeAFVagts7HmNZ2Q==}
@@ -9725,6 +9757,14 @@ snapshots:
 
   '@types/web-bluetooth@0.0.21': {}
 
+  '@types/yauzl@3.4.0':
+    dependencies:
+      '@types/node': 24.13.3
+
+  '@types/yazl@3.3.1':
+    dependencies:
+      '@types/node': 24.13.3
+
   '@typescript-native-bridge/darwin-arm64@6.0.3-bridge.16.tsgo.7.0.2':
     optional: true
 
@@ -10424,6 +10464,8 @@ snapshots:
       electron-to-chromium: 1.5.395
       node-releases: 2.0.51
       update-browserslist-db: 1.2.3(browserslist@4.28.7)
+
+  buffer-crc32@1.0.0: {}
 
   buffer-equal-constant-time@1.0.1: {}
 
@@ -12776,6 +12818,8 @@ snapshots:
 
   pe-library@0.4.1: {}
 
+  pend@1.2.0: {}
+
   perfect-debounce@1.0.0: {}
 
   perfect-debounce@2.1.0: {}
@@ -14150,6 +14194,14 @@ snapshots:
       string-width: 7.2.0
       y18n: 5.0.8
       yargs-parser: 22.0.0
+
+  yauzl@3.4.0:
+    dependencies:
+      pend: 1.2.0
+
+  yazl@3.3.1:
+    dependencies:
+      buffer-crc32: 1.0.0
 
   yocto-queue@0.1.0: {}
 

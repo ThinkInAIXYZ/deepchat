@@ -4,7 +4,6 @@ import { isNowledgeMachineLocalSetting } from '@shared/types/nowledgeMemPlugin'
 import path from 'path'
 import fs from 'fs'
 import Database from 'better-sqlite3-multiple-ciphers'
-import { Unzip, UnzipInflate, Zip, AsyncZipDeflate, ZipPassThrough } from 'fflate'
 import type { SyncBackupInfo, CloudSyncResult } from '@shared/types/sync'
 import { CloudStorageService } from './cloudStorageService'
 import type { DeepchatEventPublisher } from '@shared/contracts/events'
@@ -26,6 +25,7 @@ import {
 } from '@/agent/dim/profileBackups'
 import type { DimProfileSnapshot } from '@/agent/dim/profileSnapshot'
 import { SyncImportRecovery } from './importRecovery'
+import { extractBackupArchive, writeBackupArchive, type BackupArchiveEntry } from './backupArchive'
 import { syncDirectory } from '../data/durableFile'
 
 interface PromptStore {
@@ -83,9 +83,6 @@ const ZIP_PATHS = {
 
 const toUint8ArrayView = (buffer: Buffer): Uint8Array =>
   new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength)
-
-const ZIP_LEVEL = 6
-const ZIP_SLICE_SIZE = 4 * 1024 * 1024
 
 type BackupDbSource = {
   type: 'agent' | 'chat'
@@ -717,12 +714,7 @@ export class SyncService {
       )
 
       this.emitBackupStatus('compressing')
-      await this.writeZipToDisk(
-        files,
-        tempZipPath,
-        native,
-        nativeManifest?.files.map((file) => file.path)
-      )
+      await this.writeZipToDisk(files, tempZipPath, native, nativeManifest?.files)
       const archive = await fs.promises.open(tempZipPath, 'r+')
       try {
         await archive.sync()
@@ -857,75 +849,19 @@ export class SyncService {
     files: Record<string, Uint8Array>,
     targetPath: string,
     native?: DimProfileSnapshot,
-    nativeFiles: string[] = []
+    nativeFiles: Array<{ path: string; size: number }> = []
   ): Promise<void> {
-    await new Promise<void>((resolve, reject) => {
-      const output = fs.createWriteStream(targetPath, { mode: 0o600 })
-      const archive = new Zip()
-      let drain: Promise<void> = Promise.resolve()
-      output.on('error', reject)
-      archive.ondata = (error, chunk, final) => {
-        if (error) {
-          output.destroy(error)
-          reject(error)
-          return
-        }
-        if (!output.write(Buffer.from(chunk.buffer, chunk.byteOffset, chunk.byteLength))) {
-          drain = new Promise<void>((drained) => {
-            output.once('drain', () => drained())
-            output.once('error', () => drained())
-          })
-        }
-        if (final) {
-          output.end(() => resolve())
-        }
-      }
-
-      void (async () => {
-        try {
-          for (const [name, data] of Object.entries(files)) {
-            const entry = new AsyncZipDeflate(name, { level: ZIP_LEVEL })
-            archive.add(entry)
-            const ondata = entry.ondata
-            const finished = new Promise<void>((resolve, reject) => {
-              entry.ondata = (error, chunk, final) => {
-                ondata(error, chunk, final)
-                if (error) reject(error)
-                else if (final) resolve()
-              }
-            })
-            void finished.catch(() => {})
-            for (let offset = 0; offset < data.length; offset += ZIP_SLICE_SIZE) {
-              await drain
-              const end = Math.min(offset + ZIP_SLICE_SIZE, data.length)
-              entry.push(new Uint8Array(data.slice(offset, end)), false)
-              await new Promise((resume) => setImmediate(resume))
-            }
-            await drain
-            entry.push(new Uint8Array(0), true)
-            await finished
-          }
-          if (native)
-            for (const name of nativeFiles) {
-              // Store opaque native files as streams. No whole profile or compression-worker
-              // input queue is retained in the Electron heap.
-              const entry = new ZipPassThrough(`dim/profile/${name}`)
-              archive.add(entry)
-              for await (const chunk of fs.createReadStream(path.join(native.directory, name))) {
-                await drain
-                entry.push(chunk, false)
-              }
-              await drain
-              entry.push(new Uint8Array(0), true)
-            }
-          await drain
-          archive.end()
-        } catch (error) {
-          output.destroy(error as Error)
-          reject(error)
-        }
-      })()
-    })
+    const entries: BackupArchiveEntry[] = Object.entries(files).map(([name, data]) => ({
+      name,
+      source: { data }
+    }))
+    if (native)
+      for (const file of nativeFiles)
+        entries.push({
+          name: `dim/profile/${file.path}`,
+          source: { file: path.join(native.directory, file.path), size: file.size }
+        })
+    await writeBackupArchive(targetPath, entries)
   }
 
   private async collectBackupFiles(): Promise<Record<string, Uint8Array>> {
@@ -1115,74 +1051,8 @@ export class SyncService {
     return null
   }
 
-  private async extractBackupArchive(zipPath: string, targetDir: string): Promise<void> {
-    const handles = new Set<import('node:fs/promises').FileHandle>()
-    const seen = new Set<string>()
-    let writes = Promise.resolve()
-    let failure: unknown
-    const archive = new Unzip((file) => {
-      const normalized = file.name.replace(/\\/g, '/')
-      const segments = normalized.split('/').filter((segment) => segment && segment !== '.')
-      if (
-        !normalized ||
-        normalized.includes('\0') ||
-        /^[A-Za-z]:/.test(normalized) ||
-        normalized.startsWith('/') ||
-        segments.some((segment) => segment === '..')
-      )
-        throw new Error('sync.error.noValidBackup')
-      const key = segments.join('/')
-      if (!key || seen.has(key)) throw new Error('sync.error.noValidBackup')
-      seen.add(key)
-      const destination = path.join(targetDir, ...segments)
-      const directory = normalized.endsWith('/')
-      let handle: import('node:fs/promises').FileHandle | undefined
-      writes = writes.then(async () => {
-        await fs.promises.mkdir(directory ? destination : path.dirname(destination), {
-          recursive: true,
-          mode: 0o700
-        })
-        if (!directory) {
-          handle = await fs.promises.open(destination, 'wx', 0o600)
-          handles.add(handle)
-        }
-      })
-      file.ondata = (error, data, final) => {
-        if (error) {
-          failure = error
-          return
-        }
-        const owned = new Uint8Array(data)
-        writes = writes.then(async () => {
-          if (directory && owned.length) throw new Error('sync.error.noValidBackup')
-          if (handle && owned.length) await handle.writeFile(owned)
-          if (final && handle) {
-            await handle.close()
-            handles.delete(handle)
-            handle = undefined
-          }
-        })
-      }
-      file.start()
-    })
-    archive.register(UnzipInflate)
-    try {
-      for await (const chunk of fs.createReadStream(zipPath, { highWaterMark: 64 * 1024 })) {
-        // Bound both compressed input and its output before accepting the next slice.
-        for (let offset = 0; offset < chunk.length; offset += 1024) {
-          archive.push(chunk.subarray(offset, offset + 1024), false)
-          await writes
-          if (failure) throw failure
-        }
-      }
-      archive.push(new Uint8Array(0), true)
-      await writes
-      if (failure) throw failure
-      if (handles.size) throw new Error('sync.error.noValidBackup')
-    } finally {
-      await writes.catch(() => {})
-      await Promise.allSettled([...handles].map((handle) => handle.close()))
-    }
+  private extractBackupArchive(zipPath: string, targetDir: string): Promise<void> {
+    return extractBackupArchive(zipPath, targetDir)
   }
 
   private async validateBackupArchive(backupZipPath: string): Promise<void> {

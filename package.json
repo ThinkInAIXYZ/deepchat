@@ -98,6 +98,7 @@
     "smoke:duckdb:vss": "node scripts/smoke-duckdb-vss.js",
     "smoke:light-ocr": "node scripts/smoke-light-ocr.js",
     "smoke:dim": "cross-env DEEPCHAT_DIM_SMOKE=1 vitest run --project main --no-file-parallelism test/main/agent/dim/runtimeIntegration.test.ts test/main/agent/dim/mediaIntegration.test.ts test/main/agent/dim/anonymousIntegration.test.ts test/main/agent/dim/skillIntegration.test.ts test/main/agent/dim/profileReadinessIntegration.test.ts",
+    "smoke:backup": "cross-env DEEPCHAT_LARGE_BACKUP_SMOKE=1 vitest run --project main --no-file-parallelism test/main/sync/backupArchive.test.ts",
     "smoke:opendal:native": "node scripts/smoke-opendal-native.js",
     "i18n": "pnpm run i18n:validate && i18n-check -s zh-CN -f i18next --locales src/renderer/src/i18n",
     "i18n:en": "pnpm run i18n:validate && i18n-check -s en-US -f i18next --locales src/renderer/src/i18n",
@@ -165,6 +166,8 @@
     "undici": "^8.12.2",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "xml2js": "^0.6.2",
+    "yauzl": "3.4.0",
+    "yazl": "3.3.1",
     "zod": "^4.6.6"
   },
   "devDependencies": {
@@ -196,6 +199,8 @@
     "@tiptap/vue-3": "^3.31.3",
     "@types/node": "^24.13.3",
     "@types/qrcode": "^1.5.6",
+    "@types/yauzl": "3.4.0",
+    "@types/yazl": "3.3.1",
     "@unovis/ts": "1.7.0",
     "@unovis/vue": "1.7.0",
     "@vitejs/plugin-vue": "^6.0.8",
