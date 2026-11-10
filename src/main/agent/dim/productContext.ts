@@ -27,6 +27,7 @@ export class DimProductContext {
   ): Promise<DimProductContextReply> => {
     signal.throwIfAborted()
     const resolved = await this.options.resolve?.(request, signal)
+    if (resolved?.acceptedInput) request = { ...request, ...resolved.acceptedInput }
     const binding =
       resolved?.binding ??
       this.options.database.dimSessionBindingsTable.getByNative(request.sessionId)

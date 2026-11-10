@@ -5,6 +5,7 @@ use dim_agent_capabilities::{
     timeline_tree::TreeCommands,
 };
 use dim_agent_runtime::{AgentBuilder, Feature, QueryOutput, TimelineQuery};
+use dim_agent_types::{ContentBlock, EventKind, InputBlock};
 use dim_app_server::{
     methods::ManagementMethods,
     storage::{MetadataError, SessionStore, Title, TitleSource},
@@ -175,7 +176,11 @@ impl DynPlugin for FrameScope {
                             let value=serde_json::to_value(&event.event).map_err(|_|RpcError::invalid("Invalid native frame"))?;
                             if event.position.branch_id==branch.id && value["data"]["request_id"]==frame.request_id&&value["data"]["turn_id"]==frame.turn_id {
                                 if found.is_some(){return Err(RpcError::service("ambiguous_scope","Native request belongs to several branches"));}
-                                found=Some(json!({"branchId":branch.id,"through":page.through.to_string(),"sequence":event.event.sequence.to_string()}));
+                                let prompt=accepted_prompt(&tree,&branch.id,&frame.turn_id,event.event.sequence).await?;
+                                found=Some(json!({"branchId":branch.id,"through":page.through.to_string(),"sequence":event.event.sequence.to_string(),
+                                    "inputQuery":prompt.chars().take(16_384).collect::<String>(),
+                                    "hookPromptTooLarge":prompt.len()>1024*1024,
+                                    "hookPrompt":if prompt.len()<=1024*1024{Some(prompt)}else{None}}));
                             }
                         }
                     }
@@ -185,4 +190,81 @@ impl DynPlugin for FrameScope {
             Ok(Effect::Done)
         })
     }
+}
+
+/// Read the current turn's consumed operator input at the request's fixed prefix.
+/// Queued inputs and keyed environment/state blocks cannot become hook input.
+async fn accepted_prompt(
+    tree: &TreeCommands,
+    branch: &str,
+    turn: &str,
+    through: u64,
+) -> Result<String, RpcError> {
+    let latest = |filter| {
+        serde_json::from_value::<TimelineQuery>(json!({
+        "scope":"branch","through":through,"include_publishing":true,
+        "query":{"filter":filter,"order_by":[{"key":{"kind":"position"},"direction":"descending"}],"select":{"kind":"events"}},
+        "page":{"limit":1}
+    })).map_err(|_|RpcError::invalid("Invalid accepted input query"))
+    };
+    let start = tree
+        .query(
+            branch.to_owned(),
+            latest(super::facts::and(vec![
+                super::facts::equal("kind", json!("turn/start")),
+                super::facts::equal("data.turn_id", json!(turn)),
+            ]))?,
+        )
+        .await?;
+    let QueryOutput::Events { events } = start.result else {
+        return Err(RpcError::invalid("Missing turn input source"));
+    };
+    let start = events
+        .first()
+        .ok_or_else(|| RpcError::invalid("Missing turn input boundary"))?
+        .event
+        .sequence;
+    let input=tree.query(branch.to_owned(),latest(super::facts::and(vec![
+        super::facts::equal("kind",json!("input/message")),
+        json!({"op":"or","conditions":[
+            {"op":"present","value":super::facts::field("data.user")},
+            {"op":"any","field":"data.blocks","condition":{"op":"not","condition":{"op":"present","value":{"kind":"element","path":"key"}}}}
+        ]}),
+        json!({"op":"exists","condition":super::facts::and(vec![
+            super::facts::equal("kind",json!("input/consumed")),
+            json!({"op":"compare","left":super::facts::field("position.sequence"),"comparison":"gt","right":{"kind":"value","value":start}}),
+            json!({"op":"compare","left":super::facts::field("data.input_id"),"comparison":"eq","right":{"kind":"outer","path":"id"}})
+        ])})
+    ]))?).await?;
+    let QueryOutput::Events { events } = input.result else {
+        return Err(RpcError::invalid("Missing accepted input result"));
+    };
+    let Some(event) = events.first() else {
+        return Ok(String::new());
+    };
+    let EventKind::InputMessage(input) = &event.event.kind else {
+        return Err(RpcError::invalid("Invalid accepted input source"));
+    };
+    Ok(if let Some(user) = &input.user {
+        user.content
+            .iter()
+            .filter_map(|block| match block {
+                ContentBlock::Text { text } => Some(text.as_str()),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    } else {
+        input
+            .blocks
+            .iter()
+            .filter_map(|block| match block {
+                InputBlock::Raw {
+                    text, key: None, ..
+                } => Some(text.as_str()),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    })
 }

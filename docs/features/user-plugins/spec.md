@@ -208,6 +208,10 @@ A started invocation without a terminal result after restart stays `uncertain`; 
 automatically. Explicit retry requires the current revision, payload, idle branch and current desktop
 generation, creates a new invocation identity, and can repeat external effects.
 
+Hook input and memory queries use the current turn's consumed Native input at its model-start
+cut. Queued future input and keyed environment/state blocks are excluded. Rendered User-message
+order does not establish operator input.
+
 A separate `deepchat/plugin-hook-session` observation records admission even when every startup
 matcher skips. It contributes no instructions and is excluded from diagnostics. Startup/subagent
 handlers precede prompt handlers. A skipped resume/compact matcher retains that handler's latest

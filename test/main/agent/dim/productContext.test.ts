@@ -73,10 +73,20 @@ it('requires the current native step before reading product context and fences a
           ownedPaths
         },
         ref: { sessionId: 'native', branchId: 'main' },
+        acceptedInput: {
+          query: 'accepted input',
+          hookPrompt: 'accepted input',
+          hookPromptTooLarge: false
+        },
         assertCurrent: () => {}
       })
     })
     const withFiles = await fileContext.prepare(request, signal)
+    expect(prepare).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({ query: 'accepted input', hookPrompt: 'accepted input' }),
+      signal
+    )
     expect(withFiles.messages).toHaveLength(2)
     expect(withFiles.messages[0]).toEqual({ role: 'user', content: 'authorized context' })
     expect(withFiles.messages[1]).toMatchObject({

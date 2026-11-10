@@ -49,7 +49,14 @@ it('authorizes native descendants from stored parentage and the actual request b
     const call = vi.fn(async (method: string, params: { sessionId: string }) => {
       if (method === 'deepchat.storage.scope')
         return description(params.sessionId, params.sessionId === 'child' ? 'root' : null)
-      return { branchId: 'work', through: '18446744073709551615', sequence: '18446744073709551615' }
+      return {
+        branchId: 'work',
+        through: '18446744073709551615',
+        sequence: '18446744073709551615',
+        inputQuery: 'accepted task',
+        hookPrompt: 'accepted task',
+        hookPromptTooLarge: false
+      }
     })
     const scopes = new DimScopes({
       database: data,
@@ -58,6 +65,11 @@ it('authorizes native descendants from stored parentage and the actual request b
     const authorized = await scopes.context(request, new AbortController().signal)
     expect(authorized.binding).toEqual(root)
     expect(authorized.ref).toEqual({ sessionId: 'child', branchId: 'work' })
+    expect(authorized.acceptedInput).toEqual({
+      query: 'accepted task',
+      hookPrompt: 'accepted task',
+      hookPromptTooLarge: false
+    })
     expect(call).toHaveBeenLastCalledWith('session.deepchat_scope.frame', {
       sessionId: 'child',
       turnId: 'turn',

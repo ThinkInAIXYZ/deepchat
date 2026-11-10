@@ -27,6 +27,7 @@ export interface DimAuthorizedOwner extends DimBoundOwner {
 
 export interface DimAuthorizedScope extends DimAuthorizedOwner {
   ref: DimSessionRef
+  acceptedInput?: Pick<DimProductContextRequest, 'query' | 'hookPrompt' | 'hookPromptTooLarge'>
 }
 
 /** Native parent links establish delegation. User text and desktop status never establish it. */
@@ -110,6 +111,9 @@ export class DimScopes {
       branchId: string
       through: string
       sequence: string
+      inputQuery: string
+      hookPrompt: string | null
+      hookPromptTooLarge: boolean
     }>('session.deepchat_scope.frame', {
       sessionId: request.sessionId,
       requestId: request.requestId,
@@ -119,9 +123,20 @@ export class DimScopes {
     if (!frame.branchId || dimSequence(frame.through) < dimSequence(request.through))
       throw new Error('Native model request has no current branch')
     dimSequence(frame.sequence)
+    if (
+      typeof frame.inputQuery !== 'string' ||
+      typeof frame.hookPromptTooLarge !== 'boolean' ||
+      (frame.hookPrompt !== null && typeof frame.hookPrompt !== 'string')
+    )
+      throw new Error('Native request has no canonical accepted input')
     return {
       ...owner,
       ref: { sessionId: request.sessionId, branchId: frame.branchId },
+      acceptedInput: {
+        query: frame.inputQuery,
+        hookPrompt: frame.hookPrompt ?? undefined,
+        hookPromptTooLarge: frame.hookPromptTooLarge
+      },
       assertCurrent
     }
   }

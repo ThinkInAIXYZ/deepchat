@@ -296,6 +296,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
     let holdQueue = false
     let heldQueueResponse: ServerResponse | null = null
     let nextTools: Array<{ id: string; name: string; arguments: object }> | null = null
+    const answeredQuestions = new Set<string>()
     let mcpEnabled = false
     let mcpToken = 'native-mcp-first'
     let nextMcpCall = false
@@ -441,7 +442,10 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
           const tools = nextTools
           nextTools = null
           res.end(
-            `data: ${JSON.stringify({ id: 'native-tools', object: 'chat.completion.chunk', model: 'fixture', created: 0, choices: [{ index: 0, delta: { role: 'assistant', tool_calls: tools.map((tool, index) => ({ index, id: tool.id, type: 'function', function: { name: tool.name, arguments: JSON.stringify(tool.arguments) } })) }, finish_reason: 'tool_calls' }] })}\n\ndata: [DONE]\n\n`
+            `data: ${JSON.stringify({ id: 'native-tools', object: 'chat.completion.chunk', model: 'fixture', created: 0, choices: [{ index: 0, delta: { role: 'assistant', tool_calls: tools.map((tool, index) => ({ index, id: tool.id, type: 'function', function: { name: tool.name, arguments: JSON.stringify(tool.arguments) } })) }, finish_reason: 'tool_calls' }] })}\n\ndata: [DONE]\n\n`,
+            () => {
+              for (const tool of tools) if (tool.name === 'ask_user') answeredQuestions.add(tool.id)
+            }
           )
           return
         }
@@ -1273,8 +1277,12 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
                 : []
             )
             .at(-1)
-        const waitForQuestion = async (prompt: string) => {
+        const waitForQuestion = async (prompt: string, callId: string) => {
           try {
+            // Model preparation and response delivery precede the question projection.
+            // Keep both assertions bounded separately so a slow fixture request cannot
+            // consume the desktop's entire projection assertion window.
+            await expect.poll(() => answeredQuestions.has(callId)).toBe(true)
             await expect.poll(() => pendingAction()?.block.action_type).toBe('question_request')
           } catch (cause) {
             const binding = grants.data.dimSessionBindingsTable.get('product-ui')!
@@ -1293,6 +1301,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
               JSON.stringify({
                 message: 'Native question projection did not arrive',
                 bindingStatus: binding.status,
+                questionResponseFlushed: answeredQuestions.has(callId),
                 fixtureStillHasQuestion: nextTools?.some((tool) => tool.name === 'ask_user'),
                 pending,
                 latest: latest.event && {
@@ -1334,7 +1343,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
         await desktop.submit('product-ui', [
           { type: 'text', text: 'native question batch fixture' }
         ])
-        await waitForQuestion('native question batch fixture')
+        await waitForQuestion('native question batch fixture', 'native-question')
         const question = pendingAction()!
         await expect(
           interactions.respondToolInteraction('product-ui', question.messageId, 'native-question', {
@@ -1415,7 +1424,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
           }
         ]
         await desktop.submit('product-ui', [{ type: 'text', text: 'native cancel fixture' }])
-        await waitForQuestion('native cancel fixture')
+        await waitForQuestion('native cancel fixture', 'native-declined')
         await desktop.cancel('product-ui')
         await desktop.waitIdle('product-ui')
         expect(pendingAction()).toBeUndefined()

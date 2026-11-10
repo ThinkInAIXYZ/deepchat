@@ -105,6 +105,7 @@ let input = ''; process.stdin.on('data', x => input += x); process.stdin.on('end
     })
     await new Promise<void>((resolve) => fixture.listen(0, '127.0.0.1', resolve))
     let context!: DimProductContext
+    let beforeContext: ((request: { sessionId: string }) => Promise<void>) | undefined
     const gateway = new DimProductGateway({
       resolve: async () => ({
         version: 'empty',
@@ -113,7 +114,15 @@ let input = ''; process.stdin.on('data', x => input += x); process.stdin.on('end
           throw new Error('No desktop tools')
         }
       }),
-      context: (request, signal) => context.prepare(request, signal),
+      context: async (request, signal) => {
+        await beforeContext?.(request)
+        // Environment contributions also use Role::User in dim's rendered request.
+        // Their position must never establish which operator input a hook receives.
+        return context.prepare(
+          { ...request, query: 'keyed state', hookPrompt: 'keyed state' },
+          signal
+        )
+      },
       pluginHooks: async (request, signal) =>
         (await hooks.nativeSources(signal)).map((source) => ({
           ...source,
@@ -475,6 +484,55 @@ let input = ''; process.stdin.on('data', x => input += x); process.stdin.on('end
       expect(database.sqlite.prepare('SELECT * FROM deepchat_tape_entries').all()).toEqual(
         originalArchive
       )
+      const canonical = await client.call<{ sessionId: string }>('deepchat.host.launch', {
+        model: { ...model },
+        cwd: profile,
+        tools: []
+      })
+      database.data.newSessionsTable.create('canonical', 'agent', 'Canonical input', profile)
+      database.data.dimSessionBindingsTable.bind('canonical', canonical.sessionId)
+      const canonicalRef = { sessionId: canonical.sessionId, branchId: 'main' }
+      beforeContext = async (request) => {
+        if (request.sessionId !== canonical.sessionId) return
+        beforeContext = undefined
+        await client.call('deepchat.host.input', {
+          ...canonicalRef,
+          mode: 'queue',
+          submissionId: 'future-input',
+          rawBlocks: [],
+          content: [{ type: 'text', text: 'queued future input' }]
+        })
+        await client.call('session.deepchat_inputs.submit', {
+          ...canonicalRef,
+          input: {
+            submission_id: 'keyed-state',
+            mode: 'append',
+            blocks: [
+              {
+                type: 'raw',
+                text: '<dim-state>late environment state</dim-state>',
+                key: 'fixture-state',
+                retire: false
+              }
+            ]
+          }
+        })
+      }
+      const canonicalBefore = (await calls()).length
+      await client.call('deepchat.host.input', {
+        ...canonicalRef,
+        mode: 'queue',
+        submissionId: 'canonical-input',
+        rawBlocks: [],
+        content: [{ type: 'text', text: 'canonical current input' }]
+      })
+      await client.call('deepchat.host.idle', canonicalRef)
+      expect(
+        (await calls())
+          .slice(canonicalBefore)
+          .filter((call) => call.hook_event_name === 'UserPromptSubmit')
+          .map((call) => call.prompt)
+      ).toEqual(['canonical current input', 'queued future input'])
       const captured = await new DimContent(host).transcript(archivedRef!, 'archived')
       const replace = async (state: typeof captured.pluginHookState) => {
         const previous = database.data.dimSessionBindingsTable.get('archived')!
