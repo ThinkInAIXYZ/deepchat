@@ -14,6 +14,7 @@ mod inputs;
 mod legacy_queue;
 mod media;
 mod media_compat;
+mod media_files;
 mod media_chat;
 mod media_inputs;
 mod memory;
@@ -52,6 +53,7 @@ fn install(builder: &mut dim_agent_runtime::AgentBuilder) {
             ..Default::default()
         },
     );
+    media_files::install(builder);
     media_chat::install(builder);
     context::install(builder);
     media_inputs::install(builder);

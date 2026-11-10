@@ -1,6 +1,7 @@
 //! Media conversations use the native Agent loop and input queue. This model
 //! host translates one native model request into a native Modality task.
 use crate::media::MediaCatalog;
+use crate::media_files::MediaFiles;
 use base64::{Engine, engine::general_purpose::STANDARD};
 use dim_agent_capabilities::{
     context_model::ProductContextModel, file_storage::FileStorage, host::*,
@@ -35,6 +36,7 @@ struct Ready {
     catalog: Arc<MediaCatalog>,
     tasks: Arc<ModalityTasks>,
     files: Arc<FileStorage>,
+    artifacts: Arc<MediaFiles>,
     stop: CancellationToken,
     work: TaskTracker,
 }
@@ -66,6 +68,7 @@ struct Startup {
     catalog: Key<MediaCatalog>,
     tasks: Key<ModalityTasks>,
     files: Key<FileStorage>,
+    artifacts: Key<MediaFiles>,
 }
 impl Startup {
     fn new(names: &Names<'_>, shared: Shared) -> rutis::Result<Self> {
@@ -76,6 +79,7 @@ impl Startup {
             catalog: names.key()?,
             tasks: Key::named("modalityTasks"),
             files: names.key()?,
+            artifacts: names.key()?,
         })
     }
 }
@@ -90,6 +94,7 @@ impl DynPlugin for Startup {
             self.catalog.erase(),
             self.tasks.erase(),
             self.files.erase(),
+            self.artifacts.erase(),
         ]
     }
     fn apply<'a>(&'a self, ctx: &'a Ctx) -> BoxFuture<'a, rutis::Result<Effect>> {
@@ -100,6 +105,7 @@ impl DynPlugin for Startup {
                 catalog: ctx.require_at(&self.catalog)?,
                 tasks: ctx.require_at(&self.tasks)?,
                 files: ctx.require_at(&self.files)?,
+                artifacts: ctx.require_at(&self.artifacts)?,
                 stop: ctx.cancellation_token(),
                 work: TaskTracker::new(),
             });
@@ -285,11 +291,23 @@ async fn run(
                         .clone()
                         .ok_or_else(|| HostError::failed("Media image input is missing"))?,
                     ImageSourceType::Url => {
-                        let (task, name) =
-                            parse_reference(source.url.as_deref().unwrap_or_default()).ok_or_else(
-                                || HostError::failed("Media image input is not a native file"),
-                            )?;
-                        STANDARD.encode(read_file(state, &task, &name, cancel).await?)
+                        let url = source.url.as_deref().unwrap_or_default();
+                        if let Some((file, _)) = crate::media_files::reference(url) {
+                            let (mime, bytes) = state
+                                .artifacts
+                                .read(&file, cancel)
+                                .await
+                                .map_err(|error| HostError::failed(error.message))?;
+                            if !mime.starts_with("image/") {
+                                return Err(HostError::failed("Media edit requires an image"));
+                            }
+                            STANDARD.encode(bytes)
+                        } else {
+                            let (task, name) = parse_reference(url).ok_or_else(|| {
+                                HostError::failed("Media image input is not a native file")
+                            })?;
+                            STANDARD.encode(read_file(state, &task, &name, cancel).await?)
+                        }
                     }
                 };
                 files.push(json!({"name":format!("input-{}",files.len()),"media_type":source.media_type,"data_base64":data}));
@@ -403,29 +421,16 @@ async fn run(
                 .unwrap_or_else(|| "Native media task did not succeed".into()),
         ));
     }
-    let output = done
-        .result
-        .ok_or_else(|| HostError::failed("Native media task has no output"))?;
+    let links = state
+        .artifacts
+        .publish(&source.session_id, &done, &state.tasks, &state.stop)
+        .await
+        .map_err(|error| HostError::failed(error.message))?;
     let mut chunks = vec![ModelChunk::MessageStart {
         message_id: task_id.clone(),
     }];
-    for file in &output.files {
-        if !(file.media_type.starts_with("image/")
-            || file.media_type.starts_with("audio/")
-            || file.media_type.starts_with("video/"))
-        {
-            continue;
-        }
-        let reference = format!("{PREFIX}{task_id}__{}", file.name);
-        if parse_reference(&reference).is_none() {
-            return Err(HostError::failed("Invalid native media output name"));
-        }
-        // Native Timeline stores portable text. The desktop recognizes this complete
-        // media link as a read model; file bytes remain owned by Modality.
-        chunks.push(ModelChunk::Text(format!(
-            "![{}]({reference})\n",
-            file.media_type
-        )));
+    for (mime, reference) in links {
+        chunks.push(ModelChunk::Text(format!("![{mime}]({reference})\n")));
         chunks.push(ModelChunk::TextEnd);
     }
     if chunks.len() == 1 {
@@ -525,6 +530,44 @@ async fn rewrite(
             let MessagePart::Image { source } = part else {
                 continue;
             };
+            if let Some((file, _)) = source
+                .url
+                .as_deref()
+                .and_then(crate::media_files::reference)
+            {
+                local = true;
+                if source.media_type.starts_with("image/")
+                    && request
+                        .capability_snapshot
+                        .as_ref()
+                        .is_some_and(|snapshot| snapshot.capabilities.vision)
+                {
+                    let (mime, bytes) = state
+                        .artifacts
+                        .read(&file, cancel)
+                        .await
+                        .map_err(|error| HostError::failed(error.message))?;
+                    if !mime.starts_with("image/") {
+                        return Err(HostError::failed("Native vision input is not an image"));
+                    }
+                    source.media_type = mime;
+                    source.source_type = ImageSourceType::Base64;
+                    source.data = Some(STANDARD.encode(bytes));
+                    source.url = None;
+                } else {
+                    *part = MessagePart::Text {
+                        provider_metadata: None,
+                        text: format!(
+                            "Generated {} is available at {}",
+                            source.media_type,
+                            source.url.as_deref().unwrap_or_default()
+                        ),
+                        start_time: None,
+                        end_time: None,
+                    };
+                }
+                continue;
+            }
             let Some((task, name)) = source.url.as_deref().and_then(parse_reference) else {
                 continue;
             };

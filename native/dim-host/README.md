@@ -92,12 +92,20 @@ Input comes from the consumed operator facts at the model request's fixed cut;
 runtime state/rule envelopes and future queued input are excluded. Large input
 frames cross the private gateway by a verified scratch-file reference.
 
-The native transcript retains generated media as immutable task-file links.
-The desktop projects those links into existing image/audio/video blocks and
-streams task results through public Modality reads into a disposable image-cache
-mirror. Native file size/digest checks precede atomic cache publication; cached
-history can be viewed without restoring an Agent. The same materializer serves
-display, copy/save, model image input, CLI and remote image delivery.
+Before returning generated media to the conversation, the storage plugin uses
+SessionFilesHost to store immutable 8 MiB chunks and a small manifest. Each chunk
+fits the native Session-file limit; the complete output may still reach the
+media task's 256 MiB product limit. Native fork, deletion and archive transfer own
+the files together with the Session. The transcript names the immutable
+manifest, so incremental imports need neither the original global media task
+nor a desktop cache. Modality retains the independent task record.
+
+The desktop projects media links into existing image/audio/video blocks and
+reads bounded pages through the storage plugin's public FileStorage reader.
+File size/digest checks precede atomic publication to a disposable image-cache
+mirror. Cached history can be viewed without restoring an Agent. The same
+materializer serves display, copy/save, model image input, CLI and remote image
+delivery; earlier task-file links remain readable through Modality.
 
 Large independent media inputs use `deepchat.native_media_inputs.submit`. The
 desktop sends a bounded file-backed RPC payload; the plugin prepares private

@@ -113,7 +113,7 @@ test('desktop media chat displays a native file through the owner cache @smoke',
       )
       .toBe(true)
     const source = await image.getAttribute('src')
-    expect(source).toMatch(/^imgcache:\/\/dim_mt_/)
+    expect(source).toMatch(/^imgcache:\/\/dim_file_/)
     expect(prompts).toEqual(['NATIVE_MEDIA_CHAT'])
     const cached = await readFile(
       path.join(app.userDataDir, 'images', source!.slice('imgcache://'.length))

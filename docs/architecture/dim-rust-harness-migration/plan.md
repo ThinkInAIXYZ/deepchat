@@ -73,7 +73,7 @@
 - [ ] 既有 MCP/插件兼容：in-memory server、MCP Apps、企业身份、知识库和 CUA 经插件注入；保留 consent、撤销、更新与参数/结果语义。作为正常接入实现，不列为 dim 缺失能力。
 - [ ] 模型：将现有设置及连接参数通过插件交给 dim；会话和辅助模型请求都在 Rust 执行，不回调旧 TypeScript Provider。
 - [ ] 辅助调用：标题、摘要、翻译、记忆提取、embedding/rerank、媒体等接入 dim 对应 model/auxiliary/modality；desktop 保留展示、索引与非模型服务。
-- [ ] 图片/视频/TTS 的独立入口与会话已接入 dim Modality；会话通过独立媒体 alias 选择原生 Agent 模型宿主，实际媒体模型保留非聊天声明。原生 loop/队列管理回合，桌面复用消息身份和媒体展示。媒体历史反馈与增量归档的文件闭包继续验收。
+- [ ] 图片/视频/TTS 的独立入口与会话已接入 dim Modality；会话通过独立媒体 alias 选择原生 Agent 模型宿主，实际媒体模型保留非聊天声明。原生 loop/队列管理回合，桌面复用消息身份和媒体展示。媒体文件闭包已通过大文件、fork/删除和冷增量归档验收，历史反馈继续接线。
 - [ ] OAuth：dim 自身登录、账号和 refresh 不做适配或迁移，不新增统一认证层；其他凭据/配置按能力所有者，通过插件正常交互，不能进入 timeline 或普通 row config。
 - [ ] Context/Skills/Hooks：dim 负责提示词、上下文、压缩、预算和撤销，产品 context/hook 通过插件接入；不由 TS 拼 provider 请求。
 - [ ] 原生 subagent/branch/collaboration 直接用 dim；ACP 完全由 DeepChat 原有实现处理，不规划 ExternalAgent、dim ACP gateway 或 ACP-as-provider 的 dim 迁移。
@@ -159,6 +159,8 @@
 建议按 release/插件骨架、session/队列绑定、产品能力、解密与按需转换、desktop 读取/Inspector、切换清理拆 PR。取消旧版按推测上游缺口估算的 12–20 人周；首个插件端到端切片完成后，依据实际映射与转换工作量估算，不把 ACP/OAuth 重写或 desktop 重做计入。
 
 ## 模块进度
+
+- 模块 87：媒体结果改为 Native SessionFilesHost 拥有的 8 MiB 分块和小清单，复用原生 fork、删除/回收及增量归档的文件生命周期；没有改动 Native SQLite schema 或新增桥内查询。256 MiB 媒体输出不受原生单文件 16 MiB 上限影响，完整 SHA 校验后才向会话返回不可变文件引用。storage 插件通过公开 FileStorage 读取有界内容，桌面缓存支持新引用并保留旧任务引用。真实 Rust 验证 18 MiB 输出、多块读回、图片编辑直接读取原生引用、fork 后删除原会话仍保留文件，以及冷增量导入到无原媒体任务记录的 profile 后完整读回。桥 0.35.0，SDK/依赖/存储格式不变。定向 Native（24s）、完整 27 项 Native（260s）、双端类型、格式/i18n/lint、release（2m53s）与生产主进程通过；缓存/投影补充回归通过。实际 Electron 两例（46s）验证新文件引用呈现、缓存完整性及聊天/CLI/备份恢复/重启/read_session/Inspector。媒体历史送入视觉模型及大配置载荷继续接线。
 
 - 模块 86：图片/视频/TTS 会话以独立媒体 alias 接入 dim 原生 Agent 的作用域模型宿主，实际媒体模型保持非聊天声明。原生 loop、队列和 ModalityTasks 负责输入、执行、幂等、取消与文件；普通调用继续委托原生默认宿主。媒体设置按 Native branch 保存，任务只接收媒体字段。固定请求切点的已消费输入经公开 Timeline owner 读取，媒体保留该回合全部有效输入；Hook 排除 keyed 状态及无 key 的 dim 状态/规则封装，修复 macOS x64 实测提示词污染。桌面复用原有媒体组件，缓存经公开任务文件读取、大小/hash 校验后原子发布，供显示、保存/复制、附件、CLI/远程复用。桥 0.34.0，SDK、存储格式与依赖不变。完整 Native 27 项（243s）通过；桌面发现并修复 temperature 被媒体 schema 拒绝的问题，带默认聊天温度的媒体三例复验（57s）通过。131 项相关回归、双端类型/格式/i18n/lint、最终 release（2m25s）与主进程构建通过。完整 main 最终 8053 项通过、34 项按原条件跳过（243s）；初轮发现的过时技能/签名测试合同已修正，架构用例在无编译竞争下通过，未放宽时限。实际 Electron 两例（47s）验证图片呈现/缓存、聊天/CLI/备份恢复/重启/会话读取/Inspector；测试显示服务恢复后重新验收。媒体历史反馈与增量归档文件闭包继续实施。
 

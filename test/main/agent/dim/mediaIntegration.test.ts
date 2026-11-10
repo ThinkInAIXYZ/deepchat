@@ -1,12 +1,15 @@
+import { captureDimProfile } from '@/agent/dim/profileSnapshot'
+import { DimProfileBackups } from '@/agent/dim/profileBackups'
+import { DimMediaFiles } from '@/agent/dim/mediaFiles'
 import { DimSessionControls } from '@/agent/dim/sessionControls'
 import { DimScopes } from '@/agent/dim/scopes'
 import { DimContent } from '@/agent/dim/content'
 import { DimProjectionStore } from '@/agent/dim/projectionStore'
 import { nativeMediaReference } from '@shared/dimMedia'
-import { expect, it } from 'vitest'
+import { expect, it, vi } from 'vitest'
 import { createServer } from 'node:http'
-import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
-import { randomUUID } from 'node:crypto'
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { createHash, randomUUID } from 'node:crypto'
 import path from 'node:path'
 import os from 'node:os'
 import { ModelType } from '@shared/model'
@@ -21,6 +24,9 @@ import { DimConnectionError } from '@/agent/dim/pluginClient'
 import { DimEmbeddingModels } from '@/agent/dim/embeddingModels'
 import { DimMediaModels } from '@/agent/dim/mediaModels'
 import { dimDatabase } from './fixtures/database'
+
+vi.unmock('fs')
+vi.unmock('node:fs')
 
 interface TaskReply {
   task: DimMediaTask
@@ -247,9 +253,11 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
           })
         )
       } else if (request.url === '/v1/audio/speech') {
-        expect(JSON.parse(body.toString()).input).toBe('native speech')
+        expect(['native speech', 'native speech large']).toContain(
+          JSON.parse(body.toString()).input
+        )
         response.writeHead(200, { 'Content-Type': 'audio/wav' })
-        response.end(wave)
+        response.end(JSON.parse(body.toString()).input === 'native speech large' ? largeWave : wave)
       } else if (request.url === '/v1/audio/transcriptions') {
         expect(body.toString()).toContain('whisper-1')
         if (body.length > 8 * 1024 * 1024) {
@@ -376,12 +384,14 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
     try {
       let client = await host.start()
       if (mediaChat) {
+        const artifacts: Array<{ fileId: string; sha256: string; bytes: number }> = []
         // A media model is selected by an Agent-local native host. The real model
         // remains non-chat; only the conversation alias enters the native loop.
         for (const [modelId, text, mimeType] of [
           ['gpt-image-1', 'native image', 'image/png'],
           ['tts-1', 'native speech', 'audio/wav'],
-          ['sora-2', 'native video', 'video/mp4']
+          ['sora-2', 'native video', 'video/mp4'],
+          ['tts-1', 'native speech large', 'audio/wav']
         ]) {
           const alias = await catalog.admit(provider.id, modelId, { session: true })
           const created = await client.call<{ sessionId: string }>('deepchat.host.launch', {
@@ -389,7 +399,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
             model: { ...alias },
             tools: []
           })
-          const desktopId = `media-chat-${modelId}`
+          const desktopId = `media-chat-${created.sessionId}`
           database.data.newSessionsTable.create(desktopId, 'agent', desktopId, profile)
           database.data.dimSessionBindingsTable.bind(desktopId, created.sessionId)
           const ref = { sessionId: created.sessionId, branchId: 'main' }
@@ -440,8 +450,25 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
           expect(block.image_data.mimeType).toBe(mimeType)
           const file = nativeMediaReference(block.image_data.data)!
           expect(file).not.toBeNull()
-          const task = await media.status(file.task)
-          expect((await media.readResult(task, file.name, 1024 * 1024)).length).toBeGreaterThan(0)
+          expect(file.kind).toBe('file')
+          if (file.kind !== 'file') throw new Error('Conversation media has no native Session file')
+          const owned = new DimMediaFiles(host)
+          const metadata = await owned.describe(file.fileId)
+          expect(metadata).toMatchObject({ name: file.name, mediaType: mimeType })
+          const hash = createHash('sha256')
+          for (let offset = 0; offset < metadata.bytes; ) {
+            const page = await owned.readChunk(
+              file.fileId,
+              offset,
+              Math.min(512 * 1024, metadata.bytes - offset)
+            )
+            expect(page.length).toBeGreaterThan(0)
+            hash.update(page)
+            offset += page.length
+          }
+          expect(hash.digest('hex')).toBe(metadata.sha256)
+          if (text === 'native speech large') expect(metadata.bytes).toBe(largeWave.length)
+          artifacts.push({ fileId: file.fileId, bytes: metadata.bytes, sha256: metadata.sha256 })
           if (modelId === 'gpt-image-1') {
             await client.call('deepchat.host.input', {
               ...ref,
@@ -452,7 +479,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
                 { type: 'text', text: 'native image edit' },
                 {
                   type: 'image',
-                  source: { type: 'base64', mediaType: 'image/png', data: png.toString('base64') }
+                  source: { type: 'url', mediaType: 'image/png', url: block.image_data.data }
                 }
               ]
             })
@@ -519,8 +546,89 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
             expect(
               requests.some((request) => request.body?.prompt === 'native image withdrawn')
             ).toBe(false)
+            const history = await client.call<{ through: string | number }>(
+              'deepchat.storage.history',
+              { ...ref, after: '0', limit: 200 }
+            )
+            const fork = await controls.call<{ sessionId: string }>('fork', ref, {
+              at: String(history.through)
+            })
+            const scope = await client.call<{ ownedPaths: string[] }>('deepchat.storage.scope', {
+              sessionId: fork.sessionId
+            })
+            expect(scope.ownedPaths.some((owned) => path.basename(owned) === file.fileId)).toBe(
+              true
+            )
+            await client.call('deepchat.host.delete', { sessionId: created.sessionId })
+            expect(await new DimMediaFiles(host).describe(file.fileId)).toMatchObject({
+              sha256: metadata.sha256
+            })
           }
-          await client.call('deepchat.host.delete', { sessionId: created.sessionId })
+        }
+        const before = await client.call<{ tasks: DimMediaTask[] }>('modality.task.list', {
+          limit: 100
+        })
+        await host.stop()
+        const identity = JSON.parse(
+          await readFile(path.resolve('runtime/dim/plugins/native-host-lock.json'), 'utf8')
+        )
+        const snapshot = await captureDimProfile(path.join(profile, 'dim'), os.tmpdir(), identity)
+        const target = new DimRuntimeSupervisor({
+          runtimeRoot: path.resolve('runtime/dim'),
+          profileRoot: path.join(profile, 'receiver'),
+          nativePlugins: true,
+          nodeExecutable: path.resolve(
+            'runtime/node',
+            ...(process.platform === 'win32' ? ['node.exe'] : ['bin', 'node'])
+          )
+        })
+        try {
+          await target.start()
+          await target.stop()
+          const manifest = await snapshot.manifest()
+          await target.withStopped(async () => {
+            const prepared = await new DimProfileBackups({
+              runtimeRoot: path.resolve('runtime/dim'),
+              profileRoot: path.join(profile, 'receiver'),
+              temporaryRoot: os.tmpdir(),
+              host: target,
+              readers: () => {
+                throw new Error('Media merge must remain cold')
+              }
+            }).prepareMerge(snapshot.directory, manifest)
+            try {
+              const installed = await prepared.install()
+              await installed.commit()
+            } finally {
+              await prepared.dispose()
+            }
+          })
+          const restored = new DimMediaFiles(target)
+          for (const artifact of artifacts) {
+            expect(await restored.describe(artifact.fileId)).toMatchObject({
+              bytes: artifact.bytes,
+              sha256: artifact.sha256
+            })
+            const hash = createHash('sha256')
+            for (let offset = 0; offset < artifact.bytes; ) {
+              const page = await restored.readChunk(
+                artifact.fileId,
+                offset,
+                Math.min(512 * 1024, artifact.bytes - offset)
+              )
+              expect(page.length).toBeGreaterThan(0)
+              hash.update(page)
+              offset += page.length
+            }
+            expect(hash.digest('hex')).toBe(artifact.sha256)
+          }
+          const receiver = await target.start()
+          await expect(
+            receiver.call('modality.task.status', { task_id: before.tasks[0].task_id })
+          ).rejects.toThrow()
+        } finally {
+          await target.stop()
+          await snapshot.dispose()
         }
         return
       }

@@ -90,6 +90,25 @@ describe('imageCache', () => {
     ).rejects.toThrow('Invalid native media reference')
   })
 
+  it('reads a Session-owned artifact without a media task or live Agent', async () => {
+    const bytes = Buffer.from('portable native image')
+    const source = 'imgcache://dim_file_12345678-1234-1234-1234-123456789abc__image.png'
+    const describe = vi.fn(async () => ({
+      name: 'image.png',
+      mediaType: 'image/png',
+      bytes: bytes.length,
+      sha256: createHash('sha256').update(bytes).digest('hex')
+    }))
+    const readChunk = vi.fn(async () => bytes)
+    registerNativeMediaCache(undefined, { describe, readChunk })
+    await materializeNativeMedia(source)
+    expect(describe).toHaveBeenCalledWith('12345678-1234-1234-1234-123456789abc')
+    expect(readChunk).toHaveBeenCalledTimes(1)
+    expect(await resolveCachedImageDataUrl(source)).toBe(
+      `data:image/png;base64,${bytes.toString('base64')}`
+    )
+  })
+
   it('preserves distinct valid images whose base64 differs only by case', async () => {
     const black = Buffer.alloc(58)
     black.write('BM')

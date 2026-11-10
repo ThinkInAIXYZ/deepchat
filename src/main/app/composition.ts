@@ -1,3 +1,4 @@
+import { DimMediaFiles } from '@/agent/dim/mediaFiles'
 import { ModelType } from '@shared/model'
 import { registerNativeMediaCache } from '@/platform/nativeMediaCache'
 import { createDimSessionReferenceSource } from '@/agent/dim/sessionReferences'
@@ -1114,7 +1115,7 @@ export async function createMainProcessControl(dependencies: {
   })
   const dimModelBridge = new DimModelBridge(dimHost)
   const dimCredentials = new DimProviderCredentials()
-  registerNativeMediaCache(new DimModality(dimHost))
+  registerNativeMediaCache(new DimModality(dimHost), new DimMediaFiles(dimHost))
   const dimModels = new DimModelCatalog({
     settings: providerSettings,
     models: dimModelBridge,
