@@ -665,6 +665,20 @@ const PROVIDER_DEFAULTS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'openllm',
+    name: 'OpenLLM',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'http://127.0.0.1:8787/v1',
+    enable: false,
+    websites: {
+      official: 'https://www.openllm.sh',
+      apiKey: 'https://www.openllm.sh/sign-in',
+      docs: 'https://docs.openllm.sh',
+      models: 'https://docs.openllm.sh/routing'
+    }
+  },
+  {
     id: 'opper',
     name: 'Opper',
     apiType: 'openai-completions',

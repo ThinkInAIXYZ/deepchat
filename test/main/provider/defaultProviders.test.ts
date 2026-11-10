@@ -172,6 +172,26 @@ describe('DEFAULT_PROVIDERS', () => {
     )
   })
 
+  it('includes OpenLLM as a disabled built-in provider pointing at the local daemon', () => {
+    expect(DEFAULT_PROVIDERS).toContainEqual(
+      expect.objectContaining({
+        id: 'openllm',
+        name: 'OpenLLM',
+        apiType: 'openai-completions',
+        apiKey: '',
+        baseUrl: 'http://127.0.0.1:8787/v1',
+        enable: false,
+        websites: expect.objectContaining({
+          official: 'https://www.openllm.sh',
+          apiKey: 'https://www.openllm.sh/sign-in',
+          docs: 'https://docs.openllm.sh',
+          models: 'https://docs.openllm.sh/routing',
+          defaultBaseUrl: 'http://127.0.0.1:8787/v1'
+        })
+      })
+    )
+  })
+
   it('includes Runcrate as a disabled built-in OpenAI-compatible provider', () => {
     expect(DEFAULT_PROVIDERS).toContainEqual(
       expect.objectContaining({
