@@ -753,7 +753,7 @@ export class AgentSettings implements AgentSettingsPort {
   }
 
   // Runs after Agent configs are independent, where a missing list means every tool is enabled.
-  // Sessions keep the tool list they started with.
+  // Existing sessions are seeded separately by runHtmlRenderSessionToolsSeedMigration.
   private seedHtmlRenderToolsDisabled(): void {
     if (this.settings.get<boolean>(HTML_RENDER_TOOLS_SEEDED_KEY)) return
     for (const agent of this.repository.listAgents({ agentType: 'deepchat' })) {

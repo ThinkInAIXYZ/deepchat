@@ -300,6 +300,7 @@ import { backgroundExecSessionManager } from '@/agent/shared/process/backgroundE
 import {
   runBuiltinMcpAllowlistCompatibilityMigration,
   runDisabledAgentToolCapabilityCleanupMigration,
+  runHtmlRenderSessionToolsSeedMigration,
   runMainlineNormalizationMigration
 } from './startupMigrations/sessionDataMigrations'
 import { activateAppOnMac } from '@/lib/activateApp'
@@ -3972,6 +3973,11 @@ export async function createMainProcessControl(dependencies: {
   await runBuiltinMcpAllowlistCompatibilityMigration({
     sqlitePresenter: sessionDataMigrationSQLite,
     agentSettings
+  })
+  await runHtmlRenderSessionToolsSeedMigration({
+    sqlitePresenter: sessionDataMigrationSQLite,
+    agentSettings,
+    untracked: (write) => syncReplica!.untracked(write)
   })
   // Migration must finish before any renderer or background runtime can read a manual Agent scope.
   // A failed migration is startup-fatal; continuing would persist an empty active-Skill selection.
