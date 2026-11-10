@@ -26,6 +26,7 @@ mod scopes;
 mod secrets;
 mod settings;
 mod storage;
+mod title_preferences;
 mod video_compat;
 static CONTEXT_ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
 static GATEWAY: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
@@ -34,6 +35,7 @@ static PAYLOAD_ROOT: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLo
 fn install(builder: &mut dim_agent_runtime::AgentBuilder) {
     archive::install(builder);
     dim_session_title::install(builder);
+    title_preferences::install(builder);
     dim_agent_scheduler::install(builder);
     dim_goal::install(builder);
     media::install(builder);

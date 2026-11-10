@@ -5,6 +5,7 @@ import os from 'node:os'
 import path from 'node:path'
 import type { JsonValue } from '@shared/contracts/json'
 import type { DimMcpServer } from './mcp'
+import type { DimModelId } from './modelBridge'
 
 type JsonObject = { [key: string]: JsonValue }
 
@@ -58,6 +59,7 @@ export interface DimProductGatewayOptions {
   resolve(nativeSessionId: string): Promise<DimProductCapabilitySet>
   context?(request: DimProductContextRequest, signal: AbortSignal): Promise<DimProductContextReply>
   mcp?(sessionId: string, signal: AbortSignal): Promise<Record<string, DimMcpServer>>
+  titleModel?(sessionId: string, signal: AbortSignal): Promise<DimModelId | null>
   credential?(
     providerId: string,
     reference: string,
@@ -213,6 +215,17 @@ export class DimProductGateway {
     request: Record<string, unknown>,
     signal: AbortSignal
   ): Promise<JsonValue> {
+    if (request.kind === 'title_model') {
+      if (
+        typeof request.sessionId !== 'string' ||
+        !request.sessionId ||
+        request.sessionId.length > 4096
+      )
+        throw new Error('Title model preference requires a native session')
+      const model = (await this.options.titleModel?.(request.sessionId, signal)) ?? null
+      signal.throwIfAborted()
+      return model ? { ...model } : null
+    }
     if (request.kind === 'mcp') {
       if (
         typeof request.sessionId !== 'string' ||

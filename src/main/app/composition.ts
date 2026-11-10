@@ -1030,6 +1030,26 @@ export async function createMainProcessControl(dependencies: {
   const dimGateway = new DimProductGateway({
     resolve: (id) => dimTools.resolve(id),
     context: (request, signal) => dimContext.prepare(request, signal),
+    titleModel: async (id, signal) => {
+      const scope = dimScopes.bound(id, signal)
+      if (!scope) return null
+      authorizeDimScope(scope.binding)
+      const session = appSessionService.get(scope.binding.sessionId)
+      if (!session) throw new Error('Title model has no desktop owner')
+      const preference = (await agentSettings.resolveDeepChatAgentConfig(session.agentId))
+        .assistantModel
+      scope.assertCurrent()
+      if (!preference?.providerId || !preference.modelId) return null
+      const model = await dimModels.admit(preference.providerId, preference.modelId)
+      scope.assertCurrent()
+      authorizeDimScope(scope.binding)
+      const current = (await agentSettings.resolveDeepChatAgentConfig(session.agentId))
+        .assistantModel
+      scope.assertCurrent()
+      if (current?.providerId !== preference.providerId || current.modelId !== preference.modelId)
+        throw new Error('Title model preference changed during admission')
+      return model
+    },
     mcp: async (id, signal) => {
       const scope = await dimScopes.owner(id, signal)
       authorizeDimScope(scope.binding)

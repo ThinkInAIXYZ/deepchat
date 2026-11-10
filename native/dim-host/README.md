@@ -134,3 +134,20 @@ and update worker. No MCP execution loop or transport is copied into DeepChat.
 This bridge owns I/O resources at Session scope. Native ToolBinding records adopted
 configuration and native ToolExecutor records call results. The bridge writes no
 new facts, schema, inputs, model requests or permission decisions.
+
+SessionTitle reads an optional per-Session `TitleModelHost` preference before its
+native auxiliary-model selection. The product port authorizes only a current
+direct desktop binding and admits the configured assistant model; it never
+performs inference. Explicit native title configuration retains precedence, and
+an absent product preference preserves native selection. SessionTitle holds the
+native Session lifecycle through preference lookup, inference and title
+publication, so idle maintenance cannot cancel accepted title work. Forced close
+cancels and joins the owner as usual.
+
+SDK module graphs are generated with `xtask graph --model-config
+crates/dim-agent-aimux/examples/offline.json`. Their original and generated hashes
+and exact patch are pinned alongside code extensions; preparation accepts only a
+complete original or complete prepared graph. Source/crate boundaries and plugin
+documents pass. The stock SDK `xtask check` service catalogue profile cannot
+initialize the embedding-specific ProviderSecretHost; the actual DeepChat
+profile is verified by native integration and packaged-runtime smoke tests.

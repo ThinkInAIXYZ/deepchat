@@ -10,6 +10,7 @@ const directory = path.join(root, 'native/dim-source')
 function git(args) {
   const result = spawnSync('git', ['-C', directory, ...args], {
     encoding: 'utf8',
+    maxBuffer: 16 * 1024 * 1024,
     windowsHide: true
   })
   if (result.error || result.status !== 0)
@@ -88,6 +89,33 @@ const ownedFilesFile = 'crates/dim-app-server/src/storage/files.rs'
 const sessionStoreFile = 'crates/dim-app-server/src/storage/timeline.rs'
 const mcpFile = 'crates/dim-app-server/src/mcp.rs'
 const temporaryMcpFile = 'crates/dim-app-server/src/mcp/temporary.rs'
+const titleFile = 'crates/dim-session-title/src/lib.rs'
+const generatedDocs = JSON.parse(
+  await readFile(path.join(root, 'resources/dim-sdk/generated-docs-lock.json'), 'utf8')
+)
+const generatedPaths = [
+  'docs/architecture/rust-agent/generated/modules.json',
+  'docs/architecture/rust-agent/generated/modules.mmd'
+]
+if (
+  generatedDocs.length !== generatedPaths.length ||
+  generatedDocs.some((entry, index) => entry.path !== generatedPaths[index])
+)
+  throw new Error('Unexpected generated dim architecture paths')
+const digest = (content) => createHash('sha256').update(content).digest('hex')
+const docStates = await Promise.all(
+  generatedDocs.map(async (entry) => {
+    const original = Buffer.from(git(['show', `HEAD:${entry.path}`]) + '\n')
+    if (digest(original) !== entry.originalSha256)
+      throw new Error('Pinned dim architecture baseline mismatch')
+    const current = digest(await readFile(path.join(directory, entry.path)))
+    if (current !== entry.originalSha256 && current !== entry.sha256)
+      throw new Error('Pinned dim architecture has unexpected changes')
+    return current === entry.sha256
+  })
+)
+if (docStates.some(Boolean) && !docStates.every(Boolean))
+  throw new Error('Pinned dim architecture is only partially prepared')
 git([
   'diff',
   '--exit-code',
@@ -101,7 +129,9 @@ git([
   `:!${ownedFilesFile}`,
   `:!${sessionStoreFile}`,
   `:!${mcpFile}`,
-  `:!${temporaryMcpFile}`
+  `:!${temporaryMcpFile}`,
+  `:!${titleFile}`,
+  ...generatedPaths.map((entry) => `:!${entry}`)
 ])
 if (current !== expected) await writeFile(path.join(directory, filename), expected)
 // Add an explicit host-value replacement to the builder's assembly API. It changes no
@@ -275,6 +305,89 @@ for (const [filename, original, expected] of [
   if (current !== expected) await writeFile(path.join(directory, filename), expected)
   mcpPatches.push({ path: filename, sha256: createHash('sha256').update(expected).digest('hex') })
 }
+const titleOriginal = git(['show', `HEAD:${titleFile}`]) + '\n'
+let titleExpected = titleOriginal
+for (const [before, after] of [
+  [
+    '    builder.plugin(|names| Ok(Box::new(SessionTitlePlugin::new(names)?)));',
+    `    dim_agent_runtime::names::register::<TitleModelHost>(builder.catalog_mut(), Some(dim_agent_runtime::SESSION_GROUP));
+    builder.session_value(Arc::new(TitleModelHost(Arc::new(NoTitleModelPreference))));
+    builder.plugin(|names| Ok(Box::new(SessionTitlePlugin::new(names)?)));`
+  ],
+  [
+    '    auxiliary: Key<AuxiliaryModelHost>,',
+    '    auxiliary: Key<AuxiliaryModelHost>,\n    preference: Key<TitleModelHost>,'
+  ],
+  [
+    '            auxiliary: names.key()?,',
+    '            auxiliary: names.key()?,\n            preference: names.key()?,'
+  ],
+  [
+    '            self.auxiliary.erase(),',
+    '            self.auxiliary.erase(),\n            self.preference.erase(),'
+  ],
+  [
+    '                auxiliary: ctx.require_at(&self.auxiliary)?,',
+    '                auxiliary: ctx.require_at(&self.auxiliary)?,\n                preference: ctx.require_at(&self.preference)?,'
+  ],
+  [
+    '    auxiliary: Arc<AuxiliaryModelHost>,',
+    '    auxiliary: Arc<AuxiliaryModelHost>,\n    preference: Arc<TitleModelHost>,'
+  ],
+  [
+    '    ) -> Result<String, ()> {\n        if cancel.is_cancelled() {',
+    `    ) -> Result<String, ()> {
+        let explicit = match explicit {
+            Some(model) => Some(model),
+            None => self.preference.0.model(cancel.clone()).await.map_err(|_| ())?,
+        };
+        if cancel.is_cancelled() {`
+  ]
+]) {
+  if (titleExpected.split(before).length !== 2)
+    throw new Error('Native title preference seam changed')
+  titleExpected = titleExpected.replace(before, after)
+}
+const titleExtension =
+  '\n' + (await readFile(path.join(root, 'resources/dim-sdk/title-model-preference.rs'), 'utf8'))
+const titlePrevious = titleExpected + titleExtension
+for (const [before, after] of [
+  [
+    '    preference: Arc<TitleModelHost>,',
+    '    preference: Arc<TitleModelHost>,\n    lifecycle: Arc<SessionLifecycle>,'
+  ],
+  [
+    '                preference: ctx.require_at(&self.preference)?,',
+    '                preference: ctx.require_at(&self.preference)?,\n                lifecycle: lifecycle.clone(),'
+  ],
+  [
+    '    async fn attempt(&self, sequence: u64, input_id: String, epoch: u64) {',
+    `    async fn attempt(&self, sequence: u64, input_id: String, epoch: u64) {
+        let Some(_hold) = self.lifecycle.take_hold() else { return; };`
+  ]
+]) {
+  if (titleExpected.split(before).length !== 2)
+    throw new Error('Native title activity seam changed')
+  titleExpected = titleExpected.replace(before, after)
+}
+titleExpected += titleExtension
+const titleCurrent = await readFile(path.join(directory, titleFile), 'utf8')
+if (
+  titleCurrent !== titleOriginal &&
+  titleCurrent !== titlePrevious &&
+  titleCurrent !== titleExpected
+)
+  throw new Error('Pinned native title preference has unexpected changes')
+if (titleCurrent !== titleExpected) await writeFile(path.join(directory, titleFile), titleExpected)
+if (!docStates.every(Boolean)) {
+  const patch = path.join(root, 'resources/dim-sdk/generated-docs.patch')
+  git(['apply', '--check', patch])
+  git(['apply', patch])
+}
+for (const entry of generatedDocs) {
+  if (digest(await readFile(path.join(directory, entry.path))) !== entry.sha256)
+    throw new Error('Generated dim architecture checksum mismatch')
+}
 export const nativeSource = {
   sourceRevision: lock.sourceCommit,
   storeFormat: Number(
@@ -289,6 +402,8 @@ export const nativeSource = {
     { path: servicesFile, sha256: createHash('sha256').update(servicesExpected).digest('hex') },
     { path: recordsFile, sha256: createHash('sha256').update(recordsExpected).digest('hex') },
     ...filePatches,
-    ...mcpPatches
+    ...mcpPatches,
+    { path: titleFile, sha256: createHash('sha256').update(titleExpected).digest('hex') },
+    ...generatedDocs.map(({ path, sha256 }) => ({ path, sha256 }))
   ]
 }

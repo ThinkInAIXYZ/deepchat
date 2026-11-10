@@ -2,6 +2,40 @@ import { expect, it } from 'vitest'
 import { createConnection } from 'node:net'
 import { DimProductGateway } from '@/agent/dim/productGateway'
 
+it('returns an optional title model selection without executing an inference request', async () => {
+  let reads = 0
+  const gateway = new DimProductGateway({
+    resolve: async () => {
+      throw new Error('Title preferences must not execute a product tool')
+    },
+    titleModel: async (id, signal) => {
+      signal.throwIfAborted()
+      reads++
+      if (id === 'default') return null
+      if (id !== 'bound') throw new Error('Title preference has no current owner')
+      return { providerId: 'native-provider', modelId: 'assistant' }
+    }
+  })
+  const address = await gateway.start()
+  try {
+    expect(await request(address, { kind: 'title_model', sessionId: '' })).toMatchObject({
+      error: expect.any(String)
+    })
+    expect(reads).toBe(0)
+    expect(await request(address, { kind: 'title_model', sessionId: 'foreign' })).toMatchObject({
+      error: expect.stringContaining('current owner')
+    })
+    expect(await request(address, { kind: 'title_model', sessionId: 'default' })).toEqual({
+      result: null
+    })
+    expect(await request(address, { kind: 'title_model', sessionId: 'bound' })).toEqual({
+      result: { providerId: 'native-provider', modelId: 'assistant' }
+    })
+  } finally {
+    await gateway.stop()
+  }
+})
+
 it('resolves MCP configuration only for an authorized native owner', async () => {
   let reads = 0
   const gateway = new DimProductGateway({

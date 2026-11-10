@@ -24,6 +24,24 @@ const request = {
   query: 'task'
 }
 
+it('fences a bound root preference without starting or reading native sessions', () => {
+  const { data, sqlite } = dimDatabase()
+  const start = vi.fn()
+  try {
+    data.dimSessionBindingsTable.bind('desktop', 'root')
+    const scopes = new DimScopes({ database: data, host: { start } })
+    const signal = new AbortController().signal
+    expect(scopes.bound('unknown', signal)).toBeNull()
+    const owner = scopes.bound('root', signal)!
+    expect(owner.binding.sessionId).toBe('desktop')
+    data.dimSessionBindingsTable.delete('desktop')
+    expect(() => owner.assertCurrent()).toThrow('replaced desktop scope')
+    expect(start).not.toHaveBeenCalled()
+  } finally {
+    sqlite.close()
+  }
+})
+
 it('authorizes native descendants from stored parentage and the actual request branch', async () => {
   const { data, sqlite } = dimDatabase()
   try {

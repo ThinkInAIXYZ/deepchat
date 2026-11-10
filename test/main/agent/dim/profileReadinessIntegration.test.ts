@@ -114,7 +114,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
         .toBe(1)
       expect(await client.call('deepchat.storage.readiness')).toMatchObject({
         idle: false,
-        sessions: false,
+        sessions: true,
         provider: true
       })
       let copied = false

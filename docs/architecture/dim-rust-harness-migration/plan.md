@@ -160,6 +160,8 @@
 
 ## 模块进度
 
+- 模块 75：标题辅助模型偏好通过 Session scoped host 提供给 Native SessionTitle；产品侧只检查当前绑定和配置、登记原生模型，模型选择、请求、规范化与标题 CAS 仍由 dim 负责。无偏好使用原生策略，原生显式标题配置优先。标题 owner 对偏好查询、推理和发布持有原生活动租约，空闲备份拒绝中断，强制关闭取消并 join。桥 0.25.0；真实模型偏好/聊天模型隔离/重启/空闲拒绝/强制取消测试通过（14s）。SDK 模块图由离线 xtask 生成，原始与生成 hash 和精确补丁均锁定；模块/crate 边界与 25 篇插件文档通过，默认 SDK 目录检查缺少 embedding 凭据 host 的限制单独记录，未宣称整体通过。release 构建与 21 项 Native 覆盖通过：联合 suite 20 项通过，旧 Session 空闲断言按新增租约更新后对应回归通过（13s）；未修改备份拒绝/取消断言。41 项相关回归、双端类型/门禁与 Electron 聊天/CLI/导入恢复/重启联合验收通过（31s）。
+
 - 模块 74：原生内部子会话经 storage parent link 核验当前桌面归属，从私有网关取得已选 MCP 配置；会话级插件只管理配置授权与原生资源 view，连接、发现、工具贡献、调用、取消与动态发布复用 dim MCP owner。新增固定 hash 的原生工厂在 Session 资源取得阶段准备首个目录；普通 temporary attach 仍等待 Session activated，不修改原有行为。后续更新仍由原生 worker 负责，配置撤销/变更关闭旧资源，授权续期和连接清理在 close 时 join。桥 0.24.0；20 项网关/归属/MCP/打包回归与 Rust check 通过，真实子 agent 首轮目录/工具调用/撤销联合用例通过（DEV 122s）；release 构建、完整 Native 20 项（221s）及双端类型/门禁通过；Electron 聊天/CLI/增量导入/覆盖恢复/故障回滚/重启联合验收通过（43s）。
 
 - 模块 73：v3 Native profile 增量导入已接通。独立空 profile 的 storage 插件在 disposable staging 经 Native owners 合并，已有身份逐事件/trace/原子批次核对共享前缀后追加兼容尾部；分叉、创建记录或归属冲突拒绝安装，已有目标标题保留。原始备份只校验，查询使用工作副本。SQL 导入前校验绑定/归档 scopes 引用的全部 Native 会话确实在目标 owner 目录中；原有 journal 同时保护 SQL 与 Native 的安装、回滚和重启恢复。已有产品绑定/消息/Inspector 缓存保留本地游标并从 canonical tail 重建，另行保留导入旧代的只读归属，避免占用未来活动 generation。实际 Rust 重复合并/尾部追加/分叉拒绝、真正 prepareMerge/安装/重启/附件 GC/恢复后模型续聊与源备份完整性通过（41s）；37 项导入与恢复回归、共享 Native 身份游标回归通过。桥 0.23.0 release 构建、完整 Native 20 项（158s）、双端类型/门禁与 Electron 增量导入保留当前标题和消息、覆盖恢复、故障回滚、重启续聊（35s）通过。实时同步继续实施。

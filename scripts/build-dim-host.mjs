@@ -85,6 +85,7 @@ await writeFile(
     'Adds an explicit Session host-value replacement to the builder assembly API.\n' +
     'Re-exports AgentIndex and typed Agent/session ownership owners; exposes ProviderService activity.\n' +
     'Adds cold-import admission to the native Session file ownership writer.\n' +
+    'Exposes native MCP resource initialization and per-Session title model preference.\n' +
     'DeepChat adds configuration, auxiliary-model, context and credential-reference plugins.\n' +
     'Execution implementations are supplied by dim. DeepChat additions: Apache-2.0.\n'
 )

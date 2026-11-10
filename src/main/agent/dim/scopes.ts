@@ -17,10 +17,12 @@ export interface DimScopeDescription {
   titleRevision: string
   ownedPaths?: string[]
 }
-export interface DimAuthorizedOwner {
+export interface DimBoundOwner {
   binding: Readonly<DimSessionBinding>
-  description: Readonly<DimScopeDescription>
   assertCurrent(): void
+}
+export interface DimAuthorizedOwner extends DimBoundOwner {
+  description: Readonly<DimScopeDescription>
 }
 
 export interface DimAuthorizedScope extends DimAuthorizedOwner {
@@ -35,6 +37,13 @@ export class DimScopes {
       host: Pick<DimRuntimeSupervisor, 'start'>
     }
   ) {}
+
+  /** Product preferences for directly bound roots need no native session restore or I/O. */
+  bound(nativeId: string, signal: AbortSignal): DimBoundOwner | null {
+    signal.throwIfAborted()
+    const binding = this.options.database.dimSessionBindingsTable.getByNative(nativeId)
+    return binding ? this.currentBinding(binding, signal) : null
+  }
 
   async describe(sessionId: string): Promise<DimScopeDescription> {
     const client = await this.options.host.start()
@@ -65,6 +74,13 @@ export class DimScopes {
       signal.throwIfAborted()
     }
     if (!binding) throw new Error('Native delegation exceeds its ancestry bound')
+    return {
+      ...this.currentBinding(binding, signal),
+      description: Object.freeze({ ...description })
+    }
+  }
+
+  private currentBinding(binding: DimSessionBinding, signal: AbortSignal): DimBoundOwner {
     const owner = Object.freeze({ ...binding })
     const assertCurrent = () => {
       signal.throwIfAborted()
@@ -79,7 +95,7 @@ export class DimScopes {
         throw new Error('Native delegation belongs to a replaced desktop scope')
     }
     assertCurrent()
-    return { binding: owner, description: Object.freeze({ ...description }), assertCurrent }
+    return { binding: owner, assertCurrent }
   }
 
   readonly context = async (

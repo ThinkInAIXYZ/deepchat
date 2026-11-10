@@ -3,10 +3,10 @@
   "sourceRevision": "0423b321abc923900525d79d030fd690110f91c4",
   "baseRelease": "0.1.0-alpha.21",
   "serverVersion": "0.1.0-alpha.18",
-  "bridgeVersion": "0.24.0",
+  "bridgeVersion": "0.25.0",
   "storeFormat": 36,
   "apiVersion": 1,
-  "cargoLockSha256": "e6807e66506c6fd3c3cdc88a3f6a3c312d0b3978e258b88324f64113291274a3",
+  "cargoLockSha256": "071188b0be30af7db1e98c89ab46ad1563fead4bace63edefc32d501ea962cb3",
   "assemblyPatch": {
     "path": "crates/dim-app-server/src/provider.rs",
     "sha256": "9aa74fedeba12c0e16830146a4289a7875b2e75a8ea272c0c19fe958b0b98eb3"
@@ -43,6 +43,18 @@
     {
       "path": "crates/dim-app-server/src/mcp.rs",
       "sha256": "7ba8388e9699ade70a4a6548f9dc42e5f7f85206f59a2824b0d5b51928c3abae"
+    },
+    {
+      "path": "crates/dim-session-title/src/lib.rs",
+      "sha256": "06bdf7e62bd81355c2e0bce064910ca69950fdf765557f8ad9db00cab8887a02"
+    },
+    {
+      "path": "docs/architecture/rust-agent/generated/modules.json",
+      "sha256": "b421b7504fbd1346f72201823b45107a9c7c4331206f4b841fe84c3aaa8ce14f"
+    },
+    {
+      "path": "docs/architecture/rust-agent/generated/modules.mmd",
+      "sha256": "5fe8e1fa5b2829b230071c834868712221b0b4cefd677f097b11408dc3dd0141"
     }
   ]
 }
