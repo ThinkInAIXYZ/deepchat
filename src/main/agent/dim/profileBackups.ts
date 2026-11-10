@@ -235,10 +235,45 @@ export class DimProfileBackups implements SyncNativeProfilePort {
     }
   }
 
+  /** LWW admission replaces selected canonical owners only in disposable cold staging. */
+  async prepareReplica(
+    incoming: { directory: string; manifest: unknown } | undefined,
+    sessionIds: readonly string[],
+    replaceSessionIds: readonly string[]
+  ): Promise<PreparedDimProfile> {
+    if (sessionIds.length && !incoming) throw new Error('Native replica content is missing')
+    const identity = await this.identity()
+    const current = await captureDimProfile(
+      path.join(this.options.profileRoot, 'dim'),
+      this.options.temporaryRoot,
+      identity
+    )
+    let working: DimProfileSnapshot | undefined
+    try {
+      const manifest = await current.manifest()
+      let merge:
+        | { directory: string; manifest: DimProfileManifest; sessionIds: string[] }
+        | undefined
+      if (incoming && sessionIds.length) {
+        const source = await validateDimProfile(incoming.directory, incoming.manifest, identity)
+        working = await captureDimProfile(incoming.directory, this.options.temporaryRoot, identity)
+        await validateDimProfile(working.directory, source, identity)
+        merge = { directory: working.directory, manifest: source, sessionIds: [...sessionIds] }
+      }
+      return await this.prepare(current.directory, manifest, merge, [
+        ...new Set([...replaceSessionIds, ...sessionIds])
+      ])
+    } finally {
+      await working?.dispose()
+      await current.dispose()
+    }
+  }
+
   private async prepare(
     directory: string,
     value: unknown,
-    merge?: { directory: string; manifest: DimProfileManifest }
+    merge?: { directory: string; manifest: DimProfileManifest; sessionIds?: string[] },
+    replaceSessionIds?: string[]
   ): Promise<PreparedDimProfile> {
     const manifest: DimProfileManifest = await validateDimProfile(
       directory,
@@ -247,18 +282,21 @@ export class DimProfileBackups implements SyncNativeProfilePort {
     )
     await mkdir(this.options.profileRoot, { recursive: true, mode: 0o700 })
     const container = await mkdtemp(path.join(this.options.profileRoot, '.dim-restore-'))
-    const next = path.join(container, 'next')
+    const next = replaceSessionIds
+      ? path.join(container, 'next', 'dim')
+      : path.join(container, 'next')
     const previous = path.join(container, 'previous')
     const target = path.join(this.options.profileRoot, 'dim')
     let state: 'staged' | 'swapping' | 'installed' | 'settled' = 'staged'
+    let retainStaging = false
     const nativeSessionIds: string[] = []
     // A failed rollback retains its private recovery directory for explicit recovery.
     const dispose = async () => {
-      if (state === 'staged' || state === 'settled')
+      if (!retainStaging && (state === 'staged' || state === 'settled'))
         await rm(container, { recursive: true, force: true })
     }
     try {
-      await mkdir(next, { mode: 0o700 })
+      await mkdir(next, { recursive: true, mode: 0o700 })
       for (const file of manifest.files) {
         const output = path.join(next, file.path)
         await mkdir(path.dirname(output), { recursive: true, mode: 0o700 })
@@ -280,8 +318,33 @@ export class DimProfileBackups implements SyncNativeProfilePort {
           path.join(this.options.temporaryRoot, 'dim-restore-owner-')
         )
         const coordinator = this.options.host.createIsolatedProfile(coordinatorRoot)
+        const failures: unknown[] = []
         try {
           const client = await coordinator.start()
+          if (
+            replaceSessionIds &&
+            manifest.files.some((file) => file.path === 'rust/dimcode.sqlite')
+          ) {
+            // Copied command-output ownership initially points at the live source.
+            // Relocate it before the native deletion owner can touch physical files.
+            await client.call(
+              'deepchat.storage.archive_rebase',
+              {
+                directory: next,
+                ...(manifest.sourceHome ? { sourceHome: manifest.sourceHome } : {}),
+                installedDirectory: next
+              },
+              120_000
+            )
+            await client.call(
+              'deepchat.storage.archive_prune',
+              {
+                directory: next,
+                sessionIds: replaceSessionIds
+              },
+              30 * 60_000
+            )
+          }
           if (merge)
             await client.call(
               'deepchat.storage.archive_transfer',
@@ -290,7 +353,8 @@ export class DimProfileBackups implements SyncNativeProfilePort {
                 targetDirectory: next,
                 initializeTarget: true,
                 ...(merge.manifest.sourceHome ? { sourceHome: merge.manifest.sourceHome } : {}),
-                installedDirectory: target
+                installedDirectory: replaceSessionIds ? next : target,
+                ...(merge.sessionIds ? { sessionIds: merge.sessionIds } : {})
               },
               30 * 60_000
             )
@@ -298,7 +362,11 @@ export class DimProfileBackups implements SyncNativeProfilePort {
             'deepchat.storage.archive_rebase',
             {
               directory: next,
-              ...(manifest.sourceHome ? { sourceHome: manifest.sourceHome } : {}),
+              ...(replaceSessionIds
+                ? { sourceHome: next }
+                : manifest.sourceHome
+                  ? { sourceHome: manifest.sourceHome }
+                  : {}),
               installedDirectory: target
             },
             120_000
@@ -316,13 +384,26 @@ export class DimProfileBackups implements SyncNativeProfilePort {
             nativeSessionIds.push(...page.sessions.map((session) => session.sessionId))
             after = page.next ?? undefined
           } while (after)
-        } finally {
+        } catch (error) {
+          failures.push(error)
+        }
+        try {
+          await coordinator.stop()
+        } catch (error) {
+          retainStaging = true
+          failures.push(error)
+        }
+        if (!retainStaging) {
           try {
-            await coordinator.stop()
-          } finally {
             await rm(coordinatorRoot, { recursive: true, force: true })
+          } catch (error) {
+            failures.push(error)
           }
         }
+        if (failures.length)
+          throw failures.length === 1
+            ? failures[0]
+            : new AggregateError(failures, 'Native admission and cleanup failed')
       }
       await syncProfileDirectories(next)
       await writeDimProfileRecovery(container, {

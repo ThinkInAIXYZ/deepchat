@@ -175,6 +175,15 @@ and plugin lifecycles continue on the original daemon. The desktop snapshots the
 closed target after acknowledgement and retains staging if that acknowledgement
 is lost, rather than deleting files whose native owner may still be active.
 
+Replica LWW admission uses `deepchat.storage.archive_prune` only on an exclusively
+leased staging store. The native Session deletion owner removes the selected
+owned descendants in postorder, keeping unrelated root Sessions and shared
+public Agent profiles. Every output path must already belong to staging before
+physical deletion is admitted. The desktop rebases a copied profile into its
+private `dim` staging home, prunes obsolete owners, transfers only winning source
+Sessions, and rebases again for installation. The same durable profile swap can
+roll back an uncommitted admission. Tombstones require no incoming content.
+
 The SDK file-owner seam adds `SessionStore.adopt_file` for an exclusively leased
 cold profile. It validates the copied immutable directory with FileStorage before
 recording ownership through the native writer. The schema and sweeper are dim's

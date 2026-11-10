@@ -596,3 +596,167 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
   },
   60_000
 )
+
+it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
+  'replaces only selected Native histories in cold staging and rolls back an uncommitted admission',
+  async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'dc-dim-replica-'))
+    const options = (name: string) => ({
+      runtimeRoot: path.resolve('runtime/dim'),
+      profileRoot: path.join(root, name),
+      nodeExecutable: path.resolve(
+        'runtime/node',
+        ...(process.platform === 'win32' ? ['node.exe'] : ['bin', 'node'])
+      ),
+      nativePlugins: true
+    })
+    const source = new DimRuntimeSupervisor(options('source'))
+    const target = new DimRuntimeSupervisor(options('target'))
+    const backups = (host: DimRuntimeSupervisor, name: string) =>
+      new DimProfileBackups({
+        ...options(name),
+        temporaryRoot: os.tmpdir(),
+        host,
+        readers: () => {
+          throw new Error('Cold admission must not restore readers')
+        }
+      })
+    const append = async (host: DimRuntimeSupervisor, sessionId: string, text: string) => {
+      const client = await host.start()
+      await client.call('deepchat.host.input', {
+        sessionId,
+        branchId: 'main',
+        mode: 'append',
+        submissionId: randomUUID(),
+        rawBlocks: [],
+        content: [{ type: 'text', text }]
+      })
+      await client.call('deepchat.host.idle', { sessionId, branchId: 'main' })
+    }
+    const history = async (host: DimRuntimeSupervisor, sessionId: string) =>
+      (await host.start()).call('deepchat.storage.history', {
+        sessionId,
+        branchId: 'main',
+        after: '0',
+        limit: 100
+      })
+    try {
+      const client = await source.start()
+      const model = await new DimModelBridge(source).configure({
+        key: 'replica',
+        displayName: 'Replica',
+        connection: {
+          driverKind: 'openai-compatible',
+          baseUrl: 'http://127.0.0.1:1/v1',
+          auth: { type: 'anonymous' }
+        },
+        model: {
+          modelId: 'fixture',
+          displayName: 'Fixture',
+          status: 'active',
+          capabilities: {
+            modalities: ['text'],
+            toolCalling: false,
+            streaming: true,
+            structuredOutput: false,
+            vision: false,
+            audio: false,
+            reasoning: false,
+            contextWindow: 8192,
+            maxOutputTokens: 1024
+          }
+        }
+      })
+      const agent = await new DimAgentProfiles(source).ensure({
+        name: 'Replica',
+        description: '',
+        systemPrompt: 'Replica',
+        tools: []
+      })
+      const ids: string[] = []
+      for (let i = 0; i < 2; i++) {
+        const created = await client.call<{ sessionId: string }>('deepchat.host.launch', {
+          cwd: root,
+          model: { ...model },
+          agent,
+          tools: []
+        })
+        ids.push(created.sessionId)
+        await append(source, created.sessionId, `Common prefix ${i}`)
+      }
+      await source.stop()
+      await mkdir(path.join(root, 'target'), { recursive: true })
+      await cp(path.join(root, 'source/dim'), path.join(root, 'target/dim'), { recursive: true })
+      await append(target, ids[0], 'LOCAL_DIVERGENT')
+      await append(target, ids[1], 'LOCAL_UNRELATED')
+      // Native shutdown publishes its final stop fact. Compare the committed cold baseline.
+      await target.stop()
+      const before = await history(target, ids[0])
+      const unrelated = await history(target, ids[1])
+      await append(source, ids[0], 'REMOTE_WINNER')
+      const attachment = await (
+        await source.start()
+      ).call<{ attachmentId: string }>('attachment.put', {
+        sessionId: ids[0],
+        name: 'winner.txt',
+        text: 'Native replica winner bytes'
+      })
+      const remote = await history(source, ids[0])
+      const incoming = await backups(source, 'source').exportSessions([ids[0]])
+      try {
+        const manifest = await incoming.manifest()
+        for (const commit of [false, true]) {
+          await target.withStopped(async () => {
+            const prepared = await backups(target, 'target').prepareReplica(
+              { directory: incoming.directory, manifest },
+              [ids[0]],
+              [ids[0]]
+            )
+            try {
+              const installed = await prepared.install()
+              if (commit) await installed.commit()
+              else await installed.rollback()
+            } finally {
+              await prepared.dispose()
+            }
+          })
+          expect(await history(target, ids[0])).toEqual(commit ? remote : before)
+          expect(await history(target, ids[1])).toEqual(unrelated)
+        }
+        expect(
+          await readFile(
+            path.join(
+              root,
+              'target/dim/rust/dimcode.sqlite.session-files',
+              attachment.attachmentId,
+              'winner.txt'
+            ),
+            'utf8'
+          )
+        ).toBe('Native replica winner bytes')
+        const identity = JSON.parse(
+          await readFile(path.resolve('runtime/dim/plugins/native-host-lock.json'), 'utf8')
+        )
+        await validateDimProfile(incoming.directory, manifest, identity)
+        expect(await history(source, ids[0])).toEqual(remote)
+        await target.withStopped(async () => {
+          const prepared = await backups(target, 'target').prepareReplica(undefined, [], [ids[0]])
+          try {
+            await (await prepared.install()).commit()
+          } finally {
+            await prepared.dispose()
+          }
+        })
+        await expect(history(target, ids[0])).rejects.toThrow()
+        expect(await history(target, ids[1])).toEqual(unrelated)
+        expect(await history(source, ids[0])).toEqual(remote)
+      } finally {
+        await incoming.dispose()
+      }
+    } finally {
+      await Promise.all([source.stop(), target.stop()])
+      await rm(root, { recursive: true, force: true })
+    }
+  },
+  90_000
+)

@@ -1,6 +1,7 @@
 mod archive;
 mod archive_files;
 mod archive_outputs;
+mod archive_prune;
 mod archive_rebase;
 mod archive_selection;
 mod archive_timeline;

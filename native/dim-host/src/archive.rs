@@ -76,10 +76,22 @@ impl DynPlugin for Archives {
                     ),
                     MethodDecl::new("deepchat.native_archive.rebase", true, Interruption::Report),
                     MethodDecl::new("deepchat.native_archive.export", true, Interruption::Report),
+                    MethodDecl::new("deepchat.native_archive.prune", true, Interruption::Report),
                 ],
                 Arc::new(move |call, cancel, _| {
                     let (files, context, live) = (files.clone(), context.clone(), live.clone());
                     Box::pin(async move {
+                        if call.method.ends_with(".prune") {
+                            return reply(
+                                super::archive_prune::replace(
+                                    &context,
+                                    &files,
+                                    params(call.params)?,
+                                    &cancel,
+                                )
+                                .await?,
+                            );
+                        }
                         if call.method.ends_with(".export") {
                             return reply(
                                 super::archive_transfer::export(
