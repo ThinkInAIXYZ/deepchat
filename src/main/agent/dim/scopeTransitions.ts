@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { realpath } from 'node:fs/promises'
+import { toNamespacedPath } from 'node:path'
 import type { JsonValue } from '@shared/contracts/json'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
 import type { SessionDatabase } from '@/session/data/database'
@@ -106,7 +107,7 @@ export class DimScopeTransitions {
       const tools = (value: string[] | null | undefined) =>
         value ? JSON.stringify([...new Set(value)].sort()) : 'null'
       if (
-        (await realpath(creation.cwd)) === identity.cwd &&
+        toNamespacedPath(await realpath(creation.cwd)) === toNamespacedPath(identity.cwd) &&
         tools(creation.tools) === tools(identity.tools)
       )
         return source
