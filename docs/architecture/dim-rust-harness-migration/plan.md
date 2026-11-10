@@ -160,6 +160,7 @@
 
 ## 模块进度
 
+- 模块 89：大体积媒体配置经 SHA 校验的文件载荷进入 Native Session 方法，外层 Session/branch 路由身份与文件内容必须一致；超过 64 KiB 的设置由原生 SessionFilesHost 分块保存，配置事实和设置回复只保留清单引用，媒体任务按需通过 FileStorage 还原。真实视频请求验证超过 4 MiB 内联阈值的参考图片完整传输、错误路由身份拒绝、临时文件清理及冷恢复后内容 SHA；媒体专项、完整 27 项 Native（260s）、两项 Electron 联合、生产主进程构建、双端类型和格式/i18n/lint 门禁通过。桥更新为 0.37.0，上游 SDK 与 store format 保持原锁定值。
 - 模块 88：已生成图片的原生引用在视觉请求中解析为真实图片字节；请求按 dim 提供方要求使用 user-role 图片部分，原生 Timeline、事件身份和历史内容不变。私有引用从 wire 表示中移除，带提供方 continuation 元数据的文本保持原样；旧 assistant 图片也转换到可表达的请求角色。相同请求视图交给 ProductContextModel 的原生计数器，图片进入预算，声明的 context/output/阈值不变。桥 0.36.0，SDK/依赖/存储格式不变。Rust 预算回归、39 项相关单元、真实视觉 HTTP 发送图片而不泄露私有 URL 的联合用例（21s）、完整 Native 27 项（242s）、release（2m59s）、生产主进程及格式/i18n/lint 通过。实际 Electron 两例（44s）再次验证媒体与聊天/CLI/备份恢复/重启/会话读取/Inspector。模块 86 的六平台原生构建/打包验收全部通过；较新桥的矩阵继续运行。大媒体配置传输与其他产品接线继续实施。
 
 - 模块 87：媒体结果改为 Native SessionFilesHost 拥有的 8 MiB 分块和小清单，复用原生 fork、删除/回收及增量归档的文件生命周期；没有改动 Native SQLite schema 或新增桥内查询。256 MiB 媒体输出不受原生单文件 16 MiB 上限影响，完整 SHA 校验后才向会话返回不可变文件引用。storage 插件通过公开 FileStorage 读取有界内容，桌面缓存支持新引用并保留旧任务引用。真实 Rust 验证 18 MiB 输出、多块读回、图片编辑直接读取原生引用、fork 后删除原会话仍保留文件，以及冷增量导入到无原媒体任务记录的 profile 后完整读回。桥 0.35.0，SDK/依赖/存储格式不变。定向 Native（24s）、完整 27 项 Native（260s）、双端类型、格式/i18n/lint、release（2m53s）与生产主进程通过；缓存/投影补充回归通过。实际 Electron 两例（46s）验证新文件引用呈现、缓存完整性及聊天/CLI/备份恢复/重启/read_session/Inspector。媒体历史送入视觉模型及大配置载荷继续接线。

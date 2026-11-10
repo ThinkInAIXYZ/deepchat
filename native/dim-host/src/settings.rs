@@ -1,6 +1,8 @@
+use crate::media_files::MediaFiles;
+use dim_agent_capabilities::file_storage::FileStorage;
 use dim_agent_capabilities::{
     host::ModelSelectionHost,
-    methods::{Interruption, MethodCall, MethodDecl, RpcError, SessionMethods, params, reply},
+    methods::{Interruption, MethodCall, MethodDecl, RpcError, SessionMethods, reply},
     prompt_state::PromptSnapshot,
     timeline_tree::TreeCommands,
 };
@@ -25,6 +27,8 @@ struct Settings {
     methods: Key<SessionMethods>,
     selection: Key<ModelSelectionHost>,
     creation: Key<SessionConfig>,
+    files: Key<FileStorage>,
+    media: Key<MediaFiles>,
 }
 impl Settings {
     fn new(names: &Names<'_>) -> rutis::Result<Self> {
@@ -33,6 +37,8 @@ impl Settings {
             methods: names.key()?,
             selection: names.key()?,
             creation: names.key()?,
+            files: names.key()?,
+            media: names.key()?,
         })
     }
 }
@@ -46,6 +52,8 @@ impl DynPlugin for Settings {
             self.methods.erase(),
             self.selection.erase(),
             self.creation.erase(),
+            self.files.erase(),
+            self.media.erase(),
         ]
     }
     fn apply<'a>(&'a self, ctx: &'a Ctx) -> BoxFuture<'a, rutis::Result<Effect>> {
@@ -54,6 +62,8 @@ impl DynPlugin for Settings {
             let methods = ctx.require_at(&self.methods)?;
             let selection = ctx.require_at(&self.selection)?;
             let creation = ctx.require_at(&self.creation)?;
+            let files = ctx.require_at(&self.files)?;
+            let media = ctx.require_at(&self.media)?;
             methods.register(
                 ctx,
                 "session.deepchat_native",
@@ -78,6 +88,8 @@ impl DynPlugin for Settings {
                     let tree = tree.clone();
                     let selection = selection.clone();
                     let creation = creation.clone();
+                    let files = files.clone();
+                    let media = media.clone();
                     Box::pin(async move {
                         let MethodCall {
                             method,
@@ -103,7 +115,7 @@ impl DynPlugin for Settings {
                             #[serde(default)]
                             media_options: Option<Value>,
                         }
-                        let p: Params = params(value)?;
+                        let p: Params = crate::payload::decode(value, &files, &cancel).await?;
                         let branch = tree.get(&p.branch_id)?;
                         if method.ends_with(".identity") {
                             return reply(json!({"cwd":creation.cwd,"tools":creation.tools}));
@@ -141,7 +153,7 @@ impl DynPlugin for Settings {
                                         model_id: current.model_id.clone(),
                                     }),
                                     None,
-                                    cancel,
+                                    cancel.clone(),
                                 )
                                 .await
                                 .map_err(|_| {
@@ -178,7 +190,7 @@ impl DynPlugin for Settings {
                         let config = merge(base, patch)?;
                         let mut metadata = current.metadata;
                         if let Some(options) = p.media_options {
-                            if !options.is_object() || options.to_string().len() > 64 * 1024 {
+                            if !options.is_object() {
                                 return Err(RpcError::invalid(
                                     "Invalid media conversation options",
                                 ));
@@ -186,7 +198,12 @@ impl DynPlugin for Settings {
                             metadata
                                 .get_or_insert_with(Default::default)
                                 .extensions
-                                .insert("deepchatMedia".into(), options);
+                                .insert(
+                                    "deepchatMedia".into(),
+                                    media
+                                        .store_options(&p._session_id, options, &cancel)
+                                        .await?,
+                                );
                         }
                         if let Some(mode) = p.product_permission_mode {
                             if !["default", "auto_approve", "full_access"].contains(&mode.as_str())

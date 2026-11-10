@@ -320,6 +320,11 @@ async fn run(
         .and_then(|metadata| metadata.extensions.get("deepchatMedia"))
         .cloned()
         .unwrap_or(Value::Null);
+    let options = state
+        .artifacts
+        .read_options(options, cancel)
+        .await
+        .map_err(|error| HostError::failed(error.message))?;
     let params = match plan.category.as_str() {
         "image" => {
             let mut extra = options["image"].clone();

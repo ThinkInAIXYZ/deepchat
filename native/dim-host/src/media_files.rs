@@ -22,6 +22,7 @@ use tokio_util::sync::CancellationToken;
 const LIMIT: u64 = 256 * 1024 * 1024;
 const CHUNK: usize = 8 * 1024 * 1024;
 const PREFIX: &str = "imgcache://dim_file_";
+const OPTIONS: &str = "application/vnd.deepchat.media-options+json";
 
 pub(crate) struct MediaFiles {
     files: Arc<FileStorage>,
@@ -130,6 +131,79 @@ pub(crate) fn reference(value: &str) -> Option<(String, String)> {
     .then(|| (file.to_owned(), name.to_owned()))
 }
 impl MediaFiles {
+    /// Large per-branch options use the same immutable Session-file ownership as
+    /// media. Model configuration events and settings replies carry only the id.
+    pub(crate) async fn store_options(
+        &self,
+        session: &str,
+        value: serde_json::Value,
+        cancel: &CancellationToken,
+    ) -> Result<serde_json::Value, RpcError> {
+        let bytes = serde_json::to_vec(&value).map_err(|_| invalid())?;
+        if bytes.len() <= 64 * 1024 {
+            return Ok(value);
+        }
+        if bytes.len() as u64 > LIMIT {
+            return Err(invalid());
+        }
+        let mut chunks = Vec::new();
+        for chunk in bytes.chunks(CHUNK) {
+            let stored = self
+                .sessions
+                .0
+                .put(
+                    session.to_owned(),
+                    "media-chunk.bin".into(),
+                    chunk.to_vec(),
+                    cancel.clone(),
+                )
+                .await
+                .map_err(|_| invalid())?;
+            chunks.push(Chunk {
+                file_id: stored.file_id,
+                bytes: stored.bytes,
+                sha256: format!("{:x}", Sha256::digest(chunk)),
+            });
+        }
+        let manifest = Manifest {
+            version: 1,
+            name: "media-options.json".into(),
+            media_type: OPTIONS.into(),
+            bytes: bytes.len() as u64,
+            sha256: format!("{:x}", Sha256::digest(&bytes)),
+            chunks,
+        };
+        let stored = self
+            .sessions
+            .0
+            .put(
+                session.to_owned(),
+                "media.json".into(),
+                serde_json::to_vec(&manifest).map_err(|_| invalid())?,
+                cancel.clone(),
+            )
+            .await
+            .map_err(|_| invalid())?;
+        Ok(json!({"deepchatOptionsFile":stored.file_id}))
+    }
+
+    pub(crate) async fn read_options(
+        &self,
+        value: serde_json::Value,
+        cancel: &CancellationToken,
+    ) -> Result<serde_json::Value, RpcError> {
+        let Some(file) = value
+            .get("deepchatOptionsFile")
+            .and_then(serde_json::Value::as_str)
+        else {
+            return Ok(value);
+        };
+        let (mime, bytes) = self.read(file, cancel).await?;
+        if mime != OPTIONS {
+            return Err(invalid());
+        }
+        serde_json::from_slice(&bytes).map_err(|_| invalid())
+    }
     /// A file is split below the native 16 MiB Session-file limit. Every chunk
     /// and its manifest has native ownership before a conversation receives a link.
     pub(crate) async fn publish(
@@ -276,9 +350,10 @@ impl MediaFiles {
                     || !digest(&chunk.sha256)
             })
             || manifest.chunks.iter().map(|chunk| chunk.bytes).sum::<u64>() != manifest.bytes
-            || !["image/", "audio/", "video/"]
-                .iter()
-                .any(|prefix| manifest.media_type.starts_with(prefix))
+            || (manifest.media_type != OPTIONS
+                && !["image/", "audio/", "video/"]
+                    .iter()
+                    .any(|prefix| manifest.media_type.starts_with(prefix)))
         {
             return Err(invalid());
         }

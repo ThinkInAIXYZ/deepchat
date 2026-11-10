@@ -1,3 +1,4 @@
+import { prepareDimPayload } from './payload'
 import type { JsonValue } from '@shared/contracts/json'
 import type { DimRuntimeSupervisor } from './runtimeSupervisor'
 import type { DimSessionRef } from './sessionConnection'
@@ -33,6 +34,17 @@ export class DimSessionControls {
     params: { [key: string]: JsonValue } = {}
   ): Promise<T> {
     const client = await this.host.start()
+    if (operation === 'native_configure') {
+      const payload = await prepareDimPayload(this.host.payloadRoot, { ...params, ...ref })
+      try {
+        return await client.call('session.deepchat_native.configure', {
+          ...(payload.params as Record<string, JsonValue>),
+          ...ref
+        })
+      } finally {
+        await payload.dispose()
+      }
+    }
     return client.call(
       operation.startsWith('native_')
         ? `session.deepchat_native.${operation.slice(7)}`

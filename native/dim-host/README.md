@@ -91,6 +91,12 @@ the conversation. Options are adopted into native request metadata per branch.
 Input comes from the consumed operator facts at the model request's fixed cut;
 runtime state/rule envelopes and future queued input are excluded. Large input
 frames cross the private gateway by a verified scratch-file reference.
+Large branch options also cross RPC by a verified payload file, with the small
+Session/branch routing identity checked against the file contents. Options above
+64 KiB use native Session-owned chunks and a manifest; configuration facts and
+settings replies contain only the manifest reference. The media driver resolves
+the options through FileStorage when admitting the native task. Fork and archive
+transfer preserve the options with the same ownership as generated media.
 
 Before returning generated media to the conversation, the storage plugin uses
 SessionFilesHost to store immutable 8 MiB chunks and a small manifest. Each chunk

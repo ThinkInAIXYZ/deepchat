@@ -2,6 +2,7 @@ import { captureDimProfile } from '@/agent/dim/profileSnapshot'
 import { DimProfileBackups } from '@/agent/dim/profileBackups'
 import { DimMediaFiles } from '@/agent/dim/mediaFiles'
 import { DimSessionControls } from '@/agent/dim/sessionControls'
+import { prepareDimPayload } from '@/agent/dim/payload'
 import { DimScopes } from '@/agent/dim/scopes'
 import { DimContent } from '@/agent/dim/content'
 import { DimProjectionStore } from '@/agent/dim/projectionStore'
@@ -46,6 +47,9 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
       'base64'
     )
+    const largeReference = Buffer.alloc(4 * 1024 * 1024 + 17, 0x62)
+    png.copy(largeReference)
+    const referenceBase64 = largeReference.toString('base64')
     const video = Buffer.from('native-video-bytes')
     let videoPollHeld = false
     let resumeVideo = false
@@ -224,6 +228,9 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
           .writeHead(200, { 'Content-Type': 'application/json' })
           .end(JSON.stringify({ created: 0, data: [{ b64_json: png.toString('base64') }] }))
       } else if (request.url === '/v1/videos') {
+        if (mediaChat && JSON.parse(body.toString()).prompt === 'native video') {
+          expect(JSON.stringify(JSON.parse(body.toString()))).toContain(referenceBase64)
+        }
         response.writeHead(200, { 'Content-Type': 'application/json' })
         response.end(
           JSON.stringify({
@@ -441,11 +448,56 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
           database.data.newSessionsTable.create(desktopId, 'agent', desktopId, profile)
           database.data.dimSessionBindingsTable.bind(desktopId, created.sessionId)
           const ref = { sessionId: created.sessionId, branchId: 'main' }
-          await client.call('session.deepchat_native.configure', {
-            ...ref,
+          const controls = new DimSessionControls(host)
+          if (modelId === 'sora-2') {
+            const mismatched = await prepareDimPayload(host.payloadRoot, {
+              ...ref,
+              branchId: 'other-branch',
+              mediaOptions: { video: { references: [{ type: 'image', data: referenceBase64 }] } }
+            })
+            try {
+              await expect(
+                client.call('session.deepchat_native.configure', {
+                  ...(mismatched.params as Record<
+                    string,
+                    import('@shared/contracts/json').JsonValue
+                  >),
+                  ...ref
+                })
+              ).rejects.toThrow('Invalid native file payload')
+            } finally {
+              await mismatched.dispose()
+            }
+          }
+          await controls.call('native_configure', ref, {
             config: { temperature: 0.7 },
-            mediaOptions: { speech: { voice: 'alloy', responseFormat: 'wav' } }
+            mediaOptions: {
+              speech: { voice: 'alloy', responseFormat: 'wav' },
+              ...(modelId === 'sora-2'
+                ? {
+                    video: {
+                      references: [{ type: 'image', data: referenceBase64, mimeType: 'image/png' }]
+                    }
+                  }
+                : {})
+            }
           })
+          if (modelId === 'sora-2') {
+            const settings = await controls.call<{
+              metadata: { deepchatMedia: { deepchatOptionsFile: string } }
+            }>('native_settings', ref)
+            expect(JSON.stringify(settings).length).toBeLessThan(64 * 1024)
+            const fileId = settings.metadata.deepchatMedia.deepchatOptionsFile
+            expect(fileId).toBeTypeOf('string')
+            const stored = await new DimMediaFiles(host).describe(fileId)
+            expect(stored).toMatchObject({
+              name: 'media-options.json',
+              mediaType: 'application/vnd.deepchat.media-options+json'
+            })
+            expect(stored.bytes).toBeGreaterThan(4 * 1024 * 1024)
+            expect(await readdir(host.payloadRoot)).toEqual([])
+            artifacts.push({ fileId, bytes: stored.bytes, sha256: stored.sha256 })
+          }
           await client.call('deepchat.host.input', {
             ...ref,
             mode: 'queue',
@@ -508,7 +560,6 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
           if (text === 'native speech large') expect(metadata.bytes).toBe(largeWave.length)
           artifacts.push({ fileId: file.fileId, bytes: metadata.bytes, sha256: metadata.sha256 })
           if (modelId === 'gpt-image-1') {
-            const controls = new DimSessionControls(host)
             const vision = await catalog.admit(provider.id, 'vision-chat')
             await controls.call('set_model', ref, { ...vision })
             await client.call('deepchat.host.input', {

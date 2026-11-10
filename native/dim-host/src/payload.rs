@@ -11,6 +11,10 @@ const MAX_BYTES: usize = 256 * 1024 * 1024;
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct Envelope {
     deepchat_payload: Reference,
+    #[serde(default)]
+    session_id: Option<String>,
+    #[serde(default)]
+    branch_id: Option<String>,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -102,7 +106,20 @@ pub(crate) async fn decode<T: DeserializeOwned>(
     {
         return Err(invalid());
     }
-    serde_json::from_slice(&bytes).map_err(|_| invalid())
+    let value: Value = serde_json::from_slice(&bytes).map_err(|_| invalid())?;
+    // Session-scoped methods must remain routable before file ingress. Their
+    // small outer identity cannot select a different Session or branch inside.
+    for (key, expected) in [
+        ("sessionId", envelope.session_id),
+        ("branchId", envelope.branch_id),
+    ] {
+        if let Some(expected) = expected
+            && value.get(key).and_then(Value::as_str) != Some(expected.as_str())
+        {
+            return Err(invalid());
+        }
+    }
+    serde_json::from_value(value).map_err(|_| invalid())
 }
 
 /// A derived frame payload crosses the plugin boundary by reference, never as a large RPC frame.
