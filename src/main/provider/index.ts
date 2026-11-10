@@ -590,7 +590,7 @@ export class ProviderRuntime
     temperature?: number,
     maxTokens?: number
   ): Promise<string> {
-    if (this.nativeModels)
+    if (this.nativeModels && this.providerSettings.getProviderById(providerId)?.apiType !== 'acp')
       return (await this.nativeCompletion(providerId, modelId, messages, temperature, maxTokens))
         .content
     // Record input messages to the large model
@@ -607,7 +607,7 @@ export class ProviderRuntime
     temperature?: number,
     maxTokens?: number
   ): Promise<LLMResponse> {
-    if (this.nativeModels)
+    if (this.nativeModels && this.providerSettings.getProviderById(providerId)?.apiType !== 'acp')
       return this.nativeCompletion(
         providerId,
         modelId,
@@ -627,7 +627,7 @@ export class ProviderRuntime
     maxTokens?: number,
     options?: Pick<ProviderGenerateTextOptions, 'signal'>
   ): Promise<LLMResponse> {
-    if (this.nativeModels)
+    if (this.nativeModels && this.providerSettings.getProviderById(providerId)?.apiType !== 'acp')
       return this.nativeCompletion(
         providerId,
         modelId,
@@ -650,7 +650,7 @@ export class ProviderRuntime
     maxTokens?: number,
     options?: { signal?: AbortSignal; swallowErrors?: boolean }
   ): Promise<string> {
-    if (this.nativeModels) {
+    if (this.nativeModels && this.providerSettings.getProviderById(providerId)?.apiType !== 'acp') {
       try {
         return (
           await this.nativeCompletion(

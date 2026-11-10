@@ -2252,43 +2252,62 @@ export async function createMainProcessControl(dependencies: {
       ),
     sessionData.pendingInputs
   )
-  agentManager = new AgentManager(agentRepository, appSessionService, {
-    deepchat: createDeepChatAgentBackend({
-      port: dimAgent.backend,
-      transcript: sessionData.transcript,
-      tape: sessionData.tape
-    }),
-    acp: createDirectAcpAgentBackend({
-      runtime: acpAgentRuntime,
-      sessionState: desktopSessionState,
-      transcript: sessionData.transcript,
-      tape: sessionData.tape,
-      deleteDurableSession: async (sessionId) => {
-        await acpSessionPersistence.deleteSessions(sessionId)
-        sessionData.transcript.deleteBySession(sessionId)
-        sessionData.settings.delete(sessionId)
-      },
-      resolveInput: async (sessionId, descriptor) => {
-        const session = appSessionService.get(sessionId)
-        if (!session || resolveAcpAgentAlias(session.agentId) !== descriptor.id) {
-          throw new AgentUnavailableError(descriptor.id, 'invalid-config', 'acp')
+  agentManager = new AgentManager(
+    agentRepository,
+    appSessionService,
+    {
+      deepchat: createDeepChatAgentBackend({
+        port: dimAgent.backend,
+        transcript: sessionData.transcript,
+        tape: sessionData.tape
+      }),
+      acp: createDirectAcpAgentBackend({
+        runtime: acpAgentRuntime,
+        sessionState: desktopSessionState,
+        transcript: sessionData.transcript,
+        tape: sessionData.tape,
+        deleteDurableSession: async (sessionId) => {
+          await acpSessionPersistence.deleteSessions(sessionId)
+          sessionData.transcript.deleteBySession(sessionId)
+          sessionData.settings.delete(sessionId)
+        },
+        resolveInput: async (sessionId, descriptor) => {
+          const session = appSessionService.get(sessionId)
+          const selection = sessionData.settings.get(sessionId)
+          const compatibility =
+            session &&
+            agentRepository.getDeepChatAgentConfig(session.agentId) !== null &&
+            selection?.provider_id === 'acp' &&
+            resolveAcpAgentAlias(selection.model_id) === descriptor.id
+          if (
+            !session ||
+            (resolveAcpAgentAlias(session.agentId) !== descriptor.id && !compatibility)
+          ) {
+            throw new AgentUnavailableError(descriptor.id, 'invalid-config', 'acp')
+          }
+          const agent = (await agentSettings.getAcpAgents()).find(
+            (candidate) => candidate.id === descriptor.id && candidate.source === descriptor.source
+          )
+          if (!agent || !agent.command.trim()) {
+            throw new AgentUnavailableError(descriptor.id, 'invalid-config', 'acp')
+          }
+          return {
+            sessionId: toAppSessionId(session.id),
+            descriptor,
+            agent,
+            scope: session.sessionKind === 'subagent' ? 'subagent' : 'regular',
+            workdir: session.projectDir?.trim() ?? ''
+          }
         }
-        const agent = (await agentSettings.getAcpAgents()).find(
-          (candidate) => candidate.id === descriptor.id && candidate.source === descriptor.source
-        )
-        if (!agent || !agent.command.trim()) {
-          throw new AgentUnavailableError(descriptor.id, 'invalid-config', 'acp')
-        }
-        return {
-          sessionId: toAppSessionId(session.id),
-          descriptor,
-          agent,
-          scope: session.sessionKind === 'subagent' ? 'subagent' : 'regular',
-          workdir: session.projectDir?.trim() ?? ''
-        }
+      })
+    },
+    {
+      compatibilityAcpAgent: (sessionId) => {
+        const selection = sessionData.settings.get(sessionId)
+        return selection?.provider_id === 'acp' ? selection.model_id : undefined
       }
-    })
-  })
+    }
+  )
   dimInspector = new DimTimelineInspector({
     database: sessionData.database,
     host: dimHost,
@@ -2520,7 +2539,19 @@ export async function createMainProcessControl(dependencies: {
         const { handle } = agentManager.resolveSessionHandle(sessionId)
         return {
           kind: handle.kind,
-          initialize: (config) => handle.lifecycle.initialize(config),
+          initialize: async (config) => {
+            if (config.providerId !== 'acp' || handle.kind === 'acp')
+              return handle.lifecycle.initialize(config)
+            const target = agentManager.resolveBackend(config.modelId)
+            if (target.kind !== 'acp')
+              throw new Error('ACP compatibility target is not an ACP agent')
+            if (sessionData.database.dimSessionBindingsTable.get(sessionId))
+              throw new Error('An existing native session cannot be replaced by an ACP client')
+            const selection = { ...config, modelId: target.descriptor.id }
+            await agentManager
+              .resolveSessionHandle(sessionId, target.descriptor.id)
+              .handle.lifecycle.initialize(selection)
+          },
           isInitialized: () => handle.lifecycle.isInitialized(),
           snapshot: () => handle.snapshot(),
           getGenerationSettings: () => handle.settings.getGenerationSettings(),

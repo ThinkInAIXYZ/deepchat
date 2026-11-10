@@ -496,6 +496,23 @@ describe('ProviderRuntime Integration Tests', () => {
       expect(legacy).not.toHaveBeenCalled()
     })
 
+    it('keeps ACP auxiliary calls on the desktop ACP client', async () => {
+      mockProviderSettings.getProviderById = vi
+        .fn()
+        .mockReturnValue({ ...mockProvider, id: 'acp', apiType: 'acp' })
+      const generateText = vi.fn().mockResolvedValue({ content: 'ACP client answer' })
+      vi.spyOn(providerRuntime, 'getProviderInstance').mockReturnValue({ generateText } as never)
+      const complete = vi.fn()
+      providerRuntime.setNativeModels(
+        new DimAuxiliaryModels({ models: { admit: vi.fn() }, bridge: { complete } })
+      )
+      await expect(providerRuntime.generateText('acp', 'question', 'agent')).resolves.toEqual({
+        content: 'ACP client answer'
+      })
+      expect(generateText).toHaveBeenCalledWith('question', 'agent', undefined, undefined)
+      expect(complete).not.toHaveBeenCalled()
+    })
+
     it('propagates native cancellation without falling back to a desktop provider', async () => {
       const controller = new AbortController()
       const complete = vi.fn(async () => {

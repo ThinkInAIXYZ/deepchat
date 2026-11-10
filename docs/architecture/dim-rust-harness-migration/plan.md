@@ -158,6 +158,8 @@
 
 ## 模块进度
 
+- 模块 37：修复旧 DeepChat agent + ACP provider/model 兼容选择的创建与恢复。Manager 根据持久选择解析实际 ACP client descriptor，保留公开 shell agentId；首次初始化显式选择目标 client，设置由 client 单次创建，不进入 dim，不构造旧 Harness。后续发送、取消和恢复都选择 ACP client。目标必须是可执行 ACP agent，初始化不得覆盖已有 Native 绑定。辅助 ACP 文本调用继续使用桌面 ACP client，其余文本模型继续由 Native facade 执行。92 项 Manager/provider/lifecycle 回归、主进程构建、四项实际 Electron ACP/Native 联合验收及 format/i18n/lint/双端 typecheck 通过。现存 Native 会话跨 backend 切换仍需独立 handoff，ACP 资源组装与旧实例继续拆解。
+
 - 模块 36：ACP client 的流消息聚合、刷新、终态、权限展示和请求脱敏改为共享桌面投影，直接依赖独立展示合同，不再导入旧 Harness 的 process/dispatch/types。旧 runtime 下四个纯展示实现及对应兼容入口已物理删除，测试迁至 shared；旧执行器暂时复用共享投影，等待后续整体删除。原方法、权限块、timing、状态、分段输出和脱敏逻辑保持，未增加模型或调度实现。533 项相关回归、主进程构建、format/i18n/lint 和双端 typecheck 通过。Electron 的 ACP 设置、composer warmup 与 Native 聊天/Inspector 三项通过；ACP extensions 用例的 Direct client 问答、用量及 child 展示通过，末段 ACP-as-provider 兼容入口未执行，已定位为主入口切换后的独立缺口，下一模块修复。ACP 的资源组装与旧实例依赖继续拆解。
 
 - 模块 35：主入口 Inspector 查询、详情、导出及 head 订阅切换到 Native Timeline，旧 Tape 仍只读。独立 storage 插件通过 dim 公开 owner 补读固定切点历史和按 event ID 获取详情；产品 SQL 仅保存可重建的有界摘要/分组索引，不持久化请求正文或原始事件副本。Native sequence 保持 u64 字符串，列表数字仅为展示序号；缓存丢失重建更换 epoch，旧翻页与详情游标要求 reset。升级已有 transcript cursor 时先补齐旧前缀，防止实时投影跳过历史；个别和批量工具结果仅产生一次终态分组。保留现有过滤、分页、执行/工具分组、耗时、详情与支持导出，显示原始 Native 事件名和位置。被动查看旧会话不进行迁移。137 项主进程/Inspector 界面回归、10 项真实 Rust smoke、完整 Electron 构建、主进程复构建与聊天/重启/原生详情/Inspector 打开验收通过；最终格式、i18n、lint 与双端 typecheck 通过。Electron 首次在测试 fixture 的 DevTools 初始化阶段遇到 CDP promise 回收，清理该进程后复验 27s 通过。
