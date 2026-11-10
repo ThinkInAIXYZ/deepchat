@@ -346,8 +346,13 @@ import {
   onBeforeUnmount,
   onMounted,
   onUnmounted,
-  inject
+  inject,
+  provide
 } from 'vue'
+import {
+  HTML_RENDER_SECTIONS_KEY,
+  createHtmlRenderSectionCollector
+} from '@/components/mcp/htmlRenderSections'
 import type { JSONContent } from '@tiptap/core'
 import { useI18n } from 'vue-i18n'
 import { useAccessibilitySupport } from '@/composables/useAccessibilitySupport'
@@ -1049,6 +1054,11 @@ const {
   isSessionViewCommitted,
   isCurrentSessionStreaming
 })
+const collectHtmlRenderSections = createHtmlRenderSectionCollector()
+provide(
+  HTML_RENDER_SECTIONS_KEY,
+  computed(() => collectHtmlRenderSections(displayMessages.value))
+)
 const latestAssistantMessageId = computed(() => findLatestAssistantMessageId(displayMessages.value))
 
 const resolveCaptureParentId = (messageId: string, parentId?: string): string | undefined => {

@@ -1963,6 +1963,8 @@ declare module 'vue-i18n' {
       title: string
       interactiveContent: string
       loadError: string
+      pageLoadError: string
+      pageScriptError: string
       retry: string
       fullscreen: string
       pictureInPicture: string

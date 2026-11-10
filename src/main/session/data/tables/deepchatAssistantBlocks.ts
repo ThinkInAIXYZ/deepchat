@@ -3,6 +3,7 @@ import { isDeepStrictEqual } from 'node:util'
 import { BaseTable } from '@/data/baseTable'
 import type { AssistantMessageBlock } from '@shared/types/agent-interface'
 import type { McpAppDescriptor } from '@shared/types/mcp'
+import { HTML_RENDER_SECTION_TOOL_NAME, HTML_RENDER_TOOL_NAME } from '@shared/agentHtmlRenderTool'
 import { toAssistantBlockRowInput, type PersistedBlockExtra } from '../messageContent'
 
 export interface DeepChatAssistantBlockRow {
@@ -258,6 +259,101 @@ export class DeepChatAssistantBlocksTable extends BaseTable {
       }
     }
     return false
+  }
+
+  readHtmlRenderSource(
+    messageId: string,
+    blockId: string
+  ): { title: string; html: string; panelId?: string } | null {
+    for (const row of this.listByMessageId(messageId)) {
+      if (
+        row.block_type !== 'tool_call' ||
+        row.tool_name !== HTML_RENDER_TOOL_NAME ||
+        row.status !== 'success'
+      ) {
+        continue
+      }
+      try {
+        const extra = row.extra_json ? (JSON.parse(row.extra_json) as PersistedBlockExtra) : {}
+        const descriptor = extra.toolCallExtra?.htmlRender
+        if ((extra.id ?? row.tool_call_id) !== blockId || !descriptor) {
+          continue
+        }
+        const params = row.tool_params ? JSON.parse(row.tool_params) : null
+        return typeof params?.html === 'string'
+          ? { title: descriptor.title, html: params.html, panelId: descriptor.panelId }
+          : null
+      } catch {
+        return null
+      }
+    }
+    return null
+  }
+
+  measureHtmlRenderPanel(
+    sessionId: string,
+    panelId: string
+  ): { shellBytes: number; sectionBytes: Map<string, number> } | null {
+    const panel = this.scanHtmlRenderPanel(sessionId, panelId)
+    if (panel.shellHtml === null) return null
+    const sectionBytes = new Map<string, number>()
+    for (const [id, html] of panel.sections) sectionBytes.set(id, Buffer.byteLength(html, 'utf8'))
+    return { shellBytes: Buffer.byteLength(panel.shellHtml, 'utf8'), sectionBytes }
+  }
+
+  listHtmlRenderSections(sessionId: string, panelId: string): Array<{ id: string; html: string }> {
+    return Array.from(this.scanHtmlRenderPanel(sessionId, panelId).sections, ([id, html]) => ({
+      id,
+      html
+    }))
+  }
+
+  private scanHtmlRenderPanel(
+    sessionId: string,
+    panelId: string
+  ): { shellHtml: string | null; sections: Map<string, string> } {
+    const rows = this.db
+      .prepare(
+        `SELECT b.tool_name, b.tool_params, b.extra_json
+         FROM deepchat_assistant_blocks b
+         JOIN deepchat_messages m ON m.id = b.message_id
+         WHERE m.session_id = ? AND b.block_type = 'tool_call' AND b.status = 'success'
+           AND (
+             (b.tool_name = ? AND CASE WHEN json_valid(b.extra_json)
+               THEN json_extract(b.extra_json, '$.toolCallExtra.htmlRender.panelId') END = ?)
+             OR (b.tool_name = ? AND CASE WHEN json_valid(b.tool_params)
+               THEN json_extract(b.tool_params, '$.panelId') END = ?)
+           )
+         ORDER BY m.order_seq, b.block_index`
+      )
+      .all(
+        sessionId,
+        HTML_RENDER_TOOL_NAME,
+        panelId,
+        HTML_RENDER_SECTION_TOOL_NAME,
+        panelId
+      ) as Array<{
+      tool_name: string
+      tool_params: string | null
+      extra_json: string | null
+    }>
+    let shellHtml: string | null = null
+    const sections = new Map<string, string>()
+    for (const row of rows) {
+      try {
+        const params = row.tool_params ? JSON.parse(row.tool_params) : null
+        if (typeof params?.html !== 'string') continue
+        if (row.tool_name === HTML_RENDER_TOOL_NAME) {
+          const extra = row.extra_json ? (JSON.parse(row.extra_json) as PersistedBlockExtra) : {}
+          if (extra.toolCallExtra?.htmlRender?.panelId === panelId) shellHtml = params.html
+        } else if (params.panelId === panelId && typeof params.sectionId === 'string') {
+          sections.set(params.sectionId, params.html)
+        }
+      } catch {
+        continue
+      }
+    }
+    return { shellHtml, sections }
   }
 
   updateMcpAppModelContext(

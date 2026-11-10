@@ -251,3 +251,71 @@ describeIfSqlite('DeepChatAssistantBlocksTable provider replay persistence', () 
     db.close()
   })
 })
+
+describeIfSqlite('DeepChatAssistantBlocksTable html_render panels', () => {
+  const sectionBlock = (index: number, sectionId: string, html: string): AssistantMessageBlock => ({
+    id: `section-${index}`,
+    type: 'tool_call',
+    status: 'success',
+    timestamp: 100 + index,
+    tool_call: {
+      id: `call-section-${index}`,
+      name: 'html_render_section',
+      params: JSON.stringify({ panelId: 'panel-1', sectionId, html }),
+      response: 'ok'
+    }
+  })
+
+  function createTables() {
+    const db = new DatabaseCtor(':memory:')
+    db.exec(
+      'CREATE TABLE deepchat_messages (id TEXT PRIMARY KEY, session_id TEXT NOT NULL, order_seq INTEGER NOT NULL)'
+    )
+    const insertMessage = db.prepare(
+      'INSERT INTO deepchat_messages (id, session_id, order_seq) VALUES (?, ?, ?)'
+    )
+    insertMessage.run('message-1', 'session-1', 1)
+    insertMessage.run('message-2', 'session-1', 2)
+    insertMessage.run('message-other', 'session-2', 1)
+    const table = new DeepChatAssistantBlocksTableCtor(db)
+    table.createTable()
+    return { db, table }
+  }
+
+  it('measures the shell plus the latest version of each section in the same session', () => {
+    const { db, table } = createTables()
+    table.replaceForMessage('message-1', [
+      {
+        id: 'shell',
+        type: 'tool_call',
+        status: 'success',
+        timestamp: 100,
+        tool_call: {
+          id: 'call-shell',
+          name: 'html_render',
+          params: JSON.stringify({ title: 'Report', html: '<main>12345</main>' }),
+          response: 'ok',
+          htmlRender: { schemaVersion: 1, title: 'Report', panelId: 'panel-1' }
+        }
+      },
+      sectionBlock(1, 'a', 'aaaa')
+    ])
+    table.replaceForMessage('message-2', [sectionBlock(2, 'b', 'bb'), sectionBlock(3, 'a', 'a')])
+    table.replaceForMessage('message-other', [sectionBlock(4, 'c', 'cccccccc')])
+
+    expect(table.measureHtmlRenderPanel('session-1', 'panel-1')).toEqual({
+      shellBytes: 18,
+      sectionBytes: new Map([
+        ['a', 1],
+        ['b', 2]
+      ])
+    })
+    expect(table.measureHtmlRenderPanel('session-2', 'panel-1')).toBeNull()
+    expect(table.listHtmlRenderSections('session-1', 'panel-1')).toEqual([
+      { id: 'a', html: 'a' },
+      { id: 'b', html: 'bb' }
+    ])
+
+    db.close()
+  })
+})

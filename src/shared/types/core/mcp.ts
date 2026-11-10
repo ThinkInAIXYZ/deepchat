@@ -243,6 +243,13 @@ export interface McpAppDescriptor {
   resourceMimeType: string
 }
 
+export interface HtmlRenderDescriptor {
+  schemaVersion: 1
+  title: string
+  height?: number
+  panelId?: string
+}
+
 export interface McpAppModelContext {
   content?: MCPContentItem[]
   structuredContent?: Record<string, unknown>
@@ -280,6 +287,7 @@ export interface MCPToolResponse {
   toolResult?: unknown
   outputOffloadPath?: string
   imagePreviews?: ToolCallImagePreview[]
+  htmlRender?: HtmlRenderDescriptor
   requiresPermission?: boolean
   permissionRequest?: {
     toolName: string

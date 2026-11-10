@@ -95,7 +95,7 @@
                 :message-id="currentMessage.id"
                 :thread-id="currentThreadId"
                 :read-only="isReadOnly"
-                :render-mode="item.block.tool_call?.mcpResult?.app ? 'tool-only' : 'full'"
+                :render-mode="hasInlineView(item.block) ? 'tool-only' : 'full'"
                 :initially-expanded="manuallyExpandedBlockKeys.has(item.key)"
                 :permission-status="
                   item.block.tool_call?.id
@@ -266,7 +266,11 @@ import MessageBlockAudio from './MessageBlockAudio.vue'
 import MessageBlockVideo from './MessageBlockVideo.vue'
 import MessageBlockActivityGroup from './MessageBlockActivityGroup.vue'
 import MessageBlockSearch from './MessageBlockSearch.vue'
-import { buildAssistantRenderItems, isProviderSearchBlock } from './messageActivityGroups'
+import {
+  buildAssistantRenderItems,
+  hasInlineView,
+  isProviderSearchBlock
+} from './messageActivityGroups'
 
 import {
   Dialog,

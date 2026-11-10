@@ -17,7 +17,7 @@ import type {
   DeepChatAgentConfig,
   UpdateDeepChatAgentInput
 } from '@shared/types/agent-interface'
-import { DEFAULT_DISABLED_AGENT_TOOLS } from '@shared/agentTools'
+import { DEFAULT_DISABLED_AGENT_TOOLS, HTML_RENDER_AGENT_TOOL_NAMES } from '@shared/agentTools'
 import { normalizeDeepChatSubagentConfig } from '@shared/lib/deepchatSubagents'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import type { SettingsStore } from '@/config/settingsStore'
@@ -32,6 +32,7 @@ import { AgentRepository, BUILTIN_DEEPCHAT_AGENT_ID } from '@/agent/repository'
 import type { AgentLifecycleGatePort } from '@/agent/lifecycleGate'
 
 const UNIFIED_AGENTS_MIGRATION_VERSION = 3
+const HTML_RENDER_TOOLS_SEEDED_KEY = 'htmlRenderToolsSeeded'
 const PENDING_AGENT_SKILL_CLEANUP_KEY = 'pendingAgentSkillCleanupIds'
 const DEPRECATED_BUILTIN_PROVIDER_IDS = ['qwenlm', 'laoshi'] as const
 const MEMORY_MAINTENANCE_TRIGGER_CONFIG_KEYS: readonly (keyof DeepChatAgentConfig)[] = [
@@ -218,6 +219,7 @@ export class AgentSettings implements AgentSettingsPort {
         logger.warn('[AgentSettings] Failed to materialize independent Agent configs.', { error })
       }
     }
+    this.seedHtmlRenderToolsDisabled()
     this.provider.setAcpProviderEnabled(this.acpCatalog.getGlobalEnabled())
     const previousAgents = this.registry.listAgents()
     void this.registry
@@ -484,6 +486,7 @@ export class AgentSettings implements AgentSettingsPort {
       ...input,
       config: {
         ...config,
+        disabledAgentTools: config.disabledAgentTools ?? [...DEFAULT_DISABLED_AGENT_TOOLS],
         autoCompactionEnabled:
           config.autoCompactionEnabled ??
           this.settings.get<boolean>('autoCompactionEnabled') ??
@@ -747,6 +750,20 @@ export class AgentSettings implements AgentSettingsPort {
       this.settings.set('unifiedAgentsMigrationVersion', migratedVersion)
     }
     if (!registryAgentsSynced) this.syncRegistryAgentsToRepository()
+  }
+
+  // Runs after Agent configs are independent, where a missing list means every tool is enabled.
+  // Sessions keep the tool list they started with.
+  private seedHtmlRenderToolsDisabled(): void {
+    if (this.settings.get<boolean>(HTML_RENDER_TOOLS_SEEDED_KEY)) return
+    for (const agent of this.repository.listAgents({ agentType: 'deepchat' })) {
+      const current = this.repository.getDeepChatAgentConfig(agent.id)?.disabledAgentTools ?? []
+      const disabledAgentTools = Array.from(new Set([...current, ...HTML_RENDER_AGENT_TOOL_NAMES]))
+      if (disabledAgentTools.length !== current.length) {
+        this.repository.updateDeepChatAgent(agent.id, { config: { disabledAgentTools } })
+      }
+    }
+    this.settings.set(HTML_RENDER_TOOLS_SEEDED_KEY, true)
   }
 
   private materializeIndependentDeepChatAgentConfigs(): void {

@@ -641,6 +641,21 @@ describe('buildContext', () => {
     ])
   })
 
+  it('replays html_render calls without their HTML', () => {
+    const record = makeAssistantErrorWithToolRecord(2, 'Rendering', 'panelId: p1', 'stopped')
+    const blocks = JSON.parse(record.content)
+    blocks[1].tool_call.name = 'html_render'
+    blocks[1].tool_call.params = JSON.stringify({ title: 'Chart', html: '<p>chart</p>' })
+    record.content = JSON.stringify(blocks)
+    const store = createMockMessageStore([makeUserRecord(1, 'chart it'), record])
+    const result = buildContext('s1', { text: 'continue', files: [] }, '', 10000, 4096, store)
+
+    expect(JSON.parse(result[1].tool_calls![0].function.arguments)).toEqual({
+      title: 'Chart',
+      html: '[omitted from context: 12 characters; send the full HTML again to change it]'
+    })
+  })
+
   it('replays settled tool calls before appending terminal failure context', () => {
     const messages = [
       makeUserRecord(1, 'use a tool'),

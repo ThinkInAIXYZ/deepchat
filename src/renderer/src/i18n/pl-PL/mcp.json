@@ -319,6 +319,8 @@
     "title": "MCP App",
     "interactiveContent": "Interaktywna zawartość z serwera MCP",
     "loadError": "Nie można załadować tej aplikacji MCP.",
+    "pageLoadError": "Nie można wyświetlić tej strony.",
+    "pageScriptError": "Części tej strony nie udało się uruchomić.",
     "retry": "Ponów próbę",
     "fullscreen": "Otwórz na pełnym ekranie",
     "pictureInPicture": "Otwórz obraz w obrazie",

@@ -268,6 +268,7 @@ export interface MCPToolResponse {
   toolResult?: unknown
   outputOffloadPath?: string
   imagePreviews?: import('./core/mcp').ToolCallImagePreview[]
+  htmlRender?: import('./core/mcp').HtmlRenderDescriptor
   requiresPermission?: boolean
   permissionRequest?: {
     toolName: string
@@ -430,6 +431,15 @@ export interface McpAppHostPort {
     input: { kind: HostViewKind },
     context: { webContentsId: number; windowId: number | null }
   ): Promise<McpHostPreparedView>
+  prepareHtmlRenderView(
+    input: { conversationId: string; messageId: string; blockId: string },
+    context: { webContentsId: number; windowId: number | null }
+  ): Promise<McpHostPreparedView>
+  readHtmlRenderSections(input: {
+    conversationId: string
+    messageId: string
+    blockId: string
+  }): Promise<Array<{ id: string; html: string }>>
   releaseView(
     instanceId: string,
     context: { webContentsId: number; windowId: number | null }
