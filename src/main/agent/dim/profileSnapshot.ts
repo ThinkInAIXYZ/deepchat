@@ -18,7 +18,10 @@ export interface DimProfileSnapshot {
   dispose(): Promise<void>
 }
 
-const transient = 'deepchat-plugin-rows.json'
+const transient = (value: string) =>
+  value === 'deepchat-plugin-rows.json' ||
+  value === 'rust/deepchat-payloads' ||
+  value.startsWith('rust/deepchat-payloads/')
 
 function relativeFile(value: string): void {
   if (
@@ -36,7 +39,7 @@ async function filesAt(root: string, prefix = '', excludeTransient = false): Pro
   for (const entry of await readdir(path.join(root, prefix), { withFileTypes: true })) {
     const relative = prefix ? `${prefix}/${entry.name}` : entry.name
     relativeFile(relative)
-    if (excludeTransient && relative === transient) continue
+    if (excludeTransient && transient(relative)) continue
     if (entry.isDirectory()) files.push(...(await filesAt(root, relative, excludeTransient)))
     else if (entry.isFile()) files.push(relative)
     else throw new Error('Native profile contains an unsupported filesystem entry')
@@ -135,7 +138,7 @@ export async function validateDimProfile(
     if (!file || typeof file.path !== 'string') throw new Error('Invalid native profile file')
     relativeFile(file.path)
     if (
-      file.path === transient ||
+      transient(file.path) ||
       expected.has(file.path) ||
       !Number.isSafeInteger(file.size) ||
       file.size < 0 ||

@@ -23,6 +23,8 @@ it('captures an immutable opaque profile including WAL and native files, excludi
     await writeFile(path.join(profile, 'files', 'immutable'), 'immutable native attachment')
     await chmod(path.join(profile, 'files', 'immutable'), 0o400)
     await writeFile(path.join(profile, 'deepchat-plugin-rows.json'), 'private socket addresses')
+    await mkdir(path.join(profile, 'rust/deepchat-payloads'), { recursive: true })
+    await writeFile(path.join(profile, 'rust/deepchat-payloads/stale.json'), 'ephemeral request')
     const captured = await captureDimProfile(profile, root, identity)
     try {
       await writeFile(path.join(profile, 'dimcode.sqlite'), 'live database changed')

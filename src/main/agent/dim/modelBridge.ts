@@ -1,6 +1,7 @@
 import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import type { JsonValue } from '@shared/contracts/json'
 import type { DimRuntimeSupervisor } from './runtimeSupervisor'
+import { prepareDimPayload } from './payload'
 
 type JsonObject = { [key: string]: JsonValue }
 export interface DimModelId {
@@ -133,18 +134,15 @@ export class DimModelBridge {
     client.on('notification', notice)
     signal?.addEventListener('abort', cancel, { once: true })
     let operation: Promise<unknown> | undefined
+    let payload: Awaited<ReturnType<typeof prepareDimPayload>> | undefined
     try {
       signal?.throwIfAborted()
+      const value = { model, request, config: config ?? {} } as unknown as JsonValue
+      payload = this.host.usesNativePlugins
+        ? await prepareDimPayload(this.host.payloadRoot, value, signal)
+        : { params: value, dispose: async () => {} }
       operation = client
-        .call<{ eventCount: string }>(
-          'deepchat.native.stream',
-          {
-            model,
-            request,
-            config: config ?? {}
-          } as unknown as JsonValue,
-          30 * 60 * 1000
-        )
+        .call<{ eventCount: string }>('deepchat.native.stream', payload.params, 30 * 60 * 1000)
         .then(
           (reply) => {
             if (reply.eventCount !== String(received))
@@ -176,7 +174,11 @@ export class DimModelBridge {
       signal?.removeEventListener('abort', cancel)
       client.off('notification', notice)
       client.close()
-      await operation
+      try {
+        await operation
+      } finally {
+        await payload?.dispose()
+      }
     }
   }
 
@@ -190,11 +192,20 @@ export class DimModelBridge {
     const client = await this.host.openConnection()
     const cancel = () => client.close()
     signal?.addEventListener('abort', cancel, { once: true })
+    let payload: Awaited<ReturnType<typeof prepareDimPayload>> | undefined
     try {
       signal?.throwIfAborted()
+      if (this.host.usesNativePlugins) {
+        payload = await prepareDimPayload(
+          this.host.payloadRoot,
+          { model, request, config: config ?? {} } as unknown as JsonValue,
+          signal
+        )
+      }
       return await client.call(
-        config ? 'deepchat.native.complete' : 'deepchat.model.complete',
-        { model, request, ...(config ? { config } : {}) } as unknown as JsonValue,
+        payload || config ? 'deepchat.native.complete' : 'deepchat.model.complete',
+        payload?.params ??
+          ({ model, request, ...(config ? { config } : {}) } as unknown as JsonValue),
         30 * 60 * 1000
       )
     } catch (error) {
@@ -203,6 +214,7 @@ export class DimModelBridge {
     } finally {
       signal?.removeEventListener('abort', cancel)
       client.close()
+      await payload?.dispose()
     }
   }
 }

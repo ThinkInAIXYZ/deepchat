@@ -2,8 +2,9 @@
 //! retries, cancellation and inference remain dim's native operations.
 use dim_agent_capabilities::{
     auxiliary_model::{self, AuxiliaryTarget},
+    file_storage::FileStorage,
     host::{AuxiliaryRequest, ModelHost, ModelSelectionHost, ProviderConnectionResolver},
-    methods::{Interruption, MethodDecl, RpcError, params, reply},
+    methods::{Interruption, MethodDecl, RpcError, reply},
 };
 use dim_agent_runtime::{AgentBuilder, Names};
 use dim_agent_types::{ModelConfig, ModelId};
@@ -12,7 +13,14 @@ use rutis::Ctx;
 use rutis::host::{BoxFuture, CtxHost, DynPlugin, Effect, Key, TypeKey};
 use serde::Deserialize;
 use serde_json::json;
-use std::{future::pending, sync::{Arc, atomic::{AtomicU64, Ordering}}, time::Instant};
+use std::{
+    future::pending,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
+    time::Instant,
+};
 
 pub const SOURCE_REVISION: &str = "0423b321abc923900525d79d030fd690110f91c4";
 
@@ -56,6 +64,8 @@ impl DynPlugin for Models {
             self.selection.erase(),
             self.connection.erase(),
             self.host.erase(),
+            TypeKey::of::<FileStorage>(),
+            TypeKey::of::<dim_app_server::storage::SqliteStorage>(),
         ]
     }
     fn apply<'a>(&'a self, ctx: &'a Ctx) -> BoxFuture<'a, rutis::Result<Effect>> {
@@ -64,7 +74,10 @@ impl DynPlugin for Models {
             let selection = ctx.require_at(&self.selection)?;
             let connection = ctx.require_at(&self.connection)?;
             let host = ctx.require_at(&self.host)?;
-            let mut streaming = MethodDecl::new("deepchat.native.stream", false, Interruption::Report);
+            let files = ctx.require::<FileStorage>()?;
+            super::payload::cleanup()?;
+            let mut streaming =
+                MethodDecl::new("deepchat.native.stream", false, Interruption::Report);
             streaming.progress = true;
             methods.register(ctx, "deepchat.native", vec![
                 streaming,
@@ -72,6 +85,7 @@ impl DynPlugin for Models {
                 MethodDecl::new("deepchat.native.complete", false, Interruption::Report),
             ], Arc::new(move |call, cancel, progress| {
                 let (selection, connection, host) = (selection.clone(), connection.clone(), host.clone());
+                let files=files.clone();
                 Box::pin(async move {
                     if call.method.ends_with(".capabilities") {
                         return reply(json!({
@@ -83,7 +97,7 @@ impl DynPlugin for Models {
                     }
                     let streaming = call.method.ends_with(".stream");
                     let count = Arc::new(AtomicU64::new(0));
-                    let input: Complete = params(call.params)?;
+                    let input: Complete = super::payload::decode(call.params,&files,&cancel).await?;
                     auxiliary_model::check(&input.request)
                         .map_err(|_| RpcError::invalid("Invalid auxiliary request"))?;
                     super::settings::validate(&input.config)?;

@@ -9,6 +9,7 @@ mod memory;
 mod migration;
 mod model_stream;
 mod models;
+mod payload;
 mod permissions;
 mod profile;
 mod product_tools;
@@ -20,6 +21,7 @@ mod storage;
 mod video_compat;
 static CONTEXT_ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
 static GATEWAY: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+static PAYLOAD_ROOT: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
 
 fn install(builder: &mut dim_agent_runtime::AgentBuilder) {
     dim_session_title::install(builder);
@@ -79,6 +81,9 @@ fn main() {
     }
     let _ = CONTEXT_ENABLED.set(context_enabled);
     let _ = GATEWAY.set(gateway);
+    if let Some(pair) = forwarded.windows(2).find(|pair| pair[0] == "--home") {
+        let _ = PAYLOAD_ROOT.set(std::path::PathBuf::from(&pair[1]).join("deepchat-payloads"));
+    }
     if let Err(error) = dim_app_server::cli::process_entry(forwarded, None, install) {
         eprintln!("dim host failed: {error}");
         std::process::exit(1);

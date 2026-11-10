@@ -71,7 +71,13 @@ than a cross-language editing service, so this row uses the private local host e
 fixed `provider.management` / `provider.create` operations. It exposes no arbitrary RPC relay.
 
 `DimModelBridge` configures immutable native connection/model identities, then uses them in agent
-launches and auxiliary requests. Credentials go through the native provider's configuration
+launches and auxiliary requests. The native host handles auxiliary completions and streams directly.
+Requests above 4 MiB use a private file envelope under `<userData>/dim/rust/deepchat-payloads`,
+bounded at 256 MiB of JSON. The plugin reads through dim's public FileStorage owner and validates the
+UUID, byte length and SHA-256 before inference; RPC frames keep their existing 16 MiB bound. The desktop removes
+the transport file on completion/cancellation, the native startup clears prior-process remnants,
+and profile backups exclude this transient directory. The provider still receives the original bytes.
+Credentials go through the native provider's configuration
 boundary, never plugin row configuration or timeline content. These identities do not alter
 native OAuth accounts. Retained native provider records and credentials follow dim's store
 lifecycle; wiring desktop credential policy and all provider settings remains part of integration.

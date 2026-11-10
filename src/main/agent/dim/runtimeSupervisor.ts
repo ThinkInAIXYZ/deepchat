@@ -42,6 +42,9 @@ export class DimRuntimeSupervisor {
   get usesNativePlugins(): boolean {
     return this.options.nativePlugins === true
   }
+  get payloadRoot(): string {
+    return path.resolve(this.options.profileRoot, 'dim/rust/deepchat-payloads')
+  }
 
   start(): Promise<DimPluginClient> {
     if (this.recoveryFailure) return Promise.reject(this.recoveryFailure)
@@ -203,6 +206,7 @@ export class DimRuntimeSupervisor {
       throw new Error('Invalid dim plugin runtime path')
     const home = path.resolve(profileRoot, 'dim')
     await mkdir(home, { recursive: true, mode: 0o700 })
+    if (native) await mkdir(this.payloadRoot, { recursive: true, mode: 0o700 })
     const rowsFile = path.join(home, 'deepchat-plugin-rows.json')
     let address: string
     if (process.platform === 'win32') address = `\\\\.\\pipe\\deepchat-dim-${randomUUID()}`
