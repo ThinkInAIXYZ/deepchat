@@ -120,13 +120,17 @@ export async function packageDimAssets(context, resourcesDir) {
       cwd: projectDir,
       label: 'dim native host'
     })
-    await signMacHelper({
-      appPath: runtime.node,
-      entitlementsPath: path.join(projectDir, 'build/entitlements.mac.plist'),
-      purpose,
-      cwd: projectDir,
-      label: 'dim Node runtime'
-    })
+    // Verification apps are unsigned. Keep Node's original distribution signature
+    // and digest so OCR can validate it without relying on an enclosing app seal.
+    if (purpose !== 'verification') {
+      await signMacHelper({
+        appPath: runtime.node,
+        entitlementsPath: path.join(projectDir, 'build/entitlements.mac.plist'),
+        purpose,
+        cwd: projectDir,
+        label: 'dim Node runtime'
+      })
+    }
     runtime.manifest.sha256 = hash(await readFile(runtime.native))
     runtime.nodeSha256 = hash(await readFile(runtime.node))
     // OCR retains the original distribution digest and validates signed mutations

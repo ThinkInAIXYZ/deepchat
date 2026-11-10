@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "expectedDelta": {
     "baselineCommit": "dfb4ba0f34c008c27cfb6bd98a08fdbd36f7b343",
-    "bytes": 0
+    "bytes": 83886080
   },
   "targets": {
     "win32-x64": {

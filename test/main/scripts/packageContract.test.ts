@@ -740,6 +740,20 @@ describe('package-size contract', () => {
     ).toThrow(/invalid limits/)
   })
 
+  it('admits a measured runtime addition only against its pinned pre-runtime baseline', () => {
+    const policy = createDefaultPackageSizePolicy()
+    expect(() => validatePackageSizePolicy(policy)).not.toThrow()
+    expect(resolvePackageSizeExpectedDelta(policy, policy.expectedDelta.baselineCommit)).toBe(
+      80 * 1024 * 1024
+    )
+    expect(resolvePackageSizeExpectedDelta(policy, 'f'.repeat(40))).toBe(0)
+    policy.expectedDelta.bytes = Number.MAX_SAFE_INTEGER + 1
+    expect(() => validatePackageSizePolicy(policy)).toThrow()
+    expect(() =>
+      resolvePackageSizeExpectedDelta(policy, policy.expectedDelta.baselineCommit)
+    ).toThrow()
+  })
+
   it('rejects installer-size report limits that do not match policy', () => {
     const definition = getTargetDefinition('win32-x64')
     const policy = createDefaultPackageSizePolicy()

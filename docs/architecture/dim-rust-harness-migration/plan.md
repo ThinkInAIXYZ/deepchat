@@ -160,6 +160,8 @@
 
 ## 模块进度
 
+- 模块 65 runner 实测修正：Linux x64/ARM64 的 Native、实际打包、包内无网络 dim 与 OCR 均通过，安装包体积门禁发现旧 1.1.0-beta.4 基线不含 Rust runtime。x64 新增 dim 组件 gzip 77,296,084 字节，安装包实际增长 145.02 MiB，归档 138.51 MiB；据此显式记录 80 MiB 的新增组件预期，原有 90/112 MiB 剩余波动预算与 dim 独立 84 MiB 上限保留。macOS ARM64 的 Native/离线 dim 通过后，OCR 揭示未签名 verification 应用内的共享 Node 被重签，无法使用 enclosing-app seal；verification 现保留原 Node 分发字节与签名，distribution 仍重签并校验所属团队。Windows x64 原生 19/20 通过，仅问题弹窗投影断言失败：保留原 5s 断言，补 Native 问题/事件种类诊断，不输出请求正文与凭据。Rust 编译缓存改在 smoke 前保存，避免单个运行时断言丢弃已完成构建；每次仍重新 build --locked 并完整验收。
+
 - 模块 72：备份记录原 Native home；独立空 profile 协调器在应用启动屏障内，通过 storage 插件对 staging 执行 SessionStore 输出归属重定位，未恢复任何 Agent，不发模型请求。原始 Timeline 不修改，恢复后的删除不触碰原 profile 文件。命令输出合并经 Native FileStorage 以 64 KiB 分块复制并比较已有文件 hash，保留原目录下的相对身份；内部 grant 与 context 路径按目标位置恢复。已验证真实 262,161 字节输出合并、跨目录覆盖恢复、目标删除与源文件保留，以及已有媒体/历史合并两项 Native 用例；9 项相关单元、Rust check、双端类型/门禁通过。桥 0.22.0 release 构建、完整 Native 20 项（172s）、Electron 联合验收（34s）通过。桌面离线恢复 fixture 改为使用真实 Native 协调器，验证包括故障回滚与重启续聊。SDK 只读会创建 WAL/SHM 的事实由临时工作副本隔离，原始校验清单不放宽。产品增量/实时同步仍继续接线。
 
 - 模块 71：Native FileStorage 复制原生不可变会话附件并比较已有文件字节，再交给 SessionStore 原生归属写入器接纳原 file ID；原 schema、共享归属与孤儿清理器保留，插件不写 native SQL。SDK 两个固定扩展分别 hash 校验并固定 LF 检出，桥 0.21.0。storage scope 发布当前归属路径，上下文追加当前会话文件目录根，不修改历史绝对路径或扩大权限。实际跨目录文件/原始历史/重复合并/重启、孤儿删除而附件保留、目标侧模型恢复后续聊及源 DB hash 不变通过（23s）；31 项相关回归和双端类型/门禁通过。release 构建、完整 20 项 Native（169s）通过；Electron 联合验收通过（39s）。综合桌面用例原 30s 上限两次在末段重启触发，60s 诊断全部完成后，为包含 CLI/备份回滚/重启的单一流程设置 60s 总预算，各界面断言时限不变，标准命令复验 36s 完成。命令输出归属重定位与产品增量导入继续实施。

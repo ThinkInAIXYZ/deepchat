@@ -191,3 +191,21 @@ it('records signed native and Node digests before the app is sealed, preserving 
     nodeSha256: manifest.nodeSha256
   })
 })
+
+it('preserves the original shared Node in unsigned macOS verification packages', async () => {
+  vi.stubEnv('PACKAGE_PURPOSE', 'verification')
+  try {
+    const f = await fixture('darwin-arm64')
+    await packageDimAssets(
+      { electronPlatformName: 'darwin', arch: 'arm64', packager: { projectDir: f.root } },
+      f.resources
+    )
+    expect(hash(await readFile(f.node))).toBe(hash(binary('darwin-arm64')))
+    const manifest = JSON.parse(await readFile(path.join(f.directory, 'manifest.json'), 'utf8'))
+    expect(manifest.sha256).not.toBe(f.manifest.sha256)
+    expect(manifest.nodeSha256).toBe(hash(binary('darwin-arm64')))
+    await expect(verifyDimRuntime(f.options)).resolves.toBeDefined()
+  } finally {
+    vi.unstubAllEnvs()
+  }
+})
