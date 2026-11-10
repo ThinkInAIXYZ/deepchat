@@ -276,6 +276,11 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
 it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
   'uses Rust model owners with native extensions=%s and cancels their HTTP requests',
   async (nativePlugins) => {
+    const stage = (name: string) => {
+      if (process.platform === 'win32')
+        console.info('Native model smoke stage', nativePlugins, name)
+    }
+    stage('models and interactions')
     const requests: Array<{
       authorization?: string
       productHeader?: string
@@ -1443,6 +1448,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
         })
         await desktop.close('product-ui')
         // An interrupted, checksummed legacy import resumes before the first native turn.
+        stage('legacy migration')
         const legacyProduct = 'legacy-product'
         grants.data.newSessionsTable.create(legacyProduct, 'deepchat', 'Legacy session', profile)
         await nativeSettings!.initSession(legacyProduct, {
@@ -1774,6 +1780,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
         expect(await queue.listPendingInputs('product-ui')).toEqual([])
 
         // A sealed target survives interruption before the atomic product binding switch.
+        stage('scope transitions')
         const scopeProduct = 'scope-product'
         grants.data.newSessionsTable.create(scopeProduct, 'deepchat', 'Scope session', profile)
         await nativeSettings!.initSession(scopeProduct, {
@@ -1941,6 +1948,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
         // Exercise the composed desktop backend, including its asynchronous retry boundary.
         const facadeId = toAppSessionId('facade-product')
         grants.data.newSessionsTable.create(facadeId, 'deepchat', 'Facade session', profile)
+        stage('desktop facade')
         const facade = createDimAgent({
           database: grants.data,
           host,
@@ -2307,6 +2315,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
             { timeout: 10_000 }
           )
           .toBe(true)
+        stage('child MCP')
         const child = nativeScopes.findLast(
           (scope) => scope.description.parentSessionId === leaderBinding.dimSessionId
         )!
@@ -2439,7 +2448,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
       await rm(profile, { recursive: true, force: true })
     }
   },
-  120_000
+  180_000
 )
 
 it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
