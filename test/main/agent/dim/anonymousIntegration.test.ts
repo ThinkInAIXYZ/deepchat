@@ -144,7 +144,20 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
       await expect(complete()).rejects.toThrow()
       expect(calls).toBe(1)
       provider.baseUrl = originalUrl
-      await host.stop()
+      const previous = await host.start()
+      let queuedStart!: ReturnType<DimRuntimeSupervisor['start']>
+      let restarted = false
+      await host.withStopped(async () => {
+        queuedStart = host.start().then((client) => {
+          restarted = true
+          return client
+        })
+        await expect(previous.call('deepchat.native.capabilities')).rejects.toThrow('disconnected')
+        await readdir(path.join(profile, 'dim', 'rust'))
+        expect(restarted).toBe(false)
+      })
+      await queuedStart
+      expect(restarted).toBe(true)
       expect((await complete()).text).toBe('anonymous native answer')
       expect(calls).toBe(2)
       expect(grants).toBeGreaterThanOrEqual(5)

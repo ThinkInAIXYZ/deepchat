@@ -227,6 +227,24 @@ test('desktop chat uses persistent native dim sessions @smoke', async ({ app, la
     expect(names.length).toBeGreaterThan(0)
     expect(names).not.toContain('run_code')
     expect(names).not.toContain('tool_search')
+    const failedImport = await app.page.evaluate(
+      async (folderPath) => {
+        await window.deepchat.invoke('config.updateSyncSettings', { enabled: false, folderPath })
+        return window.deepchat.invoke('sync.import', {
+          backupFile: 'backup-0.zip',
+          mode: 'increment'
+        })
+      },
+      path.join(app.userDataDir, 'missing-maintenance-backups')
+    )
+    expect(failedImport.result.success).toBe(false)
+    const afterMaintenance = await app.page.evaluate(
+      (id) => window.deepchat.invoke('sessions.listMessagesPage', { sessionId: id }),
+      sessionId
+    )
+    expect(afterMaintenance.messages.map((message) => message.id)).toEqual(
+      firstPage.messages.map((message) => message.id)
+    )
     await app.close()
     const reopened = await launchApp()
     await waitForAppReady(reopened.page)

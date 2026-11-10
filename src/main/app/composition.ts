@@ -3962,24 +3962,31 @@ export async function createMainProcessControl(dependencies: {
         )
       }
       await suspendSessionRuntimes()
-      await dimHost.stop()
-      operationResult = await operation({
-        getDatabasePath: () => mainDatabase.getDatabasePath(),
-        checkpointAndClose: () => {
-          const database = mainDatabase.getDatabase()
-          if (database.open) {
-            database.pragma('wal_checkpoint(TRUNCATE)')
-          }
-          mainDatabase.close()
-        },
-        close: () => mainDatabase.close(),
-        reopen: () => reopenApplicationDatabase(),
-        reopenWithPassword: (password) => {
-          mainDatabase.reopenWithPassword(password)
-        },
-        isOpen: () => mainDatabase.getDatabase().open,
-        importLegacyChatDb: (sourceDbPath, mode) =>
-          legacyChatImportService.importFromSourceDb(sourceDbPath, mode)
+      await dimHost.withStopped(async () => {
+        try {
+          operationResult = await operation({
+            getDatabasePath: () => mainDatabase.getDatabasePath(),
+            checkpointAndClose: () => {
+              const database = mainDatabase.getDatabase()
+              if (database.open) {
+                database.pragma('wal_checkpoint(TRUNCATE)')
+              }
+              mainDatabase.close()
+            },
+            close: () => mainDatabase.close(),
+            reopen: () => reopenApplicationDatabase(),
+            reopenWithPassword: (password) => {
+              mainDatabase.reopenWithPassword(password)
+            },
+            isOpen: () => mainDatabase.getDatabase().open,
+            importLegacyChatDb: (sourceDbPath, mode) =>
+              legacyChatImportService.importFromSourceDb(sourceDbPath, mode)
+          })
+        } finally {
+          // Auxiliary/model owners also share the supervisor. Keep their starts fenced until
+          // the application database is usable again, including failed imports and rollback.
+          if (!mainDatabase.getDatabase().open) reopenApplicationDatabase()
+        }
       })
     } catch (error) {
       operationError = error

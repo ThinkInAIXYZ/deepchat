@@ -5,7 +5,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 import { terminateProcessTree } from '../shared/process/processTree'
-import { DimPluginClient, DimMethodError } from './pluginClient'
+import { DimPluginClient, DimMethodError, DimConnectionError } from './pluginClient'
 
 export interface DimRuntimeOptions {
   runtimeRoot: string
@@ -25,6 +25,7 @@ export class DimRuntimeSupervisor {
   private readonly scopedConnections = new Set<DimPluginClient>()
   private starting: Promise<DimPluginClient> | null = null
   private stopping: Promise<void> | null = null
+  private maintenance: Promise<void> | null = null
   private socketDirectory: string | null = null
   private exited: Promise<void> | null = null
   private exitCode: number | null = null
@@ -38,6 +39,7 @@ export class DimRuntimeSupervisor {
   }
 
   start(): Promise<DimPluginClient> {
+    if (this.maintenance) return this.maintenance.then(() => this.start())
     if (this.stopping) return this.stopping.then(() => this.start())
     if (this.starting) return this.starting
     if (this.connection) return Promise.resolve(this.connection)
@@ -64,6 +66,39 @@ export class DimRuntimeSupervisor {
       })
       .catch(() => {})
     return stopping
+  }
+
+  /** The callback owns a cold profile until it restores usable storage and returns. */
+  async withStopped<T>(operation: () => Promise<T>): Promise<T> {
+    if (this.maintenance)
+      return this.maintenance.then(
+        () => this.withStopped(operation),
+        () => this.withStopped(operation)
+      )
+    let release!: () => void
+    let reject!: (error: unknown) => void
+    const barrier = new Promise<void>((resolve, fail) => {
+      release = resolve
+      reject = fail
+    })
+    this.maintenance = barrier
+    void barrier.catch(() => {})
+    try {
+      await this.stop()
+      const result = await operation()
+      if (this.maintenance === barrier) this.maintenance = null
+      release()
+      return result
+    } catch (error) {
+      if (this.maintenance === barrier) this.maintenance = null
+      reject(
+        new DimConnectionError(
+          'Native storage maintenance failed; retry after recovery',
+          'not-sent'
+        )
+      )
+      throw error
+    }
   }
 
   /** A caller-owned connection: closing it cancels only its own auxiliary calls. */
