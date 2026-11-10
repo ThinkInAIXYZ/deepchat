@@ -83,12 +83,14 @@ export default definePlugin({
     )
     await ctx.use('managementMethods').register(
       'deepchat.storage',
-      ['capabilities', 'history', 'scope', 'seed_title', 'readiness'].map((name) => ({
-        name: `deepchat.storage.${name}`,
-        mutating: name === 'seed_title',
-        interruption: 'report',
-        progress: false
-      })),
+      ['capabilities', 'history', 'scope', 'seed_title', 'rename_title', 'readiness'].map(
+        (name) => ({
+          name: `deepchat.storage.${name}`,
+          mutating: name === 'seed_title' || name === 'rename_title',
+          interruption: 'report',
+          progress: false
+        })
+      ),
       async ({ method, params }) => {
         if (method === 'deepchat.storage.capabilities') {
           return {
@@ -97,7 +99,7 @@ export default definePlugin({
               plugin: 'deepchat-storage',
               apiVersion: 1,
               operations: config.rawHistory
-                ? ['history', 'scope', 'seed_title', 'readiness']
+                ? ['history', 'scope', 'seed_title', 'rename_title', 'readiness']
                 : ['history']
             }
           }
@@ -106,6 +108,7 @@ export default definePlugin({
           [
             'deepchat.storage.scope',
             'deepchat.storage.seed_title',
+            'deepchat.storage.rename_title',
             'deepchat.storage.readiness'
           ].includes(method)
         ) {
@@ -113,9 +116,11 @@ export default definePlugin({
             return { code: 'unsupported', message: 'Native scope owner is unavailable' }
           const operation = method.endsWith('.readiness')
             ? 'deepchat.native_profile.readiness'
-            : method.endsWith('.seed_title')
-              ? 'deepchat.native_scope.seed_title'
-              : 'deepchat.native_scope.describe'
+            : method.endsWith('.rename_title')
+              ? 'deepchat.native_scope.rename_title'
+              : method.endsWith('.seed_title')
+                ? 'deepchat.native_scope.seed_title'
+                : 'deepchat.native_scope.describe'
           return {
             kind: 'value',
             value: await withNativeClient(

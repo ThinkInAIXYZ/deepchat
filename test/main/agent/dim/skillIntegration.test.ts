@@ -179,16 +179,16 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
           timeout: 10_000
         })
         .toBe('Native skill complete')
-      await titles.rename('desktop-private', 'Manual title from desktop')
+      const manualTitle = '从桌面设置的较长手动会话标题'.repeat(12)
+      await titles.rename('desktop-private', manualTitle)
+      await expect(titles.rename('desktop-private', 'Invalid\nname')).rejects.toThrow()
       await titles.seed(binding, { text: 'Late migration seed', source: 'auto' })
-      expect(database.data.newSessionsTable.get('desktop-private')?.title).toBe(
-        'Manual title from desktop'
-      )
+      expect(database.data.newSessionsTable.get('desktop-private')?.title).toBe(manualTitle)
       const titleScope = await client.call<{ title: { text: string; source: string } }>(
         'deepchat.storage.scope',
         { sessionId: ref.sessionId }
       )
-      expect(titleScope.title).toEqual({ text: 'Manual title from desktop', source: 'manual' })
+      expect(titleScope.title).toEqual({ text: manualTitle, source: 'manual' })
       const carried = await client.call<{ sessionId: string }>('deepchat.host.launch', {
         cwd: profile,
         model: { ...model },
@@ -204,7 +204,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
       expect(
         await client.call('deepchat.storage.scope', { sessionId: carried.sessionId })
       ).toMatchObject({
-        title: { text: 'Manual title from desktop', source: 'manual' }
+        title: { text: manualTitle, source: 'manual' }
       })
       const history = await new DimContent(host).transcript(ref, 'desktop-private')
       expect(JSON.stringify(history.messages)).toContain('Native skill complete')

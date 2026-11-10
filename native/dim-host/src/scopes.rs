@@ -7,7 +7,7 @@ use dim_agent_capabilities::{
 use dim_agent_runtime::{AgentBuilder, Feature, QueryOutput, TimelineQuery};
 use dim_app_server::{
     methods::ManagementMethods,
-    storage::{MetadataError, SessionStore, Title},
+    storage::{MetadataError, SessionStore, Title, TitleSource},
 };
 use rutis::Ctx;
 use rutis::host::{BoxFuture, CtxHost, DynPlugin, Effect, Key, TypeKey};
@@ -45,6 +45,12 @@ struct SeedTitle {
     session_id: String,
     title: Title,
 }
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct RenameTitle {
+    session_id: String,
+    title: String,
+}
 impl DynPlugin for StoredScope {
     fn name(&self) -> &str {
         "DeepChatStoredScope"
@@ -57,9 +63,34 @@ impl DynPlugin for StoredScope {
             let owner = ctx.require::<SessionStore>()?;
             ctx.require_at(&self.methods)?.register(ctx,"deepchat.native_scope",vec![
                 MethodDecl::new("deepchat.native_scope.describe",false,Interruption::Report),
+                MethodDecl::new("deepchat.native_scope.rename_title",true,Interruption::Report),
                 MethodDecl::new("deepchat.native_scope.seed_title",true,Interruption::Report)
             ],Arc::new(move|call,cancel,_| {
                 let owner=owner.clone();Box::pin(async move {
+                    if call.method.ends_with(".rename_title") {
+                        let rename:RenameTitle=params(call.params)?;
+                        let text=rename.title.trim();
+                        if rename.session_id.is_empty() || text.is_empty() || text.len()>64*1024
+                            || text.chars().any(|c|c.is_control() || matches!(c,'\u{2028}'|'\u{2029}')) {
+                            return Err(RpcError::invalid("Invalid desktop title"));
+                        }
+                        // Preserve the desktop's existing manual-name contract independently of
+                        // SessionTitle's shared length setting, using the public owner writer.
+                        owner.creation_record(&rename.session_id).await?;
+                        for _ in 0..=3 {
+                            if cancel.is_cancelled() { return Err(RpcError::interrupted()); }
+                            let stored=owner.metadata(&rename.session_id).await
+                                .map_err(|_|RpcError::service("storage_failed","Cannot read native title"))?;
+                            match owner.set_title(&rename.session_id,stored.revision,Some(Title{
+                                text:text.to_owned(),source:TitleSource::Manual
+                            })).await {
+                                Ok(revision)=>return reply(json!({"revision":revision.to_string()})),
+                                Err(MetadataError::Conflict)=>{},
+                                Err(_)=>return Err(RpcError::service("storage_failed","Cannot rename native title")),
+                            }
+                        }
+                        return Err(RpcError::service("title_conflict","Native title changed during rename"));
+                    }
                     if call.method.ends_with(".seed_title") {
                         let seed:SeedTitle=params(call.params)?;
                         if seed.session_id.is_empty() || seed.title.text.trim().is_empty()

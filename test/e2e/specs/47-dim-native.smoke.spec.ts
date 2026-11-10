@@ -21,6 +21,7 @@ import {
 import { waitForAppReady } from '../helpers/wait'
 
 test('desktop chat uses persistent native dim sessions @smoke', async ({ app, launchApp }) => {
+  const manualTitle = 'NATIVE_MANUAL_TITLE_'.repeat(12)
   const requests: Array<{ messages?: unknown[]; tools?: Array<{ function: { name: string } }> }> =
     []
   let readSession: { sessionId: string; messageId: string; action: 'messages' | 'message' } | null =
@@ -201,14 +202,14 @@ test('desktop chat uses persistent native dim sessions @smoke', async ({ app, la
       )
       .toBe('NATIVE_DIM_DESKTOP_REPLY')
     const renamed = await app.page.evaluate(
-      (id) =>
+      ({ id, title }) =>
         window.deepchat.invoke('sessions.rename', {
           sessionId: id,
-          title: 'NATIVE_MANUAL_TITLE'
+          title
         }),
-      sessionId
+      { id: sessionId, title: manualTitle }
     )
-    expect(renamed.session.title).toBe('NATIVE_MANUAL_TITLE')
+    expect(renamed.session.title).toBe(manualTitle)
     const firstPage = await app.page.evaluate(
       (id) => window.deepchat.invoke('sessions.listMessagesPage', { sessionId: id }),
       sessionId
@@ -331,7 +332,7 @@ test('desktop chat uses persistent native dim sessions @smoke', async ({ app, la
       const page = await window.deepchat.invoke('sessions.listLightweight', {})
       return page.items.find((session) => session.id === id)?.title
     }, sessionId)
-    expect(restoredTitle).toBe('NATIVE_MANUAL_TITLE')
+    expect(restoredTitle).toBe(manualTitle)
     await expect(getAssistantMessages(reopened.page).last()).toContainText(
       'NATIVE_DIM_DESKTOP_REPLY'
     )

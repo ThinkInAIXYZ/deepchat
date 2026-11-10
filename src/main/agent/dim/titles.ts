@@ -3,7 +3,6 @@ import type { DimSessionBinding } from '@/session/data/tables/dimSessionBindings
 import type { DimHistoryChange } from '@/session/data/tables/dimScopeChanges'
 import type { DimRuntimeSupervisor } from './runtimeSupervisor'
 import type { DimPluginClient } from './pluginClient'
-import { DimSessionControls } from './sessionControls'
 import { dimSequence } from './sessionConnection'
 
 interface NativeTitle {
@@ -129,14 +128,12 @@ export class DimTitles {
     const binding = this.options.database.dimSessionBindingsTable.get(sessionId)
     if (!binding || this.options.database.dimScopeChangesTable.get(sessionId))
       throw new Error('Native title has no current session owner')
-    await new DimSessionControls(this.options.host).call(
-      'rename',
-      {
-        sessionId: binding.dimSessionId,
-        branchId: binding.branchId
-      },
-      { title }
-    )
+    await (
+      await this.options.host.start()
+    ).call('deepchat.storage.rename_title', {
+      sessionId: binding.dimSessionId,
+      title
+    })
     const current = this.options.database.dimSessionBindingsTable.get(sessionId)
     if (
       current?.dimSessionId !== binding.dimSessionId ||
