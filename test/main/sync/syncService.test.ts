@@ -295,7 +295,7 @@ vi.mock('../../../src/main/sync/configImportService', async () => {
   }
 
   return {
-    CURRENT_SYNC_BACKUP_VERSION: 2,
+    CURRENT_SYNC_BACKUP_VERSION: 3,
     CURRENT_SYNC_CONFIG_SCHEMA_VERSION: 1,
     SyncConfigImportService: MockSyncConfigImportService
   }
@@ -563,7 +563,7 @@ describe('SyncService backup import', () => {
     expect(dbPragma).toHaveBeenCalledWith('wal_checkpoint(PASSIVE)')
     const manifest = JSON.parse(Buffer.from(files[ZIP_PATHS.manifest]).toString('utf-8'))
     expect(manifest).toMatchObject({
-      version: 2,
+      version: 3,
       configStorage: 'sqlite',
       configSchemaVersion: 1
     })

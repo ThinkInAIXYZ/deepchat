@@ -4,6 +4,7 @@ import { createDeepChatOutputProjection } from '@/session/outputProjection'
 import { createSessionStatusProjection } from '@/session/sessionStatusProjection'
 import { DesktopSessionState } from '@/session/desktopSessionState'
 import { SyncSessionActivity } from '@/sync/sessionActivity'
+import { DimProfileBackups, DimProfileRecoveryError } from '@/agent/dim/profileBackups'
 import type { DeepChatInternalSessionUpdate } from '@/agent/shared/sessionUpdates'
 import { SyncReplicaStore } from '@/sync/replica/store'
 import { SyncReplicaEndpoint } from '@/sync/replica/endpoint'
@@ -1330,7 +1331,14 @@ export async function createMainProcessControl(dependencies: {
     providerDatabase,
     publishDeepchatEvent,
     (source, target, password) =>
-      databaseSecurityService.decryptLegacyBackup(source, target, password)
+      databaseSecurityService.decryptLegacyBackup(source, target, password),
+    new DimProfileBackups({
+      runtimeRoot: path.join(nativeRuntimeRoot, 'dim'),
+      profileRoot: app.getPath('userData'),
+      temporaryRoot: app.getPath('temp'),
+      host: dimHost,
+      readers: () => dimAgent.runtime
+    })
   )
   const syncTokenStorage = {
     protectToken: (token: string) => {
@@ -3992,6 +4000,12 @@ export async function createMainProcessControl(dependencies: {
       operationError = error
     }
 
+    if (operationError instanceof DimProfileRecoveryError) {
+      databaseMaintenanceState = 'failed'
+      dimHost.requireProfileRecovery(operationError)
+      await stopForCleanup()
+      throw operationError
+    }
     try {
       if (!mainDatabase.getDatabase().open) {
         reopenApplicationDatabase()

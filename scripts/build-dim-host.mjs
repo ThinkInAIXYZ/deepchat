@@ -13,6 +13,7 @@ const nativeLock = JSON.parse(
 )
 if (
   nativeSource.sourceRevision !== nativeLock.sourceRevision ||
+  nativeSource.storeFormat !== nativeLock.storeFormat ||
   nativeSource.assemblyPatch.sha256 !== nativeLock.assemblyPatch.sha256 ||
   JSON.stringify(nativeSource.extensionPatches) !== JSON.stringify(nativeLock.extensionPatches)
 )
@@ -79,6 +80,7 @@ await writeFile(
       baseRelease: lock.version,
       serverVersion: nativeLock.serverVersion,
       bridgeVersion: nativeLock.bridgeVersion,
+      storeFormat: nativeSource.storeFormat,
       apiVersion: nativeLock.apiVersion,
       sha256: createHash('sha256').update(binary).digest('hex'),
       cargoLockSha256: createHash('sha256').update(cargoLock).digest('hex'),

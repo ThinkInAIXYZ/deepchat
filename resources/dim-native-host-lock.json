@@ -4,6 +4,7 @@
   "baseRelease": "0.1.0-alpha.21",
   "serverVersion": "0.1.0-alpha.18",
   "bridgeVersion": "0.14.0",
+  "storeFormat": 36,
   "apiVersion": 1,
   "cargoLockSha256": "814883edbb7c9d8d77d4df1d78512b7918ec715ab9313897450442d67f32617b",
   "assemblyPatch": {

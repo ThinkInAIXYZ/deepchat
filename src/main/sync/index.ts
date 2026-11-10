@@ -4,7 +4,7 @@ import { isNowledgeMachineLocalSetting } from '@shared/types/nowledgeMemPlugin'
 import path from 'path'
 import fs from 'fs'
 import Database from 'better-sqlite3-multiple-ciphers'
-import { unzip, Zip, AsyncZipDeflate } from 'fflate'
+import { Unzip, UnzipInflate, Zip, AsyncZipDeflate, ZipPassThrough } from 'fflate'
 import type { SyncBackupInfo, CloudSyncResult } from '@shared/types/sync'
 import { CloudStorageService } from './cloudStorageService'
 import type { DeepchatEventPublisher } from '@shared/contracts/events'
@@ -19,6 +19,12 @@ import type { SyncSettings } from './settings'
 import { withBackupSnapshot, type BackupReadLockOutcome } from '@/data/backupReadLock'
 import type { SettingsDatabase } from '@/settings/data/database'
 import type { ProviderDatabase } from '@/provider/data/database'
+import {
+  DimProfileRecoveryError,
+  type PreparedDimProfile,
+  type SyncNativeProfilePort
+} from '@/agent/dim/profileBackups'
+import type { DimProfileSnapshot } from '@/agent/dim/profileSnapshot'
 
 interface PromptStore {
   prompts: Array<{ id?: string; [key: string]: unknown }>
@@ -69,7 +75,8 @@ const ZIP_PATHS = {
   customPrompts: 'configs/custom_prompts.json',
   systemPrompts: 'configs/system_prompts.json',
   mcpSettings: 'configs/mcp-settings.json',
-  manifest: 'manifest.json'
+  manifest: 'manifest.json',
+  nativeManifest: 'dim/manifest.json'
 }
 
 const toUint8ArrayView = (buffer: Buffer): Uint8Array =>
@@ -77,17 +84,6 @@ const toUint8ArrayView = (buffer: Buffer): Uint8Array =>
 
 const ZIP_LEVEL = 6
 const ZIP_SLICE_SIZE = 4 * 1024 * 1024
-
-const unzipAsync = (data: Uint8Array) =>
-  new Promise<Record<string, Uint8Array>>((resolve, reject) => {
-    unzip(data, (error, extracted) => {
-      if (error) {
-        reject(error)
-        return
-      }
-      resolve(extracted)
-    })
-  })
 
 type BackupDbSource = {
   type: 'agent' | 'chat'
@@ -141,7 +137,8 @@ export class SyncService {
       source: string,
       target: string,
       password: string
-    ) => void
+    ) => void,
+    private readonly nativeProfile?: SyncNativeProfilePort
   ) {}
 
   public async checkSyncFolder(): Promise<{ exists: boolean; path: string }> {
@@ -376,6 +373,9 @@ export class SyncService {
 
     let sqliteClosed = false
     let sqliteReopenedForLegacyImport = false
+    let preparedNative: PreparedDimProfile | undefined
+    let installedNative: Awaited<ReturnType<PreparedDimProfile['install']>> | undefined
+    let recoveryRequired = false
 
     try {
       await this.extractBackupArchive(backupZipPath, extractionDir)
@@ -414,6 +414,36 @@ export class SyncService {
         manifest,
         activeDatabasePassword
       )
+
+      if (backupDbSource.type === 'agent' && !manifest?.nativeProfile) {
+        const backupDb = this.openBackupDatabase(backupDbSource.path, backupDatabasePassword)
+        try {
+          // Product mappings alone cannot recover canonical Native content. Old legacy-only
+          // packages remain valid; incomplete early Native packages must not bind to live data.
+          if (this.countTableRows(backupDb, 'dim_session_bindings') > 0)
+            throw new Error('sync.error.noValidBackup')
+        } finally {
+          backupDb.close()
+        }
+      }
+
+      if (manifest?.nativeProfile !== undefined) {
+        if (manifest.nativeProfile !== ZIP_PATHS.nativeManifest || !this.nativeProfile)
+          throw new Error('sync.error.unsupportedBackupVersion')
+        // Incremental native ownership remapping must precede admission of this format.
+        if (importMode !== ImportMode.OVERWRITE)
+          throw new Error('sync.error.unsupportedBackupVersion')
+        await fs.promises.mkdir(path.join(extractionDir, 'dim/profile'), {
+          recursive: true,
+          mode: 0o700
+        })
+        preparedNative = await this.nativeProfile.prepareRestore(
+          path.join(extractionDir, 'dim/profile'),
+          JSON.parse(
+            await fs.promises.readFile(path.join(extractionDir, ZIP_PATHS.nativeManifest), 'utf8')
+          )
+        )
+      }
 
       database.close()
       sqliteClosed = true
@@ -538,6 +568,7 @@ export class SyncService {
         }
       }
 
+      if (preparedNative) installedNative = await preparedNative.install()
       if (sqliteClosed) {
         database.reopen()
       }
@@ -548,6 +579,13 @@ export class SyncService {
         version: Date.now(),
         mode: importMode
       })
+      if (installedNative) {
+        // Cleanup is past the transaction's commit point and must not roll back imported SQL.
+        await installedNative
+          .commit()
+          .catch((error) => console.warn('[Sync] Native rollback cleanup failed:', error))
+        installedNative = undefined
+      }
       return {
         success: true,
         message: 'sync.success.importComplete',
@@ -557,7 +595,19 @@ export class SyncService {
       }
     } catch (error) {
       console.error('import failed,reverting:', error)
+      if (error instanceof DimProfileRecoveryError) recoveryRequired = true
       const errorMessage = (error as Error).message || 'sync.error.unknown'
+      if (installedNative) {
+        // Close the newly opened product database before restoring both sides of the snapshot.
+        database.close()
+        sqliteClosed = true
+        try {
+          await installedNative.rollback()
+        } catch (rollbackError) {
+          recoveryRequired = true
+          throw rollbackError
+        }
+      }
       if (sqliteReopenedForLegacyImport && !sqliteClosed) {
         try {
           database.close()
@@ -567,6 +617,7 @@ export class SyncService {
         }
       }
       this.restoreFromTempBackup(tempCurrentFiles)
+      if (recoveryRequired) throw error
       if (sqliteClosed) {
         try {
           database.reopen()
@@ -583,7 +634,10 @@ export class SyncService {
         message: KNOWN_IMPORT_ERRORS.has(errorMessage) ? errorMessage : 'sync.error.importFailed'
       }
     } finally {
-      this.cleanupTempFiles(Object.values(tempCurrentFiles))
+      await preparedNative
+        ?.dispose()
+        .catch((error) => console.warn('[Sync] Native staging cleanup failed:', error))
+      if (!recoveryRequired) this.cleanupTempFiles(Object.values(tempCurrentFiles))
       this.removeDirectory(extractionDir)
     }
   }
@@ -643,6 +697,7 @@ export class SyncService {
 
     let completedTimestamp: number | null = null
     let encounteredError = false
+    let native: DimProfileSnapshot | undefined
 
     try {
       if (!fs.existsSync(this.DB_PATH)) {
@@ -655,7 +710,16 @@ export class SyncService {
 
       this.emitBackupStatus('collecting')
       this.ensureSqliteConfigStorageReady()
-      const files = await this.collectBackupFiles()
+      const collected = this.nativeProfile
+        ? await this.nativeProfile.capture(() => this.collectBackupFiles())
+        : { value: await this.collectBackupFiles(), profile: undefined }
+      const files = collected.value
+      native = collected.profile
+      const nativeManifest = await native?.manifest()
+      if (nativeManifest)
+        files[ZIP_PATHS.nativeManifest] = new Uint8Array(
+          Buffer.from(JSON.stringify(nativeManifest), 'utf8')
+        )
       await this.removeSyncBookkeeping(files)
 
       const manifest = {
@@ -665,6 +729,7 @@ export class SyncService {
         configSchemaVersion: CURRENT_SYNC_CONFIG_SCHEMA_VERSION,
         databaseEncrypted: Boolean(this.getActiveDatabasePassword()),
         databaseCipher: this.getActiveDatabasePassword() ? 'sqlcipher' : undefined,
+        nativeProfile: native ? ZIP_PATHS.nativeManifest : undefined,
         files: Object.keys(files)
       }
       files[ZIP_PATHS.manifest] = new Uint8Array(
@@ -672,7 +737,12 @@ export class SyncService {
       )
 
       this.emitBackupStatus('compressing')
-      await this.writeZipToDisk(files, tempZipPath)
+      await this.writeZipToDisk(
+        files,
+        tempZipPath,
+        native,
+        nativeManifest?.files.map((file) => file.path)
+      )
 
       try {
         await fs.promises.unlink(finalZipPath)
@@ -707,6 +777,9 @@ export class SyncService {
       })
       throw error
     } finally {
+      await native
+        ?.dispose()
+        .catch((error) => console.warn('[Sync] Native snapshot cleanup failed:', error))
       this.isBackingUp = false
       const extra: Record<string, unknown> = {}
       if (completedTimestamp) {
@@ -795,7 +868,9 @@ export class SyncService {
 
   private async writeZipToDisk(
     files: Record<string, Uint8Array>,
-    targetPath: string
+    targetPath: string,
+    native?: DimProfileSnapshot,
+    nativeFiles: string[] = []
   ): Promise<void> {
     await new Promise<void>((resolve, reject) => {
       const output = fs.createWriteStream(targetPath)
@@ -824,6 +899,15 @@ export class SyncService {
           for (const [name, data] of Object.entries(files)) {
             const entry = new AsyncZipDeflate(name, { level: ZIP_LEVEL })
             archive.add(entry)
+            const ondata = entry.ondata
+            const finished = new Promise<void>((resolve, reject) => {
+              entry.ondata = (error, chunk, final) => {
+                ondata(error, chunk, final)
+                if (error) reject(error)
+                else if (final) resolve()
+              }
+            })
+            void finished.catch(() => {})
             for (let offset = 0; offset < data.length; offset += ZIP_SLICE_SIZE) {
               await drain
               const end = Math.min(offset + ZIP_SLICE_SIZE, data.length)
@@ -832,7 +916,21 @@ export class SyncService {
             }
             await drain
             entry.push(new Uint8Array(0), true)
+            await finished
           }
+          if (native)
+            for (const name of nativeFiles) {
+              // Store opaque native files as streams. No whole profile or compression-worker
+              // input queue is retained in the Electron heap.
+              const entry = new ZipPassThrough(`dim/profile/${name}`)
+              archive.add(entry)
+              for await (const chunk of fs.createReadStream(path.join(native.directory, name))) {
+                await drain
+                entry.push(chunk, false)
+              }
+              await drain
+              entry.push(new Uint8Array(0), true)
+            }
           await drain
           archive.end()
         } catch (error) {
@@ -900,7 +998,7 @@ export class SyncService {
     if (manifest.version > CURRENT_SYNC_BACKUP_VERSION) {
       throw new Error('sync.error.unsupportedBackupVersion')
     }
-    if (manifest.version === CURRENT_SYNC_BACKUP_VERSION) {
+    if (manifest.version === 2 || manifest.version === CURRENT_SYNC_BACKUP_VERSION) {
       if (manifest.configStorage !== 'sqlite' || typeof manifest.configSchemaVersion !== 'number') {
         throw new Error('sync.error.noValidBackup')
       }
@@ -1031,55 +1129,72 @@ export class SyncService {
   }
 
   private async extractBackupArchive(zipPath: string, targetDir: string): Promise<void> {
-    const zipContent = new Uint8Array(await fs.promises.readFile(zipPath))
-    const extracted = await unzipAsync(zipContent)
-    const resolvedTargetDir = path.resolve(targetDir)
-
-    for (const entryName of Object.keys(extracted)) {
-      const fileContent = extracted[entryName]
-      if (!fileContent) {
-        continue
-      }
-
-      const normalizedEntry = entryName.replace(/\\/g, '/')
-      if (!normalizedEntry) {
-        continue
-      }
-
-      if (/^[A-Za-z]:/.test(normalizedEntry) || normalizedEntry.startsWith('/')) {
+    const handles = new Set<import('node:fs/promises').FileHandle>()
+    const seen = new Set<string>()
+    let writes = Promise.resolve()
+    let failure: unknown
+    const archive = new Unzip((file) => {
+      const normalized = file.name.replace(/\\/g, '/')
+      const segments = normalized.split('/').filter((segment) => segment && segment !== '.')
+      if (
+        !normalized ||
+        normalized.includes('\0') ||
+        /^[A-Za-z]:/.test(normalized) ||
+        normalized.startsWith('/') ||
+        segments.some((segment) => segment === '..')
+      )
         throw new Error('sync.error.noValidBackup')
-      }
-
-      const segments = normalizedEntry.split('/')
-      const safeSegments: string[] = []
-      for (const segment of segments) {
-        if (!segment || segment === '.') {
-          continue
+      const key = segments.join('/')
+      if (!key || seen.has(key)) throw new Error('sync.error.noValidBackup')
+      seen.add(key)
+      const destination = path.join(targetDir, ...segments)
+      const directory = normalized.endsWith('/')
+      let handle: import('node:fs/promises').FileHandle | undefined
+      writes = writes.then(async () => {
+        await fs.promises.mkdir(directory ? destination : path.dirname(destination), {
+          recursive: true,
+          mode: 0o700
+        })
+        if (!directory) {
+          handle = await fs.promises.open(destination, 'wx', 0o600)
+          handles.add(handle)
         }
-        if (segment === '..') {
-          throw new Error('sync.error.noValidBackup')
+      })
+      file.ondata = (error, data, final) => {
+        if (error) {
+          failure = error
+          return
         }
-        safeSegments.push(segment)
+        const owned = new Uint8Array(data)
+        writes = writes.then(async () => {
+          if (directory && owned.length) throw new Error('sync.error.noValidBackup')
+          if (handle && owned.length) await handle.writeFile(owned)
+          if (final && handle) {
+            await handle.close()
+            handles.delete(handle)
+            handle = undefined
+          }
+        })
       }
-
-      if (safeSegments.length === 0) {
-        continue
+      file.start()
+    })
+    archive.register(UnzipInflate)
+    try {
+      for await (const chunk of fs.createReadStream(zipPath, { highWaterMark: 64 * 1024 })) {
+        // Bound both compressed input and its output before accepting the next slice.
+        for (let offset = 0; offset < chunk.length; offset += 1024) {
+          archive.push(chunk.subarray(offset, offset + 1024), false)
+          await writes
+          if (failure) throw failure
+        }
       }
-
-      const isDirectoryEntry = normalizedEntry.endsWith('/')
-      const destination = path.resolve(resolvedTargetDir, ...safeSegments)
-      const relativeToTarget = path.relative(resolvedTargetDir, destination)
-      if (relativeToTarget.startsWith('..') || path.isAbsolute(relativeToTarget)) {
-        throw new Error('sync.error.noValidBackup')
-      }
-
-      if (isDirectoryEntry) {
-        await fs.promises.mkdir(destination, { recursive: true })
-        continue
-      }
-
-      await fs.promises.mkdir(path.dirname(destination), { recursive: true })
-      await fs.promises.writeFile(destination, Buffer.from(fileContent))
+      archive.push(new Uint8Array(0), true)
+      await writes
+      if (failure) throw failure
+      if (handles.size) throw new Error('sync.error.noValidBackup')
+    } finally {
+      await writes.catch(() => {})
+      await Promise.allSettled([...handles].map((handle) => handle.close()))
     }
   }
 

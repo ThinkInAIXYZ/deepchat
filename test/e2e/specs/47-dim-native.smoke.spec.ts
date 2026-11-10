@@ -2,6 +2,8 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import path from 'node:path'
 import { createServer } from 'node:http'
+import { readFile } from 'node:fs/promises'
+import { unzipSync } from 'fflate'
 import { test, expect } from '../fixtures/electronApp'
 import {
   getActiveSessionId,
@@ -243,6 +245,45 @@ test('desktop chat uses persistent native dim sessions @smoke', async ({ app, la
       sessionId
     )
     expect(afterMaintenance.messages.map((message) => message.id)).toEqual(
+      firstPage.messages.map((message) => message.id)
+    )
+    const captured = await app.page.evaluate(
+      async (folderPath) => {
+        await window.deepchat.invoke('config.updateSyncSettings', { enabled: true, folderPath })
+        return window.deepchat.invoke('sync.startBackup', {})
+      },
+      path.join(app.userDataDir, 'native-backups')
+    )
+    expect(captured.backup).not.toBeNull()
+    const archive = unzipSync(
+      await readFile(path.join(app.userDataDir, 'native-backups', captured.backup!.fileName))
+    )
+    const manifest = JSON.parse(Buffer.from(archive['manifest.json']).toString('utf8'))
+    expect(manifest).toMatchObject({ version: 3, nativeProfile: 'dim/manifest.json' })
+    expect(archive['dim/profile/rust/dimcode.sqlite']).toBeDefined()
+    expect(archive['dim/profile/deepchat-plugin-rows.json']).toBeUndefined()
+    await app.page.evaluate(
+      (id) =>
+        window.deepchat.invoke('sessions.rename', {
+          sessionId: id,
+          title: 'AFTER_BACKUP_TITLE'
+        }),
+      sessionId
+    )
+    const restoredBackup = await app.page.evaluate(
+      (fileName) =>
+        window.deepchat.invoke('sync.import', {
+          backupFile: fileName,
+          mode: 'overwrite'
+        }),
+      captured.backup!.fileName
+    )
+    expect(restoredBackup.result.success).toBe(true)
+    const restoredMessages = await app.page.evaluate(
+      (id) => window.deepchat.invoke('sessions.listMessagesPage', { sessionId: id }),
+      sessionId
+    )
+    expect(restoredMessages.messages.map((message) => message.id)).toEqual(
       firstPage.messages.map((message) => message.id)
     )
     await app.close()

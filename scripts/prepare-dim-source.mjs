@@ -171,6 +171,11 @@ if (servicesCurrent !== servicesExpected)
   await writeFile(path.join(directory, servicesFile), servicesExpected)
 export const nativeSource = {
   sourceRevision: lock.sourceCommit,
+  storeFormat: Number(
+    (
+      await readFile(path.join(directory, 'crates/dim-app-server/src/storage/sqlite.rs'), 'utf8')
+    ).match(/pub const FORMAT: u32 = (\d+);/)?.[1]
+  ),
   assemblyPatch: { path: filename, sha256: createHash('sha256').update(expected).digest('hex') },
   extensionPatches: [
     { path: assemblyFile, sha256: createHash('sha256').update(assemblyExpected).digest('hex') },

@@ -40,12 +40,14 @@ export class DimSubmissionUnknownError extends Error {
 export class DimSessionRuntime {
   private readonly readers = new Map<string, Promise<OpenSession>>()
   private readonly scopes = new Map<string, object>()
+  private suspended: Promise<void> | null = null
   private readonly projection: DimProjectionStore
   constructor(private readonly options: DimSessionRuntimeOptions) {
     this.projection = new DimProjectionStore(options.database)
   }
 
   async open(sessionId: string): Promise<OpenSession> {
+    if (this.suspended) await this.suspended
     const existing = this.readers.get(sessionId)
     if (existing) return existing
     const scope = {}
@@ -233,6 +235,52 @@ export class DimSessionRuntime {
     this.scopes.delete(sessionId)
     if (reader) await (await reader.catch(() => null))?.reader.close()
     await this.options.closed?.(sessionId)
+  }
+
+  /** Detach desktop observers for an idle snapshot without revoking input admission scopes. */
+  async withSuspendedReaders<T>(operation: () => Promise<T>): Promise<T> {
+    if (this.suspended) {
+      await this.suspended
+      return this.withSuspendedReaders(operation)
+    }
+    let release!: () => void
+    this.suspended = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const captured = [...this.readers.entries()]
+    const restore: Array<{ id: string; scope: object }> = []
+    try {
+      // Let pending hydration/metadata attachments finish before fencing host.start().
+      for (const [id, opening] of captured) {
+        const opened = await opening.catch(() => null)
+        if (!opened || this.readers.get(id) !== opening) continue
+        restore.push({ id, scope: opened.scope })
+        this.readers.delete(id)
+        await opened.reader.close()
+        await this.options.closed?.(id)
+      }
+      return await operation()
+    } finally {
+      try {
+        for (const { id, scope } of restore) {
+          if (this.scopes.get(id) !== scope || this.readers.has(id)) continue
+          const opening = this.openReader(id, scope)
+          this.readers.set(id, opening)
+          try {
+            await opening
+          } catch (error) {
+            if (this.scopes.get(id) === scope) {
+              this.readers.delete(id)
+              this.scopes.delete(id)
+            }
+            this.options.failed(id, error)
+          }
+        }
+      } finally {
+        this.suspended = null
+        release()
+      }
+    }
   }
   async stop(): Promise<void> {
     for (const id of this.readers.keys()) await this.close(id)

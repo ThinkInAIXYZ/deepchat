@@ -30,6 +30,7 @@ export class DimRuntimeSupervisor {
   private starting: Promise<DimPluginClient> | null = null
   private stopping: Promise<void> | null = null
   private maintenance: Promise<void> | null = null
+  private recoveryFailure: Error | null = null
   private socketDirectory: string | null = null
   private exited: Promise<void> | null = null
   private exitCode: number | null = null
@@ -43,6 +44,7 @@ export class DimRuntimeSupervisor {
   }
 
   start(): Promise<DimPluginClient> {
+    if (this.recoveryFailure) return Promise.reject(this.recoveryFailure)
     if (this.maintenance) return this.maintenance.then(() => this.start())
     if (this.stopping) return this.stopping.then(() => this.start())
     if (this.starting) return this.starting
@@ -58,6 +60,10 @@ export class DimRuntimeSupervisor {
       })
       .catch(() => {})
     return starting
+  }
+
+  requireProfileRecovery(error: Error): void {
+    this.recoveryFailure = new DimConnectionError(error.message, 'not-sent')
   }
 
   stop(options: DimStopOptions = {}): Promise<void> {
@@ -170,6 +176,9 @@ export class DimRuntimeSupervisor {
         nativeLock.sourceRevision !== lock.sourceCommit ||
         manifest.serverVersion !== nativeLock.serverVersion ||
         manifest.bridgeVersion !== nativeLock.bridgeVersion ||
+        manifest.storeFormat !== nativeLock.storeFormat ||
+        !Number.isSafeInteger(nativeLock.storeFormat) ||
+        nativeLock.storeFormat < 1 ||
         manifest.cargoLockSha256 !== nativeLock.cargoLockSha256 ||
         manifest.assemblyPatch?.path !== nativeLock.assemblyPatch.path ||
         manifest.assemblyPatch?.sha256 !== nativeLock.assemblyPatch.sha256 ||

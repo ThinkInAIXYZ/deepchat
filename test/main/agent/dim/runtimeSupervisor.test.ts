@@ -9,6 +9,13 @@ function host() {
   })
 }
 
+it('refuses all new callers before admission while a profile rollback requires recovery', async () => {
+  const owner = host()
+  owner.requireProfileRecovery(new Error('Native rollback requires recovery'))
+  await expect(owner.start()).rejects.toMatchObject({ outcome: 'not-sent' })
+  await expect(owner.openConnection()).rejects.toMatchObject({ outcome: 'not-sent' })
+})
+
 it('serializes cold profile operations until the preceding storage callback settles', async () => {
   const owner = host()
   const stop = vi.spyOn(owner, 'stop').mockResolvedValue()
