@@ -73,7 +73,7 @@
 - [ ] 既有 MCP/插件兼容：in-memory server、MCP Apps、企业身份、知识库和 CUA 经插件注入；保留 consent、撤销、更新与参数/结果语义。作为正常接入实现，不列为 dim 缺失能力。
 - [ ] 模型：将现有设置及连接参数通过插件交给 dim；会话和辅助模型请求都在 Rust 执行，不回调旧 TypeScript Provider。
 - [ ] 辅助调用：标题、摘要、翻译、记忆提取、embedding/rerank、媒体等接入 dim 对应 model/auxiliary/modality；desktop 保留展示、索引与非模型服务。
-- [ ] 图片/视频/TTS 的独立入口与会话已接入 dim Modality；会话通过独立媒体 alias 选择原生 Agent 模型宿主，实际媒体模型保留非聊天声明。原生 loop/队列管理回合，桌面复用消息身份和媒体展示。媒体文件闭包已通过大文件、fork/删除和冷增量归档验收，历史反馈继续接线。
+- [ ] 图片/视频/TTS 的独立入口与会话已接入 dim Modality；会话通过独立媒体 alias 选择原生 Agent 模型宿主，实际媒体模型保留非聊天声明。原生 loop/队列管理回合，桌面复用消息身份和媒体展示。媒体文件闭包已通过大文件、fork/删除和冷增量归档验收，历史图片反馈与原生预算计数已通过联合验收，大配置载荷继续接线。
 - [ ] OAuth：dim 自身登录、账号和 refresh 不做适配或迁移，不新增统一认证层；其他凭据/配置按能力所有者，通过插件正常交互，不能进入 timeline 或普通 row config。
 - [ ] Context/Skills/Hooks：dim 负责提示词、上下文、压缩、预算和撤销，产品 context/hook 通过插件接入；不由 TS 拼 provider 请求。
 - [ ] 原生 subagent/branch/collaboration 直接用 dim；ACP 完全由 DeepChat 原有实现处理，不规划 ExternalAgent、dim ACP gateway 或 ACP-as-provider 的 dim 迁移。
@@ -159,6 +159,8 @@
 建议按 release/插件骨架、session/队列绑定、产品能力、解密与按需转换、desktop 读取/Inspector、切换清理拆 PR。取消旧版按推测上游缺口估算的 12–20 人周；首个插件端到端切片完成后，依据实际映射与转换工作量估算，不把 ACP/OAuth 重写或 desktop 重做计入。
 
 ## 模块进度
+
+- 模块 88：已生成图片的原生引用在视觉请求中解析为真实图片字节；请求按 dim 提供方要求使用 user-role 图片部分，原生 Timeline、事件身份和历史内容不变。私有引用从 wire 表示中移除，带提供方 continuation 元数据的文本保持原样；旧 assistant 图片也转换到可表达的请求角色。相同请求视图交给 ProductContextModel 的原生计数器，图片进入预算，声明的 context/output/阈值不变。桥 0.36.0，SDK/依赖/存储格式不变。Rust 预算回归、39 项相关单元、真实视觉 HTTP 发送图片而不泄露私有 URL 的联合用例（21s）、完整 Native 27 项（242s）、release（2m59s）、生产主进程及格式/i18n/lint 通过。实际 Electron 两例（44s）再次验证媒体与聊天/CLI/备份恢复/重启/会话读取/Inspector。模块 86 的六平台原生构建/打包验收全部通过；较新桥的矩阵继续运行。大媒体配置传输与其他产品接线继续实施。
 
 - 模块 87：媒体结果改为 Native SessionFilesHost 拥有的 8 MiB 分块和小清单，复用原生 fork、删除/回收及增量归档的文件生命周期；没有改动 Native SQLite schema 或新增桥内查询。256 MiB 媒体输出不受原生单文件 16 MiB 上限影响，完整 SHA 校验后才向会话返回不可变文件引用。storage 插件通过公开 FileStorage 读取有界内容，桌面缓存支持新引用并保留旧任务引用。真实 Rust 验证 18 MiB 输出、多块读回、图片编辑直接读取原生引用、fork 后删除原会话仍保留文件，以及冷增量导入到无原媒体任务记录的 profile 后完整读回。桥 0.35.0，SDK/依赖/存储格式不变。定向 Native（24s）、完整 27 项 Native（260s）、双端类型、格式/i18n/lint、release（2m53s）与生产主进程通过；缓存/投影补充回归通过。实际 Electron 两例（46s）验证新文件引用呈现、缓存完整性及聊天/CLI/备份恢复/重启/read_session/Inspector。媒体历史送入视觉模型及大配置载荷继续接线。
 

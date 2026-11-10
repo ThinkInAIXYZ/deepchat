@@ -163,6 +163,44 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
           .end(category === 'image' ? png : category === 'speech' ? wave : video)
         return
       }
+      if (request.url === '/v1/chat/completions') {
+        const input = JSON.parse(body.toString())
+        if (input.stream) {
+          const images = input.messages.flatMap((message: { role: string; content?: unknown }) =>
+            Array.isArray(message.content)
+              ? message.content
+                  .filter((part) => part.type === 'image_url')
+                  .map((part) => ({ role: message.role, url: part.image_url.url }))
+              : []
+          )
+          expect(images).toContainEqual({
+            role: 'user',
+            url: `data:image/png;base64,${png.toString('base64')}`
+          })
+          expect(JSON.stringify(input)).not.toContain('imgcache://')
+          response
+            .writeHead(200, { 'Content-Type': 'text/event-stream' })
+            .end(
+              `data: ${JSON.stringify({ id: 'vision', object: 'chat.completion.chunk', model: 'vision-chat', choices: [{ index: 0, delta: { role: 'assistant', content: 'Native image history read' }, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`
+            )
+        } else {
+          response.writeHead(200, { 'Content-Type': 'application/json' }).end(
+            JSON.stringify({
+              id: 'title',
+              object: 'chat.completion',
+              model: 'vision-chat',
+              choices: [
+                {
+                  index: 0,
+                  message: { role: 'assistant', content: 'Image session' },
+                  finish_reason: 'stop'
+                }
+              ]
+            })
+          )
+        }
+        return
+      }
       if (request.url === '/v1/images/generations') {
         expect(JSON.parse(body.toString()).prompt).toContain('native image')
         if (JSON.parse(body.toString()).prompt === 'native image hold') {
@@ -311,7 +349,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
     const provider = {
       id: 'desktop-media',
       name: 'Media fixture',
-      apiType: 'openai',
+      apiType: mediaChat ? 'openai-completions' : 'openai',
       enable: true,
       baseUrl: `http://127.0.0.1:${(fixture.address() as { port: number }).port}/v1`,
       apiKey: 'protected-by-product',
@@ -333,7 +371,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
         contextLength: 8192,
         maxTokens: 1024,
         functionCall: false,
-        vision: false,
+        vision: id === 'vision-chat',
         reasoning: false
       }) as ModelConfig
     catalog = new DimModelCatalog({
@@ -470,6 +508,30 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
           if (text === 'native speech large') expect(metadata.bytes).toBe(largeWave.length)
           artifacts.push({ fileId: file.fileId, bytes: metadata.bytes, sha256: metadata.sha256 })
           if (modelId === 'gpt-image-1') {
+            const controls = new DimSessionControls(host)
+            const vision = await catalog.admit(provider.id, 'vision-chat')
+            await controls.call('set_model', ref, { ...vision })
+            await client.call('deepchat.host.input', {
+              ...ref,
+              mode: 'queue',
+              submissionId: randomUUID(),
+              rawBlocks: [],
+              content: [{ type: 'text', text: 'Describe the generated image' }]
+            })
+            await client.call('deepchat.host.idle', ref)
+            const visionOutput = await new DimContent(host).latest(ref, ['turn/end'])
+            expect(
+              visionOutput.event?.data,
+              JSON.stringify({ visionOutput, endpoints: requests.map((request) => request.url) })
+            ).toMatchObject({
+              status: 'completed'
+            })
+            expect(
+              requests.some(
+                (request) => request.url === '/v1/chat/completions' && request.body?.stream === true
+              )
+            ).toBe(true)
+            await controls.call('set_model', ref, { ...alias })
             await client.call('deepchat.host.input', {
               ...ref,
               mode: 'queue',
@@ -485,7 +547,6 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
             })
             await client.call('deepchat.host.idle', ref)
             expect(requests.filter((request) => request.url === '/v1/images/edits')).toHaveLength(1)
-            const controls = new DimSessionControls(host)
             const sendMedia = (text: string) =>
               client.call('deepchat.host.input', {
                 ...ref,

@@ -107,6 +107,13 @@ mirror. Cached history can be viewed without restoring an Agent. The same
 materializer serves display, copy/save, model image input, CLI and remote image
 delivery; earlier task-file links remain readable through Modality.
 
+Vision inference resolves these historical image references in a request-local
+view, then reads the native file bytes. Images use native user-role parts;
+assistant text and Timeline facts retain their canonical representation. The
+same view goes to ProductContextModel's native token counter, preserving the
+declared window, output allowance and compaction threshold. Provider continuation
+metadata stays verbatim, and private media URLs are removed from the wire view.
+
 Large independent media inputs use `deepchat.native_media_inputs.submit`. The
 desktop sends a bounded file-backed RPC payload; the plugin prepares private
 binary inputs through public FileStorage/PluginFileTransactions and delegates

@@ -15,6 +15,7 @@ mod legacy_queue;
 mod media;
 mod media_compat;
 mod media_files;
+mod media_history;
 mod media_chat;
 mod media_inputs;
 mod memory;

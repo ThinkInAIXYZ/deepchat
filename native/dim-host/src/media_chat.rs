@@ -518,8 +518,17 @@ async fn rewrite(
     request: Arc<ModelRequest>,
     cancel: &CancellationToken,
 ) -> Result<Arc<ModelRequest>, HostError> {
-    let mut rewritten = (*request).clone();
-    let mut changed = false;
+    let vision = request
+        .capability_snapshot
+        .as_ref()
+        .is_some_and(|snapshot| snapshot.capabilities.vision);
+    let projected = if vision {
+        crate::media_history::prepare(&request)
+    } else {
+        None
+    };
+    let mut changed = projected.is_some();
+    let mut rewritten = projected.unwrap_or_else(|| (*request).clone());
     for message in &mut rewritten.messages {
         let MessageContent::Parts(parts) = &message.content else {
             continue;
@@ -668,20 +677,32 @@ impl ResolveContextModel for MediaContext {
                 .resolve(request.clone(), cancel.clone())
                 .await?;
             let state = ready(&self.0)?;
-            if conversation(
+            let media = conversation(
                 &state,
                 &ModelId {
                     provider_id: request.provider_id.clone(),
                     model_id: request.model_id.clone(),
                 },
-            )?
-            .is_none()
-                || !request.metadata.as_ref().is_some_and(|meta| {
-                    meta.session_id.is_some()
-                        && meta.turn_id.is_some()
-                        && meta.extensions.contains_key("requestId")
-                })
-            {
+            )?;
+            if media.is_none() {
+                return Ok(
+                    if request
+                        .capability_snapshot
+                        .as_ref()
+                        .is_some_and(|snapshot| snapshot.capabilities.vision)
+                    {
+                        Arc::new(crate::media_history::VisionContext { base })
+                            as Arc<dyn ContextModel>
+                    } else {
+                        base
+                    },
+                );
+            }
+            if !request.metadata.as_ref().is_some_and(|meta| {
+                meta.session_id.is_some()
+                    && meta.turn_id.is_some()
+                    && meta.extensions.contains_key("requestId")
+            }) {
                 return Ok(base);
             }
             // Media endpoints receive the consumed operator input, not the
