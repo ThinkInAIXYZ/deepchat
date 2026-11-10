@@ -250,7 +250,7 @@ impl DynPlugin for MediaInputs {
                             stop,
                             &workers,
                         );
-                        reply(result)
+                        reply(serde_json::json!({"task":super::media_tasks::view(result.task)}))
                     })
                 }),
             )?;

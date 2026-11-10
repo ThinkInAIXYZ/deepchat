@@ -83,6 +83,13 @@ The product plugin supplies Voice.ai settings and APIMart's persisted endpoint
 and parameter declarations as non-secret model metadata. APIMart speech continues
 through dim's default OpenAI adapter.
 
+The desktop task port projects the native status, result and error fields without
+returning the task's full request parameters or opaque recovery handle. The
+handle can itself contain the full request; only its presence crosses this port. Large video references and input
+files enter through verified transport files. Native Modality retains the full
+record and owns submission, status, wait, list, cancellation and recovery; task
+results continue to use bounded native file reads.
+
 Media conversations select a separate chat alias without changing the underlying
 media model. Agent-local ModelHost/AuxiliaryModelHost values delegate ordinary
 inference to the native defaults and submit media requests to ModalityTasks.

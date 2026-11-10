@@ -138,7 +138,7 @@ export class DimPluginClient extends EventEmitter {
       clearTimeout(call.timer)
       call.reject(
         new DimConnectionError(
-          'dim disconnected; reconcile accepted commands before retrying',
+          `dim disconnected during ${call.method}; reconcile accepted commands before retrying`,
           call.written ? 'unknown' : 'not-sent'
         )
       )

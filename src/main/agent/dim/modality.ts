@@ -22,7 +22,9 @@ export interface DimMediaSubmission {
 export interface DimMediaTask {
   task_id: string
   client_task_id: string | null
+  // Original SDK replies may include a handle; the desktop port exposes its presence only.
   remote_handle?: string | null
+  has_remote_handle?: boolean
   state: 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled' | 'interrupted'
   result: {
     files: Array<{ name: string; media_type: string; bytes: number; sha256: string }>
@@ -50,18 +52,19 @@ export class DimModality {
     const client = await this.host.openConnection()
     const clientTaskId = input.client_task_id ?? randomUUID()
     const submission = { ...input, client_task_id: clientTaskId } as unknown as JsonValue
-    const fileBacked =
+    const nativeAdmission =
+      this.host.usesNativePlugins ||
       (input.files ?? []).reduce((size, file) => size + (file.data_base64?.length ?? 0), 0) >
-      4 * 1024 * 1024
+        4 * 1024 * 1024
     let payload: Awaited<ReturnType<typeof prepareDimPayload>> | undefined
     let task: DimMediaTask
     try {
       signal?.throwIfAborted()
-      payload = fileBacked
+      payload = nativeAdmission
         ? await prepareDimPayload(this.host.payloadRoot, submission, signal)
         : { params: submission, dispose: async () => {} }
       const result = await client.call<{ task: DimMediaTask }>(
-        fileBacked ? 'deepchat.native_media_inputs.submit' : 'modality.task.submit',
+        nativeAdmission ? 'deepchat.native_media_inputs.submit' : 'modality.task.submit',
         payload.params,
         120_000
       )
@@ -79,11 +82,21 @@ export class DimModality {
     return task
   }
 
+  private method(operation: string): string {
+    return `${this.host.usesNativePlugins ? 'deepchat.native_media_tasks' : 'modality.task'}.${operation}`
+  }
+
+  async list(
+    options: { state?: string; category?: string; limit?: number; after?: string } = {}
+  ): Promise<{ tasks: DimMediaTask[]; next?: string | null }> {
+    return (await this.host.start()).call(this.method('list'), options)
+  }
+
   async status(taskId: string): Promise<DimMediaTask> {
     return (
       await (
         await this.host.start()
-      ).call<{ task: DimMediaTask }>('modality.task.status', { task_id: taskId })
+      ).call<{ task: DimMediaTask }>(this.method('status'), { task_id: taskId })
     ).task
   }
 
@@ -103,7 +116,7 @@ export class DimModality {
     return (
       await (
         await this.host.start()
-      ).call<{ task: DimMediaTask }>('modality.task.cancel', { task_id: taskId })
+      ).call<{ task: DimMediaTask }>(this.method('cancel'), { task_id: taskId })
     ).task
   }
 
@@ -112,7 +125,7 @@ export class DimModality {
     let cancelling: Promise<unknown> | undefined
     const cancel = () => {
       cancelling ??= client
-        .call('modality.task.cancel', { task_id: taskId })
+        .call(this.method('cancel'), { task_id: taskId })
         .finally(() => client.close())
       void cancelling.catch(() => {})
     }
@@ -123,7 +136,7 @@ export class DimModality {
       for (;;) {
         // A long wait observes the native task. It never advances or re-submits it.
         const { task } = await client.call<{ task: DimMediaTask }>(
-          'modality.task.wait',
+          this.method('wait'),
           { task_id: taskId, timeout_ms: 600_000 },
           610_000
         )

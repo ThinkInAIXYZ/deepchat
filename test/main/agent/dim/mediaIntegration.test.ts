@@ -47,7 +47,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
       'base64'
     )
-    const largeReference = Buffer.alloc(4 * 1024 * 1024 + 17, 0x62)
+    const largeReference = Buffer.alloc(18 * 1024 * 1024 + 17, 0x62)
     png.copy(largeReference)
     const referenceBase64 = largeReference.toString('base64')
     const video = Buffer.from('native-video-bytes')
@@ -228,8 +228,8 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
           .writeHead(200, { 'Content-Type': 'application/json' })
           .end(JSON.stringify({ created: 0, data: [{ b64_json: png.toString('base64') }] }))
       } else if (request.url === '/v1/videos') {
-        if (mediaChat && JSON.parse(body.toString()).prompt === 'native video') {
-          expect(JSON.stringify(JSON.parse(body.toString()))).toContain(referenceBase64)
+        if (mediaChat && JSON.parse(body.toString()).prompt.startsWith('native video')) {
+          expect(body.includes(Buffer.from(referenceBase64))).toBe(true)
         }
         response.writeHead(200, { 'Content-Type': 'application/json' })
         response.end(
@@ -483,6 +483,22 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
             }
           })
           if (modelId === 'sora-2') {
+            const standalone = await desktopMedia.generateVideoStandalone(
+              provider.id,
+              'native video standalone large',
+              modelId,
+              { references: [{ type: 'image', data: referenceBase64, mimeType: 'image/png' }] }
+            )
+            expect(standalone.videos[0].data).toBe(video.toString('base64'))
+            const listed = await media.list({ category: 'video', limit: 100 })
+            expect(listed.tasks.length).toBeGreaterThan(0)
+            expect(JSON.stringify(listed).length).toBeLessThan(64 * 1024)
+            expect(listed.tasks.every((task) => !('params' in task))).toBe(true)
+            const status = await media.status(listed.tasks[0].task_id)
+            expect(status.state).toBe('succeeded')
+            expect(status).not.toHaveProperty('params')
+            expect(status.has_remote_handle).toBe(true)
+            expect(status).not.toHaveProperty('remote_handle')
             const settings = await controls.call<{
               metadata: { deepchatMedia: { deepchatOptionsFile: string } }
             }>('native_settings', ref)
@@ -522,7 +538,10 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
           const ended = transcript.events
             .filter((event) => event.type === 'turn' && event.name === 'end')
             .at(-1)?.data
-          expect(ended, JSON.stringify({ ended, requests })).toMatchObject({ status: 'completed' })
+          expect(
+            ended,
+            JSON.stringify({ ended, requests: requests.map(({ url }) => url) })
+          ).toMatchObject({ status: 'completed' })
           const output = transcript.events.find(
             (event) =>
               event.type === 'step' &&
@@ -677,9 +696,15 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
             })
           }
         }
-        const before = await client.call<{ tasks: DimMediaTask[] }>('modality.task.list', {
-          limit: 100
-        })
+        await host.stop()
+        client = await host.start()
+        const recoveredVideos = await media.list({ category: 'video', limit: 100 })
+        expect(recoveredVideos.tasks).toHaveLength(2)
+        expect(recoveredVideos.tasks.every((task) => task.state === 'succeeded')).toBe(true)
+        expect(recoveredVideos.tasks.every((task) => task.has_remote_handle)).toBe(true)
+        expect(JSON.stringify(recoveredVideos).length).toBeLessThan(64 * 1024)
+        expect(requests.filter((request) => request.url === '/v1/videos')).toHaveLength(2)
+        const before = await media.list({ limit: 100 })
         await host.stop()
         const identity = JSON.parse(
           await readFile(path.resolve('runtime/dim/plugins/native-host-lock.json'), 'utf8')

@@ -18,6 +18,7 @@ mod media_files;
 mod media_history;
 mod media_chat;
 mod media_inputs;
+mod media_tasks;
 mod memory;
 mod migration;
 mod model_stream;
@@ -58,6 +59,7 @@ fn install(builder: &mut dim_agent_runtime::AgentBuilder) {
     media_chat::install(builder);
     context::install(builder);
     media_inputs::install(builder);
+    media_tasks::install(builder);
     settings::install(builder);
     permissions::install(builder);
     product_tools::install(builder);
