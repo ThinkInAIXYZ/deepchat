@@ -75,7 +75,7 @@ impl DynPlugin for Models {
                             "apiVersion": 1, "plugin": "deepchat-native",
                             "sourceRevision": SOURCE_REVISION,
                             "bridgeVersion": env!("CARGO_PKG_VERSION"),
-                            "features": ["generation-settings", "auxiliary-model", "credential-references", "native-media-providers", "native-product-tools", "product-context", "native-memory-audit", "native-scope", "native-embeddings", "anonymous-admission", "delegated-product-tools"]
+                            "features": ["generation-settings", "auxiliary-model", "credential-references", "native-media-providers", "native-product-tools", "product-context", "native-memory-audit", "native-scope", "native-embeddings", "anonymous-admission", "delegated-product-tools", "native-tool-catalog"]
                         }));
                     }
                     let input: Complete = params(call.params)?;

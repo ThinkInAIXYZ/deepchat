@@ -137,11 +137,10 @@ impl DynPlugin for ProductTools {
             methods.register(
                 ctx,
                 "session.deepchat_tools",
-                vec![MethodDecl::new(
-                    "session.deepchat_tools.refresh",
-                    true,
-                    Interruption::Report,
-                )],
+                vec![
+                    MethodDecl::new("session.deepchat_tools.refresh", true, Interruption::Report),
+                    MethodDecl::new("session.deepchat_tools.catalog", false, Interruption::Report),
+                ],
                 Arc::new(move |call, cancel, _| {
                     let (source, registry, identity, ctx, lane, tree) = (
                         source.clone(),
@@ -165,6 +164,9 @@ impl DynPlugin for ProductTools {
                             ));
                         }
                         let branch = tree.get(&target.branch_id)?;
+                        if call.method.ends_with(".catalog") {
+                            return reply(registry.definitions());
+                        }
                         let mut configuration = branch.on::<PromptSnapshot>().ok_or_else(|| RpcError::service("product_catalog_unavailable", "Native prompt state is unavailable"))?;
                         let _guard = tokio::select! {
                             _ = cancel.cancelled() => return Err(RpcError::interrupted()),

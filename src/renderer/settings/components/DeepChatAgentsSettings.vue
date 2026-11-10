@@ -902,6 +902,7 @@
 </template>
 
 <script setup lang="ts">
+import { dimDisabledTools } from '@shared/lib/nativeToolPreferences'
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
@@ -1156,7 +1157,7 @@ const form = reactive<FormState>({
   subagentEnabled: true,
   defaultOrchestrationPolicy: 'explicit',
   subagents: normalizeDeepChatSubagentSlots(createDefaultDeepChatSubagentSlots()),
-  disabledAgentTools: [...DEFAULT_DISABLED_AGENT_TOOLS],
+  disabledAgentTools: dimDisabledTools([...DEFAULT_DISABLED_AGENT_TOOLS]),
   autoCompactionEnabled: uiSettingsStore.autoCompactionEnabled,
   autoCompactionTriggerThreshold: String(uiSettingsStore.autoCompactionTriggerThreshold),
   autoCompactionRetainRecentPairs: String(uiSettingsStore.autoCompactionRetainRecentPairs),
@@ -1446,7 +1447,7 @@ const emptyForm = (): FormState => ({
   subagentEnabled: true,
   defaultOrchestrationPolicy: 'explicit',
   subagents: normalizeDeepChatSubagentSlots(createDefaultDeepChatSubagentSlots()),
-  disabledAgentTools: [...DEFAULT_DISABLED_AGENT_TOOLS],
+  disabledAgentTools: dimDisabledTools([...DEFAULT_DISABLED_AGENT_TOOLS]),
   autoCompactionEnabled: uiSettingsStore.autoCompactionEnabled,
   autoCompactionTriggerThreshold: String(uiSettingsStore.autoCompactionTriggerThreshold),
   autoCompactionRetainRecentPairs: String(uiSettingsStore.autoCompactionRetainRecentPairs),
@@ -1663,7 +1664,9 @@ const fromAgent = (agent?: Agent | null): FormState => {
     subagents: normalizeDeepChatSubagentSlots(
       config.subagents ?? createDefaultDeepChatSubagentSlots()
     ),
-    disabledAgentTools: [...(config.disabledAgentTools ?? DEFAULT_DISABLED_AGENT_TOOLS)],
+    disabledAgentTools: dimDisabledTools([
+      ...(config.disabledAgentTools ?? DEFAULT_DISABLED_AGENT_TOOLS)
+    ]),
     autoCompactionEnabled: config.autoCompactionEnabled ?? true,
     autoCompactionTriggerThreshold: numText(
       config.autoCompactionTriggerThreshold ?? AUTO_COMPACTION_TRIGGER_THRESHOLD_DEFAULT

@@ -344,6 +344,7 @@
 </template>
 
 <script setup lang="ts">
+import { dimDisabledTools } from '@shared/lib/nativeToolPreferences'
 import nowledgeMemIcon from '@/assets/images/nowledge-mem.webp'
 import { NOWLEDGE_PLUGIN_ID } from '@shared/types/nowledgeMemPlugin'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
@@ -408,18 +409,6 @@ const GROUP_ORDER = [
   'yobrowser'
 ]
 const TOOL_MODE_OPTIONS = AVAILABLE_TOOL_MODES
-const MINIMAL_AGENT_FILESYSTEM_TOOLS = new Set([
-  'read',
-  'write',
-  'edit',
-  'glob',
-  'grep',
-  'exec',
-  'process'
-])
-const MINIMAL_EDITOR_REQUIRED_AGENT_TOOLS = ['read', 'write', 'edit'] as const
-const MODE_FIXED_AGENT_TOOLS = new Set(['deepchat_question', 'deepchat_subagents'])
-
 const props = withDefaults(
   defineProps<{
     showSystemPromptSection?: boolean
@@ -556,9 +545,7 @@ const toolModeLocked = computed(
 )
 const toolModeDisabled = computed(() => toolModeSaving.value || toolModeLocked.value)
 const toolModeOptions = TOOL_MODE_OPTIONS
-const toolModeDescription = computed(() =>
-  t(`chat.input.toolMode.descriptions.${resolvedToolMode.value}`)
-)
+const toolModeDescription = computed(() => t('chat.input.toolMode.descriptions.agent'))
 
 const triggerTitle = computed(() =>
   isDeepchatContext.value ? t('chat.advancedSettings.title') : t('chat.input.mcp.title')
@@ -570,14 +557,16 @@ const normalizeToolNames = (toolNames: string[] | null | undefined): string[] =>
     return []
   }
 
-  return Array.from(
-    new Set(
-      toolNames
-        .filter((item): item is string => typeof item === 'string')
-        .map((item) => item.trim())
-        .filter(Boolean)
-    )
-  ).sort((left, right) => left.localeCompare(right))
+  return dimDisabledTools(
+    Array.from(
+      new Set(
+        toolNames
+          .filter((item): item is string => typeof item === 'string')
+          .map((item) => item.trim())
+          .filter(Boolean)
+      )
+    ).sort((left, right) => left.localeCompare(right))
+  )
 }
 
 const getGroupLabel = (serverName: string) => {
@@ -635,82 +624,8 @@ const groupedAgentTools = computed<ToolGroup[]>(() => {
     })
 })
 
-const fixedToolGroup = (name: string, label: string, toolNames: string[]): ToolGroup => ({
-  name,
-  label,
-  configurable: false,
-  items: toolNames.map((toolName) => ({
-    id: toolName,
-    label: toolName,
-    toolName,
-    configurable: false
-  }))
-})
-
-const createSubagentToolItem = (): ToolGroupItem => ({
-  id: 'deepchat_subagents',
-  label: 'deepchat_subagents',
-  toolName: 'deepchat_subagents',
-  configurable: false
-})
-
-const includeSubagentTool = (groups: ToolGroup[], fallbackLabel: string): ToolGroup[] => {
-  if (
-    !props.subagentsAvailable ||
-    groups.some((group) => group.items.some((item) => item.toolName === 'deepchat_subagents'))
-  ) {
-    return groups
-  }
-
-  const subagentItem = createSubagentToolItem()
-  const coreGroupIndex = groups.findIndex((group) => group.name === 'agent-core')
-  if (coreGroupIndex < 0) {
-    return [
-      ...groups,
-      {
-        name: 'agent-core',
-        label: fallbackLabel,
-        configurable: false,
-        items: [subagentItem]
-      }
-    ]
-  }
-
-  return groups.map((group, index) =>
-    index === coreGroupIndex ? { ...group, items: [...group.items, subagentItem] } : group
-  )
-}
-
-const visibleToolGroups = computed<ToolGroup[]>(() => {
-  if (resolvedToolMode.value === 'minimal') {
-    const editor = currentProviderId.value === 'openai-codex' ? 'apply_patch' : 'str_replace_editor'
-    const editorAvailable = MINIMAL_EDITOR_REQUIRED_AGENT_TOOLS.every(
-      (toolName) => !disabledToolNames.value.includes(toolName)
-    )
-    const retainedGroups = groupedAgentTools.value
-      .map((group) => {
-        const retainedItems =
-          group.name === 'agent-filesystem'
-            ? group.items.filter((item) => !MINIMAL_AGENT_FILESYSTEM_TOOLS.has(item.toolName))
-            : group.items
-        const items = retainedItems.map((item) =>
-          MODE_FIXED_AGENT_TOOLS.has(item.toolName) ? { ...item, configurable: false } : item
-        )
-        return { ...group, items, configurable: items.some((item) => item.configurable) }
-      })
-      .filter((group) => group.items.length > 0)
-    return [
-      fixedToolGroup('tool-mode-minimal', t('chat.input.toolMode.minimalTools'), [
-        'exec',
-        'process',
-        ...(editorAvailable ? [editor] : [])
-      ]),
-      ...includeSubagentTool(retainedGroups, getGroupLabel('agent-core'))
-    ]
-  }
-
-  return groupedAgentTools.value
-})
+// The owner publishes the executable catalog; presentation modes cannot invent tools.
+const visibleToolGroups = computed<ToolGroup[]>(() => groupedAgentTools.value)
 
 const isToolEnabled = (toolName: string) => !disabledToolNames.value.includes(toolName)
 const isToolPending = (toolName: string) => pendingToolNames.value.includes(toolName)

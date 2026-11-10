@@ -199,6 +199,7 @@ import { DimLegacySource } from '@/agent/dim/legacySource'
 import { DimInputPreparation } from '@/agent/dim/inputPreparation'
 import { createDimMemoryRuntime } from '@/agent/dim/memoryRuntime'
 import { createDimDesktopTools } from './dimDesktopTools'
+import { DimToolCatalog } from '@/agent/dim/toolCatalog'
 import { nativeMcpStdio } from '@/mcp/nativeStdio'
 import { RuntimeHelper } from '@/lib/runtimeHelper'
 import { createDesktopTranscriptRuntime } from '@/session/desktopTranscriptRuntime'
@@ -1908,8 +1909,26 @@ export async function createMainProcessControl(dependencies: {
     }
   }
 
+  const dimToolCatalog = new DimToolCatalog({
+    host: dimHost,
+    models: dimModels,
+    cwd: app.getPath('home'),
+    defaultModel: async () => {
+      for (const entry of await providerSettings.getAllEnabledModels()) {
+        if (providerSettings.getProviderById(entry.providerId)?.apiType === 'acp') continue
+        const model = entry.models.find((model) => {
+          const type = providerSettings.getModelConfig(model.id, entry.providerId).type
+          return !type || type === 'chat'
+        })
+        if (model) return { providerId: entry.providerId, modelId: model.id }
+      }
+      return null
+    }
+  })
+
   // Initialize the merged MCP and built-in Tool service.
   toolService = new ToolService({
+    nativeToolDefinitions: () => dimToolCatalog.definitions(),
     mcpService: mcpService,
     providerSettings: providerSettings,
     settings: dependencies.settingsStore,
@@ -2421,6 +2440,7 @@ export async function createMainProcessControl(dependencies: {
     }
   })
   sessionAssignment = new SessionAssignment({
+    toolPreferencesChanged: (id) => dimAgent.settings.refreshToolPreferences(id),
     sessions: appSessionService,
     runtime: {
       getSessionAgentKind: (sessionId) =>

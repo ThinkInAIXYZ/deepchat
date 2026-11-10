@@ -1,3 +1,4 @@
+import { dimDisabledTools } from '@shared/lib/nativeToolPreferences'
 import logger from '@shared/logger'
 import { isDeepStrictEqual } from 'node:util'
 import path from 'node:path'
@@ -124,9 +125,9 @@ const findChangedAcpRegistryAgentIds = (
 
 const withDeepChatAgentDefaults = (config: DeepChatAgentConfig): DeepChatAgentConfig => ({
   ...config,
-  disabledAgentTools: Array.isArray(config.disabledAgentTools)
-    ? [...config.disabledAgentTools]
-    : [...DEFAULT_DISABLED_AGENT_TOOLS]
+  disabledAgentTools: dimDisabledTools(
+    config.disabledAgentTools ?? [...DEFAULT_DISABLED_AGENT_TOOLS]
+  )
 })
 
 const mergeDefaultDisabledAgentTools = (

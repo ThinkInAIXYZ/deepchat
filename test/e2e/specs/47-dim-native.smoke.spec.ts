@@ -93,6 +93,25 @@ test('desktop chat uses persistent native dim sessions @smoke', async ({ app, la
     )
     await selectAgent(app.page)
     await selectModel(app.page, 'dim-desktop-fixture', providerId)
+    const catalog = await app.page.evaluate(() =>
+      window.deepchat.invoke('tools.listDefinitions', { chatMode: 'agent' })
+    )
+    const nativeNames = catalog.tools
+      .filter((tool) => tool.server.name === 'dim')
+      .map((tool) => tool.function.name)
+    expect(nativeNames).toEqual(
+      expect.arrayContaining([
+        'read',
+        'exec',
+        'exec_stop',
+        'ask_user',
+        'skill',
+        'agent',
+        'schedule'
+      ])
+    )
+    expect(catalog.tools.map((tool) => tool.function.name)).not.toContain('deepchat_question')
+    expect(requests).toHaveLength(0)
     await sendMessage(app.page, 'NATIVE_DIM_FIRST_INPUT')
     await expect(getAssistantMessages(app.page)).toHaveCount(1)
     await expect(getAssistantMessages(app.page).last()).toContainText('NATIVE_DIM_DESKTOP_REPLY')
@@ -112,6 +131,14 @@ test('desktop chat uses persistent native dim sessions @smoke', async ({ app, la
     expect(original.length).toBeGreaterThanOrEqual(2)
     expect(original.every((message) => message.metadata.dim?.sessionId)).toBe(true)
     const nativeId = original[0].metadata.dim.sessionId
+    const disabled = await app.page.evaluate(async (id) => {
+      await window.deepchat.invoke('sessions.updateDisabledAgentTools', {
+        sessionId: id,
+        disabledAgentTools: ['deepchat_question', 'process', 'cronjob']
+      })
+      return window.deepchat.invoke('sessions.getDisabledAgentTools', { sessionId: id })
+    }, sessionId)
+    expect(disabled.disabledAgentTools).toEqual(['ask_user', 'exec_stop', 'schedule'])
     const names = requests.flatMap(
       (request) => request.tools?.map((tool) => tool.function.name) ?? []
     )

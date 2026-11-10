@@ -1,3 +1,4 @@
+import { dimDisabledTools } from '@shared/lib/nativeToolPreferences'
 import type { JsonValue } from '@shared/contracts/json'
 import type {
   PermissionMode,
@@ -64,7 +65,11 @@ export class DimSessionSettings {
       agent,
       cwd: identity.cwd,
       ...(identity.tools ? { tools: identity.tools } : {}),
-      policy: { preset: preset(row.permission_mode), allowedTools: [], disallowedTools: [] }
+      policy: {
+        preset: preset(row.permission_mode),
+        allowedTools: [],
+        disallowedTools: this.disabledTools(sessionId)
+      }
     }
   }
 
@@ -74,16 +79,7 @@ export class DimSessionSettings {
 
   private async adopt(binding: DimSessionBinding): Promise<void> {
     const sessionId = binding.sessionId
-    const currentScope = () => {
-      const current = this.options.database.dimSessionBindingsTable.get(sessionId)
-      if (
-        !current ||
-        current.dimSessionId !== binding.dimSessionId ||
-        current.branchId !== binding.branchId ||
-        current.generation !== binding.generation
-      )
-        throw new Error('Native configuration belongs to a replaced session scope')
-    }
+    const currentScope = () => this.assertCurrent(binding)
     currentScope()
     const row = this.require(sessionId)
     const generation = (await this.options.state.getGenerationSettings(sessionId))!
@@ -117,14 +113,38 @@ export class DimSessionSettings {
       limits: { contextWindow: generation.contextLength, maxOutputTokens: generation.maxTokens },
       productPermissionMode: row.permission_mode
     })
+    await this.adoptPermission(binding)
+  }
+
+  refreshToolPreferences(sessionId: string): Promise<void> {
+    return this.run(sessionId, async () => {
+      const binding = this.options.database.dimSessionBindingsTable.get(sessionId)
+      if (binding) await this.adoptPermission(binding)
+    })
+  }
+
+  private async adoptPermission(binding: DimSessionBinding): Promise<void> {
+    this.assertCurrent(binding)
+    const sessionId = binding.sessionId
+    const row = this.require(sessionId)
+    const ref = { sessionId: binding.dimSessionId, branchId: binding.branchId }
     const permission = await this.options.controls.call<NativePermission>('permission', ref)
-    currentScope()
+    this.assertCurrent(binding)
     const desired = preset(row.permission_mode)
-    if (permission.policy.preset !== desired)
+    const disallowedTools = this.disabledTools(sessionId)
+    if (
+      permission.policy.preset !== desired ||
+      JSON.stringify(permission.policy.disallowedTools) !== JSON.stringify(disallowedTools)
+    )
       await this.options.controls.call('set_permission', ref, {
         expectedVersion: String(permission.version),
-        policy: { ...permission.policy, preset: desired }
+        policy: {
+          ...permission.policy,
+          preset: desired,
+          disallowedTools
+        }
       })
+    this.assertCurrent(binding)
   }
 
   initSession(
@@ -209,6 +229,20 @@ export class DimSessionSettings {
       })
       .catch(() => {})
     return task
+  }
+  private assertCurrent(binding: DimSessionBinding): void {
+    const current = this.options.database.dimSessionBindingsTable.get(binding.sessionId)
+    if (
+      !current ||
+      current.dimSessionId !== binding.dimSessionId ||
+      current.branchId !== binding.branchId ||
+      current.generation !== binding.generation
+    )
+      throw new Error('Native configuration belongs to a replaced session scope')
+  }
+
+  private disabledTools(sessionId: string): string[] {
+    return dimDisabledTools(this.options.database.newSessionsTable.getDisabledAgentTools(sessionId))
   }
   private require(sessionId: string) {
     const row = this.options.database.deepchatSessionsTable.get(sessionId)

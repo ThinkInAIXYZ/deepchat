@@ -162,6 +162,7 @@ interface ToolServiceOptions {
   permissionBroker?: ToolPermissionBroker
   liveDelegationConsent?: LiveDelegationConsentIssuer
   agentTools: AgentToolDependencies
+  nativeToolDefinitions?(): Promise<MCPToolDefinition[]>
   effectObserver?: ToolEffectObserver
 }
 
@@ -534,7 +535,23 @@ export class ToolService implements ToolServicePort {
         'agent'
       )
 
-      return agentDefs.filter((tool) => isUserConfigurableAgentTool(tool.function.name))
+      const desktop = agentDefs.filter((tool) => isUserConfigurableAgentTool(tool.function.name))
+      if (!this.options.nativeToolDefinitions) return desktop
+      const native = await this.options.nativeToolDefinitions()
+      const nativeNames = new Set(native.map((tool) => tool.function.name))
+      const replaced = new Set([
+        ...FILESYSTEM_TOOL_ORDER,
+        QUESTION_TOOL_NAME,
+        CRON_JOB_AGENT_TOOL_NAME,
+        APPLY_PATCH_TOOL_NAME,
+        STR_REPLACE_EDITOR_TOOL_NAME
+      ])
+      return [
+        ...native,
+        ...desktop.filter(
+          (tool) => !nativeNames.has(tool.function.name) && !replaced.has(tool.function.name)
+        )
+      ]
     } catch (error) {
       console.warn('[ToolPresenter] Failed to load configurable Agent tool definitions', error)
       return []

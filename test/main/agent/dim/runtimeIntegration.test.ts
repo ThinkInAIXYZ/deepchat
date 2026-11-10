@@ -34,6 +34,7 @@ import { createSessionStatusProjection } from '@/session/sessionStatusProjection
 import type { SessionEventPublisher } from '@/events/sessionEventRouter'
 import type { ProviderSettingsPort } from '@/provider/settings'
 import type { ModelConfig } from '@shared/types/provider'
+import { DimToolCatalog } from '@/agent/dim/toolCatalog'
 import { DimSessionControls } from '@/agent/dim/sessionControls'
 import { DimQueue } from '@/agent/dim/queue'
 import { DimInteractions } from '@/agent/dim/interactions'
@@ -691,8 +692,40 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
           generationSettings: { temperature: 0.23, topP: 0.71, maxTokens: 83, contextLength: 64000 }
         })
       }
+      if (nativePlugins)
+        grants.data.newSessionsTable.updateDisabledAgentTools('product-ui', [
+          'process',
+          'question',
+          'cronjob'
+        ])
       const admit = () =>
         catalog ? catalog.admit('desktop-fixture', 'fixture') : models.configure(configuration)
+      if (nativePlugins) {
+        const definitions = await new DimToolCatalog({
+          host,
+          models: catalog!,
+          cwd: profile,
+          defaultModel: async () => ({ providerId: 'desktop-fixture', modelId: 'fixture' })
+        }).definitions()
+        const names = definitions.map((tool) => tool.function.name)
+        expect(names).toEqual(
+          expect.arrayContaining([
+            'read',
+            'write',
+            'edit',
+            'glob',
+            'grep',
+            'exec',
+            'exec_stop',
+            'skill',
+            'agent',
+            'ask_user',
+            'schedule'
+          ])
+        )
+        expect(names).not.toContain('run_code')
+        expect(names).not.toContain('tool_search')
+      }
       const target = await admit()
       admittedProvider = target.providerId
       expect(await admit()).toEqual(target)
@@ -707,6 +740,8 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
         version: number
         policy: { preset: string; allowedTools: string[]; disallowedTools: string[] }
       }>('permission', ref)
+      if (nativePlugins)
+        expect(policy.policy.disallowedTools).toEqual(['ask_user', 'exec_stop', 'schedule'])
       const changedPreset =
         policy.policy.preset === 'workspace-write' ? 'full-access' : 'workspace-write'
       await controls.call('set_permission', ref, {
@@ -802,6 +837,13 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
         )
         expect(await controls.call('native_settings', ref)).toMatchObject({
           capabilitySnapshot: { capabilities: { contextWindow: 64000, maxOutputTokens: 83 } }
+        })
+        grants.data.newSessionsTable.updateDisabledAgentTools('product-ui', [])
+        providerEnabled = false
+        await nativeSettings!.refreshToolPreferences('product-ui')
+        providerEnabled = true
+        expect(await controls.call('permission', ref)).toMatchObject({
+          policy: { disallowedTools: [] }
         })
         const input = {
           ...ref,
@@ -991,7 +1033,10 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
       }
       expect(await admit()).toEqual(target)
       if (nativePlugins) {
-        expect(await nativeSettings!.launch('product-ui')).toEqual(launch)
+        expect(await nativeSettings!.launch('product-ui')).toMatchObject({
+          model: target,
+          policy: { preset: 'workspace-write', allowedTools: [], disallowedTools: [] }
+        })
         const recovered = await (
           await host.start()
         ).call<{ events: DimEvent[] }>('deepchat.storage.history', {
