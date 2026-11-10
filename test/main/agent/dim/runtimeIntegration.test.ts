@@ -425,7 +425,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
           }
           childToolPhase++
         }
-        if (nextTools && !titleRequest) {
+        if (nextTools && !titleRequest && body.tools?.length) {
           const tools = nextTools
           nextTools = null
           res.end(
@@ -958,7 +958,16 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
               modelId: 'fixture',
               messages: [
                 { role: 'system', content: 'native auxiliary instructions' },
-                { role: 'user', content: 'native auxiliary request' }
+                {
+                  role: 'user',
+                  content: [
+                    { type: 'text', text: 'native auxiliary request' },
+                    {
+                      type: 'input_audio',
+                      input_audio: { data: 'UklGRgQAAABXQVZF', media_type: 'Audio/WAV' }
+                    }
+                  ]
+                }
               ],
               parameters: { temperature: 0.31, topP: 0.68, maxTokens: 93 }
             })
@@ -978,6 +987,10 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
           top_p: 0.71,
           max_tokens: 83
         })
+        expect(JSON.stringify(conversationRequests()[1].body.messages)).toContain('input_audio')
+        expect(JSON.stringify(conversationRequests()[1].body.messages)).toContain(
+          'UklGRgQAAABXQVZF'
+        )
         expect(conversationRequests()[1].body).toMatchObject({
           temperature: 0.31,
           top_p: 0.68,
@@ -1903,7 +1916,15 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
             cwd: grants.data.newSessionsTable.get(id)?.project_dir ?? profile
           }),
           prepareInput: new DimInputPreparation({
-            capabilities: () => ({ vision: false, audio: false }),
+            capabilities: () => ({ vision: false, audio: true }),
+            audio: (_id, part, prompt, signal) =>
+              new DimAuxiliaryModels({ models: catalog!, bridge: models }).audioEvidence(
+                'desktop-fixture',
+                'fixture',
+                part,
+                prompt,
+                signal
+              ),
             attachments: {
               prepare: async ({ content }) => ({
                 content,
@@ -1965,8 +1986,28 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
             arguments: { text: 'scope-only' }
           }
         ]
-        await facade.backend.send(facadeId, { content: { text: 'facade original' } })
+        await facade.backend.send(facadeId, {
+          content: {
+            text: 'facade original',
+            files: [
+              {
+                name: 'voice.wav',
+                path: '/fixture/voice.wav',
+                mimeType: 'audio/wav',
+                content: 'data:audio/wav;base64,UklGRgQAAABXQVZF'
+              }
+            ]
+          }
+        })
         await facade.runtime.waitIdle(facadeId)
+        expect(JSON.stringify(conversationRequests().at(-1)?.body.messages)).toContain(
+          'Audio evidence from native model'
+        )
+        expect(
+          conversationRequests().some((request) =>
+            JSON.stringify(request.body.messages).includes('input_audio')
+          )
+        ).toBe(true)
         expect(productToolCalls).toHaveLength(1)
         expect(productToolCalls[0]).toMatchObject({
           sessionId: grants.data.dimSessionBindingsTable.get(facadeId)!.dimSessionId,

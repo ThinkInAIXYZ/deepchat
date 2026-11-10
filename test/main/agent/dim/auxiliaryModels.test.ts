@@ -9,7 +9,8 @@ it('preserves system text, image bytes and tool call identities in the native me
         role: 'user',
         content: [
           { type: 'text', text: 'question' },
-          { type: 'image_url', image_url: { url: 'data:image/png;base64,cG5n' } }
+          { type: 'image_url', image_url: { url: 'data:image/png;base64,cG5n' } },
+          { type: 'input_audio', input_audio: { data: 'AQID', media_type: 'Audio/WAV' } }
         ]
       },
       {
@@ -31,7 +32,8 @@ it('preserves system text, image bytes and tool call identities in the native me
         role: 'user',
         content: [
           { type: 'text', text: 'question' },
-          { type: 'image', source: { type: 'base64', mediaType: 'image/png', data: 'cG5n' } }
+          { type: 'image', source: { type: 'base64', mediaType: 'image/png', data: 'cG5n' } },
+          { type: 'image', source: { type: 'base64', mediaType: 'audio/wav', data: 'AQID' } }
         ]
       },
       {
@@ -99,4 +101,22 @@ it('keeps admission cancellation from reaching Rust inference and preserves conf
     temperature: 0.2,
     maxTokens: 80
   })
+})
+
+it('blocks a truncated audio preparation before the Agent receives incomplete evidence', async () => {
+  const complete = vi
+    .fn()
+    .mockResolvedValue({ text: 'partial transcript', stopReason: 'max_tokens' })
+  const auxiliary = new DimAuxiliaryModels({
+    models: { admit: async () => ({ providerId: 'native', modelId: 'audio' }) },
+    bridge: { complete }
+  })
+  await expect(
+    auxiliary.audioEvidence(
+      'provider',
+      'audio',
+      { type: 'input_audio', input_audio: { data: 'AQID', media_type: 'audio/wav' } },
+      'What was said?'
+    )
+  ).rejects.toThrow('exceeded the model output allowance')
 })

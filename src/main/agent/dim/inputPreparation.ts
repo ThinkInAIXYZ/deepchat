@@ -9,9 +9,11 @@ import type { DimPreparedInput } from './backend'
 interface InputPreparationOptions {
   capabilities(sessionId: string): { vision: boolean; audio: boolean }
   attachments: AttachmentPreparationPort
-  // Audio preparation is supplied by the native media integration, never a TS provider.
+  // Audio understanding uses native auxiliary inference before Agent input admission.
   audio?(
+    sessionId: string,
     part: Extract<ChatMessageContent, { type: 'input_audio' }>,
+    prompt: string,
     signal?: AbortSignal
   ): Promise<JsonValue[]>
 }
@@ -63,14 +65,16 @@ export class DimInputPreparation {
       }
     )
     return {
-      content: await this.blocks(formatted, signal),
+      content: await this.blocks(sessionId, formatted, prepared.content.text, signal),
       representation: representation as unknown as JsonValue,
       summary: prepared.summary
     }
   }
 
   private async blocks(
+    sessionId: string,
     content: ChatMessage['content'],
+    prompt: string,
     signal?: AbortSignal
   ): Promise<JsonValue[]> {
     if (typeof content === 'string') return dimContentBlocks(content)
@@ -79,7 +83,7 @@ export class DimInputPreparation {
       signal?.throwIfAborted()
       if (part.type === 'input_audio') {
         if (!this.options.audio) throw new Error('Native audio preparation is unavailable')
-        blocks.push(...(await this.options.audio(part, signal)))
+        blocks.push(...(await this.options.audio(sessionId, part, prompt, signal)))
       } else blocks.push(...dimContentBlocks([part]))
     }
     signal?.throwIfAborted()

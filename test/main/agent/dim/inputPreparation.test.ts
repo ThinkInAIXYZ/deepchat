@@ -4,7 +4,7 @@ import type { AttachmentPreparationInput } from '@shared/types/attachment'
 import type { SendMessageInput } from '@shared/types/agent-interface'
 
 const ready = { status: 'ready' as const, issues: [], suggestedActions: [] }
-it('retains product presentation and prepares native image bytes without writing a conversation', async () => {
+it('retains product presentation and prepares native image bytes and audio evidence without writing a conversation', async () => {
   const input: SendMessageInput = {
     text: 'inspect the image',
     search: true,
@@ -16,6 +16,12 @@ it('retains product presentation and prepares native image bytes without writing
         mimeType: 'image/png',
         content: 'data:image/png;base64,cG5n',
         resolvedRepresentation: { kind: 'image' }
+      },
+      {
+        name: 'voice.wav',
+        path: '/voice.wav',
+        mimeType: 'audio/wav',
+        content: 'data:audio/wav;base64,UklGRgQAAABXQVZF'
       }
     ]
   }
@@ -26,7 +32,8 @@ it('retains product presentation and prepares native image bytes without writing
     }))
   }
   const preparation = new DimInputPreparation({
-    capabilities: () => ({ vision: true, audio: false }),
+    capabilities: () => ({ vision: true, audio: true }),
+    audio: async () => [{ type: 'text', text: 'Native audio evidence' }],
     attachments
   })
   const result = await preparation.prepare('product', input, undefined, {
@@ -46,6 +53,7 @@ it('retains product presentation and prepares native image bytes without writing
     type: 'image',
     source: { type: 'base64', mediaType: 'image/png', data: 'cG5n' }
   })
+  expect(result.content).toContainEqual({ type: 'text', text: 'Native audio evidence' })
   expect(JSON.stringify(result.content)).toContain('inspect the image')
   expect(JSON.stringify(result.content)).not.toContain('Code Mode')
 })

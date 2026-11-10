@@ -158,6 +158,8 @@
 
 ## 模块进度
 
+- 模块 50：聊天音频通过插件输入准备接入 Native auxiliary owner：公开的 MIME-bearing file source 在辅助请求中由 Aimux 转换为真实音频，先提取与用户问题相关的音频证据，再交给 dim Agent；保留原附件展示/追溯。实际测试确认当前 Native Agent image policy 会过滤音频，因此禁止直接把辅助音频形状交给 Agent，未修改 SDK 的该策略。音频准备截断、取消、会话/模型/目录/代次变化时不接纳输入；使用音频聊天模型的独立转写也走原生辅助调用，专用 ASR 继续 Native Modality。32 项相关回归通过，真实 Rust 用例覆盖原始音频 auxiliary、Agent 证据/工具、fork/retry/迁移与重启（112s），主进程构建、Electron 草稿/模型测试/CLI/聊天/重启/引用/Inspector 联合验收通过（31s）。格式/i18n/lint/双端 typecheck 通过。没有新增 SDK 补丁；大体积音频的文件传输仍待补齐，不将该模块计为全部媒体兼容完成。
+
 - 模块 49：物理删除无生产入口的 Node SkillExecutionService、旧 SkillTools、cron 模型工具和 LiveDelegationAgentTool，以及对应旧执行器测试；项目技能隔离/引用测试改为直接验证仍在使用的 SkillService 公共管理接口。工具侧移除多余 Tape/cron ports、composition 接线与旧 cron prompt；桌面技能管理、Scheduled Tasks 服务及 CLI 子会话能力保留。清理 guard 阻止重新导入这些执行器。962 项工具/技能/边界回归通过，主进程构建、ACP/Native 两项 Electron 联合验收通过（43s）；格式/i18n/lint/双端 typecheck 通过。模块 48 的完整 12 项 Native smoke 已串行通过（227s）。
 
 - 模块 48：图片、视频、TTS 与 ASR facade 均要求 Native Modality，删除 Node 媒体推理回退。视频优先复用 dim 默认适配器；当前锁定版本未提供的 OpenAI 兼容 /videos 协议以 Rust ModalityAdapter 扩展实现，任务准入、排队、持久化、恢复与取消继续属于 dim，网络复用 Native Aimux transport/guard。保留原请求选项、两种 body 格式、参考素材与提示词时长提取，流式写入有界结果文件，不持久化连接或响应 URL。实际恢复用例发现 Native Modality 在产品 adapter 就绪前读取可选绑定，通过公开插件装配依赖修正启动顺序，无新增 SDK 补丁。桥 0.12.0。1107 项 provider/CLI compute 回归、真实 Rust 媒体联合用例（含视频取消及重启不重复提交）通过；主进程构建、Electron 草稿/模型测试/CLI/聊天/重启/引用/Inspector 联合验收通过（35s）；格式/i18n/lint/双端 typecheck 通过。媒体聊天会话、聊天音频输入及特殊供应商仍继续接线。

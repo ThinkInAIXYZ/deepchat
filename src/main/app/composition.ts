@@ -2175,6 +2175,36 @@ export async function createMainProcessControl(dependencies: {
     },
     prepareInput: new DimInputPreparation({
       attachments: attachmentRouter,
+      audio: async (id, part, prompt, signal) => {
+        const before = sessionData.settings.get(id)
+        const record = appSessionService.get(id)
+        if (sessionData.database.dimScopeChangesTable.get(id))
+          throw new Error('Desktop session is changing')
+        if (!before || !record) throw new Error('Desktop session is not initialized')
+        const binding = sessionData.database.dimSessionBindingsTable.get(id)
+        const result = await dimAuxiliary.audioEvidence(
+          before.provider_id,
+          before.model_id,
+          part,
+          prompt,
+          signal
+        )
+        const after = sessionData.settings.get(id)
+        const current = sessionData.database.dimSessionBindingsTable.get(id)
+        if (
+          !after ||
+          appSessionService.get(id)?.agentId !== record?.agentId ||
+          appSessionService.get(id)?.projectDir !== record?.projectDir ||
+          sessionData.database.dimScopeChangesTable.get(id) ||
+          after.provider_id !== before.provider_id ||
+          after.model_id !== before.model_id ||
+          current?.dimSessionId !== binding?.dimSessionId ||
+          current?.branchId !== binding?.branchId ||
+          current?.generation !== binding?.generation
+        )
+          throw new Error('Audio preparation belongs to a replaced session configuration')
+        return result
+      },
       capabilities: (id) => {
         const row = sessionData.settings.get(id)
         if (!row) throw new Error('Desktop session is not initialized')

@@ -746,6 +746,36 @@ export class ProviderRuntime
 
     await this.executeWithRateLimit(providerId, { signal })
 
+    const config = this.providerSettings.getModelConfig(modelId, providerId)
+    const capability = this.providerSettings.getCapabilitySnapshot({ providerId, modelId })
+    if (!config.speechRecognition && capability.supportsAudioInput) {
+      const reply = await this.requireNativeModels().complete({
+        providerId,
+        modelId,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: 'Transcribe the provided audio. Return only the transcription, in its original language, without explanations, translation, speaker labels or formatting. Return an empty string if there is no discernible speech.'
+              },
+              {
+                type: 'input_audio',
+                input_audio: {
+                  data: normalizedAudioBase64,
+                  media_type: normalizedMimeType,
+                  ...(filename?.trim() ? { filename: filename.trim() } : {})
+                }
+              }
+            ]
+          }
+        ],
+        parameters: { temperature: 0 },
+        signal
+      })
+      return reply.text.trim()
+    }
     return this.requireNativeMedia().transcribeAudioStandalone(
       providerId,
       modelId,

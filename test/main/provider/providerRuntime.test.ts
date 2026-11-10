@@ -158,6 +158,7 @@ describe('ProviderRuntime Integration Tests', () => {
         functionCall: false,
         reasoning: false
       }),
+      getCapabilitySnapshot: vi.fn().mockReturnValue({ supportsAudioInput: false }),
       getSetting: vi.fn().mockImplementation((key: string) => {
         if (key === 'azureApiVersion') return '2024-02-01'
         return undefined
@@ -622,6 +623,38 @@ describe('ProviderRuntime Integration Tests', () => {
       expect(rateLimit).toHaveBeenCalledTimes(4)
       expect(submit).toHaveBeenCalledTimes(4)
       expect(legacy).not.toHaveBeenCalled()
+    })
+
+    it('transcribes with the selected audio chat model through native inference', async () => {
+      vi.mocked(mockProviderSettings.getCapabilitySnapshot).mockReturnValueOnce({
+        supportsAudioInput: true
+      } as never)
+      const complete = vi
+        .fn()
+        .mockResolvedValue({ text: ' Native audio transcript ', stopReason: 'end_turn' })
+      const oldTranscribe = vi.spyOn(
+        providerRuntime.getProviderInstance('mock-openai-api'),
+        'transcribeAudio'
+      )
+      providerRuntime.setNativeModels(
+        new DimAuxiliaryModels({
+          models: { admit: async () => ({ providerId: 'native', modelId: 'audio-model' }) },
+          bridge: { complete }
+        })
+      )
+      await expect(
+        providerRuntime.transcribeAudioStandalone(
+          'mock-openai-api',
+          'audio-model',
+          'AQID',
+          'Audio/WAV'
+        )
+      ).resolves.toBe('Native audio transcript')
+      expect(complete.mock.calls[0][1].messages[0].content).toContainEqual({
+        type: 'image',
+        source: { type: 'base64', mediaType: 'audio/wav', data: 'AQID' }
+      })
+      expect(oldTranscribe).not.toHaveBeenCalled()
     })
 
     it('requires native media owners for every standalone media operation', async () => {
