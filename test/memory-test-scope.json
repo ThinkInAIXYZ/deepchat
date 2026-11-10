@@ -4,6 +4,7 @@
     "test/main/memory/session/memoryExtractionChunks.test.ts",
     "test/main/memory/session/memoryRuntimeCoordinator.test.ts",
     "test/main/agent/dim/memoryEvidence.test.ts",
+    "test/main/agent/dim/memoryViews.test.ts",
     "test/main/memory/agentMemoryLineage.test.ts",
     "test/main/memory/conflictService.test.ts",
     "test/main/memory/contributionBudget.test.ts",

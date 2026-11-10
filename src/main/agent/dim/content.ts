@@ -117,11 +117,32 @@ export class DimContent {
     extra?: JsonValue,
     through?: string
   ): Promise<{ event: DimEvent | null; through: string }> {
+    const page = await this.events(ref, kinds, 1, extra, through)
+    return { event: page.events[0]?.event ?? null, through: page.through }
+  }
+
+  async events(
+    ref: DimSessionRef,
+    kinds: string[],
+    limit: number,
+    extra?: JsonValue,
+    through?: string
+  ): Promise<{
+    events: Array<{ event: DimEvent; position: { branch_id: string; sequence: string | number } }>
+    through: string
+  }> {
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 200)
+      throw new Error('Native event queries require a limit between 1 and 200')
     const client = await this.host.start()
     const kind: JsonValue = { op: 'in', value: { kind: 'field', path: 'kind' }, values: kinds }
     const page = await client.call<{
       through: string | number
-      result: { events: Array<{ event: DimEvent }> }
+      result: {
+        events: Array<{
+          event: DimEvent
+          position: { branch_id: string; sequence: string | number }
+        }>
+      }
     }>('session.deepchat_storage.query', {
       ...ref,
       query: {
@@ -132,9 +153,9 @@ export class DimContent {
           select: { kind: 'events' },
           order_by: [{ key: { kind: 'position' }, direction: 'descending' }]
         },
-        page: { limit: 1 }
+        page: { limit }
       }
     })
-    return { event: page.result.events[0]?.event ?? null, through: String(page.through) }
+    return { events: page.result.events, through: String(page.through) }
   }
 }

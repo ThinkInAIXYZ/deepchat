@@ -14,6 +14,7 @@ import type { DimProductContextReply, DimProductContextRequest } from './product
 import { DimContent } from './content'
 import { DimMemorySource } from './memorySource'
 import { DimMemoryEvidence } from './memoryEvidence'
+import { DimMemoryViews } from './memoryViews'
 import type { DimRuntimeSupervisor } from './runtimeSupervisor'
 
 interface MemoryOptions {
@@ -134,6 +135,7 @@ export function createDimMemoryRuntime(options: MemoryOptions) {
   return {
     coordinator,
     evidence: new DimMemoryEvidence({ database: options.database, content }),
+    views: new DimMemoryViews({ database: options.database, content }),
     contribute,
     observe,
     closed,

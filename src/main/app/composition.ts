@@ -3358,6 +3358,7 @@ export async function createMainProcessControl(dependencies: {
       getAgentType: (agentId) => agentSettings.getAgentType(agentId),
       getTapeInspection: () => sessionData.tapeStore,
       getAuditEntries: () => memoryDatabase.agentMemoryAuditTable,
+      listDimViews: (agentId, query) => dimMemory.views.list(agentId, query),
       readDimSources: (id, sources) => dimMemory.evidence.read(id, sources)
     })
     const desktopRoutes = createDesktopRoutes({

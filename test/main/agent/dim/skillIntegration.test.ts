@@ -10,6 +10,8 @@ import { DimProductContext } from '@/agent/dim/productContext'
 import { DimSkillContext } from '@/agent/dim/skillContext'
 import { DimModelBridge } from '@/agent/dim/modelBridge'
 import { DimContent } from '@/agent/dim/content'
+import { DimMemorySource } from '@/agent/dim/memorySource'
+import { DimMemoryViews } from '@/agent/dim/memoryViews'
 import { dimDatabase } from './fixtures/database'
 
 it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
@@ -148,6 +150,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
         policy: { preset: 'full-access', allowedTools: [], disallowedTools: [] }
       })
       const ref = { sessionId: created.sessionId, branchId: 'main' }
+      database.data.newSessionsTable.create('desktop-private', 'private-agent', 'Private', profile)
       database.data.dimSessionBindingsTable.bind('desktop-private', ref.sessionId, ref.branchId)
       await client.call('deepchat.host.input', {
         ...ref,
@@ -161,6 +164,41 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
       expect(modelRequests).toBe(3)
       const history = await new DimContent(host).transcript(ref, 'desktop-private')
       expect(JSON.stringify(history.messages)).toContain('Native skill complete')
+      const user = history.messages.find((message) => message.role === 'user')!
+      const turnId = JSON.parse(user.metadata).dim.turnId
+      expect(turnId).toEqual(JSON.parse(history.messages.at(-1)!.metadata).runId)
+      expect(typeof turnId).toBe('string')
+      const content = new DimContent(host)
+      const memory = new DimMemorySource({ database: database.data, host, content })
+      const views = new DimMemoryViews({ database: database.data, content })
+      const receipt = await memory.audit({
+        sessionId: 'desktop-private',
+        name: 'memory/view_assembled',
+        state: { selected: [{ id: 'native-memory' }], tokenBudget: 1000 },
+        meta: { messageId: turnId }
+      })
+      expect(
+        await views.list('private-agent', {
+          sessionId: 'desktop-private',
+          messageId: user.id,
+          limit: 1
+        })
+      ).toEqual([
+        expect.objectContaining({
+          messageId: user.id,
+          entryId: null,
+          selectedIds: ['native-memory'],
+          timeline: receipt.timeline
+        })
+      ])
+      const older = await content.events(ref, ['deepchat/memory-audit'], 1, {
+        op: 'compare',
+        left: { kind: 'field', path: 'position.sequence' },
+        comparison: 'lt',
+        right: { kind: 'value', value: receipt.timeline!.sequence }
+      })
+      expect(older.events).toEqual([])
+      expect(modelRequests).toBe(3)
       const raw = await client.call<{
         events: Array<{ type: string; name: string; data: Record<string, unknown> }>
       }>('deepchat.storage.history', { ...ref, limit: 100 })

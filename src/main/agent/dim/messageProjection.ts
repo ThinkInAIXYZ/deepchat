@@ -150,10 +150,12 @@ export function projectDimEvent(
     clearInputCache(event.data.input_id)
     if (original) {
       const metadata = JSON.parse(original.metadata) as MessageMetadata
+      if (metadata.dim && binding.activeTurnId)
+        metadata.dim = { ...metadata.dim, turnId: binding.activeTurnId }
       if (metadata.inputReceipt) {
         metadata.inputReceipt = { ...metadata.inputReceipt, readAt: now, delivery: 'applied' }
-        messages.push({ ...original, metadata: JSON.stringify(metadata), updatedAt: now })
       }
+      messages.push({ ...original, metadata: JSON.stringify(metadata), updatedAt: now })
     }
     return result
   }

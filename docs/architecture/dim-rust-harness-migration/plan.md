@@ -158,6 +158,8 @@
 
 ## 模块进度
 
+- 模块 54：Memory 视图查询接通 Native storage 插件，按产品 Agent 与各代持久归属读取原生审计，不创建 Tape 或触发模型；旧 Tape 记录继续只读合并。用户消息由 input/consumed 事实关联真实 turn，按消息查询在固定水位的 canonical transcript 上解析身份；原生记录返回 nullable entryId 与无损 Timeline 坐标。分页按原生位置降序且固定 through，存储插件将声明的 sequence 比较操作数无损转为 u64；继承分支不冒充当前 owner，异步和最终返回前检查撤权。153 项相关回归、实际 Rust 技能/记忆联合用例（8s）、ACP/Native 两项 Electron（47s）通过；Memory scope/type 79 项、格式/i18n/lint/双端类型与主进程构建通过。
+
 - 模块 53：被动 Trace manifest 与嵌套执行审计查询改为只读旧归档，不再为 Native 消息初始化 Tape。有 Native 绑定而内容插件未接线时，会话引用显式失败，不降级到旧 Tape 或触发初始化。新增实际 SQLite 回归验证两类诊断零 Tape 写入，以及缺少 Native owner 时选择/读取均拒绝；53 项会话/引用/原子性回归通过。格式/i18n/lint/双端 typecheck 与主进程构建通过；Electron 首轮在启动未处理异常后卡住清理，保留日志并清理该测试进程后，同代码独立复验（含模型测试、CLI、聊天/重启、引用和 Inspector）34s 通过。
 
 - 模块 52：DeepChat 私有 Agent/项目技能的已选择内容，通过独立 DimSkillContext 接入 Native PrepareContext；产品 owner 校验当前分配、项目覆盖、选择和文件根，并在异步读取后重验 Agent/目录及选择快照，收据保存内容 hash。默认/项目技能发现、read、exec 继续属于 dim，不恢复 Node 技能执行器。旧 skill_run 指引替换为原生工具指引，内容 builder 升 v4。真实 Rust 用例完成已选技能注入、Native read + exec 执行技能脚本及 Timeline 收据（8s）；538 项技能/上下文回归通过。桌面验收发现整份未选目录占满固定上下文，修正为仅注入已选技能，并加入无选择时不读取/注入私有目录的回归；主进程构建、ACP/Native 两项联合验收通过（40s）。格式/i18n/lint/双端 typecheck 通过；Native smoke 脚本新增独立技能用例，现为 13 项。私有技能的原生目录注册、环境与策略兼容仍继续实施。

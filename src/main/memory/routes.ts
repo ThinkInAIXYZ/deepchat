@@ -46,6 +46,7 @@ import {
   type MemoryCommandResult,
   type MemoryHealthDto,
   type MemoryLifecycle,
+  type MemoryViewManifest,
   type MemoryUpdateResult
 } from '@shared/contracts/routes/memory.routes'
 import { createRouteMap, type DeepchatRouteMap } from '@/routes/routeRegistry'
@@ -339,6 +340,10 @@ export function createMemoryRoutes(deps: {
   getAgentType(agentId: string): Promise<string | null>
   getTapeInspection(): TapeInspectionReader
   getAuditEntries(): MemoryAuditEntries
+  listDimViews?(
+    agentId: string,
+    query: { sessionId?: string; messageId?: string; limit: number }
+  ): Promise<MemoryViewManifest[]>
   readDimSources?(
     sessionId: string,
     sources: DimMemorySource[]
@@ -556,13 +561,14 @@ export function createMemoryRoutes(deps: {
           return memoryListViewManifestsRoute.output.parse({ manifests: [] })
         }
         const limit = input.limit ?? 100
-        const manifests = deps
-          .getTapeInspection()
-          .listMemoryViewManifestsByAgent(input.agentId, {
-            sessionId: input.sessionId,
-            limit,
-            messageId: input.messageId
-          })
+        const native = (await deps.listDimViews?.(input.agentId, { ...input, limit })) ?? []
+        const legacy = deps.getTapeInspection().listMemoryViewManifestsByAgent(input.agentId, {
+          sessionId: input.sessionId,
+          limit,
+          messageId: input.messageId
+        })
+        const manifests = [...native, ...legacy]
+          .sort((left, right) => right.createdAt - left.createdAt)
           .slice(0, limit)
         return memoryListViewManifestsRoute.output.parse({ manifests })
       }

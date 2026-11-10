@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { defineRouteContract } from '../common'
+import { defineRouteContract, DimTimelinePositionSchema } from '../common'
 import {
   AGENT_MEMORY_AUDIT_ACTOR_TYPES,
   AGENT_MEMORY_AUDIT_FAILURE_STATUSES,
@@ -807,7 +807,8 @@ export const MemoryAuditEventSchema = z.object({
 export const MemoryViewManifestSchema = z.object({
   sessionId: z.string(),
   messageId: z.string().nullable(),
-  entryId: z.number(),
+  entryId: z.number().nullable(),
+  timeline: DimTimelinePositionSchema.optional(),
   policyVersion: z.number().nullable(),
   tokenBudget: z.number(),
   estimatedTokens: z.number(),

@@ -1,6 +1,28 @@
 import { definePlugin } from '@arcships/rutis'
 import { withNativeClient } from '../deepchat-host/native-client.mjs'
 
+// Desktop coordinates cross JSON as decimal strings. The public query owner expects numeric
+// sequence operands; convert only this declared field without rounding u64 through Number.
+function nativeFilter(filter) {
+  if (!filter || typeof filter !== 'object') return filter
+  if (filter.op === 'and' || filter.op === 'or')
+    return { ...filter, conditions: filter.conditions.map(nativeFilter) }
+  if (filter.op === 'not') return { ...filter, condition: nativeFilter(filter.condition) }
+  if (
+    filter.op === 'compare' &&
+    filter.left?.kind === 'field' &&
+    filter.left.path === 'position.sequence' &&
+    filter.right?.kind === 'value' &&
+    typeof filter.right.value === 'string'
+  ) {
+    if (!/^\d+$/.test(filter.right.value)) throw new Error('Invalid timeline sequence operand')
+    const value = BigInt(filter.right.value)
+    if (value > 18446744073709551615n) throw new Error('Timeline sequence exceeds u64')
+    return { ...filter, right: { ...filter.right, value } }
+  }
+  return filter
+}
+
 // Reads belong to dim. This plugin never opens its SQLite database or copies its event log.
 export default definePlugin({
   name: 'DeepChatStorage',
@@ -43,6 +65,10 @@ export default definePlugin({
                 }
               const query = {
                 ...params.query,
+                query: {
+                  ...params.query.query,
+                  filter: nativeFilter(params.query.query?.filter)
+                },
                 include_publishing: false,
                 page: { ...params.query.page, limit }
               }

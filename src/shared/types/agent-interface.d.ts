@@ -432,6 +432,7 @@ export interface MessageMetadata {
     eventId: string
     sequence: string
     revision?: number
+    turnId?: string
     imported?: boolean
     source?: DimTimelinePosition
   }

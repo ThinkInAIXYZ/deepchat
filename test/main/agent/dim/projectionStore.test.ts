@@ -163,6 +163,8 @@ it('keeps queued input out of the transcript until dim applies it, preserving co
   ])
   projection.apply(binding, event(8, 'input', 'consumed', { input_id: 'event-4' }))
   expect(data.dimInputProjectionTable.get('app', 'event-4')).toBeNull()
+  const consumed = data.deepchatMessagesTable.getBySession('app')[2]
+  expect(JSON.parse(consumed.metadata).dim.turnId).toBe('second')
 })
 
 it('projects copied native event IDs into separate fork and branch message identities', () => {
