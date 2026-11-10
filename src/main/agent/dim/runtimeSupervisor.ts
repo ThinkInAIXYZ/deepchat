@@ -19,6 +19,10 @@ export interface DimRuntimeOptions {
   contextBridge?: boolean
 }
 
+export interface DimStopOptions {
+  ifIdle?: boolean
+}
+
 export class DimRuntimeSupervisor {
   private process: ChildProcess | null = null
   private connection: DimPluginClient | null = null
@@ -56,9 +60,9 @@ export class DimRuntimeSupervisor {
     return starting
   }
 
-  stop(): Promise<void> {
+  stop(options: DimStopOptions = {}): Promise<void> {
     if (this.stopping) return this.stopping
-    const stopping = this.shutdown()
+    const stopping = options.ifIdle ? this.shutdownIfIdle() : this.shutdown()
     this.stopping = stopping
     void stopping
       .finally(() => {
@@ -69,11 +73,11 @@ export class DimRuntimeSupervisor {
   }
 
   /** The callback owns a cold profile until it restores usable storage and returns. */
-  async withStopped<T>(operation: () => Promise<T>): Promise<T> {
+  async withStopped<T>(operation: () => Promise<T>, options: DimStopOptions = {}): Promise<T> {
     if (this.maintenance)
       return this.maintenance.then(
-        () => this.withStopped(operation),
-        () => this.withStopped(operation)
+        () => this.withStopped(operation, options),
+        () => this.withStopped(operation, options)
       )
     let release!: () => void
     let reject!: (error: unknown) => void
@@ -84,7 +88,7 @@ export class DimRuntimeSupervisor {
     this.maintenance = barrier
     void barrier.catch(() => {})
     try {
-      await this.stop()
+      await this.stop(options)
       const result = await operation()
       if (this.maintenance === barrier) this.maintenance = null
       release()
@@ -376,6 +380,25 @@ export class DimRuntimeSupervisor {
       client?.close()
       throw error
     }
+  }
+
+  private async shutdownIfIdle(): Promise<void> {
+    if (this.starting) await this.starting.catch(() => {})
+    if (!this.process || this.exitCode !== null) {
+      await this.terminate()
+      return
+    }
+    const client = this.connection ?? (await this.attach(this.address!, this.identity!))
+    // Preserve scoped callers. The native decision is atomic with connection/attach admission
+    // and checks running Sessions; daemon_busy leaves this host and its work untouched.
+    await client.call('daemon.shutdown', { ifIdle: true }, 10_000)
+    const graceful = await Promise.race([
+      this.exited!.then(() => this.exitCode === 0),
+      delay(10_000, undefined, { ref: false }).then(() => false)
+    ])
+    if (!graceful) throw new Error('dim idle shutdown did not complete; profile access is denied')
+    client.close()
+    await this.terminate()
   }
 
   private async shutdown(): Promise<void> {

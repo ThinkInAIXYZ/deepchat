@@ -158,6 +158,8 @@
 
 ## 模块进度
 
+- 模块 57：冷 profile 维护可选择 dim 原生 daemon.shutdown.ifIdle，由 Native 原子检查其他连接、已附着会话及 main 上运行中的回合；daemon_busy 时保留主连接、作用域连接与运行工作，不进入文件回调，不强杀宿主。仅确认 graceful exit=0 才开放冷数据访问，未知退出状态也拒绝复制。三组真实 Rust 用例（56s）验证活跃连接保持可调用、busy 时无 profile 访问，以及空闲关闭后的启动屏障/恢复；3 项生命周期回归、格式/i18n/lint/双端类型和主进程构建通过。此入口供备份协调器使用，媒体/后台执行 owner 的空闲检查与 profile 内容接线仍继续实施。
+
 - 模块 56：Native supervisor 增加共用的停机维护栅栏，先完成原生 graceful shutdown，再允许回调访问冷 profile；维护期间所有主连接/辅助连接的 start 等待同一屏障，维护串行化，失败时等待者在准入前明确拒绝。主 composition 的导入/重置维护在 SQL 恢复可用前保持屏障，随后恢复 Native reader、目录与产品后台服务，避免辅助模型在数据库关闭窗口重启宿主。3 项生命周期回归与三组真实 Rust 凭据/重启用例（58s）、222 项相关回归、格式/i18n/lint/双端类型及主进程构建通过。数据设置与 Native 两项 Electron（43s）验证失败导入后消息/标题不丢失、重启和续聊正常；原生 profile 的备份/同步内容接线继续实施。
 
 - 模块 55：自动标题使用 dim SessionTitle/SessionStore，桌面不再重复等待首回合或调用辅助标题模型。独立私有 v3 会话订阅先 attach 再读 metadata；通知仅使 storage 插件读取失效，不伪造 Timeline 事件或周期轮询。手动改名调用原生 session.rename，产品投影同步标题及搜索索引；旧会话与各代切换以原生 owner 初始 revision CAS 保留名称和来源，幂等重试不能覆盖后续手动标题。绑定换代、关闭中的异步连接和通知撤销有回归。桥升 0.13.0，无新增 SDK 补丁。919 项相关回归、实际 Rust 技能/记忆/标题及关闭代复制用例（11s）、ACP/Native 两项 Electron（41s）通过；格式/i18n/lint/双端类型与主进程构建通过。桌面首轮在业务开始前遭遇 CDP promise 被回收，修复夹具：初始化检查在 DOM 就绪后、已登记进程清理的 try/catch 内执行，避免失败后遗留 Electron。桥 0.13.0 的完整 13 项 Native smoke 串行通过（231s），覆盖队列、MCP、子任务、权限、媒体及历史恢复。标题模型偏好与超长手动改名兼容仍继续核对。

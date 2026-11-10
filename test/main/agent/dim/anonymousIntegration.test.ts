@@ -145,17 +145,45 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
       expect(calls).toBe(1)
       provider.baseUrl = originalUrl
       const previous = await host.start()
+      if (apiType === 'ollama' && !apiKey) {
+        const active = await host.openConnection()
+        let accessedProfile = false
+        await expect(
+          host.withStopped(
+            async () => {
+              accessedProfile = true
+            },
+            { ifIdle: true }
+          )
+        ).rejects.toMatchObject({ data: { appError: 'daemon_busy' } })
+        expect(accessedProfile).toBe(false)
+        expect(await active.call('deepchat.native.capabilities')).toMatchObject({
+          plugin: 'deepchat-native'
+        })
+        active.close()
+      }
+      await expect
+        .poll(
+          async () => (await previous.call<{ connections: number }>('daemon.ping')).connections,
+          { timeout: 5_000 }
+        )
+        .toBe(1)
       let queuedStart!: ReturnType<DimRuntimeSupervisor['start']>
       let restarted = false
-      await host.withStopped(async () => {
-        queuedStart = host.start().then((client) => {
-          restarted = true
-          return client
-        })
-        await expect(previous.call('deepchat.native.capabilities')).rejects.toThrow('disconnected')
-        await readdir(path.join(profile, 'dim', 'rust'))
-        expect(restarted).toBe(false)
-      })
+      await host.withStopped(
+        async () => {
+          queuedStart = host.start().then((client) => {
+            restarted = true
+            return client
+          })
+          await expect(previous.call('deepchat.native.capabilities')).rejects.toThrow(
+            'disconnected'
+          )
+          await readdir(path.join(profile, 'dim', 'rust'))
+          expect(restarted).toBe(false)
+        },
+        { ifIdle: true }
+      )
       await queuedStart
       expect(restarted).toBe(true)
       expect((await complete()).text).toBe('anonymous native answer')
