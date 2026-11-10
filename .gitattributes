@@ -1,0 +1,2 @@
+# These exact bytes are pinned in the native runtime provenance manifest.
+native/dim-host/Cargo.lock text eol=lf

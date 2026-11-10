@@ -160,6 +160,8 @@
 
 ## 模块进度
 
+- 模块 65 Windows 校验修正：Windows x64 实际 release 编译成功（34 分钟），随后发现 Git 默认 CRLF 检出使 Cargo.lock 的精确字节 SHA 不一致。为锁文件声明 LF 检出，保留原 SHA 与构建后校验；不把换行差异归一化以绕过校验。
+
 - 模块 65 依赖链接测量修正：Linux x64/arm64 实际 release Native 19 项及完整打包通过，后续 OCR 组件测量因 dim 的 pnpm 包内链接被拒绝。测量现仅为 dim 依赖树接受指向自身目录内的链接，外部链接继续拒绝，按实体文件计量一次。11 项相关回归、实际解包目录组件测量及双端类型/门禁通过。
 
 - 模块 69：storage 插件新增关闭 profile 的分页归属目录读取，使用 Native AgentRecords/SessionStore 读取 Agent 配置、会话创建配置/父关系、标题、文件归属和权限；只读打开快照，不恢复 Agent 或访问私有表。SDK 仅公开已有归属 owner 类型，无 schema/loop/model/queue 改动，桥 0.19.0。实际三个关闭会话分页、原 Agent/标题/CWD、错误边界、源 DB hash 不变与零模型请求用例通过（9s）；34 项相关回归及双端类型/格式/i18n/lint 通过。release 构建、完整 Native 8 文件 20 项回归（134s）、主进程构建及 Electron 聊天/CLI/备份恢复/重启/Inspector 联合验收（31s）通过。macOS 子会话 CWD 回归改比较物理路径，保留目录身份验证。增量合并写入与附件搬迁继续实施。
