@@ -4,6 +4,8 @@ import { DimLegacySource } from '@/agent/dim/legacySource'
 import { dimHistoryPlan } from '@/agent/dim/historyImport'
 import { TranscriptProjectionApplier } from '@/session/data/transcriptProjection'
 import { dimDatabase } from './fixtures/database'
+import { readLegacyPluginHooks } from '@/agent/dim/legacyPluginHooks'
+import { createHash } from 'node:crypto'
 
 it('converts canonical edits and retractions without resurrecting stale transcript rows or writing Tape', async () => {
   const { data, sqlite } = dimDatabase()
@@ -94,6 +96,70 @@ it('converts canonical edits and retractions without resurrecting stale transcri
     )
     expect(tape.getMaxEntryId('legacy')).toBe(head)
     expect(data.dimSessionBindingsTable.get('legacy')).toBeNull()
+  } finally {
+    sqlite.close()
+  }
+})
+
+it('reads valid archived hook states without creating Tape and rejects forged retry identities', () => {
+  const { data, sqlite } = dimDatabase()
+  try {
+    expect(readLegacyPluginHooks(data, 'legacy')).toEqual([])
+    expect(sqlite.prepare("SELECT name FROM sqlite_master WHERE name LIKE '%tape%'").all()).toEqual(
+      []
+    )
+    const tape = data.deepchatTapeEntriesTable
+    sqlite.exec(tape.getCreateTableSQL())
+    const identity = ['plugin', 'digest', 'legacy', 'prompt', 'input:old']
+    const invocationId = createHash('sha256').update(JSON.stringify(identity)).digest('hex')
+    const invocation = {
+      invocationId,
+      pluginId: 'plugin',
+      digest: 'digest',
+      sessionId: 'legacy',
+      hookId: 'prompt',
+      boundaryId: 'input:old',
+      messageId: 'old',
+      event: 'UserPromptSubmit',
+      status: 'started',
+      at: 1,
+      source: 'old-launch',
+      input: {
+        sessionId: 'legacy',
+        messageId: 'old',
+        prompt: 'retry input',
+        cwd: null,
+        model: 'model'
+      }
+    }
+    tape.appendAnchor({ sessionId: 'legacy', name: 'plugin/context-hook', state: invocation })
+    tape.appendAnchor({
+      sessionId: 'legacy',
+      name: 'plugin/context-hook',
+      state: {
+        ...invocation,
+        invocationId: 'forged',
+        input: { ...invocation.input, prompt: 'forged' }
+      }
+    })
+    expect(readLegacyPluginHooks(data, 'legacy')).toEqual([
+      expect.objectContaining({
+        invocationId,
+        status: 'uncertain',
+        payload: expect.objectContaining({ prompt: 'retry input' })
+      })
+    ])
+    tape.appendAnchor({
+      sessionId: 'legacy',
+      name: 'plugin/context-hook',
+      state: { ...invocation, status: 'completed', content: 'retained context' }
+    })
+    const before = tape.getMaxEntryId('legacy')
+    expect(readLegacyPluginHooks(data, 'legacy')).toEqual([
+      expect.objectContaining({ invocationId, status: 'completed', content: 'retained context' })
+    ])
+    expect(readLegacyPluginHooks(data, 'legacy')[0].payload).toBeUndefined()
+    expect(tape.getMaxEntryId('legacy')).toBe(before)
   } finally {
     sqlite.close()
   }

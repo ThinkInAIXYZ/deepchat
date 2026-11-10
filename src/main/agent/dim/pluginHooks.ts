@@ -15,19 +15,7 @@ import type { DimRuntimeSupervisor } from './runtimeSupervisor'
 import type { DimAuthorizedScope } from './scopes'
 import type { DimSessionRef } from './sessionConnection'
 import { dimSequence } from './sessionConnection'
-
-interface Invocation extends UserPluginHookDiagnostic {
-  pluginId: string
-  digest: string
-  hookId: string
-  boundaryId: string
-  messageId: string
-  launchId: string
-  content?: string
-  matcher: string
-  payload?: Record<string, JsonValue>
-  inputTooLarge?: boolean
-}
+import { readLegacyPluginHooks, type DimHookInvocation as Invocation } from './legacyPluginHooks'
 
 const equal = (path: string, value: JsonValue): JsonValue => ({
   op: 'compare',
@@ -48,6 +36,7 @@ export class DimPluginHooks {
       host: DimRuntimeSupervisor
       hooks: UserPluginHooks
       resolve(request: DimProductContextRequest, signal: AbortSignal): Promise<DimAuthorizedScope>
+      prepareLegacy?(sessionId: string): Promise<void>
     }
   ) {
     this.content = new DimContent(options.host)
@@ -92,6 +81,10 @@ export class DimPluginHooks {
     this.options.hooks.beginRun(scope.binding.sessionId)
     try {
       for (const source of sources) {
+        // Only the root continuation imports its product archive; an internal child never
+        // borrows its parent's startup receipts or executable retry payloads.
+        if (scope.description.origin !== 'internal')
+          await this.importLegacy(scope.binding, source, signal, scope.assertCurrent)
         const ownerFilter: JsonValue = {
           op: 'and',
           conditions: [equal('data.pluginId', source.pluginId), equal('data.digest', source.digest)]
@@ -233,6 +226,54 @@ export class DimPluginHooks {
     }
   }
 
+  private async importLegacy(
+    binding: Readonly<DimSessionBinding>,
+    source: UserPluginHookSource,
+    signal: AbortSignal,
+    assertCurrent: () => void
+  ): Promise<void> {
+    const current = await this.content.latest(
+      { sessionId: binding.dimSessionId, branchId: binding.branchId },
+      ['deepchat/plugin-hook', 'deepchat/plugin-hook-session'],
+      {
+        op: 'and',
+        conditions: [equal('data.pluginId', source.pluginId), equal('data.digest', source.digest)]
+      }
+    )
+    assertCurrent()
+    if (current.event && !current.event.data.legacy) return
+    const migration = await this.content.latest(
+      { sessionId: binding.dimSessionId, branchId: binding.branchId },
+      ['deepchat/history-sealed']
+    )
+    assertCurrent()
+    // New migration snapshots carry this state, including an explicit empty state after clear.
+    // Only an older snapshot may still need a read-only Tape archive upgrade.
+    if (migration.event?.data.pluginHooksImported === true) return
+    const archived = readLegacyPluginHooks(this.options.database, binding.sessionId).filter(
+      (row) =>
+        row.pluginId === source.pluginId &&
+        row.digest === source.digest &&
+        (row.hookId === '$session' ||
+          source.hooks.some((hook) => hook.id === row.hookId && hook.event === row.event))
+    )
+    if (!archived.length || !source.hooks.length) return
+    const client = await this.options.host.start()
+    for (const invocation of archived) {
+      signal.throwIfAborted()
+      assertCurrent()
+      const result = await client.call<{ imported: boolean }>('session.deepchat_hooks.import', {
+        sessionId: binding.dimSessionId,
+        branchId: binding.branchId,
+        configurationEvent:
+          invocation.hookId === '$session' ? source.hooks[0].event : invocation.event,
+        invocation: invocation as unknown as JsonValue
+      })
+      assertCurrent()
+      if (!result.imported) break
+    }
+  }
+
   private async latest(ref: DimSessionRef, source: UserPluginHookSource, hook: UserPluginHook) {
     const page = await this.content.events(ref, ['deepchat/plugin-hook'], 1, {
       op: 'and',
@@ -351,12 +392,29 @@ export class DimPluginHooks {
         }
       }
     }
-    return result
+    const latest = new Map<string, (typeof result)[number]>()
+    for (const row of result)
+      latest.set(JSON.stringify([row.sessionId, row.invocation.invocationId]), row)
+    return [...latest.values()]
   }
 
   readonly diagnostics = async (pluginId: string): Promise<UserPluginHookDiagnostic[]> => {
     const rows = await this.records(pluginId)
-    return rows
+    const archived = this.options.database.newSessionsTable
+      .list({ includeSubagents: true })
+      .flatMap((session) => readLegacyPluginHooks(this.options.database, session.id))
+      .filter(
+        (invocation) =>
+          invocation.pluginId === pluginId &&
+          invocation.hookId !== '$session' &&
+          !rows.some(
+            (row) =>
+              row.sessionId === invocation.sessionId &&
+              row.invocation.invocationId === invocation.invocationId
+          )
+      )
+      .map((invocation) => ({ invocation, sessionId: invocation.sessionId }))
+    return [...rows, ...archived]
       .map(({ invocation, sessionId }) => ({
         invocationId: invocation.invocationId,
         event: invocation.event,
@@ -373,7 +431,53 @@ export class DimPluginHooks {
   }
 
   readonly retry = async (pluginId: string, invocationId: string): Promise<void> => {
-    const row = (await this.records(pluginId, invocationId))[0]
+    if (
+      this.options.database.newSessionsTable
+        .list({ includeSubagents: true })
+        .some(
+          (session) =>
+            this.options.database.dimSessionBindingsTable.get(session.id)?.status === 'generating'
+        )
+    )
+      throw new Error('Finish active turns before retrying a hook')
+    let row = (await this.records(pluginId, invocationId))[0]
+    if (!row) {
+      const candidates = this.options.database.newSessionsTable
+        .list({ includeSubagents: true })
+        .flatMap((session) => readLegacyPluginHooks(this.options.database, session.id))
+        .filter(
+          (invocation) =>
+            invocation.pluginId === pluginId && invocation.invocationId === invocationId
+        )
+      const archived = candidates.length === 1 ? candidates[0] : undefined
+      if (
+        !archived?.payload ||
+        !['failed', 'uncertain'].includes(archived.status) ||
+        !this.options.prepareLegacy
+      )
+        throw new Error('Archived hook retry is unavailable')
+      const signal = AbortSignal.timeout(10000)
+      const source = (await this.options.hooks.nativeSources(signal)).find(
+        (source) => source.pluginId === pluginId && source.digest === archived.digest
+      )
+      if (!source) throw new Error('Hook retry belongs to an inactive revision')
+      await this.options.prepareLegacy(archived.sessionId)
+      const binding = this.options.database.dimSessionBindingsTable.get(archived.sessionId)
+      if (!binding) throw new Error('Archived hook conversion did not establish its native scope')
+      const check = () => {
+        const current = this.options.database.dimSessionBindingsTable.get(archived.sessionId)
+        if (
+          !current ||
+          current.dimSessionId !== binding.dimSessionId ||
+          current.branchId !== binding.branchId ||
+          current.generation !== binding.generation ||
+          this.options.database.dimScopeChangesTable.get(archived.sessionId)
+        )
+          throw new Error('Archived hook retry belongs to a replaced scope')
+      }
+      await this.importLegacy(binding, source, signal, check)
+      row = (await this.records(pluginId, invocationId))[0]
+    }
     const binding = row && this.options.database.dimSessionBindingsTable.get(row.sessionId)
     if (
       !row ||

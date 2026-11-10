@@ -14,6 +14,7 @@ import { DimProductContext } from '@/agent/dim/productContext'
 import { DimScopes } from '@/agent/dim/scopes'
 import { DimContent } from '@/agent/dim/content'
 import { DimModelBridge } from '@/agent/dim/modelBridge'
+import { DimLegacyMigration } from '@/agent/dim/legacyMigration'
 import type { UserPluginHook, UserPluginHookSource } from '@shared/types/userPlugin'
 import { dimDatabase } from './fixtures/database'
 
@@ -25,25 +26,15 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
   async () => {
     const profile = await mkdtemp(path.join(os.tmpdir(), 'dc-dim-hooks-'))
     const database = dimDatabase(path.join(profile, 'desktop.sqlite'))
-    const failTape = () => {
-      throw new Error('Native hooks must never access Tape')
-    }
-    const hooks = new UserPluginHooks(
-      {
-        appendAnchor: failTape,
-        getBySession: failTape,
-        getTapeIncarnationId: failTape
-      },
-      () => ({
-        ...Object.fromEntries(
-          Object.entries(createMinimalProcessEnvironment(process.env, process.platform)).filter(
-            ([key]) => key.toLowerCase() !== 'path'
-          )
-        ),
-        PATH: profile + path.delimiter + (process.env.PATH ?? ''),
-        DEEPCHAT_HOOK_TEST_SECRET: 'must-not-reach-hook'
-      })
-    )
+    const hooks = new UserPluginHooks(() => ({
+      ...Object.fromEntries(
+        Object.entries(createMinimalProcessEnvironment(process.env, process.platform)).filter(
+          ([key]) => key.toLowerCase() !== 'path'
+        )
+      ),
+      PATH: profile + path.delimiter + (process.env.PATH ?? ''),
+      DEEPCHAT_HOOK_TEST_SECRET: 'must-not-reach-hook'
+    }))
     const script = path.join(profile, 'hook.cjs')
     await writeFile(
       script,
@@ -147,12 +138,16 @@ let input = ''; process.stdin.on('data', x => input += x); process.stdin.on('end
       )
     })
     const scopes = new DimScopes({ database: database.data, host })
+    let prepareLegacy = async (_id: string): Promise<void> => {
+      throw new Error('Unexpected archive conversion')
+    }
     const connect = () => {
       const native = new DimPluginHooks({
         database: database.data,
         host,
         hooks,
-        resolve: scopes.context
+        resolve: scopes.context,
+        prepareLegacy: (id) => prepareLegacy(id)
       })
       hooks.useNative(native)
       context = new DimProductContext({
@@ -378,6 +373,160 @@ let input = ''; process.stdin.on('data', x => input += x); process.stdin.on('end
       expect(
         database.sqlite.prepare("SELECT name FROM sqlite_master WHERE name LIKE '%tape%'").all()
       ).toEqual([])
+
+      // A legacy archive remains read-only. Its successful startup context survives;
+      // a started command becomes uncertain and executes only after explicit retry.
+      database.sqlite.exec(database.data.deepchatTapeEntriesTable.getCreateTableSQL())
+      database.data.newSessionsTable.create('archived', 'agent', 'Archive', profile)
+      const old = (
+        pluginId: string,
+        hookId: string,
+        boundaryId: string,
+        state: Record<string, unknown>
+      ) => {
+        const invocationId = createHash('sha256')
+          .update(
+            JSON.stringify([
+              pluginId,
+              source.digest,
+              'archived',
+              hookId,
+              ...(hookId === '$session' ? [] : [boundaryId])
+            ])
+          )
+          .digest('hex')
+        return {
+          invocationId,
+          pluginId,
+          digest: source.digest,
+          hookId,
+          boundaryId,
+          messageId: 'old-message',
+          sessionId: 'archived',
+          event: 'SessionStart',
+          status: 'completed',
+          at: 1,
+          source: 'old-launch',
+          ...state
+        }
+      }
+      const started = old('fixture', 'prompt', 'input:old-message:old-hash', {
+        event: 'UserPromptSubmit',
+        status: 'started',
+        input: {
+          sessionId: 'archived',
+          messageId: 'old-message',
+          prompt: 'legacy retry',
+          cwd: profile,
+          model: 'fixture'
+        }
+      })
+      const archived = [
+        old('fixture', 'startup', 'startup', { content: 'LEGACY_STARTUP_CONTEXT' }),
+        started,
+        old('resume-only', '$session', 'session-observed', {})
+      ]
+      for (const [index, state] of archived.entries())
+        database.sqlite
+          .prepare(`INSERT INTO deepchat_tape_entries
+          (session_id,entry_id,kind,name,payload_json,meta_json,created_at)
+          VALUES (?,?, 'anchor','plugin/context-hook',?,'{}',1)`)
+          .run('archived', index + 1, JSON.stringify({ state }))
+      const originalArchive = database.sqlite.prepare('SELECT * FROM deepchat_tape_entries').all()
+      const before = (await calls()).length
+      expect(await native.diagnostics('fixture')).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            invocationId: started.invocationId,
+            sessionId: 'archived',
+            status: 'uncertain'
+          })
+        ])
+      )
+      expect(database.data.dimSessionBindingsTable.get('archived')).toBeNull()
+      expect((await calls()).length).toBe(before)
+      let archivedRef: { sessionId: string; branchId: string } | undefined
+      prepareLegacy = async (id) => {
+        expect(id).toBe('archived')
+        const launched = await client.call<{ sessionId: string }>('deepchat.host.launch', {
+          model: { ...model },
+          cwd: profile,
+          tools: []
+        })
+        database.data.dimSessionBindingsTable.bind(id, launched.sessionId)
+        archivedRef = { sessionId: launched.sessionId, branchId: 'main' }
+      }
+      await native.retry('fixture', started.invocationId)
+      expect((await calls()).length).toBe(before + 1)
+      expect((await calls()).at(-1)).toMatchObject({ prompt: 'legacy retry' })
+      await client.call('deepchat.host.input', {
+        ...archivedRef!,
+        mode: 'queue',
+        submissionId: 'archive-continuation',
+        rawBlocks: [],
+        content: [{ type: 'text', text: 'continue migrated hooks' }]
+      })
+      await client.call('deepchat.host.idle', archivedRef!)
+      const archiveCalls = (await calls()).slice(before)
+      expect(archiveCalls.filter((call) => call.source === 'startup')).toEqual([])
+      expect(archiveCalls.filter((call) => call.source === 'resume')).toHaveLength(1)
+      expect(archiveCalls.filter((call) => call.prompt === 'legacy retry')).toHaveLength(1)
+      expect(JSON.stringify(bodies.at(-1))).toContain('LEGACY_STARTUP_CONTEXT')
+      expect(database.sqlite.prepare('SELECT * FROM deepchat_tape_entries').all()).toEqual(
+        originalArchive
+      )
+      const captured = await new DimContent(host).transcript(archivedRef!, 'archived')
+      const replace = async (state: typeof captured.pluginHookState) => {
+        const previous = database.data.dimSessionBindingsTable.get('archived')!
+        const launched = await client.call<{ sessionId: string }>('deepchat.host.launch', {
+          model: { ...model },
+          cwd: profile,
+          tools: []
+        })
+        const binding = {
+          ...previous,
+          dimSessionId: launched.sessionId,
+          generation: previous.generation + 1,
+          cursor: '0',
+          nextOrderSeq: 1,
+          status: 'idle' as const,
+          activeTurnId: null,
+          assistantMessageId: null
+        }
+        database.data.dimSessionBindingsTable.replace(previous, binding)
+        await new DimLegacyMigration({
+          database: database.data,
+          host,
+          snapshot: async () => ({
+            formatVersion: 1,
+            productSessionId: 'archived',
+            messages: [],
+            summary: null,
+            pluginHookState: state
+          })
+        }).prepare(binding)
+        const ref = { sessionId: launched.sessionId, branchId: 'main' }
+        await client.call('deepchat.host.input', {
+          ...ref,
+          mode: 'queue',
+          submissionId: `generation-${binding.generation}`,
+          rawBlocks: [],
+          content: [{ type: 'text', text: 'after native generation replacement' }]
+        })
+        await client.call('deepchat.host.idle', ref)
+      }
+      await replace(captured.pluginHookState)
+      expect(JSON.stringify(bodies.at(-1))).toContain('LEGACY_STARTUP_CONTEXT')
+      const beforeClear = (await calls()).length
+      await replace([])
+      expect(JSON.stringify(bodies.at(-1))).not.toContain('LEGACY_STARTUP_CONTEXT')
+      expect(
+        (await calls()).slice(beforeClear).filter((call) => call.source === 'startup')
+      ).toHaveLength(1)
+      await expect(native.retry('fixture', started.invocationId)).rejects.toThrow('scope changed')
+      expect(database.sqlite.prepare('SELECT * FROM deepchat_tape_entries').all()).toEqual(
+        originalArchive
+      )
     } finally {
       await host.stop().catch(() => undefined)
       await gateway.stop()

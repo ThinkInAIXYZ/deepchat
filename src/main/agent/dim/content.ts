@@ -6,6 +6,7 @@ import type { ChatMessageRecord, PendingSessionInputRecord } from '@shared/types
 import { dimProjectionInputKey, projectDimEvent } from './messageProjection'
 import { dimSequence } from './sessionConnection'
 import { readDimImportedSnapshot } from './historyImport'
+import type { DimHistorySnapshot } from './historyImport'
 
 /** All native content reads cross the injected storage plugin; no desktop SQLite reader. */
 export class DimContent {
@@ -24,6 +25,7 @@ export class DimContent {
     pendingInputs: PendingSessionInputRecord[]
     excludedContextMessageIds: string[]
     images: Record<string, JsonValue[]>
+    pluginHookState: NonNullable<DimHistorySnapshot['pluginHookState']>
   }> {
     const client = await this.host.start()
     let binding: DimSessionBinding = {
@@ -45,6 +47,10 @@ export class DimContent {
     let pendingInputs: PendingSessionInputRecord[] = []
     const legacyAdmissions = new Map<string, string>()
     const excluded = new Set<string>()
+    const pluginHookState = new Map<
+      string,
+      NonNullable<DimHistorySnapshot['pluginHookState']>[number]
+    >()
     let fixed = through
     while (true) {
       const page = await client.call<{ through: number | string; events: DimEvent[] }>(
@@ -53,6 +59,16 @@ export class DimContent {
       )
       fixed ??= String(page.through)
       for (const event of page.events) {
+        if (
+          event.type === 'deepchat' &&
+          (event.name === 'plugin-hook' || event.name === 'plugin-hook-session') &&
+          typeof event.data.pluginId === 'string' &&
+          typeof event.data.digest === 'string'
+        ) {
+          const key = `${event.name}:${event.data.invocationId ?? event.data.observationId}`
+          pluginHookState.delete(key)
+          pluginHookState.set(key, { name: event.name, data: event.data })
+        }
         if (event.type === 'deepchat' && event.name === 'legacy-queue-state') {
           if (!Array.isArray(event.data.inputs))
             throw new Error('Invalid native legacy draft state')
@@ -126,6 +142,7 @@ export class DimContent {
       summary,
       contextFromOrderSeq,
       pendingInputs,
+      pluginHookState: [...pluginHookState.values()],
       excludedContextMessageIds: [...excluded],
       images: Object.fromEntries(images)
     }

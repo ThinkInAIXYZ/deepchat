@@ -8,7 +8,7 @@ use dim_agent_capabilities::{
 use dim_agent_runtime::{AgentBuilder, Feature, SessionIdentity, SessionLifecycle};
 use rutis::Ctx;
 use rutis::host::{BoxFuture, CtxHost, DynPlugin, Effect, Key, TypeKey};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{collections::HashMap, ffi::OsString, path::PathBuf, sync::Arc, time::Duration};
@@ -73,6 +73,40 @@ struct Observe {
     launch_id: String,
     compaction_id: Option<String>,
 }
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct Import {
+    session_id: String,
+    branch_id: String,
+    configuration_event: String,
+    invocation: LegacyInvocation,
+}
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct LegacyProvenance {
+    entry_id: u64,
+    product_session_id: String,
+}
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct LegacyInvocation {
+    invocation_id: String,
+    plugin_id: String,
+    digest: String,
+    hook_id: String,
+    boundary_id: String,
+    message_id: String,
+    session_id: String,
+    launch_id: String,
+    event: String,
+    status: String,
+    at: u64,
+    matcher: String,
+    content: Option<String>,
+    message: Option<String>,
+    payload: Option<Value>,
+    legacy: LegacyProvenance,
+}
 #[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Source {
@@ -132,6 +166,7 @@ impl DynPlugin for PluginHooks {
                     MethodDecl::new("session.deepchat_hooks.run", true, Interruption::Report),
                     MethodDecl::new("session.deepchat_hooks.cancel", true, Interruption::Report),
                     MethodDecl::new("session.deepchat_hooks.observe", true, Interruption::Report),
+                    MethodDecl::new("session.deepchat_hooks.import", true, Interruption::Report),
                 ],
                 Arc::new(move |call, caller, _| {
                     let (tree, platform, identity, lifecycle, running, workers, stop) = (
@@ -144,6 +179,11 @@ impl DynPlugin for PluginHooks {
                         stop.clone(),
                     );
                     Box::pin(async move {
+                        if call.method.ends_with(".import") {
+                            let p: Import = params(call.params)?;
+                            if p.session_id != identity.session_id { return Err(invalid()); }
+                            return reply(import_legacy(&tree, p, &caller, &stop).await?);
+                        }
                         if call.method.ends_with(".observe") {
                             let p:Observe=params(call.params)?;
                             if p.session_id!=identity.session_id || [&p.plugin_id,&p.digest,&p.launch_id].iter().any(|value|value.is_empty()||value.len()>4096) || p.compaction_id.as_ref().is_some_and(|value|value.len()>4096) { return Err(invalid()); }
@@ -248,6 +288,203 @@ impl DynPlugin for PluginHooks {
 }
 fn invalid() -> RpcError {
     RpcError::invalid("Invalid declared plugin hook invocation")
+}
+/// Frozen history conversion carries audit and observation facts, never a process admission.
+/// Clearing/forking supplies an explicit empty state; a started command stays uncertain.
+pub(crate) async fn restore_state(
+    metadata: &crate::inputs::DeepChatInputMetadata,
+    state: &[Value],
+) -> Result<(), RpcError> {
+    for item in state {
+        let name = item["name"].as_str().ok_or_else(invalid)?;
+        let mut data = item["data"].clone();
+        let field = match name {
+            "plugin-hook" => "invocationId",
+            "plugin-hook-session" => "observationId",
+            _ => return Err(invalid()),
+        };
+        if !data.is_object()
+            || [field, "pluginId", "digest", "launchId"].iter().any(|key| {
+                data[*key]
+                    .as_str()
+                    .is_none_or(|value| value.is_empty() || value.len() > 4096)
+            })
+        {
+            return Err(invalid());
+        }
+        if data["status"] == "started" {
+            data["status"] = json!("uncertain");
+        }
+        let previous = crate::facts::events(
+            &metadata.timeline,
+            crate::facts::and(vec![
+                crate::facts::extension(name),
+                crate::facts::equal(&format!("data.{field}"), data[field].clone()),
+            ]),
+        )
+        .await?;
+        if let Some(previous) = previous.last() {
+            let previous = serde_json::to_value(previous.as_ref()).map_err(|_| invalid())?;
+            if previous["data"] != data {
+                return Err(invalid());
+            }
+            continue;
+        }
+        let event = metadata.timeline.append(
+            dim_agent_types::EventKind::Extension(
+                dim_agent_types::ExtensionEvent::new("deepchat", name, data)
+                    .map_err(RpcError::invalid)?,
+            )
+            .into(),
+        )?;
+        crate::facts::published(&metadata.timeline, event.sequence).await?;
+    }
+    Ok(())
+}
+async fn import_legacy(
+    tree: &TreeCommands,
+    p: Import,
+    caller: &CancellationToken,
+    stop: &CancellationToken,
+) -> Result<Value, RpcError> {
+    let old = &p.invocation;
+    let observed = old.hook_id == "$session";
+    if [
+        &old.plugin_id,
+        &old.digest,
+        &old.hook_id,
+        &old.boundary_id,
+        &old.message_id,
+        &old.session_id,
+        &old.launch_id,
+    ]
+    .iter()
+    .any(|value| value.is_empty() || value.len() > 4096)
+        || old.session_id != old.legacy.product_session_id
+        || old.legacy.entry_id == 0
+        || old.legacy.entry_id > 9_007_199_254_740_991
+        || old.at > 9_007_199_254_740_991
+        || !old.launch_id.starts_with("legacy:")
+        || !matches!(
+            old.event.as_str(),
+            "SessionStart" | "SubagentStart" | "UserPromptSubmit"
+        )
+        || !matches!(old.status.as_str(), "completed" | "failed" | "uncertain")
+        || old
+            .content
+            .as_ref()
+            .is_some_and(|value| value.len() > 8192 || old.status != "completed")
+        || old
+            .message
+            .as_ref()
+            .is_some_and(|value| value.chars().count() > 1024)
+        || old.matcher.len() > 4096
+        || old.payload.as_ref().is_some_and(|value| {
+            old.status == "completed"
+                || value.get("hook_event_name").and_then(Value::as_str) != Some(old.event.as_str())
+                || serde_json::to_vec(value).map_or(true, |bytes| bytes.len() > 1024 * 1024)
+        })
+        || (observed
+            && (old.event != "SessionStart"
+                || old.status != "completed"
+                || old.payload.is_some()
+                || old.content.is_some()))
+    {
+        return Err(invalid());
+    }
+    let identity = if observed {
+        json!([old.plugin_id, old.digest, old.session_id, old.hook_id])
+    } else {
+        json!([
+            old.plugin_id,
+            old.digest,
+            old.session_id,
+            old.hook_id,
+            old.boundary_id
+        ])
+    };
+    let expected = format!(
+        "{:x}",
+        Sha256::digest(serde_json::to_vec(&identity).map_err(|_| invalid())?)
+    );
+    if expected != old.invocation_id {
+        return Err(invalid());
+    }
+    let catalog = crate::gateway::request(json!({"kind":"plugin_hooks","sessionId":p.session_id,"event":p.configuration_event,"matcher":"","includeUnmatched":true}), caller.clone(), 4*1024*1024).await.map_err(|_|invalid())?;
+    let sources: Vec<Source> =
+        serde_json::from_value(catalog["sources"].clone()).map_err(|_| invalid())?;
+    if !sources.iter().any(|source| {
+        source.plugin_id == old.plugin_id
+            && source.digest == old.digest
+            && source
+                .hooks
+                .iter()
+                .any(|hook| observed || (hook.id == old.hook_id && hook.event == old.event))
+    }) {
+        return Err(invalid());
+    }
+    let branch = tree.get(&p.branch_id)?;
+    let metadata = branch.service::<crate::inputs::DeepChatInputMetadata>()?;
+    let _lane = metadata.lane.lock().await;
+    crate::inputs::ensure_active(&metadata).await?;
+    if caller.is_cancelled() || stop.is_cancelled() {
+        return Err(invalid());
+    }
+    let owner = crate::facts::and(vec![
+        json!({"op":"or","conditions":[crate::facts::extension("plugin-hook"),crate::facts::extension("plugin-hook-session")]}),
+        crate::facts::equal("data.pluginId", json!(old.plugin_id)),
+        crate::facts::equal("data.digest", json!(old.digest)),
+    ]);
+    // A partially imported archive may resume, but it cannot supersede a live native fact.
+    let query: dim_agent_runtime::TimelineQuery = serde_json::from_value(json!({
+        "scope":"branch", "through":metadata.timeline.committed(), "include_publishing":true,
+        "query":{"filter":crate::facts::and(vec![owner.clone(), json!({"op":"not","condition":{"op":"present","value":crate::facts::field("data.legacy")}})]),"select":{"kind":"exists"}}
+    })).map_err(|_|invalid())?;
+    if let dim_agent_runtime::QueryOutput::Exists { exists: true } =
+        metadata.timeline.query(query).await?.result
+    {
+        return Ok(json!({"imported":false}));
+    }
+    let field = if observed {
+        "observationId"
+    } else {
+        "invocationId"
+    };
+    let existing = crate::facts::events(
+        &metadata.timeline,
+        crate::facts::and(vec![
+            owner,
+            crate::facts::equal(&format!("data.{field}"), json!(old.invocation_id)),
+        ]),
+    )
+    .await?;
+    let data = if observed {
+        json!({"observationId":old.invocation_id,"pluginId":old.plugin_id,"digest":old.digest,"launchId":old.launch_id,"legacy":old.legacy})
+    } else {
+        serde_json::to_value(old).map_err(|_| invalid())?
+    };
+    for event in existing {
+        let previous = serde_json::to_value(event.as_ref()).map_err(|_| invalid())?;
+        if previous["data"][field] == old.invocation_id {
+            if previous["data"] != data {
+                return Err(invalid());
+            }
+            return Ok(json!({"imported":true}));
+        }
+    }
+    if observed {
+        let event = metadata.timeline.append(
+            dim_agent_types::EventKind::Extension(
+                dim_agent_types::ExtensionEvent::new("deepchat", "plugin-hook-session", data)
+                    .map_err(RpcError::invalid)?,
+            )
+            .into(),
+        )?;
+        crate::facts::published(&metadata.timeline, event.sequence).await?;
+    } else {
+        record(&metadata, data).await?;
+    }
+    Ok(json!({"imported":true}))
 }
 async fn selected(p: &Run, cancel: &CancellationToken) -> Result<(Source, Hook), String> {
     let reply = crate::gateway::request(

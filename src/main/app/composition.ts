@@ -2018,7 +2018,6 @@ export async function createMainProcessControl(dependencies: {
   pluginService = new PluginService({
     nowledgeMem: nowledgeMemConnections,
     exportNowledgeSession: (input) => agentSessionExportService.submitToNowledgeMem(input),
-    contextTape: sessionData.tapeStore,
     mcpSettings: dependencies.mcpSettings,
     mcpService: mcpService,
     skillService: skillService,
@@ -2223,7 +2222,8 @@ export async function createMainProcessControl(dependencies: {
         database: sessionData.database,
         host: dimHost,
         hooks: pluginService.contextHooks,
-        resolve: dimScopes.context
+        resolve: dimScopes.context,
+        prepareLegacy: (id) => dimAgent.prepareNative(id)
       })
     : undefined
   if (dimPluginHooks) pluginService.contextHooks?.useNative(dimPluginHooks)

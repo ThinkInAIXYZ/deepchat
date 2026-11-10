@@ -100,7 +100,19 @@ export class SessionDatabase {
   get legacyTape() {
     return {
       getEffectiveViewInputRows: (sessionId: string) =>
-        this.deepchatTapeEntriesTable.getEffectiveViewInputRows(sessionId)
+        this.deepchatTapeEntriesTable.getEffectiveViewInputRows(sessionId),
+      getBySession: (sessionId: string, name: string) => {
+        const db = this.getDatabase()
+        if (
+          !db
+            .prepare(
+              "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'deepchat_tape_entries'"
+            )
+            .get()
+        )
+          return []
+        return new DeepChatTapeEntriesTable(db).getBySessionExcludingContext(sessionId, name)
+      }
     }
   }
 

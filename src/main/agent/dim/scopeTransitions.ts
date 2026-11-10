@@ -281,6 +281,7 @@ export class DimScopeTransitions {
         summary: null,
         contextFromOrderSeq: 1,
         pendingInputs: [],
+        pluginHookState: [],
         excludedContextMessageIds: source.excludedContextMessageIds
           .filter((id) => ids.has(id))
           .map((id) => ids.get(id)!),
@@ -328,6 +329,7 @@ export class DimScopeTransitions {
       summary: change.kind === 'retain' ? source.summary : null,
       contextFromOrderSeq: change.kind === 'retain' ? source.contextFromOrderSeq : 1,
       pendingInputs: change.kind === 'clear' ? [] : source.pendingInputs,
+      pluginHookState: change.kind === 'clear' ? [] : source.pluginHookState,
       excludedContextMessageIds: [
         ...new Set([
           ...source.excludedContextMessageIds.filter((id) => retained.has(id)),

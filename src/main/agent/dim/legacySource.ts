@@ -6,6 +6,7 @@ import { buildEffectiveTapeView } from '@/tape/domain/effectiveView'
 import { readTapeMessageRetractionId } from '@/tape/domain/effectiveSemantics'
 import type { SessionSummaryState } from '@/session/data/contracts'
 import type { DimHistorySnapshot } from './historyImport'
+import { readLegacyPluginHooks } from './legacyPluginHooks'
 
 interface LegacySourceOptions {
   database: SessionDatabase
@@ -60,6 +61,21 @@ export class DimLegacySource {
         summary: text,
         contextFromOrderSeq,
         pendingInputs,
+        pluginHookState: readLegacyPluginHooks(this.options.database, sessionId).map(
+          (invocation) => ({
+            name: invocation.hookId === '$session' ? 'plugin-hook-session' : 'plugin-hook',
+            data:
+              invocation.hookId === '$session'
+                ? {
+                    observationId: invocation.invocationId,
+                    pluginId: invocation.pluginId,
+                    digest: invocation.digest,
+                    launchId: invocation.launchId,
+                    legacy: invocation.legacy!
+                  }
+                : (invocation as unknown as JsonValue)
+          })
+        ),
         excludedContextMessageIds: ordered
           .filter(
             (message) =>

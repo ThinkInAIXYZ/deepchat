@@ -25,19 +25,19 @@ events, but no MCP configuration. Independent stdio and authenticated HTTP fixtu
 
 ## 2. Ownership and change locations
 
-| Owner                | Implementation                                                                   | Responsibility                                                                                        |
-| -------------------- | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| Plugin host          | `src/main/plugin/index.ts`, `userPlugins.ts`                                     | Combined official/user catalog, installation records, serialized lifecycle and contribution ownership |
-| Source preparation   | `src/main/plugin/userPluginSource.ts`                                            | Git transport, ZIP/directory inspection, private snapshots, hashes, cancellation and staging          |
-| Package reader       | `src/main/plugin/userPluginPackage.ts`                                           | Static Codex manifest, Skill, hook and MCP normalization                                              |
-| Context hooks        | `src/main/plugin/userPluginHooks.ts`                                             | Command lifecycle, bounded JSON protocol, invocation persistence and current contributions            |
-| Runtime boundary     | `turnCoordinator.ts`, `compactionRuntimeCoordinator.ts`                          | Accepted-input and committed-compaction event timing                                                  |
-| Provider projection  | `deepChatLoopRunner.ts`, `runtime/pluginContext.ts`                              | Attributed plugin context, current user-input identity, revocation and provider dispatch checks       |
-| Skills               | `src/main/skill/index.ts`, `skillExecutionAuthority.ts`                          | Registration, assignment preservation and stale revision execution rejection                          |
-| MCP                  | `src/main/mcp/`                                                                  | Existing settings, identities, transports, credentials, supervision and tool/App discovery            |
-| Desktop boundary     | Shared plugin route contracts, `plugin/routes.ts`, `PluginClient.ts`             | Typed source/lifecycle/setup/retry requests; no renderer filesystem/process access                    |
-| UI                   | Existing Plugins Hub plus `UserPluginInstallDialog.vue`, `UserPluginDetails.vue` | Review, selection, source/revision, setup, diagnostics, update and uninstall                          |
-| Developer validation | `scripts/plugin.mjs --plugin-root`                                               | Static validation through the same package reader                                                     |
+| Owner                | Implementation                                                                                                   | Responsibility                                                                                        |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Plugin host          | `src/main/plugin/index.ts`, `userPlugins.ts`                                                                     | Combined official/user catalog, installation records, serialized lifecycle and contribution ownership |
+| Source preparation   | `src/main/plugin/userPluginSource.ts`                                                                            | Git transport, ZIP/directory inspection, private snapshots, hashes, cancellation and staging          |
+| Package reader       | `src/main/plugin/userPluginPackage.ts`                                                                           | Static Codex manifest, Skill, hook and MCP normalization                                              |
+| Context hooks        | `src/main/plugin/userPluginHooks.ts`, `src/main/agent/dim/pluginHooks.ts`, `native/dim-host/src/plugin_hooks.rs` | Product registry and protocol adaptation; dim process ownership, Timeline audit and context           |
+| Runtime boundary     | `turnCoordinator.ts`, `compactionRuntimeCoordinator.ts`                                                          | Accepted-input and committed-compaction event timing                                                  |
+| Provider projection  | `deepChatLoopRunner.ts`, `runtime/pluginContext.ts`                                                              | Attributed plugin context, current user-input identity, revocation and provider dispatch checks       |
+| Skills               | `src/main/skill/index.ts`, `skillExecutionAuthority.ts`                                                          | Registration, assignment preservation and stale revision execution rejection                          |
+| MCP                  | `src/main/mcp/`                                                                                                  | Existing settings, identities, transports, credentials, supervision and tool/App discovery            |
+| Desktop boundary     | Shared plugin route contracts, `plugin/routes.ts`, `PluginClient.ts`                                             | Typed source/lifecycle/setup/retry requests; no renderer filesystem/process access                    |
+| UI                   | Existing Plugins Hub plus `UserPluginInstallDialog.vue`, `UserPluginDetails.vue`                                 | Review, selection, source/revision, setup, diagnostics, update and uninstall                          |
+| Developer validation | `scripts/plugin.mjs --plugin-root`                                                                               | Static validation through the same package reader                                                     |
 
 All source paths in this document are relative to the repository root. The inspected starting
 point was `dev` commit `8dada4b3b`. Existing asynchronous notification hooks retain their payload,
@@ -199,33 +199,33 @@ owned process tree. POSIX process-group cleanup also removes descendants after n
 
 ### Durable execution and projection
 
-Invocation identity hashes installation, digest, session, handler and boundary. Input boundaries
-include the user message ID and prompt-content hash, so edits receive fresh results while retries
-reuse matching results. Cached history is tied to the Tape incarnation; clearing messages invalidates
-old results, discards in-flight output and permits startup on the next input. This does not emit a
-Codex `clear` event. The host writes
-`plugin/context-hook` Tape anchors before execution and after acceptance/failure. When no handler
-matches an admitted session, a host-only observation anchor preserves the resume boundary; it
-is excluded from hook diagnostics and contributes no model instructions. A started
-invocation with no result after restart is `uncertain`, and is not automatically rerun. Explicit
-retry is allowed for an active revision's failed/uncertain handler; it executes only that handler,
-has a new invocation identity, and can repeat external effects. Retry requires idle turns and updates;
-queue admission rechecks the session incarnation, registered owner, invocation status and input.
-Diagnostics show the latest twenty invocations from up to sixteen recently loaded
-sessions. Evicted sessions reload their durable history on demand. Completed in-memory entries omit
-retry input payloads; Tape retains the audit record. Malformed persisted JSON is skipped.
+DeepChat supplies verified declarations and adapts the existing JSON protocol. The private dim
+Session plugin owns admission, processes, cancellation and audit; the old Node executor and Tape
+writer are removed. Invocation identity hashes installation, digest, native session/branch, handler
+and boundary. Input boundaries include the native turn ID and prompt hash. A committed Native
+Timeline fact precedes command execution. Terminal facts follow complete process-tree cleanup.
+A started invocation without a terminal result after restart stays `uncertain`; it never reruns
+automatically. Explicit retry requires the current revision, payload, idle branch and current desktop
+generation, creates a new invocation identity, and can repeat external effects.
 
-Projection reads persisted accepted results; it never executes a hook or performs source/network
-inspection. `plugin_context` is a distinct attributed prompt-assembly section. Each contribution
-carries installation ID, digest, invocation ID and Tape entry ID. Instructions remain subordinate
-to host policies and explicit user instructions. Session handlers are replaced by their latest
-invocation, including failure/empty output; input handlers are filtered to the current **user**
-message ID, not the assistant response ID.
+A separate `deepchat/plugin-hook-session` observation records admission even when every startup
+matcher skips. It contributes no instructions and is excluded from diagnostics. Startup/subagent
+handlers precede prompt handlers. A skipped resume/compact matcher retains that handler's latest
+successful session contribution; an executed failure or empty result replaces it. User-prompt
+contributions belong only to that accepted native input.
 
-The loop reapplies current projection before budgeting and dispatch, and rechecks it at the
-provider authority boundary. Disable/update removes obsolete contributions from subsequent
-requests. A request already sent cannot be recalled. Hook context remains separate from ordinary
-conversation summaries; historical evidence does not grant permission to execute a revoked Skill.
+Storage-plugin reads provide the latest twenty diagnostics across owned native generations and the
+read-only legacy archive. Old `plugin/context-hook` Tape anchors convert at continuation or explicit
+retry, retaining provenance and successful context; old started entries become uncertain. Passive
+browsing does not convert a session or run a command. Invalid archive identities never become retry
+input. Native history replacement carries frozen hook state; clear and fork supply an explicit empty
+state, so stale Tape contents cannot restore cleared context. Old Tape remains unchanged and
+inspectable. Completed native command receipts omit executable retry payloads.
+
+The product context plugin supplies attributed contributions and receipts to dim ContextSource.
+dim owns budgeting, compaction and model dispatch. Current Agent, plugin revision and generation
+are rechecked before use. Disable/update removes obsolete contributions from subsequent requests;
+a sent request cannot be recalled. Historical evidence does not authorize a revoked Skill.
 
 ### Ponytail behavior
 

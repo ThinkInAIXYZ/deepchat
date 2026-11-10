@@ -66,6 +66,7 @@ struct Snapshot {
     excluded_context_message_ids: Vec<String>,
     #[serde(default)]
     images: BTreeMap<String, Vec<ContentBlock>>,
+    plugin_hook_state: Option<Vec<Value>>,
 }
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -393,10 +394,13 @@ async fn commit(
             json!({"inputs":snapshot.pending_inputs}),
         )?;
     }
+    if let Some(state) = &snapshot.plugin_hook_state {
+        crate::plugin_hooks::restore_state(metadata, state).await?;
+    }
     append(
         &metadata.timeline,
         "history-sealed",
-        json!({"migrationId":p.migration_id,"productSessionId":manifest.product_session_id,"digest":manifest.digest,"chunks":manifest.chunks,"messages":snapshot.messages.len(),"deferredContext":snapshot.excluded_context_message_ids,"pendingDrafts":snapshot.pending_inputs.len()}),
+        json!({"migrationId":p.migration_id,"productSessionId":manifest.product_session_id,"digest":manifest.digest,"chunks":manifest.chunks,"messages":snapshot.messages.len(),"deferredContext":snapshot.excluded_context_message_ids,"pendingDrafts":snapshot.pending_inputs.len(),"pluginHooksImported":snapshot.plugin_hook_state.is_some()}),
     )?;
     Ok(status(&records(metadata, &p.migration_id).await?))
 }
