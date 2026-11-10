@@ -93,7 +93,7 @@ export class DimProductContext {
         ...prepared.messages,
         {
           role: 'user',
-          content: `Native session-owned files currently use these directory roots: ${JSON.stringify(roots)}. If an earlier absolute file path is unavailable after a profile restore, use the current root with its original relative suffix (file ID and filename, or command session ID and output filename). Native file ownership and permissions still apply.`
+          content: `Native session-owned file roots: ${JSON.stringify(roots)}. Resolve archived paths under the current root using the original file-ID/name or command-session-ID/output-name suffix.`
         }
       ]
     }

@@ -3,10 +3,10 @@
   "sourceRevision": "0423b321abc923900525d79d030fd690110f91c4",
   "baseRelease": "0.1.0-alpha.21",
   "serverVersion": "0.1.0-alpha.18",
-  "bridgeVersion": "0.28.0",
+  "bridgeVersion": "0.29.0",
   "storeFormat": 36,
   "apiVersion": 1,
-  "cargoLockSha256": "01f9d07f872a2581e2da51878e88c91923955da000d83e256a0de18a72c920a7",
+  "cargoLockSha256": "f94982f9fd99ddfd64d2d8ce55bbe52518729436776c5d3e425e73320d8ff0d3",
   "assemblyPatch": {
     "path": "crates/dim-app-server/src/provider.rs",
     "sha256": "1efdf44c936721817646c7517e3d35daf15282b655fd466eaf258dbaf80def3e"
@@ -51,6 +51,10 @@
     {
       "path": "vendor/aimux/aimux-providers/src/jev.rs",
       "sha256": "ef20cea18241780a5e5bfc489d571a7a8f10fee0889206e731ff8adfefc41ba8"
+    },
+    {
+      "path": "crates/dim-agent-capabilities/src/host_platform.rs",
+      "sha256": "78b2ed9602bdd4e1ee77d3def31731ae777ad4babbf1de442d3a4c716b6dbd77"
     },
     {
       "path": "docs/architecture/rust-agent/generated/modules.json",

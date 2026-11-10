@@ -6,6 +6,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 import { UserPluginHooks } from '@/plugin/userPluginHooks'
+import { createMinimalProcessEnvironment } from '@/mcp/processEnvironment'
 import { DimRuntimeSupervisor } from '@/agent/dim/runtimeSupervisor'
 import { DimProductGateway } from '@/agent/dim/productGateway'
 import { DimPluginHooks } from '@/agent/dim/pluginHooks'
@@ -34,6 +35,11 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
         getTapeIncarnationId: failTape
       },
       () => ({
+        ...Object.fromEntries(
+          Object.entries(createMinimalProcessEnvironment(process.env, process.platform)).filter(
+            ([key]) => key.toLowerCase() !== 'path'
+          )
+        ),
         PATH: profile + path.delimiter + (process.env.PATH ?? ''),
         DEEPCHAT_HOOK_TEST_SECRET: 'must-not-reach-hook'
       })
@@ -192,6 +198,10 @@ let input = ''; process.stdin.on('data', x => input += x); process.stdin.on('end
         await client.call('deepchat.host.idle', ref)
       }
       await send('first prompt', 'first')
+      expect(await native.diagnostics('fixture')).toEqual([
+        expect.objectContaining({ status: 'completed' }),
+        expect.objectContaining({ status: 'completed' })
+      ])
       expect((await calls()).map((p) => [p.hook_event_name, p.source ?? p.prompt])).toEqual([
         ['SessionStart', 'startup'],
         ['UserPromptSubmit', 'first prompt']

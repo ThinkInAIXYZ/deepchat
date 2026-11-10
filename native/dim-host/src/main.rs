@@ -28,6 +28,7 @@ mod queue;
 mod scopes;
 mod secrets;
 mod settings;
+mod skill_catalog;
 mod storage;
 mod title_preferences;
 mod video_compat;
@@ -66,6 +67,7 @@ fn install(builder: &mut dim_agent_runtime::AgentBuilder) {
     storage::install(builder);
     memory::install(builder);
     plugin_hooks::install(builder);
+    skill_catalog::install(builder);
     scopes::install(builder);
     profile::install(builder);
 }

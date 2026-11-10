@@ -68,7 +68,7 @@
 
 负责边界：dim 原生 owner + host 插件配置映射；不预设 provider 或 OAuth 重写。
 
-- [ ] 暂时停用 Code Mode，移除旧 Code Mode/ToolSearch/programmatic dispatch 接线；等待 dim 原生能力后再启用。dim 已提供同等功能的文件、命令、分支等工具使用原生实现，删除 DeepChat 重复执行器，产品桥不重新注册它们。
+- [x] 暂时停用 Code Mode，移除旧 Code Mode/ToolSearch/programmatic dispatch 接线；等待 dim 原生能力后再启用。dim 已提供同等功能的文件、命令、分支等工具使用原生实现，删除 DeepChat 重复执行器，产品桥不重新注册它们。
 - [ ] MCP/Skills：现有 UI、安装、来源和启用状态通过插件映射到 dim 原生 owner；通用连接、工具发现和执行只保留一个 owner。
 - [ ] 既有 MCP/插件兼容：in-memory server、MCP Apps、企业身份、知识库和 CUA 经插件注入；保留 consent、撤销、更新与参数/结果语义。作为正常接入实现，不列为 dim 缺失能力。
 - [ ] 模型：将现有设置及连接参数通过插件交给 dim；会话和辅助模型请求都在 Rust 执行，不回调旧 TypeScript Provider。
@@ -159,6 +159,8 @@
 建议按 release/插件骨架、session/队列绑定、产品能力、解密与按需转换、desktop 读取/Inspector、切换清理拆 PR。取消旧版按推测上游缺口估算的 12–20 人周；首个插件端到端切片完成后，依据实际映射与转换工作量估算，不把 ACP/OAuth 重写或 desktop 重做计入。
 
 ## 模块进度
+
+- 模块 79：已分配但未显式选择的私有技能可由当前 Agent 按需发现；产品只提供经授权的目录和显式选择策略，读取目录、SKILL.md 和执行脚本使用 dim 原生工具。完整目录通过 Native SessionFilesHost 发布为不可变的会话文件，内容 hash 去重，fork、备份、迁移和 GC 复用原生所有者；上下文只附当前文件指针，避免重复注入元数据挤占首轮预算。发布前后复核 Agent、工作区、选择和完整目录，撤销期间不采用旧指针；不将 Agent 私有根注册为进程级全局技能。桥 0.29.0，无新增依赖或存储格式变化。显式选择/按需发现两种真实 Native 场景通过（18s），私有文件位于工作目录外，跨多模型步骤只生成一份目录；24 项相关回归、双端类型/门禁和 SDK 离线图/边界/25 项插件文档校验通过。首次整目录注入触发首轮预算失败，改为按需文件并精简重复桥接说明；没有调整 Native 上下文限额。release 构建通过（21m10s），完整 Native 25 项通过（227s），Electron 聊天/CLI/备份导入/故障恢复/重启/会话读取联合通过（39s）。夹具仅在请求提供 read_session 时返回该工具，避免压缩请求误消费会话读取步骤；提问投影超时增加原生 pending/latest 诊断，原断言时限保持。Windows cmd.exe 的命令字符串通过原生 verbatim 参数传递，固定 hash 的第 12 个 SDK 代码扩展纳入来源清单；其余可执行程序和 Unix 行为保留，Windows 实际 runner 待验证。
 
 - 模块 78：已声明的产品 Context Hooks 接入 Native Session 插件；DeepChat 仅提供经当前作用域授权、不可变版本验证的配置和旧 JSON 协议适配，命令通过 dim HostPlatform 的进程树 owner 执行。启动前等待 Timeline publication；取消、撤销和 Session close 等待整棵进程树结束才记录终态，重启只有 started 事实时保持 uncertain，显式重试校验当前版本、旧事实和原生分支空闲状态。启动/恢复/压缩、用户输入及子 agent 边界独立，单个输出 64 KiB、上下文 8 KiB、整体 10 秒预算保留；兼容小数秒超时及 DeepChat 工具链环境，Rust 再过滤环境，不传递模型凭据。诊断经 storage 插件读取 owned generations，新执行不写 Tape；原生 Hooks 保留上游行为。桥 0.28.0；首次真实 Rust 的上下文/去重/控制字段拒绝/取消/撤销/强杀恢复与显式重试通过（11.5s），46 项相关回归与双端类型通过。最终 release 构建通过（2m46s），压缩/工具链环境与过滤追加场景通过；完整 Native 24 项通过（205s），回执合并及超限输入边界调整后 Hooks 定向通过（5.7s），主进程复构建与 Electron 聊天/CLI/备份导入/故障回滚/重启联合通过（33s）。旧 Node Hook 执行代码在后续模块物理移除。
 

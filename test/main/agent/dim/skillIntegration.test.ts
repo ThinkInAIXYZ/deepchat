@@ -1,13 +1,14 @@
 import { expect, it } from 'vitest'
 import { randomUUID } from 'node:crypto'
 import { createServer } from 'node:http'
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { DimRuntimeSupervisor } from '@/agent/dim/runtimeSupervisor'
 import { DimProductGateway } from '@/agent/dim/productGateway'
 import { DimProductContext } from '@/agent/dim/productContext'
 import { DimSkillContext } from '@/agent/dim/skillContext'
+import { DimSkillCatalog } from '@/agent/dim/skillCatalog'
 import { DimModelBridge } from '@/agent/dim/modelBridge'
 import { DimContent } from '@/agent/dim/content'
 import { DimMemorySource } from '@/agent/dim/memorySource'
@@ -15,20 +16,22 @@ import { DimMemoryViews } from '@/agent/dim/memoryViews'
 import { DimTitles } from '@/agent/dim/titles'
 import { dimDatabase } from './fixtures/database'
 
-it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
-  'loads assigned private skill context and executes its script with native tools',
-  async () => {
+it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([true, false])(
+  'loads assigned private skills with native tools (explicit selection: %s)',
+  async (selected) => {
     const profile = await mkdtemp(path.join(os.tmpdir(), 'dc-dim-skills-'))
-    const root = path.join(profile, 'private-skill')
+    const root = await mkdtemp(path.join(os.tmpdir(), 'dc-dim-private-skill-'))
     const manifest = path.join(root, 'SKILL.md')
     const script = path.join(root, 'run.mjs')
-    await mkdir(root)
     await writeFile(manifest, '# PRIVATE_SKILL_INSTRUCTIONS\nUse the bundled run.mjs script.')
     await writeFile(script, 'console.log("SKILL_EXECUTED_BY_NATIVE_EXEC")')
     const database = dimDatabase()
     let context!: DimProductContext
     let modelRequests = 0
     let observedInstructions = false
+    let firstRequestHadInstructions: boolean | undefined
+    let bodyReads = 0
+    let observedCatalog = false
     let titles: DimTitles | undefined
     const fixture = createServer(async (request, response) => {
       const chunks: Buffer[] = []
@@ -37,7 +40,21 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
       const title = JSON.stringify(body.messages).includes(
         'Write a short title for this conversation:'
       )
+      const text = body.messages
+        .map((message: { content: unknown }) =>
+          typeof message.content === 'string' ? message.content : ''
+        )
+        .join('\n')
+      let catalogPath: string | undefined
+      try {
+        const marker = 'Agent skills catalog: '
+        const line = text.split('\n').find((line: string) => line.startsWith(marker))
+        catalogPath = line ? JSON.parse(line.slice(marker.length)) : undefined
+      } catch {
+        /* Record failed discovery outside the asynchronous HTTP handler. */
+      }
       const tools = body.messages.filter((message: { role: string }) => message.role === 'tool')
+      observedCatalog ||= JSON.stringify(tools).includes('Private test skill')
       const finished = tools.some((message: { content: unknown }) =>
         JSON.stringify(message.content).includes('SKILL_EXECUTED_BY_NATIVE_EXEC')
       )
@@ -50,11 +67,20 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
       const tool =
         title || finished
           ? undefined
-          : tools.length
+          : tools.length > 1
             ? { id: 'skill-exec', name: 'exec', arguments: { command } }
-            : { id: 'skill-read', name: 'read', arguments: { path: manifest } }
+            : tools.length
+              ? { id: 'skill-read', name: 'read', arguments: { path: manifest } }
+              : {
+                  id: 'catalog-read',
+                  name: 'read',
+                  arguments: { path: catalogPath ?? 'missing-native-catalog' }
+                }
       if (!title) {
         modelRequests++
+        firstRequestHadInstructions ??= JSON.stringify(body.messages).includes(
+          'PRIVATE_SKILL_INSTRUCTIONS'
+        )
         observedInstructions ||= JSON.stringify(body.messages).includes(
           'PRIVATE_SKILL_INSTRUCTIONS'
         )
@@ -100,17 +126,21 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
       gatewayAddress: await gateway.start()
     })
     const skills = new DimSkillContext({
+      catalog: new DimSkillCatalog(host),
       session: () => ({ agentId: 'private-agent', projectDir: profile }),
       skills: {
-        getActiveSkills: async () => ['private'],
+        getActiveSkills: async () => (selected ? ['private'] : []),
         getMetadataList: async () => [
           { name: 'private', description: 'Private test skill', path: manifest, skillRoot: root }
         ],
-        viewSkillForAgent: async () => ({
-          success: true,
-          content: await readFile(manifest, 'utf8'),
-          skillRoot: root
-        })
+        viewSkillForAgent: async () => {
+          bodyReads++
+          return {
+            success: true,
+            content: await readFile(manifest, 'utf8'),
+            skillRoot: root
+          }
+        }
       }
     })
     context = new DimProductContext({
@@ -173,7 +203,10 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
       })
       await client.call('deepchat.host.idle', ref, 60_000)
       expect(observedInstructions).toBe(true)
-      expect(modelRequests).toBe(3)
+      expect(firstRequestHadInstructions).toBe(selected)
+      expect(bodyReads > 0).toBe(selected)
+      expect(observedCatalog).toBe(true)
+      expect(modelRequests).toBe(4)
       await expect
         .poll(() => database.data.newSessionsTable.get('desktop-private')?.title, {
           timeout: 10_000
@@ -242,14 +275,17 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
         right: { kind: 'value', value: receipt.timeline!.sequence }
       })
       expect(older.events).toEqual([])
-      expect(modelRequests).toBe(3)
+      expect(modelRequests).toBe(4)
       const raw = await client.call<{
         events: Array<{ type: string; name: string; data: Record<string, unknown> }>
       }>('deepchat.storage.history', { ...ref, limit: 100 })
       expect(JSON.stringify(raw.events)).toContain('deepchat/skills')
       expect(
+        raw.events.filter((event) => event.type === 'deepchat' && event.name === 'skill-catalog')
+      ).toHaveLength(1)
+      expect(
         raw.events.filter((event) => event.type === 'step' && event.name === 'tool-call')
-      ).toHaveLength(2)
+      ).toHaveLength(3)
     } finally {
       await titles?.close('desktop-private')
       await host.stop()
@@ -258,6 +294,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
       fixture.closeAllConnections()
       await new Promise<void>((resolve) => fixture.close(() => resolve()))
       await rm(profile, { recursive: true, force: true })
+      await rm(root, { recursive: true, force: true })
     }
   },
   90_000

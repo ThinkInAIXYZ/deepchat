@@ -189,6 +189,7 @@ import { DimProductGateway } from '@/agent/dim/productGateway'
 import { DimProductTools } from '@/agent/dim/productTools'
 import { DimProductContext } from '@/agent/dim/productContext'
 import { DimPluginHooks } from '@/agent/dim/pluginHooks'
+import { DimSkillCatalog } from '@/agent/dim/skillCatalog'
 import { DimSkillContext } from '@/agent/dim/skillContext'
 import { DimModelCatalog, dimModelParameters } from '@/agent/dim/modelCatalog'
 import { DimModelBridge } from '@/agent/dim/modelBridge'
@@ -2212,6 +2213,7 @@ export async function createMainProcessControl(dependencies: {
   })
   const dimSkills = new DimSkillContext({
     skills: skillService,
+    catalog: new DimSkillCatalog(dimHost),
     session: (id) => appSessionService.get(id)
   })
   const dimPluginHooks = pluginService.contextHooks
@@ -2229,7 +2231,8 @@ export async function createMainProcessControl(dependencies: {
     resolve: dimScopes.context,
     authorize: authorizeDimScope,
     prepare: async (binding, request, signal) => {
-      const skills = await dimSkills.contribute(binding, signal)
+      const skillScope = await dimScopes.context(request, signal)
+      const skills = await dimSkills.contribute(binding, signal, skillScope.ref)
       const memory = await dimMemory.contribute(binding, request, signal)
       const hooks = await dimPluginHooks?.contribute(binding, request, signal)
       return {

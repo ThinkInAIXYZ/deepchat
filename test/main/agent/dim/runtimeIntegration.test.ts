@@ -1273,6 +1273,42 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
                 : []
             )
             .at(-1)
+        const waitForQuestion = async (prompt: string) => {
+          try {
+            await expect.poll(() => pendingAction()?.block.action_type).toBe('question_request')
+          } catch (cause) {
+            const binding = grants.data.dimSessionBindingsTable.get('product-ui')!
+            const address = { sessionId: binding.dimSessionId, branchId: binding.branchId }
+            const pending = await new DimSessionControls(host).call('questions', address)
+            const latest = await new DimContent(host).latest(address, [
+              'turn/start',
+              'turn/end',
+              'step/model-output-end',
+              'step/tool-call',
+              'step/tool-result',
+              'stop/interrupt'
+            ])
+            const body = requests.at(-1)?.body
+            throw new Error(
+              JSON.stringify({
+                message: 'Native question projection did not arrive',
+                bindingStatus: binding.status,
+                fixtureStillHasQuestion: nextTools?.some((tool) => tool.name === 'ask_user'),
+                pending,
+                latest: latest.event && {
+                  type: latest.event.type,
+                  name: latest.event.name,
+                  dataKeys: Object.keys(latest.event.data)
+                },
+                lastRequestHasQuestion: JSON.stringify(body?.messages ?? []).includes(prompt),
+                offeredTools: body?.tools?.map(
+                  (tool: { function: { name: string } }) => tool.function.name
+                )
+              }),
+              { cause }
+            )
+          }
+        }
         nextTools = [
           {
             id: 'native-question',
@@ -1298,37 +1334,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
         await desktop.submit('product-ui', [
           { type: 'text', text: 'native question batch fixture' }
         ])
-        try {
-          await expect.poll(() => pendingAction()?.block.action_type).toBe('question_request')
-        } catch (cause) {
-          const binding = grants.data.dimSessionBindingsTable.get('product-ui')!
-          const address = { sessionId: binding.dimSessionId, branchId: binding.branchId }
-          const pending = await new DimSessionControls(host).call('questions', address)
-          const latest = await new DimContent(host).latest(address, [
-            'step/model-end',
-            'step/tool-use-end',
-            'stop/interrupt'
-          ])
-          const body = requests.at(-1)?.body
-          throw new Error(
-            JSON.stringify({
-              message: 'Native question projection did not arrive',
-              pending,
-              latest: latest.event && {
-                type: latest.event.type,
-                name: latest.event.name,
-                dataKeys: Object.keys(latest.event.data)
-              },
-              lastRequestHasQuestion: JSON.stringify(body?.messages ?? []).includes(
-                'native question batch fixture'
-              ),
-              offeredTools: body?.tools?.map(
-                (tool: { function: { name: string } }) => tool.function.name
-              )
-            }),
-            { cause }
-          )
-        }
+        await waitForQuestion('native question batch fixture')
         const question = pendingAction()!
         await expect(
           interactions.respondToolInteraction('product-ui', question.messageId, 'native-question', {
@@ -1409,7 +1415,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
           }
         ]
         await desktop.submit('product-ui', [{ type: 'text', text: 'native cancel fixture' }])
-        await expect.poll(() => pendingAction()?.block.action_type).toBe('question_request')
+        await waitForQuestion('native cancel fixture')
         await desktop.cancel('product-ui')
         await desktop.waitIdle('product-ui')
         expect(pendingAction()).toBeUndefined()

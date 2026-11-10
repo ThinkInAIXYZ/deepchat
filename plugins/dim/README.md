@@ -59,6 +59,14 @@ terminal receipt. A started receipt recovered without an outcome is uncertain an
 automatically repeated. Explicit retry requires the current revision and an inactive native
 branch. Native Hooks retain their own execution semantics. Legacy Tape remains read-only.
 
+Assigned private skills are a product-scoped catalog. `DeepChatSkillCatalog` publishes the
+current authorized metadata through native `SessionFilesHost`; repeated content reuses its file
+ID, while the context carries its current path. Native `read` discovers and pages the catalog,
+loads SKILL.md and `exec` runs scripts. Unselected bodies are never preloaded. Explicit selection
+still contributes its instructions, with selection and catalog rechecked after publication.
+Session file ownership supplies fork, backup and deletion without another file store or global
+registration of private Agent roots.
+
 ## Native integration check
 
 After installation, run `pnpm run smoke:dim`. It uses the managed standalone Node and real dim

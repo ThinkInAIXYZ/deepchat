@@ -43,7 +43,13 @@ test('desktop chat uses persistent native dim sessions @smoke', async ({ app, la
     for await (const chunk of request) text += chunk
     const body = JSON.parse(text)
     requests.push(body)
-    if (body.stream && readSession) {
+    if (
+      body.stream &&
+      readSession &&
+      body.tools?.some(
+        (tool: { function?: { name?: string } }) => tool.function?.name === 'read_session'
+      )
+    ) {
       const target = readSession
       const args = {
         sessionId: target.sessionId,

@@ -3,10 +3,13 @@ import type { SkillServicePort } from '@shared/types/skill'
 import type { JsonValue } from '@shared/contracts/json'
 import type { DimSessionBinding } from '@/session/data/tables/dimSessionBindings'
 import type { DimProductContextReply } from './productGateway'
+import type { DimSessionRef } from './sessionConnection'
+import type { DimSkillCatalog } from './skillCatalog'
 
 interface SkillContextOptions {
   skills: Pick<SkillServicePort, 'getMetadataList' | 'getActiveSkills' | 'viewSkillForAgent'>
   session(id: string): { agentId: string; projectDir?: string | null } | null | undefined
+  catalog: Pick<DimSkillCatalog, 'publish'>
 }
 const MAX_BYTES = 4 * 1024 * 1024
 const hash = (text: string) => createHash('sha256').update(text).digest('hex')
@@ -17,7 +20,8 @@ export class DimSkillContext {
 
   async contribute(
     binding: Readonly<DimSessionBinding>,
-    signal: AbortSignal
+    signal: AbortSignal,
+    ref: DimSessionRef = { sessionId: binding.dimSessionId, branchId: binding.branchId }
   ): Promise<DimProductContextReply> {
     const id = binding.sessionId
     const row = this.options.session(id)
@@ -32,17 +36,14 @@ export class DimSkillContext {
     check()
     const active = await this.options.skills.getActiveSkills(id)
     check()
-    if (!active.length) return { messages: [], receipts: [] }
     const metadata = await this.options.skills.getMetadataList(agentId, { conversationId: id })
     check()
-    const catalog = metadata
-      .filter(({ name }) => active.includes(name))
-      .map(({ name, description, path, skillRoot }) => ({
-        name,
-        description,
-        path,
-        skillRoot
-      }))
+    const catalog = metadata.map(({ name, description, path, skillRoot }) => ({
+      name,
+      description,
+      path,
+      skillRoot
+    }))
     const selected: JsonValue[] = []
     const bodies: string[] = []
     let bytes = 0
@@ -71,29 +72,50 @@ export class DimSkillContext {
       conversationId: id
     })
     check()
-    const currentCatalog = currentMetadata
-      .filter(({ name }) => active.includes(name))
-      .map(({ name, description, path, skillRoot }) => ({
-        name,
-        description,
-        path,
-        skillRoot
-      }))
-    const serialized = JSON.stringify(catalog)
-    if (serialized !== JSON.stringify(currentCatalog))
+    const currentCatalog = currentMetadata.map(({ name, description, path, skillRoot }) => ({
+      name,
+      description,
+      path,
+      skillRoot
+    }))
+    const serialized = JSON.stringify(catalog, null, 2)
+    if (serialized !== JSON.stringify(currentCatalog, null, 2))
       throw new Error('Assigned skill catalog changed during context preparation')
     if (!catalog.length) return { messages: [], receipts: [] }
+    if (Buffer.byteLength(serialized) > MAX_BYTES)
+      throw new Error('Assigned skill catalog exceeds the transport limit')
+    const receipt = await this.options.catalog.publish(ref, serialized, signal)
+    check()
+    const finalActive = await this.options.skills.getActiveSkills(id)
+    check()
+    const finalMetadata = await this.options.skills.getMetadataList(agentId, { conversationId: id })
+    check()
+    if (
+      JSON.stringify(active) !== JSON.stringify(finalActive) ||
+      serialized !==
+        JSON.stringify(
+          finalMetadata.map(({ name, description, path, skillRoot }) => ({
+            name,
+            description,
+            path,
+            skillRoot
+          })),
+          null,
+          2
+        )
+    )
+      throw new Error('Assigned skill catalog changed during publication')
     const content = [
-      'DeepChat-selected skills for the current Agent and workspace:',
-      serialized,
-      'The selected skills below are already loaded. Follow their applicable instructions. Use dim read for their listed files and dim exec for scripts; paths are relative to each skill root. Tool permissions still come from dim.',
+      `Agent skills catalog: ${JSON.stringify(receipt.path)}`,
+      'Use dim read for the catalog and applicable SKILL.md; dim exec runs bundled scripts.',
+      ...(bodies.length ? ['Selected instructions are already loaded:'] : []),
       ...bodies
     ].join('\n\n')
     if (Buffer.byteLength(content) > MAX_BYTES)
       throw new Error('Assigned skills exceed the context transport limit')
     return {
       messages: [{ role: 'user', content }],
-      receipts: [{ source: 'deepchat/skills', version: 1, catalogHash: hash(serialized), selected }]
+      receipts: [{ source: 'deepchat/skills', version: 2, ...receipt, selected }]
     }
   }
 }

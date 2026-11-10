@@ -166,6 +166,7 @@ const mcpFile = 'crates/dim-app-server/src/mcp.rs'
 const temporaryMcpFile = 'crates/dim-app-server/src/mcp/temporary.rs'
 const titleFile = 'crates/dim-session-title/src/lib.rs'
 const decisionFile = 'vendor/aimux/aimux-providers/src/jev.rs'
+const commandFile = 'crates/dim-agent-capabilities/src/host_platform.rs'
 const generatedDocs = JSON.parse(
   await readFile(path.join(root, 'resources/dim-sdk/generated-docs-lock.json'), 'utf8')
 )
@@ -179,6 +180,24 @@ if (
 )
   throw new Error('Unexpected generated dim architecture paths')
 const digest = (content) => createHash('sha256').update(content).digest('hex')
+const commandOriginal = git(['show', `HEAD:${commandFile}`]) + '\n'
+const commandBefore =
+  '        command\n            .args(&spec.args)\n            .current_dir(&spec.cwd)'
+if (commandOriginal.split(commandBefore).length !== 2)
+  throw new Error('Native command argument seam changed')
+const commandArguments = await readFile(
+  path.join(root, 'resources/dim-sdk/windows-command-arguments.rs'),
+  'utf8'
+)
+const commandExpected = commandOriginal.replace(
+  commandBefore,
+  commandArguments + '        command\n            .current_dir(&spec.cwd)'
+)
+const commandCurrent = await readFile(path.join(directory, commandFile), 'utf8')
+if (commandCurrent !== commandOriginal && commandCurrent !== commandExpected)
+  throw new Error('Pinned native command argument handling has unexpected changes')
+if (commandCurrent !== commandExpected)
+  await writeFile(path.join(directory, commandFile), commandExpected)
 const docStates = await Promise.all(
   generatedDocs.map(async (entry) => {
     const original = Buffer.from(git(['show', `HEAD:${entry.path}`]) + '\n')
@@ -221,6 +240,7 @@ git([
   `:!${temporaryMcpFile}`,
   `:!${titleFile}`,
   `:!${decisionFile}`,
+  `:!${commandFile}`,
   ...generatedPaths.map((entry) => `:!${entry}`)
 ])
 if (current !== expected) await writeFile(path.join(directory, filename), expected)
@@ -544,6 +564,7 @@ export const nativeSource = {
     ...mcpPatches,
     { path: titleFile, sha256: createHash('sha256').update(titleExpected).digest('hex') },
     { path: decisionFile, sha256: digest(decisionExpected) },
+    { path: commandFile, sha256: digest(commandExpected) },
     ...generatedDocs.map(({ path, sha256 }) => ({ path, sha256 }))
   ]
 }
