@@ -12,12 +12,14 @@ import type { StartupWorkloadTaskContext } from '@/app/startupWorkloadCoordinato
 import type { AgentSettingsPort } from '@/agent/settings'
 import { BUILTIN_DEEPCHAT_AGENT_ID } from '@/agent/repository'
 import { normalizeDisabledAgentTools } from '@/agent/shared/agentSessionNormalization'
+import { HTML_RENDER_AGENT_TOOL_NAMES } from '@shared/agentTools'
 
 export const SQLITE_MAINLINE_NORMALIZATION_KEY = 'sqlite-mainline-normalization-v1'
 export const BUILTIN_MCP_ALLOWLIST_COMPATIBILITY_KEY = 'builtin-mcp-allowlist-compatibility-v1'
 export const DISABLED_SEARCH_TOOL_CLEANUP_V1_KEY = 'agent-disabled-search-tool-cleanup-v1'
 export const DISABLED_AGENT_TOOL_CAPABILITY_CLEANUP_KEY =
   'agent-disabled-tool-capability-cleanup-v2'
+export const HTML_RENDER_SESSION_TOOLS_SEEDED_KEY = 'html-render-session-tools-seeded-v1'
 
 export type SessionDataMigrationSQLitePort = Pick<SettingsDatabase, 'appSettingsTable'> &
   Pick<
@@ -526,4 +528,44 @@ export async function runDisabledAgentToolCapabilityCleanupMigration(
     })
     throw error
   }
+}
+
+// Sessions resolve tools from their own disabled list without falling back to the Agent config,
+// so sessions created before html_render existed would otherwise get it enabled.
+export async function runHtmlRenderSessionToolsSeedMigration({
+  sqlitePresenter,
+  agentSettings
+}: {
+  sqlitePresenter: Pick<
+    SessionDataMigrationSQLitePort,
+    'appSettingsTable' | 'getDatabase' | 'newSessionsTable' | 'newSessionDisabledAgentToolsTable'
+  >
+  agentSettings: Pick<AgentSettingsPort, 'listAgents'>
+}): Promise<void> {
+  if (sqlitePresenter.appSettingsTable.getAppSetting<boolean>(HTML_RENDER_SESSION_TOOLS_SEEDED_KEY))
+    return
+
+  const agents = await agentSettings.listAgents()
+  const db = sqlitePresenter.getDatabase()
+  const listSessionIds = db.prepare<[string], { id: string }>(
+    'SELECT id FROM new_sessions WHERE agent_id = ?'
+  )
+  const updateSessionDisabledTools = db.prepare<[string, string]>(
+    'UPDATE new_sessions SET disabled_agent_tools = ?, revision = revision + 1 WHERE id = ?'
+  )
+  db.transaction(() => {
+    for (const agent of agents) {
+      if (agent.type !== 'deepchat') continue
+      for (const { id } of listSessionIds.all(agent.id)) {
+        const current = sqlitePresenter.newSessionsTable.getDisabledAgentTools(id)
+        const disabledAgentTools = Array.from(
+          new Set([...current, ...HTML_RENDER_AGENT_TOOL_NAMES])
+        )
+        if (disabledAgentTools.length === current.length) continue
+        updateSessionDisabledTools.run(JSON.stringify(disabledAgentTools), id)
+        sqlitePresenter.newSessionDisabledAgentToolsTable.replaceForSession(id, disabledAgentTools)
+      }
+    }
+  })()
+  sqlitePresenter.appSettingsTable.setAppSetting(HTML_RENDER_SESSION_TOOLS_SEEDED_KEY, true)
 }

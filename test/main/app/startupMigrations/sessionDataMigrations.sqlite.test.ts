@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   runDisabledAgentToolCapabilityCleanupMigration,
+  runHtmlRenderSessionToolsSeedMigration,
   type SessionDataMigrationSQLitePort
 } from '@/app/startupMigrations/sessionDataMigrations'
 import { TAPE_TOOL_NAMES } from '@shared/agentTools'
+import { HTML_RENDER_SECTION_TOOL_NAME, HTML_RENDER_TOOL_NAME } from '@shared/agentHtmlRenderTool'
 import { NewSessionActiveSkillsTable } from '@/session/data/tables/newSessionActiveSkills'
 
 const sqliteModule = await import('better-sqlite3-multiple-ciphers').catch(() => null)
@@ -170,6 +172,65 @@ describeIfSqlite('disabled Agent tool capability cleanup SQLite integration', ()
       expect(disabledTools.listBySession('session-1')).toEqual([
         { session_id: 'session-1', ordinal: 0, tool_name: TAPE_TOOL_NAMES.search },
         { session_id: 'session-1', ordinal: 1, tool_name: 'read' }
+      ])
+    } finally {
+      db.close()
+    }
+  })
+
+  it('disables html_render tools in pre-upgrade sessions once and keeps later user enables', async () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const sessions = new NewSessionsTableCtor(db)
+      const disabledTools = new NewSessionDisabledAgentToolsTableCtor(db)
+      sessions.createTable()
+      new NewSessionActiveSkillsTable(db).createTable()
+      disabledTools.createTable()
+
+      sessions.create('pre-upgrade', 'deepchat', 'Old', '/work/app', {
+        disabledAgentTools: ['cronjob'],
+        createdAt: 50,
+        updatedAt: 100
+      })
+      sessions.create('acp-session', 'acp-agent', 'ACP', '/work/app', {
+        disabledAgentTools: [],
+        createdAt: 60,
+        updatedAt: 110
+      })
+
+      const settings = new Map<string, unknown>()
+      const dependencies = {
+        sqlitePresenter: {
+          appSettingsTable: {
+            getAppSetting: vi.fn((key: string) => settings.get(key)),
+            setAppSetting: vi.fn((key: string, value: unknown) => settings.set(key, value))
+          },
+          getDatabase: vi.fn(() => db),
+          newSessionsTable: sessions,
+          newSessionDisabledAgentToolsTable: disabledTools
+        } as unknown as SessionDataMigrationSQLitePort,
+        agentSettings: {
+          listAgents: vi.fn(async () => [
+            { id: 'deepchat', type: 'deepchat' },
+            { id: 'acp-agent', type: 'acp' }
+          ])
+        } as never
+      }
+
+      await runHtmlRenderSessionToolsSeedMigration(dependencies)
+
+      const seeded = ['cronjob', HTML_RENDER_TOOL_NAME, HTML_RENDER_SECTION_TOOL_NAME]
+      expect(sessions.getDisabledAgentTools('pre-upgrade')).toEqual(seeded)
+      expect(sessions.get('pre-upgrade')?.disabled_agent_tools).toBe(JSON.stringify(seeded))
+      expect(sessions.get('pre-upgrade')?.updated_at).toBe(100)
+      expect(sessions.getDisabledAgentTools('acp-session')).toEqual([])
+
+      sessions.updateDisabledAgentTools('pre-upgrade', ['cronjob', HTML_RENDER_SECTION_TOOL_NAME])
+      await runHtmlRenderSessionToolsSeedMigration(dependencies)
+
+      expect(sessions.getDisabledAgentTools('pre-upgrade')).toEqual([
+        'cronjob',
+        HTML_RENDER_SECTION_TOOL_NAME
       ])
     } finally {
       db.close()

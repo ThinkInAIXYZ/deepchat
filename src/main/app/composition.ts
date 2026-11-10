@@ -300,6 +300,7 @@ import { backgroundExecSessionManager } from '@/agent/shared/process/backgroundE
 import {
   runBuiltinMcpAllowlistCompatibilityMigration,
   runDisabledAgentToolCapabilityCleanupMigration,
+  runHtmlRenderSessionToolsSeedMigration,
   runMainlineNormalizationMigration
 } from './startupMigrations/sessionDataMigrations'
 import { activateAppOnMac } from '@/lib/activateApp'
@@ -3970,6 +3971,10 @@ export async function createMainProcessControl(dependencies: {
   setupApplicationListeners()
   await runAcpRegistryMigration()
   await runBuiltinMcpAllowlistCompatibilityMigration({
+    sqlitePresenter: sessionDataMigrationSQLite,
+    agentSettings
+  })
+  await runHtmlRenderSessionToolsSeedMigration({
     sqlitePresenter: sessionDataMigrationSQLite,
     agentSettings
   })
