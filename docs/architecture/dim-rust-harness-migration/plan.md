@@ -160,6 +160,8 @@
 
 ## 模块进度
 
+- 模块 76：公开判断模型入口统一经过产品模型准入和 Rust decision 插件，Node Jev/Workers AI 判断执行器与旧解析桥已物理删除，目录发现、配置检查与非聊天类型保护保留。通过 dim 公开非聊天连接 owner 取得授权后复用 Aimux Jev model/decide；产品插件只转换旧 noul 参数、Workers AI 外层协议和缺省 usage，保留模型版本、confidence 与 score legend。原生负责验证、重试、deadline、网络与取消；取消关闭专属 caller 并 join，错误不返回凭据/原始 vendor 文本。Jev 仅增加可选 Fetch 配置 seam，缺省行为不变，精确源码 hash 入锁；网络复用 Native MediaTransport。桥 0.26.0；真实三类判断/轮换/Workers 包装/原生重试/无效额外答案拒绝/撤权/取消/重启通过（22s）。65 项目录/入口回归及 6 项迁移后端点授权保护回归、Node 类型、Rust locked check 与 SDK 边界通过；release 构建通过（16m44s），完整 Native 22 项通过（195s），Electron 聊天/CLI/增量导入/覆盖恢复/故障回滚/重启联合验收通过（40s）；判断模型误作聊天模型时在原生准入拒绝，零 HTTP。
+
 - 模块 75：标题辅助模型偏好通过 Session scoped host 提供给 Native SessionTitle；产品侧只检查当前绑定和配置、登记原生模型，模型选择、请求、规范化与标题 CAS 仍由 dim 负责。无偏好使用原生策略，原生显式标题配置优先。标题 owner 对偏好查询、推理和发布持有原生活动租约，空闲备份拒绝中断，强制关闭取消并 join。桥 0.25.0；真实模型偏好/聊天模型隔离/重启/空闲拒绝/强制取消测试通过（14s）。SDK 模块图由离线 xtask 生成，原始与生成 hash 和精确补丁均锁定；模块/crate 边界与 25 篇插件文档通过，默认 SDK 目录检查缺少 embedding 凭据 host 的限制单独记录，未宣称整体通过。release 构建与 21 项 Native 覆盖通过：联合 suite 20 项通过，旧 Session 空闲断言按新增租约更新后对应回归通过（13s）；未修改备份拒绝/取消断言。41 项相关回归、双端类型/门禁与 Electron 聊天/CLI/导入恢复/重启联合验收通过（31s）。
 
 - 模块 74：原生内部子会话经 storage parent link 核验当前桌面归属，从私有网关取得已选 MCP 配置；会话级插件只管理配置授权与原生资源 view，连接、发现、工具贡献、调用、取消与动态发布复用 dim MCP owner。新增固定 hash 的原生工厂在 Session 资源取得阶段准备首个目录；普通 temporary attach 仍等待 Session activated，不修改原有行为。后续更新仍由原生 worker 负责，配置撤销/变更关闭旧资源，授权续期和连接清理在 close 时 join。桥 0.24.0；20 项网关/归属/MCP/打包回归与 Rust check 通过，真实子 agent 首轮目录/工具调用/撤销联合用例通过（DEV 122s）；release 构建、完整 Native 20 项（221s）及双端类型/门禁通过；Electron 聊天/CLI/增量导入/覆盖恢复/故障回滚/重启联合验收通过（43s）。

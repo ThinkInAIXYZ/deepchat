@@ -6,6 +6,7 @@ mod archive_timeline;
 mod archive_transfer;
 mod child_mcp;
 mod context;
+mod decisions;
 mod embeddings;
 mod facts;
 mod gateway;
@@ -54,6 +55,7 @@ fn install(builder: &mut dim_agent_runtime::AgentBuilder) {
     child_mcp::install(builder);
     models::install(builder);
     embeddings::install(builder);
+    decisions::install(builder);
     secrets::install(builder);
     inputs::install(builder);
     migration::install(builder);

@@ -192,6 +192,7 @@ import { DimSkillContext } from '@/agent/dim/skillContext'
 import { DimModelCatalog, dimModelParameters } from '@/agent/dim/modelCatalog'
 import { DimModelBridge } from '@/agent/dim/modelBridge'
 import { DimEmbeddingModels } from '@/agent/dim/embeddingModels'
+import { DimDecisions } from '@/agent/dim/decisions'
 import { DimAuxiliaryModels } from '@/agent/dim/auxiliaryModels'
 import { DimMediaModels } from '@/agent/dim/mediaModels'
 import { DimModality } from '@/agent/dim/modality'
@@ -1103,6 +1104,9 @@ export async function createMainProcessControl(dependencies: {
     publishDeepchatEvent
   )
   providerRuntime.setNativeModels(dimAuxiliary)
+  providerRuntime.setNativeDecisions(
+    new DimDecisions({ models: dimModels, bridge: dimModelBridge })
+  )
   providerRuntime.setNativeEmbedding(
     new DimEmbeddingModels({ models: dimModels, bridge: dimModelBridge })
   )

@@ -4,6 +4,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import path from 'node:path'
 import os from 'node:os'
 import { DimModelCatalog } from '@/agent/dim/modelCatalog'
+import { ModelType } from '@shared/model'
 import type { LLM_PROVIDER, ModelConfig } from '@shared/types/provider'
 import type { ProviderSettingsPort } from '@/provider/settings'
 import { dimDatabase } from './fixtures/database'
@@ -242,3 +243,40 @@ it.each([
     }
   }
 )
+
+it.each([
+  '',
+  'https://api.cloudflare.com/client/v4/accounts',
+  'https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/ai/v1',
+  'https://api.cloudflare.com/client/v4/accounts/test/ai',
+  'https://api.cloudflare.com/client/v4/accounts/test/ai/v1?secret=1',
+  'http://api.cloudflare.com/client/v4/accounts/test/ai/v1'
+])('rejects unsafe Workers judgment endpoints before native registration: %s', async (baseUrl) => {
+  const db = dimDatabase()
+  const configure = vi.fn()
+  const catalog = new DimModelCatalog({
+    settings: {
+      getProviderById: () => ({
+        id: 'worker',
+        name: 'Worker',
+        apiType: 'workers-ai',
+        baseUrl,
+        apiKey: 'fixture',
+        enable: true
+      }),
+      getModelStatus: () => true,
+      getModelConfig: () => ({ type: ModelType.Judgment }) as ModelConfig,
+      getProviderModelRouteMetadata: () => undefined,
+      getCapabilitySnapshot: vi.fn()
+    },
+    models: { configure },
+    grants: db.data.dimProviderGrantsTable,
+    credential: async () => 'fixture'
+  })
+  try {
+    await expect(catalog.admit('worker', 'typesafe/jev')).rejects.toThrow()
+    expect(configure).not.toHaveBeenCalled()
+  } finally {
+    db.sqlite.close()
+  }
+})

@@ -12,6 +12,7 @@ import { DEFAULT_PROVIDERS } from '@/provider/defaults'
 import { DimAuxiliaryModels } from '@/agent/dim/auxiliaryModels'
 import { DimEmbeddingModels } from '@/agent/dim/embeddingModels'
 import { DimMediaModels } from '@/agent/dim/mediaModels'
+import { DimDecisions } from '@/agent/dim/decisions'
 import { DimMediaSubmissionError } from '@/agent/dim/modality'
 import { ProviderInstanceManager } from '@/provider/managers/providerInstanceManager'
 
@@ -655,6 +656,36 @@ describe('ProviderRuntime Integration Tests', () => {
         source: { type: 'base64', mediaType: 'audio/wav', data: 'AQID' }
       })
       expect(oldTranscribe).not.toHaveBeenCalled()
+    })
+
+    it('requires native admission for judgments and never constructs a Node executor', async () => {
+      const legacy = vi.spyOn(providerRuntime, 'getProviderInstance')
+      const input = {
+        state: { evidence: 'fixture' },
+        questions: { accepted: { type: 'noul' as const, instructions: 'Accept?' } }
+      }
+      await expect(providerRuntime.runJudgment('mock-openai-api', 'jev', input)).rejects.toThrow(
+        'Native dim decision service is unavailable'
+      )
+      const result = {
+        model: 'jev-version',
+        answers: { accepted: { type: 'noul' as const, noul: 0.9 } }
+      }
+      const decide = vi.fn().mockResolvedValue(result)
+      const admit = vi.fn().mockResolvedValue({ providerId: 'native', modelId: 'jev' })
+      providerRuntime.setNativeDecisions(
+        new DimDecisions({ models: { admit }, bridge: { decide } })
+      )
+      await expect(providerRuntime.runJudgment('mock-openai-api', 'jev', input)).resolves.toEqual(
+        result
+      )
+      expect(admit).toHaveBeenCalledWith('mock-openai-api', 'jev')
+      expect(decide).toHaveBeenCalledWith(
+        { providerId: 'native', modelId: 'jev' },
+        input,
+        undefined
+      )
+      expect(legacy).not.toHaveBeenCalled()
     })
 
     it('requires native media owners for every standalone media operation', async () => {

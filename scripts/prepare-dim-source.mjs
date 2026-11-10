@@ -30,7 +30,7 @@ if (git(['rev-parse', 'HEAD']) !== lock.sourceCommit)
   throw new Error('Pinned dim source revision mismatch')
 // alpha.21 exposes ProviderSecretHost publicly but its stock product assembly opts out.
 // Enable that existing extension and resolve explicit header references through the same host.
-// No loop, model driver or queue is patched; only opaque references enter native storage.
+// No execution owner is replaced; only opaque references enter native storage.
 const filename = 'crates/dim-app-server/src/provider.rs'
 const original = git(['show', `HEAD:${filename}`]) + '\n'
 const before = 'Self::keyed(names, false, true)'
@@ -90,6 +90,7 @@ const sessionStoreFile = 'crates/dim-app-server/src/storage/timeline.rs'
 const mcpFile = 'crates/dim-app-server/src/mcp.rs'
 const temporaryMcpFile = 'crates/dim-app-server/src/mcp/temporary.rs'
 const titleFile = 'crates/dim-session-title/src/lib.rs'
+const decisionFile = 'vendor/aimux/aimux-providers/src/jev.rs'
 const generatedDocs = JSON.parse(
   await readFile(path.join(root, 'resources/dim-sdk/generated-docs-lock.json'), 'utf8')
 )
@@ -131,6 +132,7 @@ git([
   `:!${mcpFile}`,
   `:!${temporaryMcpFile}`,
   `:!${titleFile}`,
+  `:!${decisionFile}`,
   ...generatedPaths.map((entry) => `:!${entry}`)
 ])
 if (current !== expected) await writeFile(path.join(directory, filename), expected)
@@ -379,6 +381,43 @@ if (
 )
   throw new Error('Pinned native title preference has unexpected changes')
 if (titleCurrent !== titleExpected) await writeFile(path.join(directory, titleFile), titleExpected)
+const decisionOriginal = git(['show', `HEAD:${decisionFile}`]) + '\n'
+let decisionExpected = decisionOriginal
+for (const [before, after] of [
+  [
+    '    pub probability_source: DecisionProbabilitySource,',
+    '    pub probability_source: DecisionProbabilitySource,\n    pub fetch: Option<aimux_provider_utils::fetch::FetchFunction>,'
+  ],
+  [
+    '            probability_source: DecisionProbabilitySource::Native,',
+    '            probability_source: DecisionProbabilitySource::Native,\n            fetch: None,'
+  ],
+  [
+    `        let response = aimux_provider_utils::post_json_to_api(
+            HttpRequest::new(
+                &self.config.endpoint,
+                headers.into_iter().collect(),
+                options,
+            ),`,
+    `        let mut request = HttpRequest::new(
+            &self.config.endpoint,
+            headers.into_iter().collect(),
+            options,
+        );
+        request.fetch = self.config.fetch.clone();
+        let response = aimux_provider_utils::post_json_to_api(
+            request,`
+  ]
+]) {
+  if (decisionExpected.split(before).length !== 2)
+    throw new Error('Native Jev transport injection seam changed')
+  decisionExpected = decisionExpected.replace(before, after)
+}
+const decisionCurrent = await readFile(path.join(directory, decisionFile), 'utf8')
+if (decisionCurrent !== decisionOriginal && decisionCurrent !== decisionExpected)
+  throw new Error('Pinned native Jev transport has unexpected changes')
+if (decisionCurrent !== decisionExpected)
+  await writeFile(path.join(directory, decisionFile), decisionExpected)
 if (!docStates.every(Boolean)) {
   const patch = path.join(root, 'resources/dim-sdk/generated-docs.patch')
   git(['apply', '--check', patch])
@@ -404,6 +443,7 @@ export const nativeSource = {
     ...filePatches,
     ...mcpPatches,
     { path: titleFile, sha256: createHash('sha256').update(titleExpected).digest('hex') },
+    { path: decisionFile, sha256: digest(decisionExpected) },
     ...generatedDocs.map(({ path, sha256 }) => ({ path, sha256 }))
   ]
 }

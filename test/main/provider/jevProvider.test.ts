@@ -224,83 +224,7 @@ describe('JevProvider', () => {
     })
   })
 
-  describe('judgment', () => {
-    it('posts the System One body and returns typed answers', async () => {
-      const fetchMock = vi.fn().mockResolvedValue(
-        jsonResponse({
-          model: 'jev-1.13.0',
-          answers: {
-            risk_level: {
-              type: 'choice',
-              choice: 'low',
-              confidence: 0.9,
-              probabilities: { low: 0.9, medium: 0.1 }
-            },
-            user_authorization: { type: 'noul', noul: 0.95 }
-          },
-          usage: { input_tokens: 42, output_tokens: 7 }
-        })
-      )
-      vi.stubGlobal('fetch', fetchMock)
-
-      const result = await createProviderInstance().runJudgment({
-        model: 'jev-1.13.0',
-        state: { proposedAction: { toolName: 'read' } },
-        questions: {
-          risk_level: {
-            type: 'choice',
-            instructions: 'How risky is this action?',
-            criteria: { low: 'Contained', high: 'Wide' }
-          }
-        }
-      })
-
-      expect(result.model).toBe('jev-1.13.0')
-      expect(result.answers.risk_level).toMatchObject({ type: 'choice', choice: 'low' })
-      expect(result.usage).toEqual({ input_tokens: 42, output_tokens: 7 })
-
-      const [url, init] = fetchMock.mock.calls[0]
-      expect(url).toBe('https://api.typesafe.ai/v1/systemone')
-      expect(init.method).toBe('POST')
-      expect(JSON.parse(init.body)).toMatchObject({
-        model: 'jev-1.13.0',
-        state: { proposedAction: { toolName: 'read' } }
-      })
-    })
-
-    it('requires at least one question', async () => {
-      const provider = createProviderInstance()
-      await expect(
-        provider.runJudgment({ model: 'jev-1.13.0', state: {}, questions: {} })
-      ).rejects.toThrow('at least one question')
-    })
-
-    it('posts to a vendor endpoint verbatim and reads its sibling catalog', async () => {
-      // Vendors expose System One at different paths, so the configured URL is the endpoint and
-      // nothing is appended to it. The catalog is the sibling path.
-      const fetchMock = vi
-        .fn()
-        .mockResolvedValueOnce(
-          jsonResponse({ models: [{ name: 'jev-latest', description: 'alias' }] })
-        )
-        .mockResolvedValueOnce(jsonResponse({ model: 'jev-1.13.0', answers: {} }))
-      vi.stubGlobal('fetch', fetchMock)
-
-      const provider = createProviderInstance({
-        baseUrl: 'https://vendor.example/api/v2/system-one'
-      })
-
-      await provider.fetchModels()
-      await provider.runJudgment({
-        model: 'jev-latest',
-        state: {},
-        questions: { q: { type: 'noul', instructions: 'Is this true?' } }
-      })
-
-      expect(fetchMock.mock.calls[0][0]).toBe('https://vendor.example/api/v2/models')
-      expect(fetchMock.mock.calls[1][0]).toBe('https://vendor.example/api/v2/system-one')
-    })
-
+  describe('check', () => {
     it('reports an endpoint without a sibling catalog as usable', async () => {
       // 404/405 at the catalog path says nothing about the endpoint, and probing the endpoint would
       // spend the vendor's tokens.
@@ -315,35 +239,6 @@ describe('JevProvider', () => {
       expect(unauthorized.isOk).toBe(false)
     })
 
-    it('does not silently drop an already-aborted caller signal', async () => {
-      let observedSignal: AbortSignal | undefined
-      vi.stubGlobal(
-        'fetch',
-        vi.fn().mockImplementation(async (_url, init: RequestInit | undefined) => {
-          observedSignal = init?.signal ?? undefined
-          return jsonResponse({ model: 'jev-1.13.0', answers: {} })
-        })
-      )
-
-      const controller = new AbortController()
-      controller.abort()
-
-      await createProviderInstance()
-        .runJudgment(
-          {
-            model: 'jev-1.13.0',
-            state: {},
-            questions: { q: { type: 'noul', instructions: 'Is this true?' } }
-          },
-          { signal: controller.signal }
-        )
-        .catch(() => undefined)
-
-      expect(observedSignal?.aborted).toBe(true)
-    })
-  })
-
-  describe('check', () => {
     it('fails without an API key and does not issue a request', async () => {
       const fetchMock = vi.fn()
       vi.stubGlobal('fetch', fetchMock)
@@ -383,20 +278,6 @@ describe('JevProvider', () => {
 
       expect(result.isOk).toBe(false)
       expect(result.errorMsg).toBe(JEV_BASE_URL_ERROR)
-      expect(fetchMock).not.toHaveBeenCalled()
-    })
-
-    it('refuses to post a judgment to an unparseable endpoint', async () => {
-      const fetchMock = vi.fn()
-      vi.stubGlobal('fetch', fetchMock)
-
-      await expect(
-        createProviderInstance({ baseUrl: 'not-a-url' }).runJudgment({
-          model: 'jev-1.13.0',
-          state: {},
-          questions: { q: { type: 'noul', instructions: 'Is this true?' } }
-        })
-      ).rejects.toThrow(JEV_BASE_URL_ERROR)
       expect(fetchMock).not.toHaveBeenCalled()
     })
   })

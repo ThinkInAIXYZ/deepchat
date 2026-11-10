@@ -86,6 +86,7 @@ await writeFile(
     'Re-exports AgentIndex and typed Agent/session ownership owners; exposes ProviderService activity.\n' +
     'Adds cold-import admission to the native Session file ownership writer.\n' +
     'Exposes native MCP resource initialization and per-Session title model preference.\n' +
+    'Adds per-connection fetch injection to the native Jev configuration.\n' +
     'DeepChat adds configuration, auxiliary-model, context and credential-reference plugins.\n' +
     'Execution implementations are supplied by dim. DeepChat additions: Apache-2.0.\n'
 )

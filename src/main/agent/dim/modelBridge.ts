@@ -1,5 +1,6 @@
 import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import type { JsonValue } from '@shared/contracts/json'
+import type { JevJudgmentRequest, JevJudgmentResult } from '@shared/jevProtocol'
 import type { DimRuntimeSupervisor } from './runtimeSupervisor'
 import { prepareDimPayload } from './payload'
 
@@ -57,6 +58,31 @@ export class DimModelBridge {
 
   async releaseConfiguration(providerId: string): Promise<void> {
     await (await this.host.start()).call('deepchat.model.release', { providerId })
+  }
+
+  async decide(
+    model: DimModelId,
+    request: Omit<JevJudgmentRequest, 'model'>,
+    signal?: AbortSignal
+  ): Promise<JevJudgmentResult> {
+    signal?.throwIfAborted()
+    const client = await this.host.openConnection()
+    const cancel = () => client.close()
+    signal?.addEventListener('abort', cancel, { once: true })
+    try {
+      signal?.throwIfAborted()
+      return await client.call(
+        'deepchat.native_decisions.decide',
+        { model: { ...model }, ...request } as unknown as JsonValue,
+        120_000
+      )
+    } catch (error) {
+      signal?.throwIfAborted()
+      throw error
+    } finally {
+      signal?.removeEventListener('abort', cancel)
+      client.close()
+    }
   }
 
   async embed(

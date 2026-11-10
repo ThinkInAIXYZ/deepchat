@@ -27,7 +27,7 @@ import type {
 } from '@shared/types/provider'
 import type { AcpConfigState, AcpDebugRequest, AcpDebugRunResult } from '@shared/types/acp'
 import type { JevJudgmentResult, JevQuestion } from '@shared/jevProtocol'
-import { supportsJevJudgment } from './providers/jevProvider'
+import type { DimDecisions } from '@/agent/dim/decisions'
 import type { ImageGenerationOptions } from '@shared/imageGenerationSettings'
 import type { VideoGenerationOptions } from '@shared/videoGenerationSettings'
 import type { TtsSettings } from '@shared/ttsSettings'
@@ -138,6 +138,7 @@ export class ProviderRuntime
   private nativeEmbedding?: DimEmbeddingModels
   private nativeModels?: DimAuxiliaryModels
   private nativeMedia?: DimMediaModels
+  private nativeDecisions?: DimDecisions
 
   /** Desktop catalog administration remains here; production text inference belongs to dim. */
   setNativeEmbedding(embedding: DimEmbeddingModels): void {
@@ -146,6 +147,10 @@ export class ProviderRuntime
 
   setNativeModels(models: DimAuxiliaryModels): void {
     this.nativeModels = models
+  }
+
+  setNativeDecisions(decisions: DimDecisions): void {
+    this.nativeDecisions = decisions
   }
 
   setNativeMedia(media: DimMediaModels): void {
@@ -712,12 +717,8 @@ export class ProviderRuntime
     request: { state: unknown; questions: Record<string, JevQuestion> },
     options?: { signal?: AbortSignal }
   ): Promise<JevJudgmentResult> {
-    const provider = this.getProviderInstance(providerId)
-    if (!supportsJevJudgment(provider)) {
-      throw new Error(`Provider ${providerId} does not support System One judgments`)
-    }
-
-    return await provider.runJudgment({ ...request, model: modelId }, options)
+    if (!this.nativeDecisions) throw new Error('Native dim decision service is unavailable')
+    return this.nativeDecisions.runJudgment(providerId, modelId, request, options)
   }
 
   async transcribeAudioStandalone(

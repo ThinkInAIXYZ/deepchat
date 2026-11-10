@@ -1,4 +1,3 @@
-import type { JevJudgmentRequest, JevJudgmentResult } from '@shared/jevProtocol'
 import { isJevJudgmentModelId } from '@shared/jevProtocol'
 import { ModelType } from '@shared/model'
 import type { ChatMessage } from '@shared/types/core/chat-message'
@@ -6,29 +5,19 @@ import { createStreamEvent, type LLMCoreStreamEvent } from '@shared/types/core/l
 import type { MCPToolDefinition } from '@shared/types/mcp'
 import type { MODEL_META, ModelConfig, ProviderStreamOptions } from '@shared/types/provider'
 import { AiSdkProvider, type RouteDecision, type RouteDecisionOptions } from './aiSdkProvider'
-import { JEV_UNSUPPORTED_CAPABILITY_ERROR, parseJudgmentAnswers } from './jevProvider'
+import { JEV_UNSUPPORTED_CAPABILITY_ERROR } from './jevProvider'
 
 /**
- * Cloudflare Workers AI as one provider with two capabilities:
- *
- * - text generation and embedding models are served by the OpenAI-compatible endpoints
- *   (`{baseUrl}/chat/completions`, `{baseUrl}/embeddings`), which is what the AI SDK transport
- *   already speaks, so those models are ordinary chat and embedding models here;
- * - TypeSafe's `typesafe/jev` is a decision model rather than a chat model, and Workers AI serves it
- *   through the run API instead (`POST {apiRoot}/run` with `{ model, input: { state, questions } }`).
- *
- * `baseUrl` is the documented OpenAI-compatible base, `.../accounts/<ACCOUNT_ID>/ai/v1`. The run and
- * catalog endpoints hang off the same path with `/v1` removed, so one configured base URL serves
- * both capabilities and no extra setting is introduced.
+ * Workers AI catalogue and model-type guards. Native decision execution uses the
+ * account's run API through the product decision plugin; catalogue discovery
+ * derives its API root from the configured OpenAI-compatible base URL.
  */
 export const WORKERS_AI_BASE_URL_HINT =
   'https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/ai/v1'
 
 export const WORKERS_AI_BASE_URL_ERROR = `Cloudflare base URL must look like ${WORKERS_AI_BASE_URL_HINT}`
 
-const RUN_PATH = '/run'
 const MODEL_SEARCH_PATH = '/models/search'
-const JUDGMENT_TIMEOUT_MS = 30_000
 
 /** Hosts for which plain HTTP is accepted: a proxy on this machine cannot be reached over TLS. */
 const LOOPBACK_HOSTNAMES = new Set(['localhost', '127.0.0.1', '[::1]'])
@@ -170,40 +159,6 @@ export class WorkersAiProvider extends AiSdkProvider {
   }
 
   /**
-   * Evaluates typed questions against a state on Workers AI. This is the judgment capability the
-   * agent's judgment-model slot uses; the same provider serves the account's chat models through the
-   * inherited AI SDK transport.
-   */
-  public async runJudgment(
-    request: JevJudgmentRequest,
-    options?: { signal?: AbortSignal }
-  ): Promise<JevJudgmentResult> {
-    if (!this.provider.apiKey) {
-      throw new Error('API key is required')
-    }
-    if (Object.keys(request.questions ?? {}).length === 0) {
-      throw new Error('Jev judgment requires at least one question')
-    }
-
-    const payload = await this.requestProviderJson<unknown>(
-      `${this.resolveApiRoot()}${RUN_PATH}`,
-      {
-        method: 'POST',
-        body: JSON.stringify({
-          model: request.model,
-          input: {
-            state: request.state,
-            questions: request.questions
-          }
-        })
-      },
-      { timeout: JUDGMENT_TIMEOUT_MS, signal: options?.signal }
-    )
-
-    return parseJudgmentAnswers(unwrapWorkersAiResult(payload))
-  }
-
-  /**
    * A judgment model is not a chat model. Every chat-shaped path resolves a route first, so refusing
    * here is what keeps `typesafe/jev` from being sent to the chat endpoint and answered as prose —
    * the failure the model type exists to prevent. The pickers already filter judgment models out of
@@ -283,7 +238,7 @@ export class WorkersAiProvider extends AiSdkProvider {
    * at all. None of those may empty the judgment-model slot, so the fixed id is always merged back
    * in — from the bundled seed when there is one and from the built definition when there is not.
    * Other Jev-family entries the catalog lists are kept as they are: a variant does not stand in for
-   * the id `runJudgment` sends.
+   * the id the native decision adapter sends.
    */
   private withJudgmentModel(models: MODEL_META[]): MODEL_META[] {
     const seeded = (this.provider.models ?? []).find(

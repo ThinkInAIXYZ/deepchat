@@ -13,8 +13,7 @@ import {
 } from '../../../src/main/provider/providers/workersAiProvider'
 import {
   isJevUnsupportedCapabilityError,
-  JEV_UNSUPPORTED_CAPABILITY_ERROR,
-  supportsJevJudgment
+  JEV_UNSUPPORTED_CAPABILITY_ERROR
 } from '../../../src/main/provider/providers/jevProvider'
 
 vi.mock('@shared/logger', () => ({
@@ -351,62 +350,7 @@ describe('WorkersAiProvider', () => {
     })
   })
 
-  describe('judgment', () => {
-    it('posts the run envelope for the judgment model and unwraps the result', async () => {
-      const fetchMock = vi.fn().mockResolvedValue(
-        jsonResponse({
-          result: {
-            model: 'jev-1.13.0',
-            answers: {
-              risk_level: {
-                type: 'choice',
-                choice: 'low',
-                confidence: 0.9,
-                probabilities: { low: 0.9, high: 0.1 }
-              }
-            },
-            usage: { input_tokens: 42, output_tokens: 7 }
-          },
-          success: true,
-          errors: []
-        })
-      )
-      vi.stubGlobal('fetch', fetchMock)
-
-      const result = await createProviderInstance().runJudgment({
-        model: 'typesafe/jev',
-        state: { proposedAction: { toolName: 'read' } },
-        questions: {
-          risk_level: {
-            type: 'choice',
-            instructions: 'How risky is this action?',
-            criteria: { low: 'Contained', high: 'Wide' }
-          }
-        }
-      })
-
-      expect(result.model).toBe('jev-1.13.0')
-      expect(result.answers.risk_level).toMatchObject({ type: 'choice', choice: 'low' })
-      expect(result.usage).toEqual({ input_tokens: 42, output_tokens: 7 })
-
-      const [url, init] = fetchMock.mock.calls[0]
-      expect(url).toBe(`${ACCOUNT_API_ROOT}/run`)
-      expect(init.method).toBe('POST')
-      expect(JSON.parse(init.body)).toEqual({
-        model: 'typesafe/jev',
-        input: {
-          state: { proposedAction: { toolName: 'read' } },
-          questions: {
-            risk_level: {
-              type: 'choice',
-              instructions: 'How risky is this action?',
-              criteria: { low: 'Contained', high: 'Wide' }
-            }
-          }
-        }
-      })
-    })
-
+  describe('check', () => {
     it('accepts an already-unwrapped answer body', () => {
       const answers = { model: 'jev-1.13.0', answers: { is_urgent: { type: 'noul', noul: 0.9 } } }
 
@@ -415,63 +359,6 @@ describe('WorkersAiProvider', () => {
       expect(unwrapWorkersAiResult(undefined)).toBeUndefined()
     })
 
-    it('requires at least one question', async () => {
-      await expect(
-        createProviderInstance().runJudgment({ model: 'typesafe/jev', state: {}, questions: {} })
-      ).rejects.toThrow('at least one question')
-    })
-
-    it('refuses to guess the account id in the base URL', async () => {
-      const fetchMock = vi.fn()
-      vi.stubGlobal('fetch', fetchMock)
-
-      for (const baseUrl of [
-        '',
-        '   ',
-        'https://api.cloudflare.com/client/v4/accounts',
-        'https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/ai/v1',
-        // The run-API root instead of the OpenAI-compatible base: chat would not work with it.
-        'https://api.cloudflare.com/client/v4/accounts/test-account/ai',
-        // A query or fragment would be spliced into the request path.
-        'https://api.cloudflare.com/client/v4/accounts/test-account/ai/v1?foo=1',
-        // Cleartext transport: the bearer token must not travel unencrypted.
-        'http://api.cloudflare.com/client/v4/accounts/test-account/ai/v1'
-      ]) {
-        await expect(
-          createProviderInstance({ baseUrl }).runJudgment({
-            model: 'typesafe/jev',
-            state: {},
-            questions: { q: { type: 'noul', instructions: 'Is this true?' } }
-          })
-        ).rejects.toThrow(WORKERS_AI_BASE_URL_ERROR)
-      }
-
-      expect(fetchMock).not.toHaveBeenCalled()
-    })
-
-    it('accepts plain HTTP for a loopback host, which is what a local proxy uses', async () => {
-      const fetchMock = vi
-        .fn()
-        .mockResolvedValue(jsonResponse({ model: 'jev-1.13.0', answers: {} }))
-      vi.stubGlobal('fetch', fetchMock)
-
-      await expect(
-        createProviderInstance({
-          baseUrl: 'http://localhost:8787/client/v4/accounts/test-account/ai/v1'
-        }).runJudgment({
-          model: 'typesafe/jev',
-          state: {},
-          questions: { q: { type: 'noul', instructions: 'Is this true?' } }
-        })
-      ).resolves.toMatchObject({ model: 'jev-1.13.0' })
-
-      expect(fetchMock.mock.calls[0][0]).toBe(
-        'http://localhost:8787/client/v4/accounts/test-account/ai/run'
-      )
-    })
-  })
-
-  describe('check', () => {
     it('fails without an API key and does not issue a request', async () => {
       const fetchMock = vi.fn()
       vi.stubGlobal('fetch', fetchMock)
@@ -536,26 +423,6 @@ describe('WorkersAiProvider', () => {
   })
 
   describe('capabilities', () => {
-    it('is an AI SDK provider that also satisfies the judgment guard', () => {
-      const provider = createProviderInstance()
-
-      // Chat, streaming, embeddings, summarization and title generation come from the shared
-      // OpenAI-compatible transport; the judgment capability is what this provider adds.
-      expect(provider).toBeInstanceOf(AiSdkProvider)
-      expect(supportsJevJudgment(provider)).toBe(true)
-    })
-
-    it('does not satisfy the judgment guard without the capability', () => {
-      const chatOnly = new AiSdkProvider(
-        createProvider({ apiType: 'openai-completions' }),
-        createProviderSettings(),
-        { getLanguage: vi.fn().mockReturnValue('en-US') }
-      )
-
-      expect(supportsJevJudgment(chatOnly)).toBe(false)
-      expect(supportsJevJudgment(undefined)).toBe(false)
-    })
-
     it('refuses the judgment model on every chat-shaped path', async () => {
       const fetchMock = vi.fn()
       vi.stubGlobal('fetch', fetchMock)

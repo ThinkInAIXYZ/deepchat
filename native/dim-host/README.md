@@ -151,3 +151,15 @@ complete original or complete prepared graph. Source/crate boundaries and plugin
 documents pass. The stock SDK `xtask check` service catalogue profile cannot
 initialize the embedding-specific ProviderSecretHost; the actual DeepChat
 profile is verified by native integration and packaged-runtime smoke tests.
+
+The decision plugin admits `decision.decide` through the public non-chat connection
+owner, then invokes Aimux's existing Jev model and `decide` operation. Native
+validation, retries, deadlines, networking and cancellation remain upstream.
+The hashed Jev configuration seam adds an optional per-connection Fetch; its
+absent default preserves the original process transport. The product Fetch uses
+MediaTransport for connection settings, translates only the Workers AI envelope
+and represents omitted legacy usage as unknown native counts. Results preserve
+versioned model identity, confidence and score legends. No vendor headers or raw
+failures cross the product boundary. A scoped RPC caller owns cancellation and
+joins the native operation. Node providers retain catalogue administration and
+contain no Jev or Workers AI judgment executor.

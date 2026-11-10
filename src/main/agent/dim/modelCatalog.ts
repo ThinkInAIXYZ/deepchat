@@ -301,7 +301,8 @@ export class DimModelCatalog {
     const definition = resolveAiSdkProviderDefinition(provider)
     const anonymous = isAnonymous(provider)
     const copilot = isCopilot(provider)
-    if (!definition && !anonymous && !isOllama(provider) && !copilot)
+    const jev = provider.id === 'jev' || provider.apiType === 'jev'
+    if (!definition && !anonymous && !isOllama(provider) && !copilot && !jev)
       throw new Error('Provider needs a native product connection adapter')
     const kind = definition
       ? resolveProviderTransport(
@@ -341,7 +342,10 @@ export class DimModelCatalog {
               : kind === 'aws-bedrock'
                 ? { type: 'aws_bedrock' }
                 : { type: 'bearer' }
-    let baseUrl = provider.baseUrl.replace(/\/+$/, '')
+    let baseUrl = (provider.baseUrl || (jev ? 'https://api.typesafe.ai/v1/systemone' : '')).replace(
+      /\/+$/,
+      ''
+    )
     if (vertex) baseUrl = vertex.baseUrl
     if (kind === 'aws-bedrock' && !baseUrl)
       baseUrl = `https://bedrock-runtime.${bedrockRegion(provider)}.amazonaws.com`
@@ -355,6 +359,14 @@ export class DimModelCatalog {
       url.search
     )
       throw new Error('Invalid native provider endpoint')
+    if (
+      config.type === ModelType.Judgment &&
+      (provider.id === 'workers-ai' || provider.apiType === 'workers-ai') &&
+      ((url.protocol !== 'https:' && !['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)) ||
+        /[<>]/.test(baseUrl) ||
+        !/\/accounts\/[^/]+\/ai\/v1$/.test(url.pathname.replace(/\/+$/, '')))
+    )
+      throw new Error('Invalid native Workers AI judgment endpoint')
     return {
       driverKind: driver,
       auth,
@@ -414,6 +426,8 @@ function headerReference(providerId: string, name: string, value: string): strin
 
 function dimModality(config: ModelConfig): { kind: string; output?: string; operations: string[] } {
   switch (config.type) {
+    case ModelType.Judgment:
+      return { kind: 'judgment', operations: ['decision.decide'] }
     case ModelType.Embedding:
       return { kind: 'embedding', operations: ['embedding.embed'] }
     case ModelType.ImageGeneration:
