@@ -12,6 +12,7 @@ use dim_agent_capabilities::{
 };
 use dim_agent_runtime::{AgentBuilder, Feature, Names, SESSION_GROUP, SessionIdentity};
 use dim_agent_types::{ToolCall, ToolDefinition, ToolResult, ToolSourceVersion};
+use dim_app_server::{protocol::SessionOrigin, storage::SessionStore};
 use rutis::Ctx;
 use rutis::host::{BoxFuture, CtxHost, DynPlugin, Effect, Key, TypeKey};
 use serde::Deserialize;
@@ -83,6 +84,7 @@ impl DynPlugin for ProductTools {
             self.registry.erase(),
             self.methods.erase(),
             self.tree.erase(),
+            TypeKey::of::<SessionStore>(),
         ]
     }
     fn apply<'a>(&'a self, ctx: &'a Ctx) -> BoxFuture<'a, rutis::Result<Effect>> {
@@ -91,9 +93,44 @@ impl DynPlugin for ProductTools {
             let registry = ctx.require_at(&self.registry)?;
             let methods = ctx.require_at(&self.methods)?;
             let tree = ctx.require_at(&self.tree)?;
-            // Empty until the desktop has durably bound this Session and explicitly refreshed.
+            // Client Sessions remain empty until the desktop durably binds and refreshes them.
             let source = Arc::new(Source::default());
             registry.register_source(ctx, SOURCE, source.clone())?;
+            // The native creation owner commits internal parentage before Session
+            // initialization. Mount desktop capabilities before branch/start; dim's
+            // ToolBinding opening barrier adopts them before the first model request.
+            let store = ctx.require::<SessionStore>()?;
+            let (origin, parent) =
+                store
+                    .creation_record(&identity.session_id)
+                    .await
+                    .map_err(|_| {
+                        rutis::host::ErrorKind::PluginFailed("Cannot read native tool scope".into())
+                    })?;
+            if origin == SessionOrigin::Internal
+                && parent.is_some()
+                && super::GATEWAY.get().and_then(Option::as_ref).is_some()
+            {
+                refresh_source(
+                    &source,
+                    &registry,
+                    &identity,
+                    ctx,
+                    self.instance,
+                    ctx.cancellation_token(),
+                )
+                .await
+                .map_err(|error| {
+                    rutis::host::ErrorKind::PluginFailed(
+                        format!(
+                            "Desktop delegation tools are unavailable: {}",
+                            error.message
+                        )
+                        .into(),
+                    )
+                })?;
+            }
+
             let lane = Arc::new(tokio::sync::Mutex::new(()));
             let context = ctx.clone();
             let instance = self.instance;
@@ -133,71 +170,7 @@ impl DynPlugin for ProductTools {
                             _ = cancel.cancelled() => return Err(RpcError::interrupted()),
                             guard = lane.lock() => guard,
                         };
-                        let updated = tokio::time::timeout(
-                            Duration::from_secs(20),
-                            request(
-                                json!({"kind":"catalog", "sessionId":identity.session_id}),
-                                cancel.clone(),
-                            ),
-                        )
-                        .await
-                        .map_err(|_| unavailable())
-                        .and_then(|value| value)
-                        .and_then(|value| {
-                            serde_json::from_value::<Catalog>(value)
-                                .map_err(|_| HostError::failed("Invalid product catalog"))
-                        });
-                        let catalog = match updated {
-                            Ok(catalog) => catalog,
-                            Err(_) => {
-                                withdraw(&source, &registry, &ctx, instance)?;
-                                return Err(RpcError::service("product_catalog_unavailable", "Product catalog is unavailable"));
-                            }
-                        };
-                        if catalog.version.is_empty()
-                            || catalog.tools.len() > 1024
-                            || catalog.tools.iter().any(|tool| {
-                                tool.source != dim_agent_types::ToolSource::Extension
-                                    || !matches!(
-                                        tool.risk.as_deref(),
-                                        Some(
-                                            "read_filesystem"
-                                                | "write_filesystem"
-                                                | "execute_process"
-                                                | "network"
-                                                | "session"
-                                        )
-                                    )
-                            })
-                        {
-                            withdraw(&source, &registry, &ctx, instance)?;
-                            return Err(RpcError::invalid("Invalid product catalog"));
-                        }
-                        let count = catalog.tools.len();
-                        let unchanged = source.0.lock().unwrap().as_ref().is_some_and(|published| {
-                            published.catalog_version == catalog.version && published.set.tools.len() == count &&
-                            published.set.tools.iter().zip(&catalog.tools).all(|(old, new)| old.definition == *new)
-                        });
-                        if !unchanged {
-                            let version = uuid::Uuid::new_v4().to_string();
-                            let tools = catalog.tools.into_iter().map(|definition| Arc::new(ToolContribution {
-                                handler: Arc::new(DesktopTool {
-                                    session_id: identity.session_id.clone(), version: catalog.version.clone(),
-                                    name: definition.name.clone(), stop: ctx.cancellation_token(),
-                                }), definition,
-                            })).collect();
-                            *source.0.lock().unwrap() = Some(Published {
-                                catalog_version: catalog.version.clone(),
-                                set: Arc::new(ToolSourceSet { key: SOURCE.into(), version: version.clone(), tools }),
-                            });
-                            registry.definitions();
-                            let status = registry.sources_state().borrow().0.get(SOURCE).cloned();
-                            if !status.is_some_and(|status| status.adopted.as_deref() == Some(&version) && status.rejected.is_none()) {
-                                withdraw(&source, &registry, &ctx, instance)?;
-                                return Err(RpcError::service("product_catalog_rejected", "Native tool registry rejected the product catalog"));
-                            }
-                            changed(&ctx, instance)?;
-                        }
+                        let (version, count) = refresh_source(&source, &registry, &identity, &ctx, instance, cancel.clone()).await?;
                         // Registry acceptance precedes ToolBinding's asynchronous adoption.
                         // Observe its public native state before desktop admits an input, including
                         // MCP sources changed by the same preparation. No private owner call or poll.
@@ -220,13 +193,115 @@ impl DynPlugin for ProductTools {
                         };
                         tokio::time::timeout(Duration::from_secs(10), adopted).await
                             .map_err(|_| RpcError::service("product_catalog_unavailable", "Native tool adoption did not complete"))??;
-                        reply(json!({"version":catalog.version,"count":count}))
+                        reply(json!({"version":version,"count":count}))
                     })
                 }),
             )?;
             Ok(Effect::Done)
         })
     }
+}
+async fn refresh_source(
+    source: &Source,
+    registry: &ToolRegistry,
+    identity: &SessionIdentity,
+    ctx: &Ctx,
+    instance: rutis::host::InstanceId,
+    cancel: CancellationToken,
+) -> Result<(String, usize), RpcError> {
+    let updated = tokio::time::timeout(
+        Duration::from_secs(20),
+        request(
+            json!({"kind":"catalog", "sessionId":identity.session_id}),
+            cancel.clone(),
+        ),
+    )
+    .await
+    .map_err(|_| unavailable())
+    .and_then(|value| value)
+    .and_then(|value| {
+        serde_json::from_value::<Catalog>(value)
+            .map_err(|_| HostError::failed("Invalid product catalog"))
+    });
+    let catalog = match updated {
+        Ok(catalog) => catalog,
+        Err(_) => {
+            withdraw(&source, &registry, &ctx, instance)?;
+            return Err(RpcError::service(
+                "product_catalog_unavailable",
+                "Product catalog is unavailable",
+            ));
+        }
+    };
+    if catalog.version.is_empty()
+        || catalog.tools.len() > 1024
+        || catalog.tools.iter().any(|tool| {
+            tool.source != dim_agent_types::ToolSource::Extension
+                || !matches!(
+                    tool.risk.as_deref(),
+                    Some(
+                        "read_filesystem"
+                            | "write_filesystem"
+                            | "execute_process"
+                            | "network"
+                            | "session"
+                    )
+                )
+        })
+    {
+        withdraw(&source, &registry, &ctx, instance)?;
+        return Err(RpcError::invalid("Invalid product catalog"));
+    }
+    let count = catalog.tools.len();
+    let unchanged = source.0.lock().unwrap().as_ref().is_some_and(|published| {
+        published.catalog_version == catalog.version
+            && published.set.tools.len() == count
+            && published
+                .set
+                .tools
+                .iter()
+                .zip(&catalog.tools)
+                .all(|(old, new)| old.definition == *new)
+    });
+    if !unchanged {
+        let version = uuid::Uuid::new_v4().to_string();
+        let tools = catalog
+            .tools
+            .into_iter()
+            .map(|definition| {
+                Arc::new(ToolContribution {
+                    handler: Arc::new(DesktopTool {
+                        session_id: identity.session_id.clone(),
+                        version: catalog.version.clone(),
+                        name: definition.name.clone(),
+                        stop: ctx.cancellation_token(),
+                    }),
+                    definition,
+                })
+            })
+            .collect();
+        *source.0.lock().unwrap() = Some(Published {
+            catalog_version: catalog.version.clone(),
+            set: Arc::new(ToolSourceSet {
+                key: SOURCE.into(),
+                version: version.clone(),
+                tools,
+            }),
+        });
+        registry.definitions();
+        let status = registry.sources_state().borrow().0.get(SOURCE).cloned();
+        if !status.is_some_and(|status| {
+            status.adopted.as_deref() == Some(&version) && status.rejected.is_none()
+        }) {
+            withdraw(&source, &registry, &ctx, instance)?;
+            return Err(RpcError::service(
+                "product_catalog_rejected",
+                "Native tool registry rejected the product catalog",
+            ));
+        }
+        changed(&ctx, instance)?;
+    }
+    Ok((catalog.version, count))
 }
 // A failed replacement withdraws future availability. Retained prefixes may still hold an old
 // handler; the desktop independently reauthorizes its version on every invocation.

@@ -16,11 +16,14 @@ export interface DimScopeDescription {
   title: { text: string; source: 'auto' | 'manual' } | null
   titleRevision: string
 }
-export interface DimAuthorizedScope {
+export interface DimAuthorizedOwner {
   binding: Readonly<DimSessionBinding>
-  ref: DimSessionRef
   description: Readonly<DimScopeDescription>
   assertCurrent(): void
+}
+
+export interface DimAuthorizedScope extends DimAuthorizedOwner {
+  ref: DimSessionRef
 }
 
 /** Native parent links establish delegation. User text and desktop status never establish it. */
@@ -43,12 +46,9 @@ export class DimScopes {
     return description
   }
 
-  readonly context = async (
-    request: DimProductContextRequest,
-    signal: AbortSignal
-  ): Promise<DimAuthorizedScope> => {
+  readonly owner = async (nativeId: string, signal: AbortSignal): Promise<DimAuthorizedOwner> => {
     signal.throwIfAborted()
-    const description = await this.describe(request.sessionId)
+    const description = await this.describe(nativeId)
     signal.throwIfAborted()
     const visited = new Set<string>()
     let ancestor = description
@@ -78,6 +78,15 @@ export class DimScopes {
         throw new Error('Native delegation belongs to a replaced desktop scope')
     }
     assertCurrent()
+    return { binding: owner, description: Object.freeze({ ...description }), assertCurrent }
+  }
+
+  readonly context = async (
+    request: DimProductContextRequest,
+    signal: AbortSignal
+  ): Promise<DimAuthorizedScope> => {
+    const owner = await this.owner(request.sessionId, signal)
+    const { assertCurrent } = owner
     const frame = await (
       await this.options.host.start()
     ).call<{
@@ -94,9 +103,8 @@ export class DimScopes {
       throw new Error('Native model request has no current branch')
     dimSequence(frame.sequence)
     return {
-      binding: owner,
+      ...owner,
       ref: { sessionId: request.sessionId, branchId: frame.branchId },
-      description: Object.freeze({ ...description }),
       assertCurrent
     }
   }

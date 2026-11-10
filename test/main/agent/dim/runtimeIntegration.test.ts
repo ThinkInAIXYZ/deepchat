@@ -376,6 +376,42 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
           nextMcpCall = false
           nextTools = [{ id: randomUUID(), name: tool.function.name, arguments: {} }]
         }
+        if (
+          !titleRequest &&
+          body.messages?.some(
+            (message: { role?: string; content?: unknown }) =>
+              message.role === 'system' &&
+              JSON.stringify(message.content).includes('Complete the delegated task.')
+          )
+        ) {
+          if (childToolPhase === 0) {
+            expect(
+              body.tools.some(
+                (tool: { function: { name: string } }) =>
+                  tool.function.name === 'deepchat_facade_echo'
+              )
+            ).toBe(true)
+            nextTools = [
+              {
+                id: randomUUID(),
+                name: 'deepchat_facade_echo',
+                arguments: { text: 'native child product' }
+              }
+            ]
+          } else if (childToolPhase === 1) {
+            nextTools = [
+              {
+                id: randomUUID(),
+                name: 'write',
+                arguments: {
+                  path: 'native-child-consent.txt',
+                  content: 'native child approved by policy'
+                }
+              }
+            ]
+          }
+          childToolPhase++
+        }
         if (nextTools && !titleRequest) {
           const tools = nextTools
           nextTools = null
@@ -433,6 +469,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
     let credentialValue = 'fixture-secret-only'
     let providerEnabled = true
     let productCatalogVersion = 'facade-only'
+    let childToolPhase = 0
     let liveContextVersion = 1
     const contextSessionIds: string[] = []
     let contextStarted = false
@@ -476,6 +513,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
     })
     const desktopTools = new DimProductTools({
       database: grants.data,
+      owner: (id, signal) => new DimScopes({ database: grants.data, host }).owner(id, signal),
       authorize: () => {},
       catalog: async () => [
         {
@@ -503,8 +541,12 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
     })
     const gateway = new DimProductGateway({
       resolve: async (nativeId) => {
+        const binding = grants.data.dimSessionBindingsTable.getByNative(nativeId)
+        if (binding?.sessionId === 'facade-product') return desktopTools.resolve(nativeId)
         if (
-          grants.data.dimSessionBindingsTable.getByNative(nativeId)?.sessionId === 'facade-product'
+          !binding &&
+          (await new DimScopes({ database: grants.data, host }).describe(nativeId)).origin ===
+            'internal'
         )
           return desktopTools.resolve(nativeId)
         return {
@@ -2013,7 +2055,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
                 name: 'Native scope member',
                 description: 'Native delegation fixture',
                 systemPrompt: 'Complete the delegated task.',
-                tools: [],
+                tools: ['write'],
                 model: nativeModel
               }
             }
@@ -2024,12 +2066,14 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
         })
         await facade.runtime.waitIdle(facadeId)
         await expect
-          .poll(() =>
-            nativeScopes.some(
-              (scope) =>
-                scope.description.parentSessionId === leaderBinding.dimSessionId &&
-                scope.description.role === 'member'
-            )
+          .poll(
+            () =>
+              nativeScopes.some(
+                (scope) =>
+                  scope.description.parentSessionId === leaderBinding.dimSessionId &&
+                  scope.description.role === 'member'
+              ),
+            { timeout: 10_000 }
           )
           .toBe(true)
         const child = nativeScopes.findLast(
@@ -2055,6 +2099,26 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
             })
           )
           .toBe(true)
+        await expect
+          .poll(
+            () =>
+              productToolCalls.some(
+                (call) =>
+                  call.sessionId === child.ref.sessionId &&
+                  call.arguments.text === 'native child product'
+              ),
+            { timeout: 10_000 }
+          )
+          .toBe(true)
+        await expect
+          .poll(
+            () =>
+              readFile(path.join(changedDirectory, 'native-child-consent.txt'), 'utf8').catch(
+                () => null
+              ),
+            { timeout: 10_000 }
+          )
+          .toBe('native child approved by policy')
         await (await host.start()).call('deepchat.host.delete', { sessionId: child.ref.sessionId })
         await facade.runtime.waitIdle(facadeId)
         const facadeScopes = grants.data.dimSessionScopesTable.list(facadeId)

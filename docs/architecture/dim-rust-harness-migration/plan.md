@@ -158,6 +158,8 @@
 
 ## 模块进度
 
+- 模块 34：内部子会话在原生初始化时，通过 SessionStore 公开 creation_record 验证实际 parent link 并装载产品 ToolProvider；client 会话仍等待桌面持久绑定后显式刷新。产品 scope owner 与模型 frame 查询分开复用，子工具在执行前校验当前根会话代次、产品配置与调用子会话，拒绝未知 client、跨 scope 和旧代访问。profile.tools 按 dim 合同只挂载固定工具，产品扩展单独由 ToolProvider 提供，不移植 TS agent loop。原生 PermissionState 为无产品元数据的分支保留继承的 FullAccess 策略；显式产品 default 模式继续要求同意，Native deny 继续优先。真实 HTTP 证明首次子模型请求已看到产品工具，实际以子会话身份调用插件，并完成原生 write；6 项作用域/产品能力回归、10 项 Rust smoke、主进程构建、format/i18n/lint 、双端 typecheck 与 Electron 真实聊天/重启续聊均通过。桥 0.9.0，无新增上游补丁；原生 MCP 的子会话继承、子会话桌面记录/独立产品配置和目录动态刷新继续实施。
+
 - 模块 33：Ollama 匿名连接也持久化产品准入引用，经公开 ProviderSecretHost 在每次请求重新检查启停、模型状态与连接指纹；确认值不会成为 HTTP header，API key owner 不参与匿名请求。锁定源码仅将 secrets.rs 的 Anonymous 早返回限定为“未声明引用”，保持无引用的 dim 原有行为，hash 记入 extensionPatches；桥升为 0.8.0。独立真实 Rust fixture 绕过后续 TS admission，证明缓存连接拒绝禁用 provider、禁用模型及替换地址，重启后仍检查，实际 HTTP 无 Authorization/准入值且不调用 API key owner。最终 10 项 Rust smoke、39 项目录/provider/安装回归、应用主进程构建、Electron 聊天/重启续聊、格式、i18n、lint 和双端 typecheck 均通过。
 
 - 模块 32：知识库/记忆使用的 embeddings 与维度探测已接入 Native Rust 插件。连接通过公开 ModalityConnectionHost 按声明的 embedding.embed 授权，实际请求、重试和取消使用 dim 锁定的 Aimux；产品只分装有界传输页。Rust 遵守模型批量上限，并只在明确的 HTTP 400 批量拒绝后缩小批次；文本过长不重送，结果顺序/维度/有限值和响应大小有界。保持维度失败 DTO 与取消语义，生产入口不回退 TS embedding provider。真实 HTTP fixture 覆盖 35 条结果、供应商批量拒绝、维度、长文本拒绝及取消；39 项 provider/目录/辅助回归与 37 项 dim 单元回归通过。完整回归中并发资源争用暴露旧长用例 120s 预算和新增请求启动默认等待过短，原生长用例隔离复验 86s 通过；smoke 文件改为串行，新等待显式采用跨进程预算。最终 9 项 Rust smoke、Electron 真实聊天/重启续聊、format/i18n/lint、双端 typecheck 和 Memory scope 检查均通过。桥 0.7.0，不新增上游补丁；视频和特殊 provider 兼容、工具/子会话、Inspector、备份及旧执行器物理删除继续实施。

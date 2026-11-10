@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import type { DimAuthorizedOwner } from './scopes'
 import type { JsonValue } from '@shared/contracts/json'
 import type { MCPToolDefinition } from '@shared/types/mcp'
 import type { DimSessionBinding } from '@/session/data/tables/dimSessionBindings'
@@ -17,6 +18,7 @@ export interface DimDesktopTool {
 }
 interface ProductToolsOptions {
   database: SessionDatabase
+  owner?(nativeId: string, signal: AbortSignal): Promise<DimAuthorizedOwner>
   catalog(binding: Readonly<DimSessionBinding>): Promise<DimDesktopTool[]>
   authorize(binding: Readonly<DimSessionBinding>): void | Promise<void>
 }
@@ -26,10 +28,16 @@ export class DimProductTools {
   constructor(private readonly options: ProductToolsOptions) {}
 
   readonly resolve = async (nativeId: string): Promise<DimProductCapabilitySet> => {
-    const binding = this.options.database.dimSessionBindingsTable.getByNative(nativeId)
+    const direct = this.options.database.dimSessionBindingsTable.getByNative(nativeId)
+    const owner =
+      !direct && this.options.owner
+        ? await this.options.owner(nativeId, new AbortController().signal)
+        : undefined
+    const binding = direct ?? owner?.binding
     if (!binding) throw new Error('Product tools have no current desktop binding')
     const scope = Object.freeze({ ...binding })
     const current = () => {
+      owner?.assertCurrent()
       const current = this.options.database.dimSessionBindingsTable.get(scope.sessionId)
       if (
         !current ||
@@ -64,6 +72,7 @@ export class DimProductTools {
           JSON.stringify([
             scope.sessionId,
             scope.generation,
+            nativeId,
             entries.map((entry) => entry.definition),
             tools
           ])
@@ -73,7 +82,10 @@ export class DimProductTools {
       execute: async (call, signal) => {
         signal.throwIfAborted()
         await check()
-        if (call.sessionId !== scope.dimSessionId || call.branchId !== scope.branchId)
+        if (
+          call.sessionId !== nativeId ||
+          (nativeId === scope.dimSessionId && call.branchId !== scope.branchId)
+        )
           throw new Error('Product tool belongs to another native execution scope')
         const tool = entries.find((entry) => entry.definition.function.name === call.name)
         if (!tool) throw new Error('Desktop capability is no longer available')

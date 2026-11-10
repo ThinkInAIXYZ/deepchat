@@ -2105,7 +2105,9 @@ export async function createMainProcessControl(dependencies: {
         })
     )
   }
+  const dimScopes = new DimScopes({ database: sessionData.database, host: dimHost })
   dimTools = new DimProductTools({
+    owner: dimScopes.owner,
     database: sessionData.database,
     authorize: authorizeDimScope,
     catalog: createDimDesktopTools({
@@ -2127,7 +2129,7 @@ export async function createMainProcessControl(dependencies: {
   dimContext = new DimProductContext({
     database: sessionData.database,
     content: new DimContent(dimHost),
-    resolve: new DimScopes({ database: sessionData.database, host: dimHost }).context,
+    resolve: dimScopes.context,
     authorize: authorizeDimScope,
     prepare: dimMemory.contribute
   })
