@@ -464,6 +464,10 @@ DeepChatはメッセージアプリからリモート操作できるため、デ
       <img src="./src/renderer/src/assets/llm-icons/openllm.svg" width="50" height="50" alt="OpenLLM Icon"><br/>
       <a href="https://www.openllm.sh/">OpenLLM</a>
     </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/wiro.svg" width="50" height="50" alt="Wiro AI Icon"><br/>
+      <a href="https://wiro.ai/">Wiro AI</a>
+    </td>
   </tr>
 
 </table>

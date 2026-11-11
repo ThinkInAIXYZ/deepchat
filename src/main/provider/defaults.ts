@@ -777,6 +777,20 @@ const PROVIDER_DEFAULTS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'wiro',
+    name: 'Wiro AI',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://llm.wiro.ai/v1',
+    enable: false,
+    websites: {
+      official: 'https://wiro.ai/',
+      apiKey: 'https://wiro.ai/panel/project/new',
+      docs: 'https://wiro.ai/docs/completions-api',
+      models: 'https://wiro.ai/models?categories=llm-tool-call'
+    }
+  },
+  {
     id: 'cheapaimodel',
     name: 'cheapaimodel',
     apiType: 'openai-completions',

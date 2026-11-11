@@ -142,6 +142,18 @@ the daemon is not running. Embeddings are disabled for this profile.
 
 Upstream reference: [OpenLLM documentation](https://docs.openllm.sh).
 
+## Wiro AI
+
+`wiro` uses the OpenAI-compatible transport with API-key credentials and the default endpoint
+`https://llm.wiro.ai/v1`. Live model discovery reads the `/v1/models` catalog, which lists chat
+models only, and takes each model's context length (`context_length`), output limit (`max_tokens`),
+image input (`capabilities.input_modalities`) and tool support (`capabilities.function_tools`)
+from the record. A value the catalog leaves out is not guessed. Model ids are lowercase
+`owner/model` and are kept verbatim. The catalog needs the key, so the connection check lists
+models and does not generate text. Embeddings are disabled for this profile.
+
+Upstream reference: [Completions API](https://wiro.ai/docs/completions-api).
+
 ## OpenAI Codex
 
 `openai-codex` is separate from standard `openai`: distinct provider ID, runtime kind, credential store,
