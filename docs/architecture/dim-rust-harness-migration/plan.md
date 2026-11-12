@@ -160,6 +160,8 @@
 
 ## 模块进度
 
+- 模块 103：`c718509d8` 的 [Linux PR Check](https://github.com/ThinkInAIXYZ/deepchat/actions/runs/43224628989/job/131204744926) 通过全量 main，Native 媒体联合用例在 90 秒超时，其余 29 项通过。拆开图像/语音和视频会话的生成与冷恢复，两个用例分别校验原生归属、完整 SHA 和归档后的字节。视频保留重启前后两次任务及无重发验证，图像保留编辑、取消、fork 和删除后的原生文件校验。文件读取使用原生允许的 1 MiB 分块，保留原始 18 MiB 载荷与每例 90 秒上限。CI 输出媒体阶段耗时。
+
 - 模块 102：修复 MiniMax-M3 验收暴露的推理配置错误。会话和辅助调用统一按模型实际路由映射参数，旧 interleaved 兼容字段继续持久化。macOS ARM64 上 207 项定向测试和 30 项完整 Native smoke 通过，后者覆盖启用旧标志的真实会话请求。锁定 Rust 宿主的本地 HTTP 验证覆盖 Anthropic 手动预算与自适应、Gemini 预算与 level、Chat 兼容与 Responses effort。打包工作流测试在 Windows 优先选用 Git Bash，文件 symlink 权限不足时仅跳过对应的独立用例。
 
 - 模块 101：Windows ARM64 在 `982913c8e` 的权限投影和媒体联合场景失败，Native 为 28/30。模型响应确认与投影等待分开，媒体测试增加阶段诊断，测试时限维持原值。回归工作流支持平台和架构定向复验，默认、定时和复用调用仍覆盖六平台。`73a2e8a67` 的 [Windows ARM64 定向复验](https://github.com/ThinkInAIXYZ/deepchat/actions/runs/42923281048) 30/30 项通过，六平台 [Package Check](https://github.com/ThinkInAIXYZ/deepchat/actions/runs/42923291616) 也全部通过。

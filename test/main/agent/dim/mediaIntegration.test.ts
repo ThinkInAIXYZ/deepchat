@@ -36,9 +36,14 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
   { label: 'standard image, speech, video, transcription and embeddings', desktopVendors: false },
   { label: 'Voice.ai and APIMart protocols with native recovery', desktopVendors: true },
   {
-    label: 'media conversations with native loop and file projection',
+    label: 'image and speech conversations with native file ownership',
     desktopVendors: false,
-    mediaChat: true
+    mediaChat: 'image-speech'
+  },
+  {
+    label: 'video conversations with native file ownership and restart',
+    desktopVendors: false,
+    mediaChat: 'video'
   }
 ])(
   'runs $label through native dim owners',
@@ -47,9 +52,9 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
     let stage = 'setup'
     const mark = (name: string) => {
       stage = name
-      if (process.env.DEEPCHAT_DIM_DIAGNOSTICS === '1')
+      if (process.env.CI || process.env.DEEPCHAT_DIM_DIAGNOSTICS === '1')
         process.stderr.write(
-          `[dim media] ${JSON.stringify({ case: mediaChat ? 'chat' : desktopVendors ? 'vendors' : 'standard', stage, elapsedMs: Date.now() - started })}\n`
+          `[dim media] ${JSON.stringify({ case: mediaChat ?? (desktopVendors ? 'vendors' : 'standard'), stage, elapsedMs: Date.now() - started })}\n`
         )
     }
     const diagnostic =
@@ -449,12 +454,13 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
         const artifacts: Array<{ fileId: string; sha256: string; bytes: number }> = []
         // A media model is selected by an Agent-local native host. The real model
         // remains non-chat; only the conversation alias enters the native loop.
-        for (const [modelId, text, mimeType] of [
+        const conversations = [
           ['gpt-image-1', 'native image', 'image/png'],
           ['tts-1', 'native speech', 'audio/wav'],
           ['sora-2', 'native video', 'video/mp4'],
           ['tts-1', 'native speech large', 'audio/wav']
-        ]) {
+        ].filter(([modelId]) => (modelId === 'sora-2') === (mediaChat === 'video'))
+        for (const [modelId, text, mimeType] of conversations) {
           mark(`${modelId}/${text}: prepare`)
           const alias = await catalog.admit(provider.id, modelId, { session: true })
           const created = await client.call<{ sessionId: string }>('deepchat.host.launch', {
@@ -589,7 +595,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
             const page = await owned.readChunk(
               file.fileId,
               offset,
-              Math.min(512 * 1024, metadata.bytes - offset)
+              Math.min(1024 * 1024, metadata.bytes - offset)
             )
             expect(page.length).toBeGreaterThan(0)
             hash.update(page)
@@ -718,15 +724,17 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
             })
           }
         }
-        mark('conversation media: cold restart')
-        await host.stop()
-        client = await host.start()
-        const recoveredVideos = await media.list({ category: 'video', limit: 100 })
-        expect(recoveredVideos.tasks).toHaveLength(2)
-        expect(recoveredVideos.tasks.every((task) => task.state === 'succeeded')).toBe(true)
-        expect(recoveredVideos.tasks.every((task) => task.has_remote_handle)).toBe(true)
-        expect(JSON.stringify(recoveredVideos).length).toBeLessThan(64 * 1024)
-        expect(requests.filter((request) => request.url === '/v1/videos')).toHaveLength(2)
+        if (mediaChat === 'video') {
+          mark('conversation media: cold restart')
+          await host.stop()
+          await host.start()
+          const recoveredVideos = await media.list({ category: 'video', limit: 100 })
+          expect(recoveredVideos.tasks).toHaveLength(2)
+          expect(recoveredVideos.tasks.every((task) => task.state === 'succeeded')).toBe(true)
+          expect(recoveredVideos.tasks.every((task) => task.has_remote_handle)).toBe(true)
+          expect(JSON.stringify(recoveredVideos).length).toBeLessThan(64 * 1024)
+          expect(requests.filter((request) => request.url === '/v1/videos')).toHaveLength(2)
+        }
         const before = await media.list({ limit: 100 })
         await host.stop()
         const identity = JSON.parse(
@@ -776,7 +784,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
               const page = await restored.readChunk(
                 artifact.fileId,
                 offset,
-                Math.min(512 * 1024, artifact.bytes - offset)
+                Math.min(1024 * 1024, artifact.bytes - offset)
               )
               expect(page.length).toBeGreaterThan(0)
               hash.update(page)
