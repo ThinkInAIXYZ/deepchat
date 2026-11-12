@@ -236,8 +236,6 @@
     "maxTokens": "Tối đa Tokens",
     "thinkingBudget": "Suy nghĩ về ngân sách",
     "verbosity": "Độ dài",
-    "forceInterleavedThinkingCompat": "Suy nghĩ xen kẽ",
-    "forceInterleavedThinkingCompatDescription": "Kiểm soát xem phiên này có xử lý các thông báo lý luận và lệnh gọi công cụ bằng Tư duy xen kẽ hay không.",
     "verbosityPlaceholder": "Chọn mức độ chi tiết",
     "currentCustomPrompt": "tùy chỉnh hiện tại",
     "useDefault": "Sử dụng mặc định",

@@ -231,7 +231,6 @@
     "thinkingBudget": "Thinking Budget",
     "reasoningEffort": "Muhakeme Çabası",
     "verbosity": "ayrıntı",
-    "interleaved": "Aralıklı düşünme uyumluluğunu zorla",
     "systemPrompt": "Varsayılan sistem prompt",
     "systemPromptPlaceholder": "Boş bir sistem için boş bırakın prompt",
     "defaultProjectPath": "Varsayılan dizin (isteğe bağlı)",
@@ -1025,10 +1024,6 @@
       "reasoningToggle": {
         "label": "Akıl yürütmeyi etkinleştir",
         "description": "Bu model için akıl yürütmenin varsayılan olarak etkin olup olmadığını kontrol eder"
-      },
-      "interleavedThinking": {
-        "label": "Interleaved Thinking",
-        "description": "Bu modelin Interleaved Thinking ile akıl yürütme ve araç çağrısı mesajlarını işleyip işlemediğini kontrol eder. Sağlayıcı varsayılanları otomatik olarak uygulanır."
       },
       "thinkingBudget": {
         "label": "Thinking Budget",

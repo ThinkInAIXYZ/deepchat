@@ -149,7 +149,7 @@ export async function installDim({
     try {
       await rename(extracted, destination)
     } catch (error) {
-      if (!['EEXIST', 'ENOTEMPTY'].includes(error.code)) throw error
+      if (!['EEXIST', 'ENOTEMPTY', 'EPERM'].includes(error.code)) throw error
       const existing = JSON.parse(
         await readFile(path.join(destination, 'release-manifest.json'), 'utf8')
       )
@@ -216,11 +216,13 @@ export async function installDimPlugins(target = path.join(root, 'runtime/dim/pl
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+  const args = process.argv.slice(2)
+  const pluginsOnly = args[0] === '--plugins-only'
   const [
     platform = process.platform,
     arch = process.arch,
     target = path.join(root, 'runtime/dim')
-  ] = process.argv.slice(2)
-  await installDim({ platform, arch, target: path.resolve(target) })
+  ] = pluginsOnly ? args.slice(1) : args
+  if (!pluginsOnly) await installDim({ platform, arch, target: path.resolve(target) })
   await installDimPlugins(path.join(path.resolve(target), 'plugins'))
 }

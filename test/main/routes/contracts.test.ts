@@ -1871,8 +1871,7 @@ describe('main kernel contracts', () => {
           maxTokens: 4000,
           thinkingBudget: 2048,
           reasoningEffort: 'medium',
-          verbosity: 'medium',
-          forceInterleavedThinkingCompat: true
+          verbosity: 'medium'
         },
         assistantModel: null,
         visionModel: null,

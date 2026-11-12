@@ -231,7 +231,6 @@
     "thinkingBudget": "Presupuesto de pensamiento",
     "reasoningEffort": "Esfuerzo de razonamiento",
     "verbosity": "Nivel de detalle",
-    "interleaved": "Forzar compatibilidad con pensamiento intercalado",
     "systemPrompt": "Prompt del sistema predeterminado",
     "systemPromptPlaceholder": "Déjalo en blanco para usar un prompt del sistema vacío",
     "defaultProjectPath": "Directorio predeterminado (opcional)",
@@ -1025,10 +1024,6 @@
       "reasoningToggle": {
         "label": "Habilitar razonamiento",
         "description": "Controla si el razonamiento está habilitado de forma predeterminada para este modelo."
-      },
-      "interleavedThinking": {
-        "label": "Pensamiento entrelazado",
-        "description": "Controla si este modelo maneja mensajes de razonamiento y llamadas de herramientas con pensamiento intercalado. Los valores predeterminados del proveedor se aplican automáticamente."
       },
       "thinkingBudget": {
         "label": "Pensando en el presupuesto",

@@ -43,6 +43,9 @@ export async function verifyDimRuntime({
   ])
   const executable = platform === 'win32' ? 'deepchat-dim-host.exe' : 'deepchat-dim-host'
   if (
+    !Number.isSafeInteger(sourceLock.pluginApiVersion) ||
+    sourceLock.pluginApiVersion < 1 ||
+    sourceLock.pluginApiVersion !== hostLock.apiVersion ||
     JSON.stringify(lock) !== JSON.stringify(sourceLock) ||
     JSON.stringify(nativeLock) !== JSON.stringify(hostLock) ||
     manifest.schemaVersion !== 1 ||
@@ -91,6 +94,7 @@ export async function verifyDimRuntime({
     ...[
       'deepchat-host/index.mjs',
       'deepchat-host/native-client.mjs',
+      'deepchat-host/model-calls.mjs',
       'deepchat-storage/index.mjs'
     ].map((name) => access(path.join(plugins, 'modules', name)))
   ])

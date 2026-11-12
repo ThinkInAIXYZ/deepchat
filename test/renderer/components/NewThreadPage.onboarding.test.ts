@@ -135,7 +135,6 @@ const setup = async (activeStep: 'first-chat' | 'switch-agent' = 'first-chat') =
     reasoningEffort: undefined as string | undefined,
     reasoningVisibility: undefined as string | undefined,
     verbosity: undefined as string | undefined,
-    forceInterleavedThinkingCompat: undefined as boolean | undefined,
     imageGeneration: undefined as Record<string, unknown> | undefined,
     pendingStartDeeplink: null as null,
     updateGenerationSettings: vi.fn(),

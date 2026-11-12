@@ -18,6 +18,7 @@ export interface DimHistorySnapshot {
   pendingInputs?: PendingSessionInputRecord[]
   excludedContextMessageIds?: string[]
   images?: Record<string, JsonValue[]>
+  contextText?: Record<string, string>
   pluginHookState?: Array<{ name: 'plugin-hook' | 'plugin-hook-session'; data: JsonValue }>
   source?: JsonValue
 }

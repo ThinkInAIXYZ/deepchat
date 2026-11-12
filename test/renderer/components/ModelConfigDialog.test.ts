@@ -528,40 +528,13 @@ describe('ModelConfigDialog reasoning portraits', () => {
     expect(wrapper.text()).toContain('settings.model.modelConfig.speechRecognition.description')
   })
 
-  it('shows interleaved thinking when an OpenAI-compatible model defaults to interleaved mode', async () => {
+  it('does not expose the removed interleaved thinking switch', async () => {
     const { wrapper } = await setup({
       providerId: 'zenmux',
       modelId: 'moonshotai/kimi-k2.5',
       modelName: 'Kimi K2.5',
       modelConfig: {
-        reasoning: true,
-        forceInterleavedThinkingCompat: true
-      },
-      reasoningPortrait: {
-        supported: true,
-        defaultEnabled: true,
-        interleaved: true,
-        mode: 'effort',
-        effort: 'medium',
-        effortOptions: ['minimal', 'low', 'medium', 'high'],
-        verbosity: 'medium',
-        verbosityOptions: ['low', 'medium', 'high']
-      }
-    })
-
-    expect(wrapper.text()).toContain('settings.model.modelConfig.interleavedThinking.label')
-    expect(wrapper.text()).toContain('settings.model.modelConfig.interleavedThinking.description')
-  })
-
-  it('hides interleaved thinking for Responses providers', async () => {
-    const { wrapper } = await setup({
-      providerId: 'openai',
-      modelId: 'gpt-5',
-      modelName: 'GPT-5',
-      providerApiType: 'openai-responses',
-      modelConfig: {
-        reasoning: true,
-        forceInterleavedThinkingCompat: true
+        reasoning: true
       },
       reasoningPortrait: {
         supported: true,
@@ -576,6 +549,10 @@ describe('ModelConfigDialog reasoning portraits', () => {
     })
 
     expect(wrapper.text()).not.toContain('settings.model.modelConfig.interleavedThinking.label')
+    expect(wrapper.text()).not.toContain(
+      'settings.model.modelConfig.interleavedThinking.description'
+    )
+    expect(wrapper.find('[data-setting-control="interleavedThinking-toggle"]').exists()).toBe(false)
   })
 
   it('renders full effort options for non-grok-3-mini xAI portraits', async () => {

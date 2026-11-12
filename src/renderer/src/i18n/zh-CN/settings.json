@@ -231,7 +231,6 @@
     "thinkingBudget": "思考预算",
     "reasoningEffort": "推理强度",
     "verbosity": "详细程度",
-    "interleaved": "强制兼容交错思考",
     "systemPrompt": "默认系统提示词",
     "systemPromptPlaceholder": "留空则使用空白系统提示词",
     "defaultProjectPath": "默认目录（可选）",
@@ -1025,10 +1024,6 @@
       "reasoningToggle": {
         "label": "启用推理",
         "description": "控制该模型默认是否启用推理"
-      },
-      "interleavedThinking": {
-        "label": "Interleaved Thinking",
-        "description": "控制该模型是否按 Interleaved Thinking 方式处理 reasoning 与 tool-call 消息。若 provider 已声明支持，会默认自动启用。"
       },
       "thinkingBudget": {
         "label": "思考预算",

@@ -236,8 +236,6 @@
     "maxTokens": "Maksimum token",
     "thinkingBudget": "Thinking Budget",
     "verbosity": "ayrıntı",
-    "forceInterleavedThinkingCompat": "Interleaved Thinking",
-    "forceInterleavedThinkingCompatDescription": "Bu oturumun Interleaved Thinking ile akıl yürütme ve araç çağrısı mesajlarını işleyip işlemediğini kontrol eder.",
     "verbosityPlaceholder": "Ayrıntı seç",
     "currentCustomPrompt": "Mevcut özel",
     "useDefault": "Varsayılanı kullan",

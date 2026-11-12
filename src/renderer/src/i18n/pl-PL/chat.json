@@ -236,8 +236,6 @@
     "maxTokens": "Maks. Tokens",
     "thinkingBudget": "Myślący budżet",
     "verbosity": "Szczegółowość",
-    "forceInterleavedThinkingCompat": "Przeplatane myślenie",
-    "forceInterleavedThinkingCompatDescription": "Kontroluje, czy ta sesja obsługuje komunikaty dotyczące rozumowania i wywołań narzędzi za pomocą myślenia przeplatanego.",
     "verbosityPlaceholder": "Wybierz szczegółowość",
     "currentCustomPrompt": "Aktualny zwyczaj",
     "useDefault": "Użyj domyślnego",

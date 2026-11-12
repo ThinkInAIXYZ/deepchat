@@ -53,6 +53,12 @@ jobs:
           DEEPCHAT_REQUIRE_NATIVE_DUCKDB_VSS: '1'
         run: pnpm exec vitest --config vitest.config.memory-native.ts --run test/main/memory/memoryVectorStoreV2Native.test.ts
 
+      - name: Build pinned dim runtime
+        uses: ./.github/actions/setup-dim
+        with:
+          platform: win32
+          arch: arm64
+
       - name: Build Windows arm64 package
         run: |
           pnpm run build

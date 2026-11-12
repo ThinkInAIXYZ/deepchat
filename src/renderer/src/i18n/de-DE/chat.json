@@ -236,8 +236,6 @@
     "maxTokens": "Maximale Ausgabe",
     "thinkingBudget": "Denkbudget",
     "verbosity": "Antwortdetail",
-    "forceInterleavedThinkingCompat": "Interleaved Thinking",
-    "forceInterleavedThinkingCompatDescription": "Steuert, ob diese Sitzung reasoning- und tool-call-Nachrichten mit Interleaved Thinking verarbeitet.",
     "verbosityPlaceholder": "Detailstufe auswählen",
     "currentCustomPrompt": "Aktuell benutzerdefiniert",
     "useDefault": "Standard verwenden",

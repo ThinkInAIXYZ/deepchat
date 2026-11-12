@@ -236,8 +236,6 @@
     "maxTokens": "keluaran maksimum",
     "thinkingBudget": "Fikirkan tentang bajet",
     "verbosity": "Jawab secara terperinci",
-    "forceInterleavedThinkingCompat": "Interleaved Thinking",
-    "forceInterleavedThinkingCompatDescription": "Mengawal sama ada sesi semasa memproses mesej reasoning dan tool-call dalam mod Interleaved Thinking.",
     "verbosityPlaceholder": "Pilih tahap verbositi",
     "currentCustomPrompt": "Penyesuaian semasa",
     "useDefault": "Gunakan nilai lalai",

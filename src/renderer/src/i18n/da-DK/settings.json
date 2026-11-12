@@ -572,10 +572,6 @@
         "description": "Styrer om ræsonnering er aktiveret som standard for denne model",
         "label": "Aktivér ræsonnering"
       },
-      "interleavedThinking": {
-        "label": "Interleaved Thinking",
-        "description": "Styrer, om denne model håndterer beskeder med ræsonnering og tool-calls med Interleaved Thinking. Leverandørens standarder anvendes automatisk."
-      },
       "thinkingBudget": {
         "label": "Tænke-budget",
         "description": "Angiv den maksimale tokenlængde for tænkningen for at styre ræsonneringsdybden",
@@ -2833,7 +2829,6 @@
     "thinkingBudget": "Tænkningsbudget",
     "reasoningEffort": "Ræsonnementsniveau",
     "verbosity": "Detaljegrad",
-    "interleaved": "Gennemtving kompatibilitet for interleaved thinking",
     "systemPrompt": "Standard systemprompt",
     "systemPromptPlaceholder": "Lad stå tomt for en tom systemprompt",
     "defaultProjectPath": "Standardmappe (valgfri)",

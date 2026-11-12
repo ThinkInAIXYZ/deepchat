@@ -1,6 +1,5 @@
 export const AGENT_REQUEST_MAX_OUTPUT_TOKENS_CAP = 131_072
 export const AGENT_MIN_EFFECTIVE_OUTPUT_TOKENS = 1
-export const AGENT_CONTEXT_SAFETY_MARGIN_TOKENS = 256
 
 export function capAgentRequestMaxTokens(
   maxTokens: number,

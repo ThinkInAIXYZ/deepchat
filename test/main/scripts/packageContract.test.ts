@@ -1,13 +1,5 @@
 import { createHash } from 'node:crypto'
-import {
-  mkdir,
-  mkdtemp,
-  lstat,
-  readFile,
-  readdir,
-  rm,
-  writeFile
-} from 'node:fs/promises'
+import { mkdir, mkdtemp, lstat, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { Readable } from 'node:stream'
@@ -41,6 +33,7 @@ import {
 import {
   createPackageManifest,
   validateInstallerSizeReport,
+  validateSmokeReports,
   validateMacZipEntries,
   verifyMacAppDistribution,
   verifyMacZipDistribution
@@ -56,10 +49,8 @@ vi.unmock('node:path')
 
 const sourceSha = 'a'.repeat(40)
 const version = '1.2.3-beta.1'
-const sha256 = (value: string | Buffer) =>
-  createHash('sha256').update(value).digest('hex')
-const sha512 = (value: string | Buffer) =>
-  createHash('sha512').update(value).digest('base64')
+const sha256 = (value: string | Buffer) => createHash('sha256').update(value).digest('hex')
+const sha512 = (value: string | Buffer) => createHash('sha512').update(value).digest('base64')
 
 describe('CI package contract', () => {
   it('defines the six targets and the 19-file release surface', () => {
@@ -123,10 +114,7 @@ describe('CI package contract', () => {
         macos: true
       })
     }
-    for (const backgroundPath of [
-      'build/dmg-background.png',
-      'build/dmg-background@2x.png'
-    ]) {
+    for (const backgroundPath of ['build/dmg-background.png', 'build/dmg-background@2x.png']) {
       expect(classifyPackageImpact([backgroundPath])).toEqual({
         required: true,
         windows: false,
@@ -176,9 +164,7 @@ describe('CI package contract', () => {
       matchedPaths: [],
       matches: []
     })
-    expect(() => normalizeChangedPath('../electron-builder.yml')).toThrow(
-      /escapes the repository/
-    )
+    expect(() => normalizeChangedPath('../electron-builder.yml')).toThrow(/escapes the repository/)
     expect(() => normalizeChangedPath('scripts//afterPack.js')).toThrow(/not canonical/)
     expect(() => normalizeChangedPath('scripts/./afterPack.js')).toThrow(/not canonical/)
   })
@@ -266,10 +252,7 @@ describe('CI package contract', () => {
       expect(output).toContain('matched=["electron-builder.yml"]\n')
 
       await expect(
-        classifyPackageImpactMain(
-          [],
-          Readable.from([Buffer.from('electron-builder.yml\n')])
-        )
+        classifyPackageImpactMain([], Readable.from([Buffer.from('electron-builder.yml\n')]))
       ).rejects.toThrow(/NUL-delimited/)
     } finally {
       await rm(outputDirectory, { recursive: true, force: true })
@@ -302,10 +285,7 @@ describe('CI package contract', () => {
         macos: false
       })
       await expect(
-        classifyPackageImpactMain(
-          [],
-          Readable.from([Buffer.from('package.json\0')])
-        )
+        classifyPackageImpactMain([], Readable.from([Buffer.from('package.json\0')]))
       ).rejects.toThrow(/snapshot paths/)
     } finally {
       await rm(outputDirectory, { recursive: true, force: true })
@@ -472,9 +452,10 @@ describe('CI package contract', () => {
   })
 
   it('rejects unsafe or ambiguous updater ZIP entry paths before extraction', () => {
-    expect(
-      validateMacZipEntries('DeepChat.app/\nDeepChat.app/Contents/Info.plist\n')
-    ).toEqual(['DeepChat.app/', 'DeepChat.app/Contents/Info.plist'])
+    expect(validateMacZipEntries('DeepChat.app/\nDeepChat.app/Contents/Info.plist\n')).toEqual([
+      'DeepChat.app/',
+      'DeepChat.app/Contents/Info.plist'
+    ])
 
     for (const unsafeEntries of [
       '../DeepChat.app/Contents/Info.plist\n',
@@ -614,10 +595,7 @@ describe('package-size contract', () => {
     const policyPath = path.join(tempDirectory, 'policy.json')
     const reportPath = path.join(tempDirectory, 'report.json')
     await Promise.all([
-      writeFile(
-        path.join(tempDirectory, `DeepChat-${version}-windows-x64.exe`),
-        '123456'
-      ),
+      writeFile(path.join(tempDirectory, `DeepChat-${version}-windows-x64.exe`), '123456'),
       writeFile(baselinePath, JSON.stringify(createBaseline())),
       writeFile(policyPath, JSON.stringify(createDefaultPackageSizePolicy()))
     ])
@@ -819,6 +797,63 @@ describe('package manifest staging', () => {
     await rm(tempDirectory, { recursive: true, force: true })
   })
 
+  function dimSmokeReport(target: string) {
+    return {
+      target,
+      profile: 'release',
+      native: true,
+      hostPlugin: true,
+      storagePlugin: true,
+      modelPlugin: true,
+      agentOwner: true,
+      sourceRevision: 'b'.repeat(40),
+      sha256: 'c'.repeat(64),
+      nodeSha256: 'd'.repeat(64)
+    }
+  }
+
+  async function writeDimSmoke(target: string) {
+    const dimSmokePath = path.join(distDirectory, `dim-runtime-smoke-${target}.json`)
+    await writeFile(dimSmokePath, JSON.stringify(dimSmokeReport(target)))
+    return dimSmokePath
+  }
+
+  it('requires complete release dim smoke evidence with valid native and Node digests', () => {
+    const name = 'dim-runtime-smoke-win32-x64.json'
+    const data = dimSmokeReport('win32-x64')
+    const ocr = {
+      name: 'light-ocr-smoke-win32-x64.json',
+      data: {
+        target: { platform: 'win32', arch: 'x64' },
+        executed: true,
+        componentMetrics: { ocrAssets: {}, nodeRuntime: {}, otherRuntime: {} }
+      }
+    }
+    expect(() => validateSmokeReports([{ name, data }, ocr], 'win32-x64')).not.toThrow()
+    expect(() => validateSmokeReports([ocr], 'win32-x64')).toThrow(/dim runtime/)
+    for (const [field, value] of Object.entries({
+      target: 'linux-x64',
+      profile: 'dev',
+      native: false,
+      hostPlugin: false,
+      storagePlugin: false,
+      modelPlugin: false,
+      agentOwner: false,
+      sourceRevision: 'invalid',
+      sha256: 'invalid',
+      nodeSha256: null
+    })) {
+      expect(() =>
+        validateSmokeReports([{ name, data: { ...data, [field]: value } }, ocr], 'win32-x64')
+      ).toThrow(/Invalid dim runtime/)
+      const missing = { ...data } as Record<string, unknown>
+      delete missing[field]
+      expect(() => validateSmokeReports([{ name, data: missing }, ocr], 'win32-x64')).toThrow(
+        /Invalid dim runtime/
+      )
+    }
+  })
+
   async function prepareWindowsPackage() {
     const installerName = `DeepChat-${version}-windows-x64.exe`
     const installer = Buffer.from('installer')
@@ -884,7 +919,7 @@ describe('package manifest staging', () => {
         })
       )
     ])
-    return { installerName, smokePath, sizePath }
+    return { installerName, smokePath, sizePath, dimSmokePath: await writeDimSmoke('win32-x64') }
   }
 
   async function prepareMacPackage() {
@@ -922,11 +957,11 @@ describe('package manifest staging', () => {
         })
       )
     ])
-    return { dmgName, zipName, smokePath }
+    return { dmgName, zipName, smokePath, dimSmokePath: await writeDimSmoke('darwin-arm64') }
   }
 
   it('stages only allowlisted files and never adds Windows signing claims', async () => {
-    const { installerName, smokePath, sizePath } = await prepareWindowsPackage()
+    const { installerName, smokePath, sizePath, dimSmokePath } = await prepareWindowsPackage()
     const outputDirectory = path.join(tempDirectory, 'output')
     const manifest = await createPackageManifest({
       projectDirectory,
@@ -936,7 +971,7 @@ describe('package manifest staging', () => {
       arch: 'x64',
       sourceSha,
       purpose: 'distribution',
-      reportPaths: [smokePath],
+      reportPaths: [smokePath, dimSmokePath],
       installerSizeReportPath: sizePath,
       actualSourceSha: sourceSha,
       workflow: { runId: '42', runAttempt: '1' }
@@ -953,12 +988,10 @@ describe('package manifest staging', () => {
       installerName,
       `${installerName}.blockmap`
     ])
-    expect(await readdir(path.join(outputDirectory, 'metadata'))).toEqual([
-      'latest.yml'
-    ])
-    expect(
-      await readFile(path.join(outputDirectory, 'manifest.json'), 'utf8')
-    ).not.toContain('builder-debug.yml')
+    expect(await readdir(path.join(outputDirectory, 'metadata'))).toEqual(['latest.yml'])
+    expect(await readFile(path.join(outputDirectory, 'manifest.json'), 'utf8')).not.toContain(
+      'builder-debug.yml'
+    )
   })
 
   it('rejects duplicate diagnostic basenames', async () => {
@@ -980,7 +1013,7 @@ describe('package manifest staging', () => {
   })
 
   it('derives macOS ZIP evidence from the staged updater payload', async () => {
-    const { zipName, smokePath } = await prepareMacPackage()
+    const { zipName, smokePath, dimSmokePath } = await prepareMacPackage()
     const outputDirectory = path.join(tempDirectory, 'mac-output')
     const verifyCuaMacHelper = vi.fn(async () => {})
     const verifyMacApp = vi.fn(async () => {})
@@ -995,7 +1028,7 @@ describe('package manifest staging', () => {
       arch: 'arm64',
       sourceSha,
       purpose: 'distribution',
-      reportPaths: [smokePath],
+      reportPaths: [smokePath, dimSmokePath],
       actualSourceSha: sourceSha,
       macAppPath: '/tmp/DeepChat.app',
       appleTeamId: 'Y7P5QLKLYG',
@@ -1005,10 +1038,9 @@ describe('package manifest staging', () => {
       verifyMacDmg
     })
 
-    expect(verifyMacZip).toHaveBeenCalledWith(
-      path.join(outputDirectory, 'files', zipName),
-      { teamId: 'Y7P5QLKLYG' }
-    )
+    expect(verifyMacZip).toHaveBeenCalledWith(path.join(outputDirectory, 'files', zipName), {
+      teamId: 'Y7P5QLKLYG'
+    })
     expect(manifest.checks).toMatchObject({
       cuaMacHelperDistribution: 'passed',
       macAppDistribution: 'passed',

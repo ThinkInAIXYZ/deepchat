@@ -52,6 +52,12 @@ await writeFile(
       name: path.join(runtime.plugins, 'modules/deepchat-storage/index.mjs'),
       provides: {},
       config: { hostAddress: address, profile: 'product', rawHistory: true }
+    },
+    {
+      id: 'deepchat-model',
+      name: path.join(runtime.plugins, 'modules/deepchat-host/model-calls.mjs'),
+      provides: {},
+      config: { hostAddress: address }
     }
   ]),
   { mode: 0o600 }
@@ -91,7 +97,8 @@ const exited = new Promise((resolve) => {
 const capabilities = [
   'deepchat.native.capabilities',
   'deepchat.host.capabilities',
-  'deepchat.storage.capabilities'
+  'deepchat.storage.capabilities',
+  'deepchat.model.capabilities'
 ]
 let verified = false
 try {
@@ -117,7 +124,8 @@ try {
   if (
     result[0].bridgeVersion !== runtime.manifest.bridgeVersion ||
     result[0].sourceRevision !== runtime.manifest.sourceRevision ||
-    result.some((entry) => entry.apiVersion !== 1)
+    result[3].plugin !== 'deepchat-model' ||
+    result.some((entry) => entry.apiVersion !== runtime.manifest.apiVersion)
   )
     throw new Error('Packaged dim capability identity mismatch')
   const agent = await withNativeClient(
@@ -143,6 +151,7 @@ try {
     native: true,
     hostPlugin: true,
     storagePlugin: true,
+    modelPlugin: true,
     agentOwner: true
   }
   if (options['report-path']) {

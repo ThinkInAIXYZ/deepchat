@@ -8,6 +8,7 @@ import type { DimSessionBinding } from '@/session/data/tables/dimSessionBindings
 import type { DimHistoryChange, DimScopeChange } from '@/session/data/tables/dimScopeChanges'
 import { DimContent } from './content'
 import { DimLegacyMigration } from './legacyMigration'
+import { legacyContextText } from './legacySource'
 import type { DimHistorySnapshot } from './historyImport'
 import { DimProjectionStore } from './projectionStore'
 import type { DimRuntimeSupervisor } from './runtimeSupervisor'
@@ -290,6 +291,11 @@ export class DimScopeTransitions {
             .filter(([id]) => ids.has(id))
             .map(([id, blocks]) => [ids.get(id)!, blocks])
         ),
+        contextText: Object.fromEntries(
+          Object.entries(source.contextText)
+            .filter(([id]) => ids.has(id))
+            .map(([id, text]) => [ids.get(id)!, text])
+        ),
         source: { ...fork, kind: 'native-fork', operationId: record.operationId }
       }
     }
@@ -322,6 +328,11 @@ export class DimScopeTransitions {
       )
     }
     const retained = new Set(messages.map((message) => message.id))
+    const contextText = new Map(Object.entries(source.contextText))
+    if (change.kind === 'edit') {
+      const edited = messages.find((message) => message.id === change.messageId)
+      if (edited) contextText.set(edited.id, legacyContextText(edited))
+    }
     return {
       formatVersion: 1,
       productSessionId: binding.sessionId,
@@ -330,6 +341,7 @@ export class DimScopeTransitions {
       contextFromOrderSeq: change.kind === 'retain' ? source.contextFromOrderSeq : 1,
       pendingInputs: change.kind === 'clear' ? [] : source.pendingInputs,
       pluginHookState: change.kind === 'clear' ? [] : source.pluginHookState,
+      contextText: Object.fromEntries([...contextText].filter(([id]) => retained.has(id))),
       excludedContextMessageIds: [
         ...new Set([
           ...source.excludedContextMessageIds.filter((id) => retained.has(id)),

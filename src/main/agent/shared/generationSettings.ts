@@ -27,7 +27,6 @@ import {
 } from '@shared/modelConfigDefaults'
 import { normalizeImageGenerationOptions } from '@shared/imageGenerationSettings'
 import { normalizeVideoGenerationOptions } from '@shared/videoGenerationSettings'
-import { isDeepSeekSeriesModelId } from '@shared/model'
 import { capAgentRequestMaxTokens } from './generationLimits'
 import {
   assertProviderModelRuntimeFacts,
@@ -108,9 +107,6 @@ export function mapPersistedGenerationPatch(
   if (sessionRow.verbosity !== null) {
     patch.verbosity = sessionRow.verbosity
   }
-  if (typeof sessionRow.force_interleaved_thinking_compat === 'number') {
-    patch.forceInterleavedThinkingCompat = sessionRow.force_interleaved_thinking_compat === 1
-  }
   const imageGeneration = normalizeImageGenerationOptions(
     parsePersistedJson(sessionRow.image_generation_options_json)
   )
@@ -165,9 +161,6 @@ export function buildPersistedGenerationSettingsPatch(
   if (Object.prototype.hasOwnProperty.call(requestedPatch, 'verbosity')) {
     patch.verbosity = sanitized.verbosity
   }
-  if (Object.prototype.hasOwnProperty.call(requestedPatch, 'forceInterleavedThinkingCompat')) {
-    patch.forceInterleavedThinkingCompat = sanitized.forceInterleavedThinkingCompat
-  }
   if (Object.prototype.hasOwnProperty.call(requestedPatch, 'imageGeneration')) {
     patch.imageGeneration = sanitized.imageGeneration
   }
@@ -192,7 +185,6 @@ export function buildPersistedGenerationSettingsReplacement(
     reasoningEffort: settings.reasoningEffort,
     reasoningVisibility: settings.reasoningVisibility,
     verbosity: settings.verbosity,
-    forceInterleavedThinkingCompat: settings.forceInterleavedThinkingCompat,
     imageGeneration: settings.imageGeneration,
     videoGeneration: settings.videoGeneration
   }
@@ -250,16 +242,6 @@ async function buildDefaultGenerationSettings(
       maxTokensDefault <= contextLengthDefault
         ? maxTokensDefault
         : Math.min(4096, contextLengthDefault)
-  }
-
-  const interleavedThinkingDefault =
-    typeof modelConfig.forceInterleavedThinkingCompat === 'boolean'
-      ? modelConfig.forceInterleavedThinkingCompat
-      : portrait?.interleaved === true
-        ? true
-        : undefined
-  if (typeof interleavedThinkingDefault === 'boolean') {
-    defaults.forceInterleavedThinkingCompat = interleavedThinkingDefault
   }
 
   if (snapshot.mediaSettings.image) {
@@ -500,16 +482,6 @@ export async function sanitizeGenerationSettings(
     delete next.verbosity
   }
 
-  if (Object.prototype.hasOwnProperty.call(patch, 'forceInterleavedThinkingCompat')) {
-    if (typeof patch.forceInterleavedThinkingCompat === 'boolean') {
-      next.forceInterleavedThinkingCompat = patch.forceInterleavedThinkingCompat
-    } else {
-      delete next.forceInterleavedThinkingCompat
-    }
-  } else if (typeof base.forceInterleavedThinkingCompat !== 'boolean') {
-    delete next.forceInterleavedThinkingCompat
-  }
-
   if (snapshot.mediaSettings.image) {
     if (Object.prototype.hasOwnProperty.call(patch, 'imageGeneration')) {
       const imageGeneration = normalizeImageGenerationOptions(patch.imageGeneration)
@@ -555,39 +527,6 @@ export async function sanitizeGenerationSettings(
   }
 
   return next
-}
-
-export function resolveInterleavedReasoningConfig(
-  providerSettings: ProviderModelResolutionPort,
-  providerId: string,
-  modelId: string,
-  generationSettings: SessionGenerationSettings,
-  capabilitySnapshot: ResolvedModelCapabilitySnapshot = providerSettings.getCapabilitySnapshot({
-    providerId,
-    modelId
-  })
-): InterleavedReasoningConfig {
-  const portrait = capabilitySnapshot.reasoningPortrait
-  const isDeepSeekSeries = isDeepSeekSeriesModelId(modelId)
-  const explicitSessionSetting =
-    typeof generationSettings.forceInterleavedThinkingCompat === 'boolean'
-      ? generationSettings.forceInterleavedThinkingCompat
-      : undefined
-  const forcedBySessionSetting = explicitSessionSetting === true
-  const portraitInterleaved = portrait?.interleaved === true
-  const reasoningSupported = capabilitySnapshot.supportsReasoning
-  const preserveReasoningContent =
-    isDeepSeekSeries ||
-    (explicitSessionSetting !== undefined ? explicitSessionSetting : portraitInterleaved)
-
-  return {
-    preserveReasoningContent,
-    preserveEmptyReasoningContent: isDeepSeekSeries,
-    forcedBySessionSetting,
-    portraitInterleaved,
-    reasoningSupported,
-    providerDbSourceUrl: providerSettings.getProviderDbSourceUrl()
-  }
 }
 
 function normalizeReasoningEffort(
@@ -696,13 +635,4 @@ export async function resolveSessionGenerationSettings(
     providerModelFacts
   )
   return { ...sanitized }
-}
-
-export interface InterleavedReasoningConfig {
-  preserveReasoningContent: boolean
-  preserveEmptyReasoningContent?: boolean
-  forcedBySessionSetting: boolean
-  portraitInterleaved: boolean
-  reasoningSupported: boolean
-  providerDbSourceUrl: string
 }

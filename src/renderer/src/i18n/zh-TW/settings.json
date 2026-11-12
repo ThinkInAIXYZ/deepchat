@@ -639,10 +639,6 @@
         "description": "控制該模型預設是否啟用推理",
         "label": "啟用推理"
       },
-      "interleavedThinking": {
-        "label": "Interleaved Thinking",
-        "description": "控制此模型是否以 Interleaved Thinking 方式處理 reasoning 與 tool-call 訊息。若 provider 已宣告支援，會自動預設啟用。"
-      },
       "thinkingBudget": {
         "label": "思考預算",
         "description": "設定思考過程的最大 token 長度，用於控制模型推理深度",
@@ -2833,7 +2829,6 @@
     "thinkingBudget": "思考預算",
     "reasoningEffort": "推理強度",
     "verbosity": "詳細程度",
-    "interleaved": "強制相容交錯思考",
     "systemPrompt": "預設系統提示詞",
     "systemPromptPlaceholder": "留空即使用空白系統提示詞",
     "defaultProjectPath": "預設目錄（可選）",

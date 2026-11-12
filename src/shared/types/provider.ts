@@ -297,7 +297,6 @@ export interface ProviderRuntimePort {
     maxTokens?: number,
     options?: { signal?: AbortSignal }
   ): Promise<LLMResponse>
-  stopStream(eventId: string): Promise<void>
   check(providerId: string, modelId?: string): Promise<{ isOk: boolean; errorMsg: string | null }>
   getKeyStatus(providerId: string): Promise<KeyStatus | null>
   refreshModels(providerId: string): Promise<void>
@@ -429,7 +428,6 @@ export interface ModelConfig {
   type: ModelType
   isUserDefined?: boolean
   thinkingBudget?: number
-  forceInterleavedThinkingCompat?: boolean
   reasoningEffort?: ReasoningEffort
   reasoningVisibility?: ReasoningVisibility
   verbosity?: Verbosity

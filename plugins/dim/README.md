@@ -2,7 +2,7 @@
 
 The pinned Rust host runs these plugins through rutis. Desktop calls their protected-local
 management methods; the plugin calls dim services directly. ACP is not part of this connection.
-The existing application backend has not switched to dim yet.
+The built-in application backend uses dim; Direct ACP remains a separate client.
 
 Install the host, standalone Node and plugin runtime from the repository root:
 
@@ -127,4 +127,5 @@ The small [native plugin assembly](../../native/dim-host/README.md) uses the sam
 source for settings adoption and credential references not exposed by alpha.21's TS bindings.
 It calls native owners, including auxiliary model execution with arbitrary validated ModelConfig.
 An explicit one-line Provider assembly patch enables its existing secret-store extension. Official
-release smoke checks remain in place. Production wiring and other platform builds are in progress.
+release smoke checks remain in place. Production wiring uses this host, and package verification
+covers all six supported OS/CPU targets.

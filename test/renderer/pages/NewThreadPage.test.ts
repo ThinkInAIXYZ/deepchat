@@ -39,7 +39,6 @@ const setup = async (
     thinkingBudget: undefined as number | undefined,
     reasoningEffort: undefined as string | undefined,
     verbosity: undefined as string | undefined,
-    forceInterleavedThinkingCompat: undefined as boolean | undefined,
     permissionMode: 'full_access',
     disabledAgentTools: [] as string[],
     pendingStartDeeplink: {

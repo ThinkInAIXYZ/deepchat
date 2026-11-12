@@ -236,8 +236,6 @@
     "maxTokens": "keluaran maksimal",
     "thinkingBudget": "Pikirkan tentang anggaran",
     "verbosity": "Jawab secara detail",
-    "forceInterleavedThinkingCompat": "Pemikiran Disisipkan",
-    "forceInterleavedThinkingCompatDescription": "Mengontrol apakah sesi saat ini menangani pesan penalaran dan panggilan alat dalam mode Berpikir Interleaved.",
     "verbosityPlaceholder": "Pilih tingkat verbositas",
     "currentCustomPrompt": "Kustomisasi saat ini",
     "useDefault": "Gunakan nilai default",

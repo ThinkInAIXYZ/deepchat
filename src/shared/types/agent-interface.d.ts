@@ -89,7 +89,6 @@ export interface SessionGenerationSettings {
   reasoningEffort?: ReasoningEffort
   reasoningVisibility?: ReasoningVisibility
   verbosity?: Verbosity
-  forceInterleavedThinkingCompat?: boolean
   imageGeneration?: ImageGenerationOptions
   videoGeneration?: VideoGenerationOptions
 }
@@ -619,7 +618,6 @@ export interface DeepChatAgentModelPreset extends DeepChatAgentModelSelection {
   thinkingBudget?: number
   reasoningEffort?: SessionGenerationSettings['reasoningEffort']
   verbosity?: SessionGenerationSettings['verbosity']
-  forceInterleavedThinkingCompat?: boolean
 }
 
 export interface DeepChatSubagentSlot {

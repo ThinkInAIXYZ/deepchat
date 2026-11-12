@@ -231,7 +231,6 @@
     "thinkingBudget": "Pikirkan tentang anggaran",
     "reasoningEffort": "Kekuatan penalaran",
     "verbosity": "tingkat detail",
-    "interleaved": "Kompatibilitas yang dipaksakan dan pemikiran yang disisipkan",
     "systemPrompt": "Bawaan system prompt",
     "systemPromptPlaceholder": "Biarkan kosong untuk menggunakan blanksystem prompt",
     "defaultProjectPath": "Direktori default (opsional)",
@@ -1025,10 +1024,6 @@
       "reasoningToggle": {
         "label": "Aktifkan inferensi",
         "description": "Mengontrol apakah model mengaktifkan inferensi secara default"
-      },
-      "interleavedThinking": {
-        "label": "Pemikiran Disisipkan",
-        "description": "Mengontrol apakah model menangani pesan penalaran dan pemanggilan alat dengan cara Berpikir Interleaved. Jika provider telah dinyatakan didukung, maka secara otomatis akan diaktifkan secara default."
       },
       "thinkingBudget": {
         "label": "Pikirkan tentang anggaran",

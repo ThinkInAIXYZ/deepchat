@@ -192,7 +192,6 @@ export const SessionGenerationSettingsSchema = z.object({
   reasoningEffort: ReasoningEffortSchema.optional(),
   reasoningVisibility: ReasoningVisibilitySchema.optional(),
   verbosity: VerbositySchema.optional(),
-  forceInterleavedThinkingCompat: z.boolean().optional(),
   imageGeneration: ImageGenerationOptionsSchema,
   videoGeneration: VideoGenerationOptionsSchema
 })

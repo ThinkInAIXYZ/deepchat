@@ -13,6 +13,7 @@ const nativeLock = JSON.parse(
   await readFile(path.join(root, 'resources/dim-native-host-lock.json'), 'utf8')
 )
 if (
+  lock.pluginApiVersion !== nativeLock.apiVersion ||
   nativeSource.sourceRevision !== nativeLock.sourceRevision ||
   nativeSource.storeFormat !== nativeLock.storeFormat ||
   nativeSource.assemblyPatch.sha256 !== nativeLock.assemblyPatch.sha256 ||

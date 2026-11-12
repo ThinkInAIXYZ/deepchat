@@ -762,7 +762,7 @@ describe('Provider DB strict matching and user overrides', () => {
     expect(cfg.vision).toBe(true)
     expect(cfg.functionCall).toBe(true)
     expect(cfg.reasoning).toBe(true)
-    expect(cfg.forceInterleavedThinkingCompat).toBe(true)
+    expect(cfg).not.toHaveProperty('forceInterleavedThinkingCompat')
   })
 
   it('keeps MiniMax-M3 context floor after provider facts merge', () => {
@@ -781,7 +781,7 @@ describe('Provider DB strict matching and user overrides', () => {
     })
 
     expect(cfg.contextLength).toBe(1_000_000)
-    expect(cfg.forceInterleavedThinkingCompat).toBe(true)
+    expect(cfg).not.toHaveProperty('forceInterleavedThinkingCompat')
     expect(cfg.isUserDefined).toBe(false)
   })
 

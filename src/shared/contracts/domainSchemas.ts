@@ -59,8 +59,7 @@ export const DeepChatAgentModelPresetSchema = ModelSelectionSchema.extend({
   maxTokens: z.number().int().optional(),
   thinkingBudget: z.number().int().optional(),
   reasoningEffort: ReasoningEffortSchema.optional(),
-  verbosity: VerbositySchema.optional(),
-  forceInterleavedThinkingCompat: z.boolean().optional()
+  verbosity: VerbositySchema.optional()
 })
 
 export const ProviderRateLimitStatusSchema = z.object({
@@ -556,7 +555,6 @@ export const ModelConfigSchema = z.looseObject({
   type: z.enum(ModelType),
   isUserDefined: z.boolean().optional(),
   thinkingBudget: z.number().int().optional(),
-  forceInterleavedThinkingCompat: z.boolean().optional(),
   reasoningEffort: ReasoningEffortSchema.optional(),
   reasoningVisibility: ReasoningVisibilitySchema.optional(),
   verbosity: VerbositySchema.optional(),

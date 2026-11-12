@@ -254,6 +254,7 @@ jobs:
             --source-sha "${SOURCE_SHA}" \
             --purpose "${PACKAGE_PURPOSE}" \
             --mac-app-path "${APP_DIRECTORY}" \
+            --report "dist/dim-runtime-smoke-darwin-${TARGET_ARCH}.json" \
             --report "dist/light-ocr-smoke-darwin-${TARGET_ARCH}-offline.json" \
             --report "dist/light-ocr-smoke-darwin-${TARGET_ARCH}.json" \
             --workflow-run-id "${GITHUB_RUN_ID}" \

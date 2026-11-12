@@ -3,7 +3,11 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
-import { assertDimBinary, dimPipeName, dimRustTarget } from '../../../scripts/dim-native-contract.mjs'
+import {
+  assertDimBinary,
+  dimPipeName,
+  dimRustTarget
+} from '../../../scripts/dim-native-contract.mjs'
 import { packageDimAssets, verifyDimRuntime } from '../../../scripts/package-dim-runtime.mjs'
 
 vi.unmock('fs')
@@ -16,9 +20,9 @@ vi.mock('../../../scripts/sign-cua-helper.mjs', () => ({
 const temporary: string[] = []
 
 it('preserves the native Windows local pipe prefix without JavaScript escape loss', () => {
-  const prefix = String.fromCharCode(92,92,46,92,112,105,112,101,92)
-  expect(dimPipeName('deepchat-offline-123')).toBe(prefix+'deepchat-offline-123')
-  expect(()=>dimPipeName('foreign/name')).toThrow('Invalid dim pipe name')
+  const prefix = String.fromCharCode(92, 92, 46, 92, 112, 105, 112, 101, 92)
+  expect(dimPipeName('deepchat-offline-123')).toBe(prefix + 'deepchat-offline-123')
+  expect(() => dimPipeName('foreign/name')).toThrow('Invalid dim pipe name')
 })
 afterEach(async () => {
   await Promise.all(temporary.splice(0).map((root) => rm(root, { recursive: true, force: true })))
@@ -79,7 +83,7 @@ async function fixture(target = 'linux-x64') {
     'node',
     ...(platform === 'win32' ? ['node.exe'] : ['bin/node'])
   )
-  const sourceLock = { version: 'pinned', sourceCommit: 'source' }
+  const sourceLock = { version: 'pinned', sourceCommit: 'source', pluginApiVersion: 1 }
   const hostLock = {
     sourceRevision: 'source',
     serverVersion: 'server',
@@ -128,6 +132,7 @@ async function fixture(target = 'linux-x64') {
   for (const file of [
     'deepchat-host/index.mjs',
     'deepchat-host/native-client.mjs',
+    'deepchat-host/model-calls.mjs',
     'deepchat-storage/index.mjs'
   ])
     await write(path.join(plugins, 'modules', file), 'plugin')
@@ -174,6 +179,22 @@ it('requires release artifacts in packages and the complete local plugin closure
   await rm(path.join(f.plugins, 'runtime/src/runner.mjs'))
   await expect(verifyDimRuntime({ ...f.options, development: true })).rejects.toThrow()
 })
+it('rejects conflicting plugin APIs even when both packaged locks match their source locks', async () => {
+  const f = await fixture()
+  const sourceLockPath = path.join(f.root, 'resources/dim-runtime-lock.json')
+  const lock = JSON.parse(await readFile(sourceLockPath, 'utf8'))
+  lock.pluginApiVersion = 2
+  await writeFile(sourceLockPath, JSON.stringify(lock))
+  await writeFile(path.join(f.plugins, 'runtime-lock.json'), JSON.stringify(lock))
+  await expect(verifyDimRuntime(f.options)).rejects.toThrow('identity')
+})
+
+it('requires the model plugin entry point in the packaged plugin closure', async () => {
+  const f = await fixture()
+  await rm(path.join(f.plugins, 'modules/deepchat-host/model-calls.mjs'))
+  await expect(verifyDimRuntime(f.options)).rejects.toThrow()
+})
+
 it('records signed native and Node digests before the app is sealed, preserving OCR distribution provenance', async () => {
   const f = await fixture('darwin-arm64')
   const ocrFile = path.join(f.runtimeRoot, 'ocr/manifest.json')

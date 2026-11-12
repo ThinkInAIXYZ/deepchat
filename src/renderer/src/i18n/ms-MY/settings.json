@@ -231,7 +231,6 @@
     "thinkingBudget": "Fikirkan tentang bajet",
     "reasoningEffort": "Kekuatan penaakulan",
     "verbosity": "Tahap terperinci",
-    "interleaved": "Keserasian paksa dan pemikiran bersilang",
     "systemPrompt": "Kata gesaan sistem lalai",
     "systemPromptPlaceholder": "Biarkan kosong untuk menggunakan kata gesaan sistem kosong",
     "defaultProjectPath": "Direktori lalai (pilihan)",
@@ -1025,10 +1024,6 @@
       "reasoningToggle": {
         "label": "Dayakan inferens",
         "description": "Mengawal sama ada model mendayakan inferens secara lalai"
-      },
-      "interleavedThinking": {
-        "label": "Interleaved Thinking",
-        "description": "Mengawal sama ada model mengendalikan mesej reasoning dan tool-call dengan cara yang sama seperti Interleaved Thinking. Jika provider telah mengisytiharkan sokongan, ia akan didayakan secara automatik secara lalai."
       },
       "thinkingBudget": {
         "label": "Fikirkan tentang bajet",

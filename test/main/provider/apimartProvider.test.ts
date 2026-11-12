@@ -141,7 +141,6 @@ describe('ApimartProvider', () => {
         getAcpEnabled: vi.fn().mockReturnValue(false),
         getAcpAgents: vi.fn().mockReturnValue([])
       },
-      activeStreams: new Map(),
       rateLimitManager: {} as never,
       getCurrentProviderId: () => null,
       setCurrentProviderId: vi.fn(),

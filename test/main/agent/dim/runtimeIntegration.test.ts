@@ -67,7 +67,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
   async () => {
     const profile = await mkdtemp(path.join(os.tmpdir(), 'dc-dim-native-'))
     const runtime = new DimRuntimeSupervisor({
-      runtimeRoot: path.resolve('runtime/dim'),
+      runtimeRoot: path.resolve(process.env.DEEPCHAT_DIM_TEST_RUNTIME_ROOT ?? 'runtime/dim'),
       profileRoot: profile,
       nodeExecutable: path.resolve(
         'runtime/node',
@@ -187,7 +187,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
   async () => {
     const profile = await mkdtemp(path.join(os.tmpdir(), 'dc-dim-queue-'))
     const host = new DimRuntimeSupervisor({
-      runtimeRoot: path.resolve('runtime/dim'),
+      runtimeRoot: path.resolve(process.env.DEEPCHAT_DIM_TEST_RUNTIME_ROOT ?? 'runtime/dim'),
       profileRoot: profile,
       nodeExecutable: path.resolve(
         'runtime/node',
@@ -622,7 +622,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
       }
     })
     const host = new DimRuntimeSupervisor({
-      runtimeRoot: path.resolve('runtime/dim'),
+      runtimeRoot: path.resolve(process.env.DEEPCHAT_DIM_TEST_RUNTIME_ROOT ?? 'runtime/dim'),
       diagnostic:
         process.env.DEEPCHAT_DIM_DIAGNOSTICS === '1'
           ? (event) => {
@@ -2608,7 +2608,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
       })
     })
     const host = new DimRuntimeSupervisor({
-      runtimeRoot: path.resolve('runtime/dim'),
+      runtimeRoot: path.resolve(process.env.DEEPCHAT_DIM_TEST_RUNTIME_ROOT ?? 'runtime/dim'),
       diagnostic:
         process.env.DEEPCHAT_DIM_DIAGNOSTICS === '1'
           ? (event) => {
@@ -2770,7 +2770,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
   async () => {
     const profile = await mkdtemp(path.join(os.tmpdir(), 'dc-dim-durable-'))
     const host = new DimRuntimeSupervisor({
-      runtimeRoot: path.resolve('runtime/dim'),
+      runtimeRoot: path.resolve(process.env.DEEPCHAT_DIM_TEST_RUNTIME_ROOT ?? 'runtime/dim'),
       profileRoot: profile,
       nodeExecutable: path.resolve(
         'runtime/node',
@@ -2828,7 +2828,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
   async () => {
     const profile = await mkdtemp(path.join(os.tmpdir(), 'dc-dim-product-'))
     const runtime = new DimRuntimeSupervisor({
-      runtimeRoot: path.resolve('runtime/dim'),
+      runtimeRoot: path.resolve(process.env.DEEPCHAT_DIM_TEST_RUNTIME_ROOT ?? 'runtime/dim'),
       profileRoot: profile,
       nodeExecutable: path.resolve(
         'runtime/node',
@@ -2858,7 +2858,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
   async () => {
     const profile = await mkdtemp(path.join(os.tmpdir(), 'dc-dim-conversation-'))
     const runtime = new DimRuntimeSupervisor({
-      runtimeRoot: path.resolve('runtime/dim'),
+      runtimeRoot: path.resolve(process.env.DEEPCHAT_DIM_TEST_RUNTIME_ROOT ?? 'runtime/dim'),
       profileRoot: profile,
       nodeExecutable: path.resolve(
         'runtime/node',

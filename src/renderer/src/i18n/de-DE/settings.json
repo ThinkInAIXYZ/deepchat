@@ -231,7 +231,6 @@
     "thinkingBudget": "Denkbudget",
     "reasoningEffort": "Reasoning-Stärke",
     "verbosity": "Detailgrad",
-    "interleaved": "Interleaved Thinking-Kompatibilität erzwingen",
     "systemPrompt": "Standard-System-prompt",
     "systemPromptPlaceholder": "Leer lassen, um einen leeren System-prompt zu verwenden",
     "defaultProjectPath": "Standardverzeichnis (optional)",
@@ -1025,10 +1024,6 @@
       "reasoningToggle": {
         "label": "Reasoning aktivieren",
         "description": "Steuert, ob Reasoning für dieses Modell standardmäßig aktiviert ist"
-      },
-      "interleavedThinking": {
-        "label": "Interleaved Thinking",
-        "description": "Steuert, ob dieses Modell reasoning- und tool-call-Nachrichten mit Interleaved Thinking verarbeitet. Wenn der provider Unterstützung deklariert, wird dies standardmäßig automatisch aktiviert."
       },
       "thinkingBudget": {
         "label": "Denkbudget",

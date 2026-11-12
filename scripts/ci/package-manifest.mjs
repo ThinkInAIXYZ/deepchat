@@ -1,16 +1,7 @@
 #!/usr/bin/env node
 
 import { execFile } from 'node:child_process'
-import {
-  copyFile,
-  lstat,
-  mkdir,
-  mkdtemp,
-  readFile,
-  readdir,
-  rm,
-  writeFile
-} from 'node:fs/promises'
+import { copyFile, lstat, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -27,17 +18,14 @@ import {
   getUpdaterPayloadRole,
   PACKAGE_MANIFEST_SCHEMA_VERSION,
   resolvePackageSizeExpectedDelta,
+  SHA256_PATTERN,
   SHA512_BASE64_PATTERN,
   SOURCE_SHA_PATTERN,
   targetId,
   validateArtifactPurpose,
   validateSourceSha
 } from './package-contract.mjs'
-import {
-  findRoleFile,
-  inspectRegularFile,
-  parseYamlObject
-} from './package-files.mjs'
+import { findRoleFile, inspectRegularFile, parseYamlObject } from './package-files.mjs'
 
 const execFileAsync = promisify(execFile)
 const COMMAND_OUTPUT_LIMIT = 4 * 1024 * 1024
@@ -114,10 +102,7 @@ export async function verifyMacAppDistribution(
     '--verbose=4',
     appPath
   ])
-  await runDistributionCommand(runCommand, '/usr/bin/syspolicy_check', [
-    'distribution',
-    appPath
-  ])
+  await runDistributionCommand(runCommand, '/usr/bin/syspolicy_check', ['distribution', appPath])
 }
 
 export function validateMacZipEntries(output) {
@@ -161,14 +146,9 @@ export async function verifyMacZipDistribution(
     verifyCuaMacHelper = verifyCuaMacHelperDistribution
   } = {}
 ) {
-  const zipEntries = await runDistributionCommand(runCommand, '/usr/bin/unzip', [
-    '-Z1',
-    zipPath
-  ])
+  const zipEntries = await runDistributionCommand(runCommand, '/usr/bin/unzip', ['-Z1', zipPath])
   validateMacZipEntries(zipEntries.stdout)
-  const extractionRoot = await mkdtemp(
-    path.join(os.tmpdir(), 'deepchat-macos-update-zip-')
-  )
+  const extractionRoot = await mkdtemp(path.join(os.tmpdir(), 'deepchat-macos-update-zip-'))
   let verificationError
   try {
     await runDistributionCommand(runCommand, '/usr/bin/ditto', [
@@ -178,20 +158,14 @@ export async function verifyMacZipDistribution(
       extractionRoot
     ])
     const entries = await readdir(extractionRoot, { withFileTypes: true })
-    if (
-      entries.length !== 1 ||
-      entries[0].name !== 'DeepChat.app' ||
-      !entries[0].isDirectory()
-    ) {
+    if (entries.length !== 1 || entries[0].name !== 'DeepChat.app' || !entries[0].isDirectory()) {
       throw new Error('macOS updater ZIP must contain exactly one root DeepChat.app directory')
     }
 
     const extractedAppPath = path.join(extractionRoot, 'DeepChat.app')
     const appStat = await lstat(extractedAppPath)
     if (appStat.isSymbolicLink() || !appStat.isDirectory()) {
-      throw new Error(
-        'macOS updater ZIP root DeepChat.app must be a real application directory'
-      )
+      throw new Error('macOS updater ZIP root DeepChat.app must be a real application directory')
     }
     await verifyCuaMacHelper(extractedAppPath, { teamId, runCommand })
     await verifyMacApp(extractedAppPath, { teamId, runCommand })
@@ -230,9 +204,7 @@ function normalizeMetadataFiles(metadata, label) {
     'blockMapSize',
     'isAdminRightsRequired'
   ])
-  const unexpectedFileFields = Object.keys(file).filter(
-    (name) => !allowedFileFields.has(name)
-  )
+  const unexpectedFileFields = Object.keys(file).filter((name) => !allowedFileFields.has(name))
   if (unexpectedFileFields.length > 0) {
     throw new Error(
       `${label} updater file has unsupported fields: ${unexpectedFileFields.join(', ')}`
@@ -273,9 +245,7 @@ export function validateRawUpdateMetadata({
   const definition =
     typeof target === 'string' ? getTargetDefinition(target) : getTargetDefinition(target.id)
   if (metadataName !== definition.metadataName) {
-    throw new Error(
-      `Unexpected updater metadata name for ${definition.id}: ${metadataName}`
-    )
+    throw new Error(`Unexpected updater metadata name for ${definition.id}: ${metadataName}`)
   }
   const allowedMetadataFields = new Set([
     'version',
@@ -333,10 +303,7 @@ export function validateRawUpdateMetadata({
     throw new Error(`Linux updater metadata is missing blockMapSize for ${definition.id}`)
   }
   const isAdminRightsRequired = file.isAdminRightsRequired
-  if (
-    isAdminRightsRequired !== undefined &&
-    typeof isAdminRightsRequired !== 'boolean'
-  ) {
+  if (isAdminRightsRequired !== undefined && typeof isAdminRightsRequired !== 'boolean') {
     throw new Error(`Updater metadata isAdminRightsRequired is invalid for ${definition.id}`)
   }
   if (
@@ -369,18 +336,14 @@ export function validateRawUpdateMetadata({
       metadata.stagingPercentage < 0 ||
       metadata.stagingPercentage > 100)
   ) {
-    throw new Error(
-      `Updater metadata stagingPercentage is invalid for ${definition.id}`
-    )
+    throw new Error(`Updater metadata stagingPercentage is invalid for ${definition.id}`)
   }
   if (
     metadata.minimumSystemVersion !== undefined &&
     (typeof metadata.minimumSystemVersion !== 'string' ||
       metadata.minimumSystemVersion.length === 0)
   ) {
-    throw new Error(
-      `Updater metadata minimumSystemVersion is invalid for ${definition.id}`
-    )
+    throw new Error(`Updater metadata minimumSystemVersion is invalid for ${definition.id}`)
   }
 
   return {
@@ -397,9 +360,7 @@ export function validateRawUpdateMetadata({
     path: metadata.path,
     sha512: metadata.sha512,
     releaseDate: metadata.releaseDate,
-    ...(typeof metadata.releaseName === 'string'
-      ? { releaseName: metadata.releaseName }
-      : {}),
+    ...(typeof metadata.releaseName === 'string' ? { releaseName: metadata.releaseName } : {}),
     ...(releaseNotes === undefined ? {} : { releaseNotes }),
     ...(metadata.stagingPercentage === undefined
       ? {}
@@ -551,6 +512,27 @@ export function validateInstallerSizeReport(
 }
 
 export function validateSmokeReports(reports, expectedTarget) {
+  const dimReports = reports.filter(({ name }) => name.startsWith('dim-runtime-smoke-'))
+  if (dimReports.length !== 1) {
+    throw new Error(`Expected one dim runtime smoke report for ${expectedTarget}`)
+  }
+  const { name, data } = dimReports[0]
+  if (
+    name !== `dim-runtime-smoke-${expectedTarget}.json` ||
+    data?.target !== expectedTarget ||
+    data.profile !== 'release' ||
+    !['native', 'hostPlugin', 'storagePlugin', 'modelPlugin', 'agentOwner'].every(
+      (field) => data[field] === true
+    ) ||
+    typeof data.sourceRevision !== 'string' ||
+    !SOURCE_SHA_PATTERN.test(data.sourceRevision) ||
+    typeof data.sha256 !== 'string' ||
+    !SHA256_PATTERN.test(data.sha256) ||
+    typeof data.nodeSha256 !== 'string' ||
+    !SHA256_PATTERN.test(data.nodeSha256)
+  ) {
+    throw new Error(`Invalid dim runtime smoke report ${name} for ${expectedTarget}`)
+  }
   const lightOcrReports = reports.filter(({ name }) => name.startsWith('light-ocr-smoke-'))
   if (lightOcrReports.length === 0) {
     throw new Error(`Missing Light OCR smoke report for ${expectedTarget}`)
@@ -572,9 +554,7 @@ export function validateSmokeReports(reports, expectedTarget) {
           !Array.isArray(componentMetrics[name])
       )
     ) {
-      throw new Error(
-        `Invalid Light OCR smoke report ${lightOcrReport.name} for ${expectedTarget}`
-      )
+      throw new Error(`Invalid Light OCR smoke report ${lightOcrReport.name} for ${expectedTarget}`)
     }
   }
 }
@@ -619,10 +599,7 @@ export async function createPackageManifest({
 
   const packageInfo = await readPackageVersion(projectDirectory)
   const workflowRunId = optionalNumericString(workflow.runId, 'workflow run ID')
-  const workflowRunAttempt = optionalNumericString(
-    workflow.runAttempt,
-    'workflow run attempt'
-  )
+  const workflowRunAttempt = optionalNumericString(workflow.runAttempt, 'workflow run attempt')
   if ((workflowRunId === undefined) !== (workflowRunAttempt === undefined)) {
     throw new Error('Workflow run ID and attempt must be provided together')
   }
@@ -712,10 +689,7 @@ export async function createPackageManifest({
         'DeepChat.app'
       )
     const resolvedDmgPath = path.join(resolvedDistDirectory, dmg.name)
-    const resolvedZipPath = path.join(
-      resolvedOutputDirectory,
-      updaterPayload.storagePath
-    )
+    const resolvedZipPath = path.join(resolvedOutputDirectory, updaterPayload.storagePath)
     await verifyCuaMacHelper(resolvedAppPath, { teamId: appleTeamId })
     await verifyMacApp(resolvedAppPath, { teamId: appleTeamId })
     await verifyMacZip(resolvedZipPath, { teamId: appleTeamId })
@@ -820,10 +794,7 @@ export async function main(argv = process.argv.slice(2)) {
 
 if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
   main().catch((error) => {
-    console.error(
-      '[Package Manifest] failed:',
-      error instanceof Error ? error.message : error
-    )
+    console.error('[Package Manifest] failed:', error instanceof Error ? error.message : error)
     process.exitCode = 1
   })
 }

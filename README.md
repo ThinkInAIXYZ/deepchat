@@ -514,6 +514,12 @@ $ pip install setuptools
 $ pnpm run dev
 ```
 
+Development requires Rust 1.98.1 (via rustup; Windows also needs the Visual Studio C++ Build Tools).
+`pnpm dev` prepares the pinned Node/dim release, plugin runtime and native host before starting
+Electron. The first run needs network access and builds the host; subsequent runs reuse verified
+local assets until runtime sources or locks change. See the [setup guide](docs/guides/getting-started.md).
+Packaged applications include these runtimes; end users do not need Rust.
+
 ### Build
 
 ```bash

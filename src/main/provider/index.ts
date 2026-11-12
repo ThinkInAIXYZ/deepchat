@@ -64,9 +64,9 @@ import type {
   ProviderLocalePort
 } from './ports'
 import { resolveAiSdkProviderDefinition } from './providerRegistry'
+import { resolveProviderTransport } from './providerTransport'
 import { AcpProvider } from './providers/acpProvider'
 import type { OllamaProvider } from './providers/ollamaProvider'
-import { ProviderConfig, StreamState } from './types'
 
 const createAbortError = (): Error => {
   if (typeof DOMException !== 'undefined') {
@@ -121,11 +121,7 @@ export class ProviderRuntime
     AcpProviderAdminPort
 {
   private currentProviderId: string | null = null
-  private readonly activeStreams: Map<string, StreamState> = new Map()
   private readonly providerSettings: ProviderSettingsPort
-  private readonly config: ProviderConfig = {
-    maxConcurrentStreams: 10
-  }
   private readonly rateLimitManager: RateLimitManager
   private readonly providerInstanceManager: ProviderInstanceManager
   private readonly providerCatalogService: ProviderCatalogService
@@ -225,7 +221,6 @@ export class ProviderRuntime
       providerSettings,
       locale,
       agentSettings,
-      activeStreams: this.activeStreams,
       rateLimitManager: this.rateLimitManager,
       getCurrentProviderId: () => this.currentProviderId,
       setCurrentProviderId: (providerId) => {
@@ -408,9 +403,6 @@ export class ProviderRuntime
   }
 
   async setCurrentProvider(providerId: string): Promise<void> {
-    // 如果有正在生成的流，先停止它们
-    await this.stopAllStreams()
-
     const provider = this.getProviderById(providerId)
     if (!provider) {
       throw new Error(`Provider ${providerId} not found`)
@@ -422,7 +414,6 @@ export class ProviderRuntime
   }
 
   private replaceProviders(providers: LLM_PROVIDER[]): void {
-    this.stopAllStreams()
     this.providerInstanceManager.setProviders(providers)
   }
 
@@ -459,11 +450,19 @@ export class ProviderRuntime
         providerId,
         modelId,
         messages,
-        parameters: dimModelParameters(this.providerSettings, providerId, modelId, {
-          ...modelConfig,
-          temperature,
-          maxTokens
-        }),
+        parameters: dimModelParameters(
+          { ...modelConfig, temperature, maxTokens },
+          {
+            providerId,
+            modelId,
+            providerKind: this.nativeProviderKind(providerId, modelId),
+            reasoningPortrait: this.providerSettings.getCapabilitySnapshot({
+              providerId,
+              modelId,
+              resolvedModelConfig: modelConfig
+            }).reasoningPortrait
+          }
+        ),
         signal: options?.signal
       })
     }
@@ -478,10 +477,22 @@ export class ProviderRuntime
     )
   }
 
+  private nativeProviderKind(providerId: string, modelId: string): string {
+    const provider = this.providerSettings.getProviderById(providerId)
+    const definition = provider && resolveAiSdkProviderDefinition(provider)
+    return provider && definition
+      ? resolveProviderTransport(
+          definition,
+          provider,
+          modelId,
+          this.providerSettings.getProviderModelRouteMetadata(providerId, modelId) ?? null
+        ).providerKind
+      : 'openai-compatible'
+  }
+
   async shutdown(): Promise<void> {
     if (this.shutdownPromise) return await this.shutdownPromise
     this.shutdownPromise = (async () => {
-      await this.stopAllStreams()
       this.providerInstanceManager.shutdown()
     })()
     return await this.shutdownPromise
@@ -560,29 +571,6 @@ export class ProviderRuntime
     await this.rateLimitManager.executeWithRateLimit(providerId, options)
   }
 
-  isGenerating(eventId: string): boolean {
-    return this.activeStreams.has(eventId)
-  }
-
-  getStreamState(eventId: string): StreamState | null {
-    return this.activeStreams.get(eventId) || null
-  }
-
-  async stopStream(eventId: string): Promise<void> {
-    const stream = this.activeStreams.get(eventId)
-    if (stream) {
-      stream.abortController.abort()
-      // The consuming agent runtime deletes the stream after an end event or abort signal.
-    }
-  }
-
-  private async stopAllStreams(): Promise<void> {
-    const promises = Array.from(this.activeStreams.keys()).map((eventId) =>
-      this.stopStream(eventId)
-    )
-    await Promise.all(promises)
-  }
-
   // 非流式方法
   async generateCompletion(
     providerId: string,
@@ -599,30 +587,6 @@ export class ProviderRuntime
     const provider = this.acpExecution(providerId)
     const response = await provider.completions(messages, modelId, temperature, maxTokens)
     return response.content
-  }
-
-  async generateSummary(
-    providerId: string,
-    text: string,
-    modelId: string,
-    temperature?: number,
-    maxTokens?: number
-  ): Promise<LLMResponse> {
-    if (this.providerSettings.getProviderById(providerId)?.apiType !== 'acp')
-      return this.nativeCompletion(
-        providerId,
-        modelId,
-        [
-          {
-            role: 'user',
-            content: `Please provide a concise summary of the following content. Return only the summary.\n\n${text}`
-          }
-        ],
-        temperature,
-        maxTokens
-      )
-    const provider = this.acpExecution(providerId)
-    return provider.summaries(text, modelId, temperature, maxTokens)
   }
 
   async generateText(
@@ -878,15 +842,6 @@ export class ProviderRuntime
   private requireNativeMedia(): DimMediaModels {
     if (!this.nativeMedia) throw new Error('Native dim media service is unavailable')
     return this.nativeMedia
-  }
-
-  // 配置相关方法
-  setMaxConcurrentStreams(max: number): void {
-    this.config.maxConcurrentStreams = max
-  }
-
-  getMaxConcurrentStreams(): number {
-    return this.config.maxConcurrentStreams
   }
 
   async check(

@@ -321,8 +321,6 @@
     "maxTokens": "ཐོན་ཚད་མཐོ་ཤོས་",
     "thinkingBudget": "བསམ་གཞིག་སྔོན་རྩིས་",
     "verbosity": "དྲིས་ལན་གྱི་ཞིབ་ཕྲའི་རིམ་པ་",
-    "forceInterleavedThinkingCompat": "བར་འཛུད་བསམ་གཞིག",
-    "forceInterleavedThinkingCompatDescription": "མིག་སྔའི་གྲོས་ཚོགས་ཀྱིས་རྣམ་པའི་ཐོག་ནས་reasoning དང་tool-call ཆ་འཕྲིན་ཐག་གཅོད་བྱེད་མིན་Interleaved Thinking་འཛིན་དགོས།",
     "verbosityPlaceholder": "ཞིབ་ཕྲའི་རིམ་པ་འདེམས་སྒྲུག་བྱས་པ།",
     "currentCustomPrompt": "མིག་སྔའི་གོམས་སྲོལ་",
     "useDefault": "སྔོན་སྒྲིག་བཀོལ་སྤྱོད་བྱེད་",

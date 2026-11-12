@@ -25,6 +25,7 @@ export class DimContent {
     pendingInputs: PendingSessionInputRecord[]
     excludedContextMessageIds: string[]
     images: Record<string, JsonValue[]>
+    contextText: Record<string, string>
     pluginHookState: NonNullable<DimHistorySnapshot['pluginHookState']>
   }> {
     const client = await this.host.start()
@@ -42,6 +43,7 @@ export class DimContent {
     const messages = new Map<string, ChatMessageRecord>()
     const inputs = new Map<string, DimEvent>()
     const images = new Map<string, JsonValue[]>()
+    const contextText = new Map<string, string>()
     let summary: string | null = null
     let contextFromOrderSeq = 1
     let pendingInputs: PendingSessionInputRecord[] = []
@@ -98,6 +100,9 @@ export class DimContent {
           images.clear()
           for (const [key, blocks] of Object.entries(imported.snapshot.images ?? {}))
             images.set(key, blocks)
+          contextText.clear()
+          for (const [key, text] of Object.entries(imported.snapshot.contextText ?? {}))
+            contextText.set(key, text)
         }
         const projection = projectDimEvent(
           binding,
@@ -136,15 +141,18 @@ export class DimContent {
       }
       if (dimSequence(binding.cursor) >= dimSequence(fixed) || page.events.length === 0) break
     }
+    const ordered = [...messages.values()].sort((left, right) => left.orderSeq - right.orderSeq)
+    for (const id of contextText.keys()) if (!messages.has(id)) contextText.delete(id)
     return {
-      messages: [...messages.values()].sort((left, right) => left.orderSeq - right.orderSeq),
+      messages: ordered,
       through: fixed!,
       summary,
       contextFromOrderSeq,
       pendingInputs,
       pluginHookState: [...pluginHookState.values()],
       excludedContextMessageIds: [...excluded],
-      images: Object.fromEntries(images)
+      images: Object.fromEntries(images),
+      contextText: Object.fromEntries(contextText)
     }
   }
 

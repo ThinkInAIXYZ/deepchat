@@ -639,10 +639,6 @@
         "description": "Controla se o raciocínio fica ativado por padrão para este modelo",
         "label": "Ativar raciocínio"
       },
-      "interleavedThinking": {
-        "label": "Interleaved Thinking",
-        "description": "Controla se este modelo trata mensagens de raciocínio e tool-call com Interleaved Thinking. Os padrões do provedor são aplicados automaticamente."
-      },
       "thinkingBudget": {
         "label": "Orçamento de Pensamento",
         "description": "Defina o comprimento máximo de tokens do processo de pensamento para controlar a profundidade do raciocínio",
@@ -2833,7 +2829,6 @@
     "thinkingBudget": "Orçamento de raciocínio",
     "reasoningEffort": "Nível de raciocínio",
     "verbosity": "Nível de detalhamento",
-    "interleaved": "Forçar compatibilidade com raciocínio intercalado",
     "systemPrompt": "Prompt de sistema padrão",
     "systemPromptPlaceholder": "Deixe em branco para usar um prompt de sistema vazio",
     "defaultProjectPath": "Diretório padrão (opcional)",

@@ -233,6 +233,7 @@ jobs:
             --arch "${TARGET_ARCH}" \
             --source-sha "${SOURCE_SHA}" \
             --purpose "${PACKAGE_PURPOSE}" \
+            --report "dist/dim-runtime-smoke-win32-${TARGET_ARCH}.json" \
             --report "dist/light-ocr-smoke-win32-${TARGET_ARCH}.json" \
             --workflow-run-id "${GITHUB_RUN_ID}" \
             --workflow-run-attempt "${GITHUB_RUN_ATTEMPT}" \

@@ -1,12 +1,19 @@
-import type { ChatMessageRecord, PendingSessionInputRecord } from '@shared/types/agent-interface'
+import type {
+  ChatMessageRecord,
+  PendingSessionInputRecord,
+  SendMessageInput
+} from '@shared/types/agent-interface'
 import type { JsonValue } from '@shared/contracts/json'
 import type { SessionDatabase } from '@/session/data/database'
 import type { DeepChatTapeEntryRow } from '@/tape/domain/entry'
 import { buildEffectiveTapeView } from '@/tape/domain/effectiveView'
 import { readTapeMessageRetractionId } from '@/tape/domain/effectiveSemantics'
 import type { SessionSummaryState } from '@/session/data/contracts'
-import type { DimHistorySnapshot } from './historyImport'
+import { normalizeDimImportedMessage, type DimHistorySnapshot } from './historyImport'
+import { parseAssistantBlocks, parseUserContent } from '@/session/data/messageContent'
 import { readLegacyPluginHooks } from './legacyPluginHooks'
+import { buildUserMessageContent } from '@/agent/shared/inputContent'
+import { dimContentBlocks } from './auxiliaryModels'
 
 interface LegacySourceOptions {
   database: SessionDatabase
@@ -18,6 +25,78 @@ interface LegacySourceOptions {
     listMigrationInputs?(sessionId: string): PendingSessionInputRecord[]
   }
   images?(messages: ChatMessageRecord[]): Promise<Record<string, JsonValue[]>>
+}
+
+/** Convert persisted legacy user image representations to native image blocks. */
+export function legacyImageBlocks(messages: ChatMessageRecord[]): Record<string, JsonValue[]> {
+  const images: Record<string, JsonValue[]> = {}
+  for (const message of messages) {
+    if (message.role !== 'user') continue
+    let input: SendMessageInput
+    try {
+      const parsed: unknown = JSON.parse(message.content)
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) continue
+      input = parsed as SendMessageInput
+    } catch {
+      continue
+    }
+    try {
+      const content = buildUserMessageContent(input, true, false, {
+        includeImageData: true,
+        includeFileContent: true
+      })
+      if (typeof content === 'string') continue
+      const blocks = dimContentBlocks(content).filter((block) => block.type === 'image')
+      if (blocks.length) images[message.id] = blocks
+    } catch {
+      // A malformed historical attachment must not block migration of the conversation.
+    }
+  }
+  return images
+}
+
+/** Readable historical data only; original content remains available to the transcript/archive. */
+export function legacyContextText(message: ChatMessageRecord): string {
+  const normalized = normalizeDimImportedMessage(message)
+  if (message.role === 'user') {
+    const input = parseUserContent(normalized.content)
+    if (!input) throw new Error(`Invalid legacy user content: ${message.id}`)
+    // The canonical formatter retains non-data-URL audio content as a transcript. Old imports
+    // can also contain bare base64 there, so keep historical audio metadata only.
+    const files = input.files.map((file) =>
+      [file.mimeType, file.type].some((type) => type?.startsWith('audio/')) ||
+      /\.(mp3|wav|flac|m4a|mp4|ogg)$/i.test(file.path || file.name || '')
+        ? { ...file, content: undefined }
+        : file
+    )
+    const content = buildUserMessageContent({ ...input, files }, false, false, {
+      includeImageData: false,
+      includeAudioData: false,
+      includeFileContent: false
+    })
+    if (typeof content !== 'string') throw new Error('Invalid legacy text projection')
+    return content
+  }
+  return parseAssistantBlocks(normalized.content)
+    .flatMap((block) => {
+      if (block.type === 'action') return []
+      if (block.type === 'tool_call' && block.tool_call) {
+        const tool = block.tool_call
+        return [
+          [
+            'Historical tool call/result (not executable):',
+            `name: ${tool.name ?? ''}`,
+            `id: ${tool.id ?? ''}`,
+            `params: ${tool.params ?? ''}`,
+            `response: ${tool.response ?? ''}`
+          ].join('\n')
+        ]
+      }
+      return ['content', 'reasoning_content', 'error'].includes(block.type) && block.content
+        ? [`${block.type}: ${block.content}`]
+        : []
+    })
+    .join('\n\n')
 }
 
 /** Read-only legacy conversion source. Browsing and startup never call this boundary. */
@@ -58,6 +137,9 @@ export class DimLegacySource {
         formatVersion: 1,
         productSessionId: sessionId,
         messages: ordered,
+        contextText: Object.fromEntries(
+          ordered.map((message) => [message.id, legacyContextText(message)])
+        ),
         summary: text,
         contextFromOrderSeq,
         pendingInputs,
@@ -90,8 +172,8 @@ export class DimLegacySource {
         }
       }
     })()
-    // File conversion is outside the synchronous SQL snapshot. Its result becomes part of the
-    // import digest, so changed/missing bytes cannot silently replace an interrupted import.
+    // Selected inline image representations become part of the import digest. Path-only images
+    // degrade to metadata; this boundary does not read arbitrary historical paths.
     if (this.options.images) snapshot.images = await this.options.images(snapshot.messages)
     return snapshot
   }

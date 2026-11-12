@@ -2,7 +2,24 @@
 
 本文件是唯一执行跟踪表。目标与职责见 [spec.md](./spec.md)。
 
-状态：内置 harness、loop、queue、模型和上下文已切换为 dim Rust，旧 TypeScript 执行器已删除。HTML/媒体桌面、备份恢复和设备同步已验收。六平台结果及当前候选提交检查见 [验收记录](#方案验证记录与-pr-状态)。
+状态：核心架构已切换，迁移验收尚未全部完成。内置 harness、loop、queue、模型和上下文已切换为 dim Rust，旧 TypeScript 执行器已物理删除；最新 dev 的 OpenLLM 与 HTML 产品工具已合入。此前报告完整 main 8090 项和 renderer 2760 项通过，HTML/媒体桌面与恢复验收通过；2026-11-12 对 PR HEAD `73a2e8a6` 的复核发现下列缺口，不能以此前测试结果代替本轮验收。持续加解密已移除，保留旧数据一次性解密与按需会话转换。
+
+## 2026-11-12 验收复核（本地已提交，远端 CI 待重跑）
+
+- [x] 定位并修复 required CI 原始失败点：动态架构矩阵契约测试、transcript mock 缺 `pluginHookState`；定向测试和 memory 类型门通过。
+- [x] `pnpm dev` 增加启动前 runtime 准备：Node/dim/plugins、Rust 宿主构建及本地缓存；覆盖缺工具链、源码变化、损坏恢复与构建失败回归。
+- [ ] 在应用完全退出后实测新的 `pnpm dev` 首次准备与再次启动；此前启动窗口被取消，未完成完整应用级验收。
+- [x] PR HEAD 六平台 verification 打包与 dim offline smoke 全部通过（run `42923291616`）。这不包含 macOS distribution 签名/公证，也不代表完整 Electron 首次启动已验证。
+- [ ] 本轮补齐 release 漏检：dim smoke 报告纳入 manifest、model 插件检查、跨 lock API 一致性、Windows ARM64 E2E runtime 准备；合同测试已通过，但本轮修复尚未重跑六平台打包。
+- [x] 完成协议感知的 reasoning 参数兼容修复，并以 native loopback fixture 验证 Anthropic manual/adaptive、effort-only、Gemini budget/effort 五种 wire body；MiniMax-M3 不再发送 Rust 不支持的 `interleavedThinking`，真实 M3 请求已验证不再因该字段失败。
+- [x] 补齐旧会话附件闭包迁移：生产 composition 已注入 `DimLegacySource.images`；`contextText` sidecar 保留可读文本及跳过原因/元数据，排除重复 base64、被跳过附件的原始载荷和原始音频。Native smoke 覆盖宿主重启续传、首次与再次续聊，以及 retain/edit/retry/fork 后的可读文本保留、编辑重算与 ID 重映射；历史工具不执行。
+- [ ] 对照 spec §7.3.5 完成结构化工具调用/结果配对验收：目前仅验证旧工具块以不可执行文本进入模型上下文，未恢复 native tool-call/tool-result 结构。旧 interleaved 开关已从配置/UI/推理入口删除，仅保留旧数据库列与迁移/修复兼容。
+- [ ] 跑包含本轮修复的 Linux required CI、六平台 verification，以及有授权凭据环境下的 macOS distribution 签名/公证验收。
+- [ ] 完成 packaged Electron 离线首次启动验收；当前 offline smoke 直接启动 native host，不能替代应用级 E2E。
+
+本轮专项复验：主进程数据库/供应商 26 项、renderer 串行 183 项、打包/Native 合同 54 项通过；隔离 runtime 的附件迁移与 reasoning 两项 Native HTTP 回归通过，附件测试补强后再次通过。两项已接入 `smoke:dim`，但未将定向运行等同于完整 smoke 或远端 CI。format、i18n、lint（0 errors / 0 warnings）、双端 typecheck 和 `git diff --check` 均通过。环境为 Node 24.22.1 / pnpm 10.34.5；正常构建产生的 provider/ACP registry 刷新保留。
+
+本机 Windows 的完整 main/memory 测试存在路径、执行位、symlink 权限等平台失败；记录实际结果，不跳过或弱化测试，不宣称本机全量通过。
 
 ## P0. 基线与已确认决策
 

@@ -382,8 +382,6 @@ declare module 'vue-i18n' {
       maxTokens: string
       thinkingBudget: string
       verbosity: string
-      forceInterleavedThinkingCompat: string
-      forceInterleavedThinkingCompatDescription: string
       verbosityPlaceholder: string
       currentCustomPrompt: string
       useDefault: string
@@ -2435,7 +2433,6 @@ declare module 'vue-i18n' {
       thinkingBudget: string
       reasoningEffort: string
       verbosity: string
-      interleaved: string
       systemPrompt: string
       systemPromptPlaceholder: string
       defaultProjectPath: string

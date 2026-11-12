@@ -150,6 +150,7 @@ describe('ProviderRuntime Integration Tests', () => {
         reasoning: false
       }),
       getCapabilitySnapshot: vi.fn().mockReturnValue({ supportsAudioInput: false }),
+      getProviderModelRouteMetadata: vi.fn().mockReturnValue(undefined),
       getSetting: vi.fn().mockImplementation((key: string) => {
         if (key === 'azureApiVersion') return '2024-02-01'
         return undefined
@@ -223,7 +224,6 @@ describe('ProviderRuntime Integration Tests', () => {
       providerSettings: mockProviderSettings,
       locale: { getLanguage: () => 'en-US' },
       agentSettings: { getAcpEnabled: () => false, getAcpAgents: () => [] },
-      activeStreams: new Map(),
       rateLimitManager: { cleanupProviderRateLimit: vi.fn(), syncProviders: vi.fn() } as never,
       getCurrentProviderId: () => null,
       setCurrentProviderId: vi.fn(),
@@ -747,11 +747,10 @@ describe('ProviderRuntime Integration Tests', () => {
       expect(legacyTranscribe).not.toHaveBeenCalled()
     })
 
-    it('routes title and summary helpers through the native model service', async () => {
+    it('routes title helpers through the native model service', async () => {
       const complete = vi.fn().mockResolvedValue({ text: 'Native title', stopReason: 'end_turn' })
       const provider = providerRuntime.getProviderInstance('mock-openai-api')
       const legacyTitle = legacyInferenceTrap(provider, 'summaryTitles')
-      const legacySummary = legacyInferenceTrap(provider, 'summaries')
       providerRuntime.setNativeModels(
         new DimAuxiliaryModels({
           models: { admit: async () => ({ providerId: 'native', modelId: 'fixture' }) },
@@ -765,16 +764,9 @@ describe('ProviderRuntime Integration Tests', () => {
           'mock-gpt-thinking'
         )
       ).resolves.toBe('Native title')
-      await providerRuntime.generateSummary(
-        'mock-openai-api',
-        'content to summarize',
-        'mock-gpt-thinking'
-      )
-      expect(complete).toHaveBeenCalledTimes(2)
+      expect(complete).toHaveBeenCalledTimes(1)
       expect(complete.mock.calls[0][1].system).toBeTruthy()
-      expect(JSON.stringify(complete.mock.calls[1][1])).toContain('concise summary')
       expect(legacyTitle).not.toHaveBeenCalled()
-      expect(legacySummary).not.toHaveBeenCalled()
     })
 
     it('rejects missing native model and embedding owners instead of falling back', async () => {
