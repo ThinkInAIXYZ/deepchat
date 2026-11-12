@@ -55,7 +55,17 @@ function mergeRequiredKeys(...requiredLists: Array<string[] | undefined>): strin
   return required.length > 0 ? required : undefined
 }
 
-function mergePropertySchemas(existing: unknown, incoming: unknown): unknown {
+function mergePropertySchemas(
+  existing: unknown,
+  incoming: unknown,
+  composition: 'anyOf' | 'allOf' = 'anyOf'
+): unknown {
+  if (composition === 'allOf') {
+    return JSON.stringify(existing) === JSON.stringify(incoming)
+      ? existing
+      : { allOf: [existing, incoming] }
+  }
+
   if (!isObjectSchema(existing) || !isObjectSchema(incoming)) {
     return incoming
   }
@@ -80,7 +90,10 @@ function mergePropertySchemas(existing: unknown, incoming: unknown): unknown {
   }
 }
 
-function mergeVariantProperties(variants: JsonSchema[]): Record<string, unknown> | undefined {
+function mergeVariantProperties(
+  variants: JsonSchema[],
+  composition: 'anyOf' | 'allOf'
+): Record<string, unknown> | undefined {
   const propertyMaps = variants
     .map((variant) => (isObjectSchema(variant.properties) ? variant.properties : undefined))
     .filter((value): value is Record<string, unknown> => Boolean(value))
@@ -97,7 +110,7 @@ function mergeVariantProperties(variants: JsonSchema[]): Record<string, unknown>
         continue
       }
 
-      merged[key] = key in merged ? mergePropertySchemas(merged[key], value) : value
+      merged[key] = key in merged ? mergePropertySchemas(merged[key], value, composition) : value
     }
   }
 
@@ -106,7 +119,8 @@ function mergeVariantProperties(variants: JsonSchema[]): Record<string, unknown>
 
 function mergeRootAndVariantProperties(
   rootProperties: unknown,
-  variants: JsonSchema[]
+  variants: JsonSchema[],
+  composition: 'anyOf' | 'allOf'
 ): Record<string, unknown> | undefined {
   const merged: Record<string, unknown> = Object.create(null)
 
@@ -120,11 +134,11 @@ function mergeRootAndVariantProperties(
     }
   }
 
-  const variantProperties = mergeVariantProperties(variants)
+  const variantProperties = mergeVariantProperties(variants, composition)
 
   if (variantProperties) {
     for (const [key, value] of Object.entries(variantProperties)) {
-      merged[key] = key in merged ? mergePropertySchemas(merged[key], value) : value
+      merged[key] = key in merged ? mergePropertySchemas(merged[key], value, composition) : value
     }
   }
 
@@ -204,7 +218,12 @@ export function normalizeToolInputSchema(schema: Record<string, unknown>): Recor
     return {
       ...sanitizedRest,
       type: 'object',
-      properties: mergeRootAndVariantProperties(normalized.properties, variants) ?? {},
+      properties:
+        mergeRootAndVariantProperties(
+          normalized.properties,
+          variants,
+          branchKey === 'allOf' ? 'allOf' : 'anyOf'
+        ) ?? {},
       ...(definitions ? { definitions } : {}),
       ...(defs ? { $defs: defs } : {}),
       ...(required ? { required } : {}),
