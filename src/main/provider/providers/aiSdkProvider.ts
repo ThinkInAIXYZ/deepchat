@@ -764,6 +764,8 @@ export class AiSdkProvider extends BaseLLMProvider {
         return this.fetchCloudgpuModels()
       case 'obscurify':
         return this.fetchObscurifyModels()
+      case 'wiro':
+        return this.fetchWiroModels()
       case 'bedrock':
         return this.fetchBedrockModels()
       case 'new-api':
@@ -1257,6 +1259,50 @@ export class AiSdkProvider extends BaseLLMProvider {
         type: ModelType.Chat,
         ...(contextLength !== undefined ? { contextLength } : {}),
         ...(typeof model.tools === 'boolean' ? { functionCall: model.tools } : {})
+      })
+    }
+    return models
+  }
+
+  /**
+   * Wiro AI's `/v1/models` catalog needs the key and lists chat models only. Each record publishes
+   * the context length, the output limit, the input modalities and whether the model accepts
+   * tools; a value the catalog leaves out is not guessed. Ids are lowercase `owner/model` and are
+   * kept verbatim.
+   */
+  private async fetchWiroModels(): Promise<MODEL_META[]> {
+    const records = await this.fetchOpenAIModelRecords({ timeout: this.getModelFetchTimeout() })
+    const models: MODEL_META[] = []
+    for (const model of records) {
+      const modelId = typeof model.id === 'string' ? model.id.trim() : ''
+      if (!modelId) {
+        continue
+      }
+      const capabilities =
+        model.capabilities && typeof model.capabilities === 'object'
+          ? (model.capabilities as Record<string, unknown>)
+          : {}
+      const inputModalities = Array.isArray(capabilities.input_modalities)
+        ? capabilities.input_modalities
+        : undefined
+      const contextLength = toPositiveFiniteNumber(model.context_length)
+      const maxTokens = toPositiveFiniteNumber(model.max_tokens)
+      models.push({
+        id: modelId,
+        name: modelId,
+        group: 'default',
+        providerId: this.provider.id,
+        isCustom: false,
+        type: ModelType.Chat,
+        ...(contextLength !== undefined ? { contextLength } : {}),
+        ...(maxTokens !== undefined ? { maxTokens } : {}),
+        ...(inputModalities ? { vision: inputModalities.includes('image') } : {}),
+        ...(typeof capabilities.function_tools === 'boolean'
+          ? { functionCall: capabilities.function_tools }
+          : {}),
+        ...(typeof model.owned_by === 'string' && model.owned_by.trim()
+          ? { ownedBy: model.owned_by.trim() }
+          : {})
       })
     }
     return models

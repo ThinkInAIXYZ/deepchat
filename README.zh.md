@@ -464,6 +464,10 @@ DeepChat 可以通过聊天软件远程控制，让你离开桌面后也能继�
       <img src="./src/renderer/src/assets/llm-icons/openllm.svg" width="50" height="50" alt="OpenLLM Icon"><br/>
       <a href="https://www.openllm.sh/">OpenLLM</a>
     </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/wiro.svg" width="50" height="50" alt="Wiro AI Icon"><br/>
+      <a href="https://wiro.ai/">Wiro AI</a>
+    </td>
   </tr>
 
 </table>

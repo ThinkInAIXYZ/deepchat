@@ -1731,6 +1731,119 @@ describe('basic API-key provider registrations', () => {
     ])
   })
 
+  it('checks Wiro AI by listing models, which requires the API key', async () => {
+    const defaults = DEFAULT_PROVIDERS.find(({ id }) => id === 'wiro')!
+    const config = { ...defaults, apiKey: 'test-key' }
+    expect(resolveAiSdkProviderDefinition(config)).toMatchObject({
+      runtimeKind: 'openai-compatible',
+      modelSource: 'wiro',
+      checkStrategy: 'fetch-models',
+      credentialStrategy: 'api-key',
+      routeStrategy: 'none',
+      embeddingStrategy: 'none'
+    })
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json({ object: 'list', data: [] }))
+      .mockResolvedValueOnce(
+        Response.json(
+          { error: { message: 'The supplied API credentials are invalid.' } },
+          { status: 401 }
+        )
+      )
+    global.fetch = fetchMock
+    const provider = new AiSdkProvider(config, createProviderSettings())
+
+    await expect(provider.check()).resolves.toEqual({ isOk: true, errorMsg: null })
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://llm.wiro.ai/v1/models',
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({ Authorization: 'Bearer test-key' })
+      })
+    )
+    // The catalog answers 401 without a valid key, so the same request rejects a bad one.
+    await expect(provider.check()).resolves.toEqual({
+      isOk: false,
+      errorMsg: expect.stringContaining('The supplied API credentials are invalid.')
+    })
+    expect(mockRunAiSdkGenerateText).not.toHaveBeenCalled()
+  })
+
+  it('lists Wiro AI models with limits and capabilities from the catalog', async () => {
+    const defaults = DEFAULT_PROVIDERS.find(({ id }) => id === 'wiro')!
+    const fetchMock = vi.fn().mockResolvedValue(
+      Response.json({
+        object: 'list',
+        data: [
+          {
+            id: 'openai/gpt-5-4-nano',
+            owned_by: 'openai',
+            context_length: 400000,
+            max_tokens: 65536,
+            capabilities: {
+              input_modalities: ['text', 'image', 'document'],
+              function_tools: true
+            }
+          },
+          {
+            id: 'deepseek/v4-flash',
+            owned_by: 'deepseek',
+            context_length: 1048576,
+            max_tokens: 384000,
+            capabilities: { input_modalities: ['text'], function_tools: true }
+          },
+          // A value the catalog leaves out stays unset instead of becoming a guess.
+          { id: 'example/partial', context_length: null, max_tokens: null },
+          { id: '  ' },
+          { id: 7 }
+        ]
+      })
+    )
+    global.fetch = fetchMock
+    const provider = new AiSdkProvider(
+      { ...defaults, apiKey: 'test-key' },
+      createProviderSettings()
+    )
+
+    expect(await provider.fetchModels({ suppressErrors: false })).toEqual([
+      {
+        id: 'openai/gpt-5-4-nano',
+        name: 'openai/gpt-5-4-nano',
+        group: 'default',
+        providerId: 'wiro',
+        isCustom: false,
+        type: 'chat',
+        contextLength: 400000,
+        maxTokens: 65536,
+        vision: true,
+        functionCall: true,
+        ownedBy: 'openai'
+      },
+      {
+        id: 'deepseek/v4-flash',
+        name: 'deepseek/v4-flash',
+        group: 'default',
+        providerId: 'wiro',
+        isCustom: false,
+        type: 'chat',
+        contextLength: 1048576,
+        maxTokens: 384000,
+        vision: false,
+        functionCall: true,
+        ownedBy: 'deepseek'
+      },
+      {
+        id: 'example/partial',
+        name: 'example/partial',
+        group: 'default',
+        providerId: 'wiro',
+        isCustom: false,
+        type: 'chat'
+      }
+    ])
+  })
+
   it('lists every CloudGPU catalog id except non-chat models', async () => {
     const defaults = DEFAULT_PROVIDERS.find(({ id }) => id === 'cloudgpu')!
     const fetchMock = vi.fn().mockResolvedValue(

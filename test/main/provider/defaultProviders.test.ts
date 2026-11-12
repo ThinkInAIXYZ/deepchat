@@ -266,6 +266,25 @@ describe('DEFAULT_PROVIDERS', () => {
     )
   })
 
+  it('includes Wiro AI as a disabled built-in OpenAI-compatible provider', () => {
+    expect(DEFAULT_PROVIDERS).toContainEqual(
+      expect.objectContaining({
+        id: 'wiro',
+        name: 'Wiro AI',
+        apiType: 'openai-completions',
+        baseUrl: 'https://llm.wiro.ai/v1',
+        enable: false,
+        websites: expect.objectContaining({
+          official: 'https://wiro.ai/',
+          apiKey: 'https://wiro.ai/panel/project/new',
+          docs: 'https://wiro.ai/docs/completions-api',
+          models: 'https://wiro.ai/models?categories=llm-tool-call',
+          defaultBaseUrl: 'https://llm.wiro.ai/v1'
+        })
+      })
+    )
+  })
+
   it('includes Obscurify.ai as a disabled built-in OpenAI-compatible provider', () => {
     expect(DEFAULT_PROVIDERS).toContainEqual(
       expect.objectContaining({
