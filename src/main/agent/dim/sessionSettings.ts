@@ -9,7 +9,7 @@ import type { DimSessionBinding } from '@/session/data/tables/dimSessionBindings
 import type { SessionDatabase } from '@/session/data/database'
 import { DesktopSessionState } from '@/session/desktopSessionState'
 import { DimAgentProfiles } from './agentProfiles'
-import { DimModelCatalog, dimModelParameters } from './modelCatalog'
+import { DimModelCatalog } from './modelCatalog'
 import { DimSessionControls } from './sessionControls'
 import type { DimScopeCreation } from './scopeTransitions'
 
@@ -95,6 +95,7 @@ export class DimSessionSettings {
     currentScope()
     if (adopted.agentId !== agentId)
       checkOutcome(await this.options.controls.call('set_agent', ref, { agentId }))
+    const parameters = this.options.models.parameters(row.provider_id, row.model_id, generation)
     const target = await this.options.models.admit(row.provider_id, row.model_id, {
       timeout: generation.timeout,
       session: true
@@ -107,7 +108,6 @@ export class DimSessionSettings {
     if (current.providerId !== target.providerId || current.modelId !== target.modelId)
       checkOutcome(await this.options.controls.call('set_model', ref, { ...target }))
     currentScope()
-    const parameters = dimModelParameters(generation)
     let mediaOptions: JsonValue = {}
     if (target.modelId === `deepchat-media/${row.model_id}`) {
       const defaults = this.options.models.mediaSettings(row.provider_id, row.model_id)

@@ -160,6 +160,8 @@
 
 ## 模块进度
 
+- 模块 102：修复 MiniMax-M3 验收暴露的推理配置错误。会话和辅助调用统一按模型实际路由映射参数，旧 interleaved 兼容字段继续持久化。macOS ARM64 上 207 项定向测试和 30 项完整 Native smoke 通过，后者覆盖启用旧标志的真实会话请求。锁定 Rust 宿主的本地 HTTP 验证覆盖 Anthropic 手动预算与自适应、Gemini 预算与 level、Chat 兼容与 Responses effort。打包工作流测试在 Windows 优先选用 Git Bash，文件 symlink 权限不足时仅跳过对应的独立用例。
+
 - 模块 101：Windows ARM64 在 `982913c8e` 的权限投影和媒体联合场景失败，Native 为 28/30。模型响应确认与投影等待分开，媒体测试增加阶段诊断，测试时限维持原值。回归工作流支持平台和架构定向复验，默认、定时和复用调用仍覆盖六平台。`73a2e8a67` 的 [Windows ARM64 定向复验](https://github.com/ThinkInAIXYZ/deepchat/actions/runs/42923281048) 30/30 项通过，六平台 [Package Check](https://github.com/ThinkInAIXYZ/deepchat/actions/runs/42923291616) 也全部通过。
 
 - 模块 100：HTML 默认关闭迁移的测试按 Native canonical 工具名 `schedule` 更新，4 项持久化/同步专项通过。完整 main 8090 项通过、37 项跳过（641 文件，248s），完整 renderer 2760 项通过（290 文件，308s）。format、i18n、lint 和双端 typecheck 通过。`bbb98a412` 在 [CI 42914414360](https://github.com/ThinkInAIXYZ/deepchat/actions/runs/42914414360) 通过六平台 Native、打包和离线检查。含 HTML 的 `982913c8e` 在 [CI 42917926939](https://github.com/ThinkInAIXYZ/deepchat/actions/runs/42917926939) 通过其余五个平台，Windows ARM64 结果见模块 101。

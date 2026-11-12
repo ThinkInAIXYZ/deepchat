@@ -198,7 +198,7 @@ import { DimProductContext } from '@/agent/dim/productContext'
 import { DimPluginHooks } from '@/agent/dim/pluginHooks'
 import { DimSkillCatalog } from '@/agent/dim/skillCatalog'
 import { DimSkillContext } from '@/agent/dim/skillContext'
-import { DimModelCatalog, dimModelParameters } from '@/agent/dim/modelCatalog'
+import { DimModelCatalog } from '@/agent/dim/modelCatalog'
 import { DimModelBridge } from '@/agent/dim/modelBridge'
 import { DimEmbeddingModels } from '@/agent/dim/embeddingModels'
 import { DimDecisions } from '@/agent/dim/decisions'
@@ -1136,7 +1136,10 @@ export async function createMainProcessControl(dependencies: {
     bridge: dimModelBridge,
     parameters: (providerId, modelId) => {
       const config = providerSettings.getModelConfig(modelId, providerId)
-      return dimModelParameters({ ...config, temperature: config.temperature ?? 0.7 })
+      return dimModels.parameters(providerId, modelId, {
+        ...config,
+        temperature: config.temperature ?? 0.7
+      })
     }
   })
   providerRuntime = new ProviderRuntime(

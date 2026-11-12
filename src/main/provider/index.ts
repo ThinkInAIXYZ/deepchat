@@ -459,7 +459,11 @@ export class ProviderRuntime
         providerId,
         modelId,
         messages,
-        parameters: dimModelParameters({ ...modelConfig, temperature, maxTokens }),
+        parameters: dimModelParameters(this.providerSettings, providerId, modelId, {
+          ...modelConfig,
+          temperature,
+          maxTokens
+        }),
         signal: options?.signal
       })
     }

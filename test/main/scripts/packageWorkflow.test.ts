@@ -2,6 +2,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { parse } from 'yaml'
+import { getCommonGitBashCandidates } from '@/agent/shared/process/commandShellService'
 
 const fs = await vi.importActual<typeof import('node:fs')>('node:fs')
 const { spawnSync } =
@@ -152,8 +153,14 @@ const getStep = (workflow: ReusableWorkflow, name: string) => {
   return step
 }
 
+const bash =
+  process.platform === 'win32'
+    ? (getCommonGitBashCandidates(process.env).find(({ executable }) => fs.existsSync(executable))
+        ?.executable ?? 'bash')
+    : 'bash'
+
 const runBashStep = (script: string, env: NodeJS.ProcessEnv) =>
-  spawnSync('bash', ['-e', '-o', 'pipefail', '-c', script], {
+  spawnSync(bash, ['-e', '-o', 'pipefail', '-c', script], {
     cwd: path.resolve('.'),
     encoding: 'utf8',
     env: {

@@ -203,6 +203,8 @@ dim 已有 `mcp.catalog/configuration/save/update/remove/inspect`、OAuth 和 Se
 
 模型调用、请求构造、流、重试和 usage 全部交给 dim Rust。DeepChat 的模型设置 UI、产品预设和相关配置通过 `deepchat-host` 注入到 dim 对应 services；桥只做参数、身份和结果映射，不调用旧 TypeScript Provider。
 
+会话和辅助调用按实际模型路由生成推理配置。旧 `forceInterleavedThinkingCompat` 字段保留在产品设置与持久化层，Rust 推理参数省略该字段。Anthropic 支持手动预算及自适应 effort，Gemini 按模型使用预算或 level，OpenAI Chat 和 Responses 接收 effort。锁定的 Native 合同未提供 Anthropic `thinking.display`，也未提供 Chat 或 Responses 的 token 预算。
+
 主对话之外的标题、摘要、翻译、建议、记忆提取、embedding/rerank、图像/语音模型工作，同样经插件调用 dim 的 model/auxiliary/modality 能力。非模型的知识索引、向量存储和系统服务仍属于产品，通过插件提供工具或资源。
 
 自动标题由 dim SessionTitle 生成并经 SessionStore 持久化；桌面关闭重复的辅助标题任务。独立的私有 v3 会话订阅只把 SessionStore 通知当作失效信号，再通过 storage 插件读取标题与无损 revision；初始化先订阅再读，关闭释放订阅。手动改名走原生 session.rename。旧标题与各代切换通过 storage 插件调用公共 SessionStore 的初始 revision CAS，只在未设置标题时保留原文及来源，恢复重试不能覆盖后续人工名称。

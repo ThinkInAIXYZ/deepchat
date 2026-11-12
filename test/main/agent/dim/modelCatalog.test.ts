@@ -3,11 +3,91 @@ import { expect, it, vi } from 'vitest'
 import { mkdtemp, rm } from 'node:fs/promises'
 import path from 'node:path'
 import os from 'node:os'
-import { DimModelCatalog } from '@/agent/dim/modelCatalog'
+import { DimModelCatalog, dimModelParameters } from '@/agent/dim/modelCatalog'
 import { ModelType } from '@shared/model'
 import type { LLM_PROVIDER, ModelConfig } from '@shared/types/provider'
 import type { ProviderSettingsPort } from '@/provider/settings'
 import { dimDatabase } from './fixtures/database'
+
+it.each([
+  {
+    name: 'Anthropic manual budget',
+    endpointType: 'anthropic',
+    mode: 'budget',
+    settings: { thinkingBudget: 2048 },
+    expected: { reasoning: { budgetTokens: 2048 } }
+  },
+  {
+    name: 'Anthropic adaptive effort',
+    endpointType: 'anthropic',
+    mode: 'effort',
+    settings: { reasoningEffort: 'high', reasoningVisibility: 'omitted', thinkingBudget: 2048 },
+    expected: {
+      reasoning: { effort: 'high' },
+      providerOptions: { anthropic: { thinking: { type: 'adaptive' } } }
+    }
+  },
+  {
+    name: 'Gemini budget',
+    endpointType: 'gemini',
+    mode: 'budget',
+    settings: { thinkingBudget: 1024, reasoningEffort: 'high' },
+    expected: { reasoning: { budgetTokens: 1024 } }
+  },
+  {
+    name: 'Gemini level',
+    endpointType: 'gemini',
+    mode: 'level',
+    settings: { reasoningEffort: 'low', thinkingBudget: 1024 },
+    expected: { reasoning: { effort: 'low' } }
+  },
+  {
+    name: 'Chat without native reasoning controls',
+    endpointType: 'openai',
+    mode: 'fixed',
+    settings: { thinkingBudget: 2048, reasoningVisibility: 'hidden' },
+    expected: {}
+  },
+  {
+    name: 'Responses effort',
+    endpointType: 'openai-response',
+    mode: 'effort',
+    settings: { reasoningEffort: 'high', thinkingBudget: 2048 },
+    expected: { reasoning: { effort: 'high' } }
+  }
+] as const)('maps $name settings using the model route', (fixture) => {
+  const provider: LLM_PROVIDER = {
+    id: 'new-api',
+    name: 'Fixture',
+    apiType: 'new-api',
+    baseUrl: 'https://example.test/v1',
+    apiKey: 'fixture-key',
+    enable: true
+  }
+  const settings = {
+    temperature: 0.5,
+    maxTokens: 4096,
+    ...fixture.settings,
+    forceInterleavedThinkingCompat: true
+  }
+  const parameters = dimModelParameters(
+    {
+      getProviderById: () => provider,
+      getModelConfig: () => ({ contextLength: 8192, maxTokens: 4096 }) as ModelConfig,
+      getProviderModelRouteMetadata: () => ({ endpointType: fixture.endpointType }),
+      getCapabilitySnapshot: () =>
+        ({
+          supportsAudioInput: false,
+          supportsReasoning: true,
+          reasoningPortrait: { mode: fixture.mode }
+        }) as ReturnType<ProviderSettingsPort['getCapabilitySnapshot']>
+    },
+    provider.id,
+    'fixture',
+    settings
+  )
+  expect(parameters).toEqual({ temperature: 0.5, maxTokens: 4096, ...fixture.expected })
+})
 
 it('persists non-secret grants, rotates credentials and fences replaced or disabled providers', async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'dc-dim-grants-'))

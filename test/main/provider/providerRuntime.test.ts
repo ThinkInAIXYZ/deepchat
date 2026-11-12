@@ -140,6 +140,7 @@ describe('ProviderRuntime Integration Tests', () => {
     const mockProviderSettingsInstance = {
       getProviders: vi.fn().mockReturnValue([mockProvider]),
       getProviderById: vi.fn().mockReturnValue(mockProvider),
+      getProviderModelRouteMetadata: vi.fn(),
       getModelConfig: vi.fn().mockReturnValue({
         maxTokens: 4096,
         contextLength: 4096,
@@ -504,7 +505,12 @@ describe('ProviderRuntime Integration Tests', () => {
         'mock-openai-api',
         [{ role: 'user', content: 'prompt' }],
         'mock-gpt-thinking',
-        mockProviderSettings.getModelConfig('mock-gpt-thinking', 'mock-openai-api'),
+        {
+          ...mockProviderSettings.getModelConfig('mock-gpt-thinking', 'mock-openai-api'),
+          forceInterleavedThinkingCompat: true,
+          reasoningEffort: 'high',
+          thinkingBudget: 2048
+        },
         0.2,
         128,
         []
@@ -519,6 +525,11 @@ describe('ProviderRuntime Integration Tests', () => {
         errorMsg: null
       })
       expect(stream).toHaveBeenCalledOnce()
+      expect(stream).toHaveBeenCalledWith(expect.any(Object), expect.any(Object), undefined, {
+        temperature: 0.2,
+        maxTokens: 128,
+        reasoning: { effort: 'high' }
+      })
       expect(complete).toHaveBeenCalledOnce()
       expect(legacy).not.toHaveBeenCalled()
       expect(completions).not.toHaveBeenCalled()

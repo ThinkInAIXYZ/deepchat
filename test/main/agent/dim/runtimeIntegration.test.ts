@@ -740,8 +740,17 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
         await nativeSettings.initSession('product-ui', {
           providerId: 'desktop-fixture',
           modelId: 'fixture',
-          generationSettings: { temperature: 0.23, topP: 0.71, maxTokens: 83, contextLength: 64000 }
+          generationSettings: {
+            temperature: 0.23,
+            topP: 0.71,
+            maxTokens: 83,
+            contextLength: 64000,
+            forceInterleavedThinkingCompat: true
+          }
         })
+        expect(
+          grants.data.deepchatSessionsTable.get('product-ui')?.force_interleaved_thinking_compat
+        ).toBe(1)
       }
       if (nativePlugins)
         grants.data.newSessionsTable.updateDisabledAgentTools('product-ui', [

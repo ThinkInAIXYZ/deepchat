@@ -147,6 +147,10 @@ export class DimModelCatalog {
       : this.configure(providerId, modelId, options, false)
   }
 
+  parameters(providerId: string, modelId: string, settings: GenerationParameters) {
+    return dimModelParameters(this.options.settings, providerId, modelId, settings)
+  }
+
   /** Register a frozen history container. This never authorizes inference or credential access. */
   async registerForHistory(
     providerId: string,
@@ -587,33 +591,74 @@ function dimModality(config: ModelConfig): { kind: string; output?: string; oper
   }
 }
 
+type GenerationParameters = Pick<
+  SessionGenerationSettings,
+  | 'temperature'
+  | 'maxTokens'
+  | 'topP'
+  | 'reasoningEffort'
+  | 'thinkingBudget'
+  | 'reasoningVisibility'
+>
+
 export function dimModelParameters(
-  settings: Pick<
-    SessionGenerationSettings,
-    | 'temperature'
-    | 'maxTokens'
-    | 'topP'
-    | 'reasoningEffort'
-    | 'thinkingBudget'
-    | 'reasoningVisibility'
-    | 'forceInterleavedThinkingCompat'
-  >
+  catalog: Pick<
+    CatalogOptions['settings'],
+    'getProviderById' | 'getModelConfig' | 'getProviderModelRouteMetadata' | 'getCapabilitySnapshot'
+  >,
+  providerId: string,
+  modelId: string,
+  settings: GenerationParameters
 ): DimModelParameters {
-  const reasoning: JsonObject = {
-    ...(settings.reasoningEffort ? { effort: settings.reasoningEffort } : {}),
-    ...(settings.thinkingBudget && settings.thinkingBudget > 0
-      ? { enabled: true, budgetTokens: settings.thinkingBudget }
-      : {}),
-    ...(settings.reasoningVisibility
-      ? { includeThoughts: settings.reasoningVisibility !== 'hidden' }
-      : {}),
-    ...(settings.forceInterleavedThinkingCompat ? { interleavedThinking: true } : {})
-  }
-  return {
+  const parameters = {
     temperature: settings.temperature,
     ...(settings.topP === undefined ? {} : { topP: settings.topP }),
-    maxTokens: settings.maxTokens,
-    ...(Object.keys(reasoning).length ? { reasoning } : {})
+    maxTokens: settings.maxTokens
+  }
+  const { reasoningEffort, reasoningVisibility, thinkingBudget } = settings
+  if (!reasoningEffort && !reasoningVisibility && thinkingBudget === undefined) return parameters
+
+  const provider = catalog.getProviderById(providerId)
+  const definition = provider && resolveAiSdkProviderDefinition(provider)
+  const kind =
+    provider && definition
+      ? resolveProviderTransport(
+          definition,
+          provider,
+          modelId,
+          catalog.getProviderModelRouteMetadata(
+            providerId,
+            modelId,
+            catalog.getModelConfig(modelId, providerId)
+          ) ?? null
+        ).providerKind
+      : 'openai-compatible'
+  const gemini = kind === 'gemini' || kind === 'vertex'
+  const bedrock = kind === 'aws-bedrock'
+  const anthropic = kind === 'anthropic'
+  const reasoningMode =
+    anthropic || gemini
+      ? catalog.getCapabilitySnapshot({ providerId, modelId }).reasoningPortrait?.mode
+      : undefined
+  const adaptive =
+    anthropic &&
+    reasoningMode === 'effort' &&
+    reasoningEffort !== 'none' &&
+    (reasoningEffort !== undefined || reasoningVisibility !== undefined)
+  const useBudget =
+    thinkingBudget !== undefined &&
+    reasoningEffort !== 'none' &&
+    ((gemini && reasoningMode !== 'level' && (!reasoningEffort || reasoningMode === 'budget')) ||
+      ((anthropic || bedrock) && !adaptive && thinkingBudget > 0))
+  const reasoning: JsonObject = {
+    ...(reasoningEffort && !bedrock && !(gemini && useBudget) ? { effort: reasoningEffort } : {}),
+    ...(useBudget ? { budgetTokens: thinkingBudget } : {}),
+    ...(gemini && reasoningVisibility ? { includeThoughts: reasoningVisibility !== 'hidden' } : {})
+  }
+  return {
+    ...parameters,
+    ...(Object.keys(reasoning).length ? { reasoning } : {}),
+    ...(adaptive ? { providerOptions: { anthropic: { thinking: { type: 'adaptive' } } } } : {})
   }
 }
 
