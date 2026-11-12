@@ -1,6 +1,6 @@
 # DeepChat 以 dim Rust 替换内置 Agent Harness
 
-状态：当前实现合同，内置 backend 已切换为 dim Rust，旧 Harness、Node 模型执行器和重复工具已删除；Direct ACP client、只读旧历史与按需转换保留。最新 dev 的 OpenLLM 与 HTML 可视化已合入，完整 main、renderer 和桌面联合验收通过；最终应用代码的六平台打包继续核验。执行与验证记录见 [plan.md](./plan.md)。
+状态：内置 backend 已切换为 dim Rust。旧 Harness、Node 模型执行器和重复工具已删除。Direct ACP client、只读旧历史与按需转换保留。平台与桌面验收记录见 [plan.md](./plan.md#方案验证记录与-pr-状态)。
 
 ## 1. 决策与范围
 
@@ -17,7 +17,7 @@
 
 这里“DeepChat 管理存储”指产品对数据的生命周期和存放位置有控制权；dim 是自己物理格式的唯一写入者。DeepChat 经注入的 storage 插件查询 dim 内容，继续管理 profile 与桌面数据操作，不替换 dim 底层存储实现。
 
-聊天 UI、队列、模型与产品辅助入口、旧会话按需转换和一次性解密已接入；设备同步采用原生选择性导出与冷暂存安装，完整验收仍在进行。按用户明确的范围落实以下决定：
+聊天 UI、队列、模型与产品辅助入口、旧会话按需转换和一次性解密已接入。设备同步采用原生选择性导出与冷暂存安装。接入范围如下：
 
 - Code Mode 按用户决定暂时不可用，等待 dim 原生实现；不迁移 DeepChat 旧 Code Mode、ToolSearch 或 programmatic dispatch。dim 有同等功能的内置工具直接替换 DeepChat 对应工具，插件只注入剩余产品能力。
 - 队列直接复用 dim 的完整实现，DeepChat 只接 UI 和命令，不另建队列或预设上游缺口。
@@ -332,7 +332,7 @@ timeline query 与公开 `session.history` 用途不同：history 用聊天；In
 | 备份、同步、删除、窗口、CLI/Remote | DeepChat desktop 及现有入口 | 内容读取改走插件，既有产品工作流继续可用 |
 | 数据库持续加解密 | 按用户决定移除 | 旧加密库及备份可一次性解密迁入，无原件损坏或密码泄露 |
 
-按用户决定，当前暂停 Code Mode，等待 dim 原生能力后再启用；持续数据库加解密已移除，保留旧库和备份的一次性解密。其余插件集成、UI/配置绑定、内容转换和桌面读写适配已实现，本地整体验收通过；当前提交的六平台打包验收仍在进行。设备同步接收端在 Native 空闲时安装胜出会话，忙碌时延后且不推进游标。真实旧版性能基线不足，尚未宣称达到 §9 的建议 p95 门槛。ACP client 和 dim 自身 OAuth 的边界不变。
+Code Mode 暂停，等待 dim 原生能力后再启用。旧库和备份可一次性解密，新数据库使用明文存储。插件集成、UI/配置绑定、内容转换和桌面读写适配已通过本地验收。迁移代码在 `73a2e8a67` 通过 Windows、Linux、macOS 各 x64 和 ARM64 的 Native 回归、打包及离线验证，具体任务与当前候选提交的检查入口见 [验收记录](./plan.md#方案验证记录与-pr-状态)。设备同步接收端在 Native 空闲时安装胜出会话，忙碌时延后且保留当前游标。§9 的 p95 指标仍需可比的旧版基线。
 
 ## 9. 安全、性能与故障不变量
 

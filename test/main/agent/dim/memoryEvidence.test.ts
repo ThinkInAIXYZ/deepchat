@@ -38,7 +38,8 @@ it('reads an owned closed generation at its immutable cutoff and rejects another
     contextFromOrderSeq: 1,
     pendingInputs: [],
     excludedContextMessageIds: [],
-    images: {}
+    images: {},
+    pluginHookState: []
   }))
   const evidence = new DimMemoryEvidence({ database: database.data, content: { transcript } })
   try {

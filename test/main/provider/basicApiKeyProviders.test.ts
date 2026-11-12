@@ -1755,19 +1755,19 @@ describe('basic API-key provider registrations', () => {
     const provider = new AiSdkProvider(config, createProviderSettings())
 
     await expect(provider.check()).resolves.toEqual({ isOk: true, errorMsg: null })
-    expect(fetchMock).toHaveBeenCalledWith(
-      'https://llm.wiro.ai/v1/models',
-      expect.objectContaining({
-        method: 'GET',
-        headers: expect.objectContaining({ Authorization: 'Bearer test-key' })
-      })
-    )
     // The catalog answers 401 without a valid key, so the same request rejects a bad one.
     await expect(provider.check()).resolves.toEqual({
       isOk: false,
       errorMsg: expect.stringContaining('The supplied API credentials are invalid.')
     })
-    expect(mockRunAiSdkGenerateText).not.toHaveBeenCalled()
+    const catalogRequest = [
+      'https://llm.wiro.ai/v1/models',
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({ Authorization: 'Bearer test-key' })
+      })
+    ]
+    expect(fetchMock.mock.calls).toEqual([catalogRequest, catalogRequest])
   })
 
   it('lists Wiro AI models with limits and capabilities from the catalog', async () => {
