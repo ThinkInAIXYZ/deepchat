@@ -19,7 +19,7 @@
 
 聊天 UI、队列、模型与产品辅助入口、旧会话按需转换和一次性解密已接入。设备同步采用原生选择性导出与冷暂存安装。接入范围如下：
 
-- Code Mode 暂停。dim alpha.23 已发布原生 `codemode`，App Server 仅向协议 v4 客户端开放；DeepChat 继续使用 v3。接入前须验证按会话启用、MCP 绑定、权限与结果展示；不恢复旧 Code Mode、ToolSearch 或 programmatic dispatch。dim 有同等功能的内置工具直接替换 DeepChat 对应工具，插件只注入剩余产品能力。
+- Code Mode 暂停。dim alpha.23 已发布原生 `codemode`，官方 App Server 仅向协议 v4 客户端开放；DeepChat 的私有宿主未装配该插件，客户端继续使用 v3。接入前须验证按会话启用、MCP 绑定、权限与结果展示；不恢复旧 Code Mode、ToolSearch 或 programmatic dispatch。dim 有同等功能的内置工具直接替换 DeepChat 对应工具，插件只注入剩余产品能力。
 - 队列直接复用 dim 的完整实现，DeepChat 只接 UI 和命令，不另建队列或预设上游缺口。
 - ACP 完全由 DeepChat 现有 client 负责；不新增 dim ACP gateway、ExternalAgent 或跨 ACP 委托任务，也不经 ACP 与 dim 通信。
 - 旧会话在首次续聊前 migration，转换为 dim 的会话内容；历史浏览不触发 agent 执行或全量迁移。
@@ -44,6 +44,8 @@
 | 旧 Tape 和旧加密库 | 保留只读历史与首次续聊转换；旧库/备份一次性解密，不再持续加密新数据。 |
 
 私有桥与插件版本由锁文件校验。当前桥版本为 `0.44.0`，原生存储为 v44。原生 profile 的唯一写入者仍是 dim；DeepChat 管理目录、生命周期与产品事务。
+
+alpha.23 的条件 Steer 可原子撤回并替换一条待处理输入。桌面排序、批量编辑与重启恢复仍依赖队列操作日志与输入展示数据，保留现有适配。内置 Agent 的 `schedule` 已由 dim 负责；桌面 cron 的时区、漏跑策略、ACP 调用和通知交付仍由 DeepChat 管理。
 
 ## 2. 调研基线与证据
 

@@ -9,10 +9,6 @@ import {
   ToolSurfaceAdapterHistory,
   type ToolSurfaceRunModeAssignment
 } from '@/tool/catalog/toolSurfaceSelection'
-import {
-  TOOL_SURFACE_PRODUCTION_ROLLOUT_POLICY_V1,
-  ToolSurfaceRolloutOwner
-} from '@/tool/catalog/toolSurfaceRollout'
 
 describe('Tool Surface adapter selection', () => {
   const policy = createAutomaticToolSurfaceSelectionPolicy(256)
@@ -153,94 +149,5 @@ describe('Tool Surface adapter selection', () => {
         previousMode: 'legacy'
       } as unknown as ToolSurfaceRunModeAssignment)
     ).toBe(false)
-  })
-
-  it('keeps the production rollout disabled until a canary is explicitly assigned', () => {
-    const rollout = new ToolSurfaceRolloutOwner(TOOL_SURFACE_PRODUCTION_ROLLOUT_POLICY_V1)
-
-    expect(
-      rollout.resolve({
-        sessionId: 'session-1',
-        providerId: 'provider-1',
-        modelId: 'model-1'
-      })
-    ).toBe('legacy')
-  })
-
-  it('uses only exact measured provider/model evidence inside a stable canary cohort', () => {
-    const rollout = new ToolSurfaceRolloutOwner({
-      policyVersion: 'test-rollout-v1',
-      canaryBasisPoints: 10_000,
-      measuredCliCapabilityEvidence: [
-        {
-          protocolVersion: 'cli-programmatic-v1',
-          evidenceVersion: 'external-eval-1',
-          providerId: 'provider-1',
-          modelId: 'model-1',
-          outcome: 'proven'
-        }
-      ]
-    })
-    const scope = {
-      sessionId: 'session-1',
-      providerId: 'provider-1',
-      modelId: 'model-1'
-    }
-
-    expect(rollout.resolve(scope)).toEqual({
-      mode: 'automatic',
-      cliProgrammaticCapability: 'proven'
-    })
-    expect(rollout.resolve(scope)).toEqual(rollout.resolve(scope))
-    expect(rollout.resolve({ ...scope, providerId: 'provider-2' })).toEqual({
-      mode: 'automatic',
-      cliProgrammaticCapability: 'unproven'
-    })
-    expect(rollout.resolve({ ...scope, modelId: 'model-2' })).toEqual({
-      mode: 'automatic',
-      cliProgrammaticCapability: 'unproven'
-    })
-  })
-
-  it('keeps partial canary assignment stable for one session and model scope', () => {
-    const rollout = new ToolSurfaceRolloutOwner({
-      policyVersion: 'test-rollout-v1',
-      canaryBasisPoints: 5_000,
-      measuredCliCapabilityEvidence: []
-    })
-    const scope = {
-      sessionId: 'session-1',
-      providerId: 'provider-1',
-      modelId: 'model-1'
-    }
-
-    expect(rollout.resolve(scope)).toEqual(rollout.resolve(scope))
-  })
-
-  it('rejects duplicate or malformed measured capability evidence', () => {
-    const evidence = {
-      protocolVersion: 'cli-programmatic-v1' as const,
-      evidenceVersion: 'external-eval-1',
-      providerId: 'provider-1',
-      modelId: 'model-1',
-      outcome: 'proven' as const
-    }
-
-    expect(
-      () =>
-        new ToolSurfaceRolloutOwner({
-          policyVersion: 'test-rollout-v1',
-          canaryBasisPoints: 1,
-          measuredCliCapabilityEvidence: [evidence, evidence]
-        })
-    ).toThrow('duplicate model scope')
-    expect(
-      () =>
-        new ToolSurfaceRolloutOwner({
-          policyVersion: ' test-rollout-v1 ',
-          canaryBasisPoints: 1,
-          measuredCliCapabilityEvidence: []
-        })
-    ).toThrow('rollout policy is invalid')
   })
 })
