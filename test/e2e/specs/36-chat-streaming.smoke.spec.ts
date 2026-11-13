@@ -20,6 +20,8 @@ test('local streaming preserves an editable composer and completes the response 
     releaseBackground = resolve
   })
   let streamCount = 0
+  const firstPrompt = 'Render the local streaming fixture.'
+  const backgroundPrompt = 'Complete after the chat window is destroyed.'
   const table = '| File | Result |\n| --- | --- |\n| First cell | Last cell |\n\n'
   const markdown =
     table +
@@ -40,7 +42,21 @@ test('local streaming preserves an editable composer and completes the response 
     }
     let body = ''
     for await (const chunk of request) body += chunk
-    if (!JSON.parse(body).stream) {
+    const input = JSON.parse(body)
+    const isTitle = input.messages.some(
+      (message: { role: string; content: unknown }) =>
+        message.role === 'system' &&
+        JSON.stringify(message.content).includes('Write a short title for this conversation')
+    )
+    if (!input.stream || isTitle) {
+      if (input.stream) {
+        response
+          .writeHead(200, { 'Content-Type': 'text/event-stream' })
+          .end(
+            `data: ${JSON.stringify({ id: 'fixture-title', object: 'chat.completion.chunk', created: 1, model: 'fixture-model', choices: [{ index: 0, delta: { role: 'assistant', content: 'Local streaming' }, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`
+          )
+        return
+      }
       response.writeHead(200, { 'Content-Type': 'application/json' }).end(
         JSON.stringify({
           id: 'fixture-title',
@@ -119,7 +135,7 @@ test('local streaming preserves an editable composer and completes the response 
     }, `http://127.0.0.1:${address.port}/v1`)
     await selectAgent(app.page)
     await selectModel(app.page, 'fixture-model', providerId)
-    await sendMessage(app.page, 'Render the local streaming fixture.')
+    await sendMessage(app.page, firstPrompt)
     const shell = app.page.getByTestId('chat-page-shell')
     await expect(shell).toHaveAttribute('data-generating', 'true')
     const status = shell.getByTestId('chat-generation-status')
@@ -200,7 +216,7 @@ test('local streaming preserves an editable composer and completes the response 
           'agent',
           'run',
           '--prompt',
-          'Complete after the chat window is destroyed.',
+          backgroundPrompt,
           '--provider',
           providerId,
           '--model',
@@ -216,9 +232,7 @@ test('local streaming preserves an editable composer and completes the response 
       started.result.runId
     )
     await expect(second.getByTestId('chat-page-shell')).toHaveAttribute('data-generating', 'true')
-    await expect(app.page.getByTestId('chat-message-user')).toContainText(
-      'Render the local streaming fixture.'
-    )
+    await expect(app.page.getByTestId('chat-message-user')).toContainText(firstPrompt)
     await expect(editor).toHaveText(draft)
     const watch = cli(['run', 'watch', '--run', started.result.runId, '--jsonl'])
     void watch.catch(() => {})

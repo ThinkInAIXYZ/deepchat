@@ -155,6 +155,8 @@ test('unfocused composer accepts text, links, images and files once @smoke', asy
     })
     return session.id
   })
+  const sidebarToggle = app.page.getByTestId('window-sidebar-toggle')
+  if ((await sidebarToggle.getAttribute('aria-expanded')) === 'false') await sidebarToggle.click()
   await app.page
     .locator(`[data-testid="sidebar-session-item"][data-session-id="${sessionId}"]`)
     .click()
