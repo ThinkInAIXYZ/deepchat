@@ -174,9 +174,9 @@ it('admits alpha.21 archives for the v44 upgrade only with their pinned source a
       { ...manifest, storeFormat: 37 },
       { ...manifest, sourceRevision: current.sourceRevision, storeFormat: 45 }
     ]) {
-      await expect(
-        validateDimProfile(captured.directory, incompatible, current)
-      ).rejects.toThrow('Unsupported')
+      await expect(validateDimProfile(captured.directory, incompatible, current)).rejects.toThrow(
+        'Unsupported'
+      )
     }
   } finally {
     await rm(root, { recursive: true, force: true })
