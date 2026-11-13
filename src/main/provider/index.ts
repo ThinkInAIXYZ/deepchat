@@ -4,7 +4,7 @@ import type { DimAuxiliaryModels } from '@/agent/dim/auxiliaryModels'
 import type { DimDecisions } from '@/agent/dim/decisions'
 import type { DimEmbeddingModels } from '@/agent/dim/embeddingModels'
 import type { DimMediaModels } from '@/agent/dim/mediaModels'
-import { dimModelParameters } from '@/agent/dim/modelCatalog'
+import { dimModelParameters, dimReasoningContext } from '@/agent/dim/modelCatalog'
 import type { AgentSettingsPort } from '@/agent/settings'
 import type { McpSettings } from '@/mcp/settings'
 import type { ProviderSettingsPort } from '@/provider/settings'
@@ -64,7 +64,6 @@ import type {
   ProviderLocalePort
 } from './ports'
 import { resolveAiSdkProviderDefinition } from './providerRegistry'
-import { resolveProviderTransport } from './providerTransport'
 import { AcpProvider } from './providers/acpProvider'
 import type { OllamaProvider } from './providers/ollamaProvider'
 
@@ -452,16 +451,7 @@ export class ProviderRuntime
         messages,
         parameters: dimModelParameters(
           { ...modelConfig, temperature, maxTokens },
-          {
-            providerId,
-            modelId,
-            providerKind: this.nativeProviderKind(providerId, modelId),
-            reasoningPortrait: this.providerSettings.getCapabilitySnapshot({
-              providerId,
-              modelId,
-              resolvedModelConfig: modelConfig
-            }).reasoningPortrait
-          }
+          dimReasoningContext(this.providerSettings, providerId, modelId, modelConfig)
         ),
         signal: options?.signal
       })
@@ -475,19 +465,6 @@ export class ProviderRuntime
       tools,
       options
     )
-  }
-
-  private nativeProviderKind(providerId: string, modelId: string): string {
-    const provider = this.providerSettings.getProviderById(providerId)
-    const definition = provider && resolveAiSdkProviderDefinition(provider)
-    return provider && definition
-      ? resolveProviderTransport(
-          definition,
-          provider,
-          modelId,
-          this.providerSettings.getProviderModelRouteMetadata(providerId, modelId) ?? null
-        ).providerKind
-      : 'openai-compatible'
   }
 
   async shutdown(): Promise<void> {

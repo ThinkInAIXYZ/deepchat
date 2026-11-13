@@ -602,6 +602,24 @@ async function createOnePackageArtifact(
     })
   )
 
+  const dimSmokeName = `dim-runtime-smoke-${definition.id}.json`
+  const dimSmokePath = path.join(reportsDirectory, dimSmokeName)
+  await writeFile(
+    dimSmokePath,
+    JSON.stringify({
+      target: definition.id,
+      profile: 'release',
+      native: true,
+      hostPlugin: true,
+      storagePlugin: true,
+      modelPlugin: true,
+      agentOwner: true,
+      sourceRevision: sourceSha,
+      sha256: '0'.repeat(64),
+      nodeSha256: '1'.repeat(64)
+    })
+  )
+
   const sizeName = `package-size-${definition.id}.json`
   const sizePath = path.join(reportsDirectory, sizeName)
   const sizePolicy = createDefaultPackageSizePolicy()
@@ -639,6 +657,7 @@ async function createOnePackageArtifact(
   const reports: PackageManifest['reports'] = []
   for (const [name, reportPath] of [
     [smokeName, smokePath],
+    [dimSmokeName, dimSmokePath],
     [sizeName, sizePath]
   ] as const) {
     const inspected = await inspectRegularFile(reportPath, root)

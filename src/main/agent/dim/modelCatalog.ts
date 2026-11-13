@@ -7,6 +7,8 @@ import type {
   ModelConfig,
   VERTEX_PROVIDER
 } from '@shared/types/provider'
+import { getUnqualifiedModelId } from '@shared/modelId'
+import type { ReasoningPortrait } from '@shared/types/model-db'
 import type { SessionGenerationSettings } from '@shared/types/agent-interface'
 import { ModelType } from '@shared/model'
 import type { DimOAuthConnection } from './providerCredentials'
@@ -148,7 +150,10 @@ export class DimModelCatalog {
   }
 
   parameters(providerId: string, modelId: string, settings: GenerationParameters) {
-    return dimModelParameters(this.options.settings, providerId, modelId, settings)
+    return dimModelParameters(
+      settings,
+      dimReasoningContext(this.options.settings, providerId, modelId)
+    )
   }
 
   /** Register a frozen history container. This never authorizes inference or credential access. */
@@ -601,26 +606,25 @@ type GenerationParameters = Pick<
   | 'reasoningVisibility'
 >
 
-export function dimModelParameters(
+type ReasoningContext = {
+  providerKind: string
+  modelId?: string
+  providerId?: string
+  reasoningPortrait?: ReasoningPortrait | null
+}
+
+export function dimReasoningContext(
   catalog: Pick<
     CatalogOptions['settings'],
     'getProviderById' | 'getModelConfig' | 'getProviderModelRouteMetadata' | 'getCapabilitySnapshot'
   >,
   providerId: string,
   modelId: string,
-  settings: GenerationParameters
-): DimModelParameters {
-  const parameters = {
-    temperature: settings.temperature,
-    ...(settings.topP === undefined ? {} : { topP: settings.topP }),
-    maxTokens: settings.maxTokens
-  }
-  const { reasoningEffort, reasoningVisibility, thinkingBudget } = settings
-  if (!reasoningEffort && !reasoningVisibility && thinkingBudget === undefined) return parameters
-
+  modelConfig?: ModelConfig
+): ReasoningContext {
   const provider = catalog.getProviderById(providerId)
   const definition = provider && resolveAiSdkProviderDefinition(provider)
-  const kind =
+  const providerKind =
     provider && definition
       ? resolveProviderTransport(
           definition,
@@ -629,37 +633,79 @@ export function dimModelParameters(
           catalog.getProviderModelRouteMetadata(
             providerId,
             modelId,
-            catalog.getModelConfig(modelId, providerId)
+            modelConfig ?? catalog.getModelConfig(modelId, providerId)
           ) ?? null
         ).providerKind
       : 'openai-compatible'
-  const gemini = kind === 'gemini' || kind === 'vertex'
-  const bedrock = kind === 'aws-bedrock'
-  const anthropic = kind === 'anthropic'
-  const reasoningMode =
-    anthropic || gemini
-      ? catalog.getCapabilitySnapshot({ providerId, modelId }).reasoningPortrait?.mode
-      : undefined
-  const adaptive =
-    anthropic &&
-    reasoningMode === 'effort' &&
-    reasoningEffort !== 'none' &&
-    (reasoningEffort !== undefined || reasoningVisibility !== undefined)
-  const useBudget =
-    thinkingBudget !== undefined &&
-    reasoningEffort !== 'none' &&
-    ((gemini && reasoningMode !== 'level' && (!reasoningEffort || reasoningMode === 'budget')) ||
-      ((anthropic || bedrock) && !adaptive && thinkingBudget > 0))
-  const reasoning: JsonObject = {
-    ...(reasoningEffort && !bedrock && !(gemini && useBudget) ? { effort: reasoningEffort } : {}),
-    ...(useBudget ? { budgetTokens: thinkingBudget } : {}),
-    ...(gemini && reasoningVisibility ? { includeThoughts: reasoningVisibility !== 'hidden' } : {})
-  }
   return {
-    ...parameters,
-    ...(Object.keys(reasoning).length ? { reasoning } : {}),
-    ...(adaptive ? { providerOptions: { anthropic: { thinking: { type: 'adaptive' } } } } : {})
+    providerKind,
+    providerId,
+    modelId,
+    reasoningPortrait:
+      providerKind === 'anthropic' || providerKind === 'gemini' || providerKind === 'vertex'
+        ? catalog.getCapabilitySnapshot({ providerId, modelId, resolvedModelConfig: modelConfig })
+            .reasoningPortrait
+        : undefined
   }
+}
+
+export function dimModelParameters(
+  settings: GenerationParameters,
+  { providerKind, modelId, reasoningPortrait }: ReasoningContext
+): DimModelParameters {
+  const parameters = {
+    temperature: settings.temperature,
+    ...(settings.topP === undefined ? {} : { topP: settings.topP }),
+    maxTokens: settings.maxTokens
+  }
+  const { reasoningEffort: effort, reasoningVisibility, thinkingBudget: budget } = settings
+  if (providerKind === 'anthropic') {
+    const miniMax = /^minimax-m3(?:[.-]|$)/.test(getUnqualifiedModelId(modelId))
+    const adaptive = miniMax || reasoningPortrait?.mode === 'effort'
+    const alwaysOn =
+      adaptive &&
+      reasoningPortrait?.defaultEnabled === true &&
+      reasoningPortrait.effortOptions?.includes('none') === false
+    const disabled = effort === 'none' || budget === 0
+    const thinking: JsonObject | undefined =
+      disabled && !alwaysOn
+        ? { type: 'disabled' }
+        : adaptive && (miniMax || alwaysOn || effort || budget || reasoningVisibility)
+          ? { type: 'adaptive' }
+          : budget !== undefined && budget > 0
+            ? { type: 'enabled', budgetTokens: budget }
+            : undefined
+    const effectiveEffort = disabled
+      ? alwaysOn && effort
+        ? reasoningPortrait?.effort
+        : undefined
+      : effort
+    return {
+      ...parameters,
+      ...(effectiveEffort ? { reasoning: { effort: effectiveEffort } } : {}),
+      ...(thinking ? { providerOptions: { anthropic: { thinking } } } : {})
+    }
+  }
+
+  const gemini = providerKind === 'gemini' || providerKind === 'vertex'
+  const bedrock = providerKind === 'aws-bedrock' || providerKind === 'amazon-bedrock'
+  const reasoning: JsonObject = {}
+  if (gemini) {
+    if (reasoningVisibility) reasoning.includeThoughts = reasoningVisibility !== 'hidden'
+    if (effort === 'none') reasoning.budgetTokens = 0
+    else if (
+      budget !== undefined &&
+      reasoningPortrait?.mode !== 'level' &&
+      (!effort || reasoningPortrait?.mode === 'budget')
+    )
+      reasoning.budgetTokens = budget
+    else if (effort) reasoning.effort = effort
+  } else if (bedrock) {
+    if (budget !== undefined && budget > 0 && effort !== 'none') reasoning.budgetTokens = budget
+  } else if (effort) {
+    reasoning.effort = effort
+  }
+  return Object.keys(reasoning).length ? { ...parameters, reasoning } : parameters
 }
 
 function fingerprint(value: JsonValue): string {

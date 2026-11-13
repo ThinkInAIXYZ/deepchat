@@ -3,7 +3,7 @@ import { expect, it, vi } from 'vitest'
 import { mkdtemp, rm } from 'node:fs/promises'
 import path from 'node:path'
 import os from 'node:os'
-import { DimModelCatalog, dimModelParameters } from '@/agent/dim/modelCatalog'
+import { DimModelCatalog, dimModelParameters, dimReasoningContext } from '@/agent/dim/modelCatalog'
 import { ModelType } from '@shared/model'
 import type { LLM_PROVIDER, ModelConfig } from '@shared/types/provider'
 import type { ProviderSettingsPort } from '@/provider/settings'
@@ -15,7 +15,9 @@ it.each([
     endpointType: 'anthropic',
     mode: 'budget',
     settings: { thinkingBudget: 2048 },
-    expected: { reasoning: { budgetTokens: 2048 } }
+    expected: {
+      providerOptions: { anthropic: { thinking: { type: 'enabled', budgetTokens: 2048 } } }
+    }
   },
   {
     name: 'Anthropic adaptive effort',
@@ -70,7 +72,7 @@ it.each([
     ...fixture.settings,
     forceInterleavedThinkingCompat: true
   }
-  const parameters = dimModelParameters(
+  const context = dimReasoningContext(
     {
       getProviderById: () => provider,
       getModelConfig: () => ({ contextLength: 8192, maxTokens: 4096 }) as ModelConfig,
@@ -83,10 +85,13 @@ it.each([
         }) as ReturnType<ProviderSettingsPort['getCapabilitySnapshot']>
     },
     provider.id,
-    'fixture',
-    settings
+    'fixture'
   )
-  expect(parameters).toEqual({ temperature: 0.5, maxTokens: 4096, ...fixture.expected })
+  expect(dimModelParameters(settings, context)).toEqual({
+    temperature: 0.5,
+    maxTokens: 4096,
+    ...fixture.expected
+  })
 })
 
 it('persists non-secret grants, rotates credentials and fences replaced or disabled providers', async () => {

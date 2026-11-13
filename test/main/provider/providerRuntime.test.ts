@@ -140,7 +140,6 @@ describe('ProviderRuntime Integration Tests', () => {
     const mockProviderSettingsInstance = {
       getProviders: vi.fn().mockReturnValue([mockProvider]),
       getProviderById: vi.fn().mockReturnValue(mockProvider),
-      getProviderModelRouteMetadata: vi.fn(),
       getModelConfig: vi.fn().mockReturnValue({
         maxTokens: 4096,
         contextLength: 4096,

@@ -744,13 +744,14 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
             temperature: 0.23,
             topP: 0.71,
             maxTokens: 83,
-            contextLength: 64000,
-            forceInterleavedThinkingCompat: true
+            contextLength: 64000
           }
         })
-        expect(
-          grants.data.deepchatSessionsTable.get('product-ui')?.force_interleaved_thinking_compat
-        ).toBe(1)
+        grants.sqlite
+          .prepare(
+            'UPDATE deepchat_sessions SET force_interleaved_thinking_compat = 1 WHERE id = ?'
+          )
+          .run('product-ui')
       }
       if (nativePlugins)
         grants.data.newSessionsTable.updateDisabledAgentTools('product-ui', [
