@@ -235,7 +235,8 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
             ).title?.text
         )
         .toBe('Codex native title')
-      const before = await client.call<{ events: unknown[] }>('deepchat.storage.history', {
+      type History = { events: Array<{ type: string; name: string; data: unknown }> }
+      const before = await client.call<History>('deepchat.storage.history', {
         sessionId,
         branchId: 'main',
         limit: 100
@@ -244,13 +245,18 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
       expect(JSON.stringify(before)).not.toContain('codex-second-secret')
       await host.stop()
       const reopened = await host.start()
-      const after = await reopened.call<{ events: unknown[] }>('deepchat.storage.history', {
+      const after = await reopened.call<History>('deepchat.storage.history', {
         sessionId,
         branchId: 'main',
         limit: 100
       })
       expect(after.events.slice(0, before.events.length)).toEqual(before.events)
-      expect(after.events.slice(before.events.length)).toEqual([
+      // Context usage can finish recovering before the shutdown interrupt is published.
+      expect(
+        after.events
+          .slice(before.events.length)
+          .filter(({ type, name }) => type !== 'context-usage' || name !== 'recovered')
+      ).toEqual([
         expect.objectContaining({
           type: 'stop',
           name: 'interrupt',
