@@ -214,9 +214,11 @@ The HTML already lives in the tool block's `tool_params` (stored in full in
 
 Model context does not replay it. `contextBuilder` and `dispatch` keep compact argument metadata
 and native call/result pairs in the internal conversation. `projectHtmlRenderHistory` in the
-provider message mapper replaces completed HTML call/result pairs with their original result
-text in runtime-supplied `user` messages. Success receipts carry only the operation, success,
-panel id and section id; failed calls retain the actual error. The projection adds no narration,
+provider message mapper replaces completed HTML call/result pairs with execution receipts
+in runtime-supplied `user` messages. Success receipts carry only the operation, success,
+panel id and section id. Failure receipts name the operation, failed status, and available
+panel/section ids or page title, followed by the original error. If no target can be recovered
+from the arguments, the receipt identifies the tool call by id. The projection adds no narration,
 omission explanations, or continuation instruction. Incomplete batches remain intact. In mixed
 batches, receipts follow all remaining tool results so native call/result pairs stay together.
 

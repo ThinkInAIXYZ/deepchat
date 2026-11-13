@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { projectHtmlRenderHistory } from '@/provider/aiSdk/htmlRenderHistory'
+import { mapMessagesToModelMessages } from '@/provider/aiSdk/messageMapper'
 import type { ChatMessage, ChatMessageToolCall } from '@shared/types/core/chat-message'
 
 const sectionCall: ChatMessageToolCall = {
@@ -42,7 +43,18 @@ describe('projectHtmlRenderHistory', () => {
     expect(projectHtmlRenderHistory(projected)).toBe(projected)
   })
 
-  it('keeps ordinary tool pairs together before a failed render receipt and preserves replay', () => {
+  it('identifies successful and failed sections in a mixed batch without breaking other tool pairs', () => {
+    const successCall: ChatMessageToolCall = {
+      id: 'section-2',
+      type: 'function',
+      function: {
+        name: 'html_render_section',
+        arguments: JSON.stringify({ panelId: 'p1', sectionId: 'summary' })
+      }
+    }
+    const success = 'html_render_section succeeded. panelId: p1; sectionId: summary'
+    const error = 'Error: The panel would exceed 2 MB. Start a new panel with html_render.'
+    const failure = `html_render_section failed. panelId: p1; sectionId: chart\n${error}`
     const readCall: ChatMessageToolCall = {
       id: 'read-1',
       type: 'function',
@@ -53,12 +65,14 @@ describe('projectHtmlRenderHistory', () => {
       provider_replay: { markerId: 'search-1', payload: 'opaque search output' }
     }
     const messages: ChatMessage[] = [
-      { role: 'assistant', tool_calls: [sectionCall, readCall] },
+      { role: 'assistant', tool_calls: [successCall, readCall, sectionCall] },
       replay,
       { role: 'assistant', content: 'Search finished' },
-      { role: 'tool', tool_call_id: sectionCall.id, content: 'Error: Unknown panel p1' },
-      { role: 'tool', tool_call_id: readCall.id, content: 'Readme content' }
+      { role: 'tool', tool_call_id: sectionCall.id, content: error },
+      { role: 'tool', tool_call_id: readCall.id, content: 'Readme content' },
+      { role: 'tool', tool_call_id: successCall.id, content: success }
     ]
+    const original = structuredClone(messages)
 
     const projected = projectHtmlRenderHistory(messages)
 
@@ -70,7 +84,36 @@ describe('projectHtmlRenderHistory', () => {
       replay,
       messages[2],
       messages[4],
-      { role: 'user', content: 'Error: Unknown panel p1' }
+      { role: 'user', content: success },
+      { role: 'user', content: failure }
+    ])
+
+    const mapped = mapMessagesToModelMessages(messages, { tools: [], supportsNativeTools: true })
+    expect(mapped.slice(-2)).toEqual([
+      { role: 'user', content: [{ type: 'text', text: success }] },
+      { role: 'user', content: [{ type: 'text', text: failure }] }
+    ])
+    expect(JSON.stringify(mapped)).not.toContain('<p>Chart</p>')
+    expect(messages).toEqual(original)
+  })
+
+  it.each([
+    [JSON.stringify({ title: 'Report', html: '<main>Report</main>' }), 'title: Report'],
+    ['invalid arguments', 'toolCallId: page-1']
+  ])('identifies failed page calls without replaying their HTML (%s)', (args, target) => {
+    const error = 'Error: Invalid arguments for html_render'
+    const messages: ChatMessage[] = [
+      {
+        role: 'assistant',
+        tool_calls: [
+          { id: 'page-1', type: 'function', function: { name: 'html_render', arguments: args } }
+        ]
+      },
+      { role: 'tool', tool_call_id: 'page-1', content: error }
+    ]
+
+    expect(mapMessagesToModelMessages(messages, { tools: [], supportsNativeTools: true })).toEqual([
+      { role: 'user', content: [{ type: 'text', text: `html_render failed. ${target}\n${error}` }] }
     ])
   })
 

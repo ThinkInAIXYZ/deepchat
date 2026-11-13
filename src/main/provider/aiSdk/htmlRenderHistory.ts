@@ -1,5 +1,27 @@
 import { HTML_RENDER_SECTION_TOOL_NAME, HTML_RENDER_TOOL_NAME } from '@shared/agentHtmlRenderTool'
-import type { ChatMessage } from '@shared/types/core/chat-message'
+import type { ChatMessage, ChatMessageToolCall } from '@shared/types/core/chat-message'
+import { tryParseJson } from './toolProtocol'
+
+function renderReceipt(
+  call: ChatMessageToolCall,
+  content: ChatMessage['content']
+): ChatMessage['content'] {
+  // HTML tools throw on failure; dispatch serializes those errors with this prefix.
+  if (typeof content !== 'string' || !content.startsWith('Error:')) return content
+
+  const args = tryParseJson(call.function.arguments)
+  const fields = call.function.name === HTML_RENDER_TOOL_NAME ? ['title'] : ['panelId', 'sectionId']
+  const target: string[] = []
+  if (args && typeof args === 'object') {
+    for (const field of fields) {
+      const value = (args as Record<string, unknown>)[field]
+      if (typeof value === 'string' && value) target.push(`${field}: ${value}`)
+    }
+  }
+  if (target.length === 0) target.push(`toolCallId: ${call.id}`)
+
+  return `${call.function.name} failed. ${target.join('; ')}\n${content}`
+}
 
 export function projectHtmlRenderHistory(messages: ChatMessage[]): ChatMessage[] {
   const projected = [...messages]
@@ -35,7 +57,7 @@ export function projectHtmlRenderHistory(messages: ChatMessage[]): ChatMessage[]
     for (const call of htmlCalls) {
       const result = resultsById.get(call.id)!
       replacedResults.add(result.index)
-      receipts.push({ role: 'user', content: result.message.content })
+      receipts.push({ role: 'user', content: renderReceipt(call, result.message.content) })
     }
     // Receipts follow the whole batch so they cannot interrupt other tools' call/result pairs.
     receiptsAfter.set(end - 1, receipts)
