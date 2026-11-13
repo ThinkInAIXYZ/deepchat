@@ -826,6 +826,15 @@ export class ProviderRuntime
       // Explicit model tests follow the same native inference boundary as production calls.
       if (modelId) {
         try {
+          if (configured && configured.apiType !== 'acp' && !configured.enable) {
+            await this.requireNativeModels().completeDraft(
+              configured,
+              modelId,
+              'hi',
+              AbortSignal.timeout(60_000)
+            )
+            return { isOk: true, errorMsg: null }
+          }
           const testMessage = [{ role: 'user' as const, content: 'hi' }]
           const response: LLMResponse | null = await Promise.race([
             this.providerSettings.getProviderById(providerId)?.apiType !== 'acp'

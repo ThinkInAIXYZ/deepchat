@@ -249,7 +249,7 @@ describe('ProviderRuntime Integration Tests', () => {
     async (provider) => {
       const definition = resolveAiSdkProviderDefinition(provider)!
       expect(definition.checkModelId).toBeTruthy()
-      mockProviderSettings.getProviderById = vi.fn().mockReturnValue(provider)
+      mockProviderSettings.getProviderById = vi.fn().mockReturnValue({ ...provider, enable: true })
       const admit = vi.fn().mockResolvedValue({ providerId: 'native', modelId: 'probe' })
       const complete = vi.fn().mockResolvedValue({ text: 'ok', stopReason: 'end_turn' })
       providerRuntime.setNativeModels(
@@ -267,6 +267,22 @@ describe('ProviderRuntime Integration Tests', () => {
       expect(construct).not.toHaveBeenCalled()
     }
   )
+
+  it('checks a configured disabled provider without enabling it for chat', async () => {
+    const saved = { ...mockProvider, enable: false }
+    mockProviderSettings.getProviderById = vi.fn().mockReturnValue(saved)
+    const completeDraft = vi.fn().mockResolvedValue({ text: 'ok', stopReason: 'end_turn' })
+    const complete = vi.fn()
+    providerRuntime.setNativeModels({ completeDraft, complete } as never)
+
+    await expect(providerRuntime.check(saved.id, 'fixture')).resolves.toEqual({
+      isOk: true,
+      errorMsg: null
+    })
+    expect(completeDraft).toHaveBeenCalledWith(saved, 'fixture', 'hi', expect.any(AbortSignal))
+    expect(complete).not.toHaveBeenCalled()
+    expect(saved.enable).toBe(false)
+  })
 
   describe('Draft credential validation', () => {
     it.each([
