@@ -394,7 +394,8 @@ export interface MemoryTextGenerationPort {
     providerId: string,
     modelId: string,
     prompt: string,
-    purpose: MemoryTextGenerationPurpose
+    purpose: MemoryTextGenerationPurpose,
+    options?: { signal?: AbortSignal }
   ): Promise<string>
 }
 

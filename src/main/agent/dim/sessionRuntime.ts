@@ -1,0 +1,351 @@
+import { randomUUID } from 'node:crypto'
+import type { JsonValue } from '@shared/contracts/json'
+import type { SessionDatabase } from '@/session/data/database'
+import type { DimSessionBinding } from '@/session/data/tables/dimSessionBindings'
+import type { DimInputIntent } from '@/session/data/tables/dimInputIntents'
+import type { DimRuntimeSupervisor } from './runtimeSupervisor'
+import { DimConnectionError, DimMethodError } from './pluginClient'
+import { DimSessionConnection, type DimInputReceipt } from './sessionConnection'
+import { DimProjectionStore } from './projectionStore'
+import type { DimProjection } from './messageProjection'
+
+export interface DimSessionRuntimeOptions {
+  database: SessionDatabase
+  host: DimRuntimeSupervisor
+  launch(sessionId: string): Promise<JsonValue>
+  prepare?(binding: DimSessionBinding): Promise<void>
+  opened?(binding: DimSessionBinding): Promise<void>
+  closed?(sessionId: string): Promise<void>
+  projected(sessionId: string, projection: DimProjection): void
+  failed(sessionId: string, error: unknown): void
+}
+export interface DimUserMessageReuse {
+  messageId: string
+  orderSeq: number
+  createdAt: number
+}
+interface OpenSession {
+  scope: object
+  reader: DimSessionConnection
+  binding: DimSessionBinding
+}
+
+export class DimSubmissionUnknownError extends Error {
+  constructor(readonly submissionId: string) {
+    super('dim submission outcome is unknown; reconcile it before retrying')
+  }
+}
+
+/** Desktop admission and projection. dim owns the agent, queue and every model/tool step. */
+export class DimSessionRuntime {
+  private readonly readers = new Map<string, Promise<OpenSession>>()
+  private readonly scopes = new Map<string, object>()
+  private suspended: Promise<void> | null = null
+  private readonly projection: DimProjectionStore
+  constructor(private readonly options: DimSessionRuntimeOptions) {
+    this.projection = new DimProjectionStore(options.database)
+  }
+
+  async open(sessionId: string): Promise<OpenSession> {
+    if (this.suspended) await this.suspended
+    const existing = this.readers.get(sessionId)
+    if (existing) return existing
+    const scope = {}
+    this.scopes.set(sessionId, scope)
+    const opening = this.openReader(sessionId, scope)
+    this.readers.set(sessionId, opening)
+    try {
+      return await opening
+    } catch (error) {
+      if (this.scopes.get(sessionId) === scope) {
+        this.scopes.delete(sessionId)
+        this.readers.delete(sessionId)
+      }
+      throw error
+    }
+  }
+
+  async submit(
+    sessionId: string,
+    content: JsonValue[],
+    options: {
+      mode?: 'queue' | 'steer' | 'append'
+      submissionId?: string
+      rawBlocks?: JsonValue[]
+      representation?: JsonValue
+      reuseUserMessage?: DimUserMessageReuse
+    } = {}
+  ): Promise<DimInputReceipt> {
+    const { binding, scope } = await this.open(sessionId)
+    const submissionId = options.submissionId ?? randomUUID()
+    const native = this.options.host.usesNativePlugins || options.representation !== undefined
+    const payload: JsonValue = !native
+      ? {
+          sessionId: binding.dimSessionId,
+          branchId: binding.branchId,
+          submissionId,
+          mode: options.mode ?? 'queue',
+          rawBlocks: options.rawBlocks ?? [],
+          content
+        }
+      : {
+          sessionId: binding.dimSessionId,
+          branchId: binding.branchId,
+          input: {
+            submission_id: submissionId,
+            mode: options.mode ?? 'queue',
+            ...(content.length ? { user: { content } } : {}),
+            blocks: (options.rawBlocks ?? []).map((block) => {
+              if (
+                !block ||
+                typeof block !== 'object' ||
+                Array.isArray(block) ||
+                typeof block.text !== 'string'
+              )
+                throw new Error('Invalid native raw block')
+              const key = block.key
+              return {
+                type: 'raw',
+                text: block.text,
+                ...(key && typeof key === 'object' && !Array.isArray(key)
+                  ? { key: key.name, retire: key.use === 'retire' }
+                  : {})
+              }
+            })
+          },
+          ...(options.representation !== undefined
+            ? { representation: options.representation }
+            : {}),
+          ...(options.reuseUserMessage ? { reuseUserMessage: { ...options.reuseUserMessage } } : {})
+        }
+    if (this.scopes.get(sessionId) !== scope)
+      throw new DimConnectionError('dim session was closed before admission', 'not-sent')
+    const stored = this.options.database.dimInputIntentsTable.begin({
+      submissionId,
+      sessionId,
+      dimSessionId: binding.dimSessionId,
+      branchId: binding.branchId,
+      payload
+    })
+    if (!stored.created && stored.intent.state !== 'rejected') {
+      if (stored.intent.state === 'accepted') return stored.intent.receipt!
+      const reconciled = await this.reconcile(stored.intent)
+      if (reconciled) return reconciled
+      throw new DimSubmissionUnknownError(submissionId)
+    }
+    try {
+      const client = await this.options.host.start()
+      if (this.scopes.get(sessionId) !== scope)
+        throw new DimConnectionError('dim session was replaced before submission', 'not-sent')
+      const receipt = await client.call<DimInputReceipt>(
+        !native ? 'deepchat.host.input' : 'session.deepchat_inputs.submit',
+        payload
+      )
+      this.options.database.dimInputIntentsTable.settle(submissionId, 'accepted', receipt)
+      return receipt
+    } catch (error) {
+      const confirmed = this.options.database.dimInputIntentsTable.get(submissionId)
+      if (confirmed?.state === 'accepted' && confirmed.receipt) return confirmed.receipt
+      const appError =
+        error instanceof DimMethodError &&
+        error.data &&
+        typeof error.data === 'object' &&
+        !Array.isArray(error.data)
+          ? error.data.appError
+          : null
+      const rejected =
+        (error instanceof DimConnectionError && error.outcome === 'not-sent') ||
+        [
+          'invalid_params',
+          'session_invalid_input',
+          'input_blocked',
+          'migration_incomplete',
+          'session_retired',
+          'rejected',
+          'session_closed',
+          'branch_missing',
+          'branch_ended',
+          'agent_unknown'
+        ].includes(String(appError))
+      this.options.database.dimInputIntentsTable.settle(
+        submissionId,
+        rejected ? 'rejected' : 'unknown'
+      )
+      if (!rejected) throw new DimSubmissionUnknownError(submissionId)
+      throw error
+    }
+  }
+
+  async reconcile(intent: DimInputIntent): Promise<DimInputReceipt | null> {
+    const client = await this.options.host.start()
+    const result = await client.call<{
+      status: 'accepted' | 'unknown'
+      inputId?: string
+      sequence?: number | string
+    }>(
+      this.options.host.usesNativePlugins
+        ? 'deepchat.native_storage.lookup'
+        : 'deepchat.host.lookup',
+      {
+        sessionId: intent.dimSessionId,
+        branchId: intent.branchId,
+        submissionId: intent.submissionId
+      }
+    )
+    if (result.status !== 'accepted' || !result.inputId || result.sequence == null) return null
+    const receipt = { inputId: result.inputId, sequence: result.sequence }
+    this.options.database.dimInputIntentsTable.settle(intent.submissionId, 'accepted', receipt)
+    return receipt
+  }
+
+  async waitIdle(sessionId: string): Promise<void> {
+    await (await this.open(sessionId)).reader.waitIdle()
+  }
+  async cancel(sessionId: string): Promise<void> {
+    const { reader } = await this.open(sessionId)
+    await reader.stopGeneration()
+    await reader.synchronize()
+  }
+  async synchronize(sessionId: string): Promise<void> {
+    await (await this.open(sessionId)).reader.synchronize()
+  }
+
+  /** A native fence orders late product submissions before a generation change. */
+  async retire(sessionId: string, operationId: string, requireEmptyQueue = false): Promise<void> {
+    const binding = this.options.database.dimSessionBindingsTable.get(sessionId)
+    if (!binding) return
+    const client = await this.options.host.start()
+    await client.call('session.deepchat_inputs.retire', {
+      sessionId: binding.dimSessionId,
+      branchId: binding.branchId,
+      operationId,
+      requireEmptyQueue
+    })
+    // After the owner acknowledges the fence, an absent submission can no longer arrive late.
+    for (const intent of this.options.database.dimInputIntentsTable.pending(sessionId)) {
+      if (intent.dimSessionId !== binding.dimSessionId || intent.branchId !== binding.branchId)
+        continue
+      if (!(await this.reconcile(intent)))
+        this.options.database.dimInputIntentsTable.settle(intent.submissionId, 'rejected')
+    }
+  }
+  async close(sessionId: string): Promise<void> {
+    const reader = this.readers.get(sessionId)
+    this.readers.delete(sessionId)
+    this.scopes.delete(sessionId)
+    if (reader) await (await reader.catch(() => null))?.reader.close()
+    await this.options.closed?.(sessionId)
+  }
+
+  /** Detach desktop observers for an idle snapshot without revoking input admission scopes. */
+  async withSuspendedReaders<T>(operation: () => Promise<T>): Promise<T> {
+    if (this.suspended) {
+      await this.suspended
+      return this.withSuspendedReaders(operation)
+    }
+    let release!: () => void
+    this.suspended = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const captured = [...this.readers.entries()]
+    const restore: Array<{ id: string; scope: object }> = []
+    try {
+      // Let pending hydration/metadata attachments finish before fencing host.start().
+      for (const [id, opening] of captured) {
+        const opened = await opening.catch(() => null)
+        if (!opened || this.readers.get(id) !== opening) continue
+        restore.push({ id, scope: opened.scope })
+        this.readers.delete(id)
+        await opened.reader.close()
+        await this.options.closed?.(id)
+      }
+      return await operation()
+    } finally {
+      try {
+        for (const { id, scope } of restore) {
+          if (this.scopes.get(id) !== scope || this.readers.has(id)) continue
+          const opening = this.openReader(id, scope)
+          this.readers.set(id, opening)
+          try {
+            await opening
+          } catch (error) {
+            if (this.scopes.get(id) === scope) {
+              this.readers.delete(id)
+              this.scopes.delete(id)
+            }
+            this.options.failed(id, error)
+          }
+        }
+      } finally {
+        this.suspended = null
+        release()
+      }
+    }
+  }
+  async stop(): Promise<void> {
+    for (const id of this.readers.keys()) await this.close(id)
+    await this.options.host.stop()
+  }
+
+  private async openReader(sessionId: string, scope: object): Promise<OpenSession> {
+    const client = await this.options.host.start()
+    if (this.scopes.get(sessionId) !== scope) throw new Error('dim session closed before hydration')
+    let binding = this.options.database.dimSessionBindingsTable.get(sessionId)
+    if (!binding) {
+      const config = await this.options.launch(sessionId)
+      if (this.scopes.get(sessionId) !== scope)
+        throw new Error('dim session closed before native launch')
+      const created = await client.call<{ sessionId: string }>('deepchat.host.launch', config)
+      // No input is sent until the product-to-native identity is durably recorded.
+      if (this.scopes.get(sessionId) !== scope) {
+        await client.call('deepchat.host.delete', { sessionId: created.sessionId }).catch(() => {})
+        throw new Error('dim session closed during native launch')
+      }
+      const nextOrder = this.options.database.deepchatMessagesTable.getMaxOrderSeq(sessionId) + 1
+      binding = this.options.database.dimSessionBindingsTable.bind(
+        sessionId,
+        created.sessionId,
+        'main',
+        nextOrder
+      )
+    }
+    const captured = binding
+    await this.options.prepare?.(captured)
+    if (this.scopes.get(sessionId) !== scope)
+      throw new Error('dim session closed during preparation')
+    const reader = new DimSessionConnection(
+      client,
+      { sessionId: binding.dimSessionId, branchId: binding.branchId },
+      (event) => {
+        if (this.scopes.get(sessionId) !== scope) throw new Error('dim desktop reader was replaced')
+        const projected = this.projection.apply(captured, event)
+        this.options.projected(sessionId, projected)
+      },
+      (error) => {
+        if (this.scopes.get(sessionId) !== scope) return
+        this.readers.delete(sessionId)
+        this.scopes.delete(sessionId)
+        void this.options
+          .closed?.(sessionId)
+          .catch((error) => this.options.failed(sessionId, error))
+        this.options.failed(sessionId, error)
+      },
+      binding.cursor
+    )
+    try {
+      await reader.start()
+      if (this.scopes.get(sessionId) !== scope)
+        throw new Error('dim desktop session closed during hydration')
+      await this.options.opened?.(captured)
+      if (this.scopes.get(sessionId) !== scope)
+        throw new Error('dim desktop session closed while attaching metadata')
+      for (const intent of this.options.database.dimInputIntentsTable.pending(sessionId))
+        await this.reconcile(intent)
+      return { reader, binding: captured, scope }
+    } catch (error) {
+      await reader.close()
+      await this.options.closed?.(sessionId)
+      throw error
+    }
+  }
+}

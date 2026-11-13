@@ -4,11 +4,13 @@ import { z } from 'zod'
 import {
   SYNC_REPLICA_PREFIX,
   SYNC_PART_BYTES,
+  SYNC_MAX_BATCH_BYTES,
   SyncBatchManifestSchema,
   type SyncBatchManifest
 } from '@shared/contracts/syncReplica'
 import type { SyncReplicaStore } from './store'
 import { SyncBatchFiles } from './batches'
+import { SyncNativeBatches, type SyncReplicaNativePort } from './nativeBatches'
 
 const Query = z.object({ after: z.coerce.number().int().nonnegative().safe() })
 
@@ -18,18 +20,21 @@ export class SyncReplicaEndpoint {
   private readonly uploads = new Map<string, SyncBatchManifest>()
   private readonly downloads = new Map<string, SyncBatchManifest>()
   private readonly active = new Set<string>()
+  private readonly native: SyncNativeBatches
   private readonly files: SyncBatchFiles
   private readonly unsubscribe: () => void
 
   constructor(
     private readonly deps: {
       store: SyncReplicaStore
+      native?: SyncReplicaNativePort
       directory: string
       hostId(): string
       available(): boolean
     }
   ) {
     this.files = new SyncBatchFiles(path.join(deps.directory, 'batches'))
+    this.native = new SyncNativeBatches(path.join(deps.directory, 'replica-native'), deps.native)
     this.unsubscribe = deps.store.subscribe(() => {
       if (this.notification) return
       this.notification = setTimeout(() => {
@@ -108,7 +113,8 @@ export class SyncReplicaEndpoint {
         hostId: this.deps.hostId(),
         replicaId: this.deps.store.replicaId,
         revision,
-        writable
+        writable,
+        nativeProfiles: this.deps.native ? 1 : undefined
       })
       return
     }
@@ -147,16 +153,41 @@ export class SyncReplicaEndpoint {
       } else if (route === '/download' && request.method === 'GET') {
         const { after } = Query.parse({ after: url.searchParams.get('after') })
         const batch = this.deps.store.export(after)
-        const manifest = await this.files.prepare(batch)
+        const manifest = await this.native.attach(batch, await this.files.prepare(batch))
         const previous = this.downloads.get(device)
         this.downloads.set(device, manifest)
+        await this.native.prune(
+          new Set(
+            [...this.uploads.values(), ...this.downloads.values()].flatMap((value) =>
+              value.nativeProfile ? [value.nativeProfile.id] : []
+            )
+          )
+        )
         if (
           previous &&
           previous.id !== manifest.id &&
           ![...this.downloads.values()].some((value) => value.id === previous.id)
-        )
+        ) {
           await this.files.discard(previous.id)
+          await this.native.discard(previous)
+        }
         json(200, manifest)
+      } else if (route === '/native-part' && request.method === 'GET') {
+        const manifest = this.downloads.get(device)
+        if (!manifest?.nativeProfile || manifest.id !== url.searchParams.get('id')) {
+          json(404, {})
+          return
+        }
+        const data = await this.native.files.part(
+          manifest.nativeProfile,
+          Number(url.searchParams.get('file')),
+          Number(url.searchParams.get('part'))
+        )
+        response.writeHead(200, {
+          'content-type': 'application/octet-stream',
+          'content-length': data.length
+        })
+        response.end(data)
       } else if (route === '/part' && request.method === 'GET') {
         const id = url.searchParams.get('id')
         const manifest = this.downloads.get(device)
@@ -172,7 +203,7 @@ export class SyncReplicaEndpoint {
         response.end(part)
       } else if (route === '/upload' && request.method === 'POST') {
         const manifest = SyncBatchManifestSchema.parse(
-          JSON.parse((await this.body(request, 65536)).toString())
+          JSON.parse((await this.body(request, SYNC_MAX_BATCH_BYTES)).toString())
         )
         if (manifest.replicaId !== replicaId) {
           json(403, { error: 'replicaMismatch' })
@@ -180,8 +211,28 @@ export class SyncReplicaEndpoint {
         }
         if (manifest.parts !== Math.ceil(manifest.size / SYNC_PART_BYTES) || manifest.parts === 0)
           throw new Error('Invalid parts')
+        if (manifest.nativeProfile && !this.deps.native)
+          throw new Error('sync.tunnel.error.automaticUnsupported')
         this.uploads.set(device, manifest)
-        json(200, { missing: await this.files.missing(manifest) })
+        json(200, {
+          missing: await this.files.missing(manifest),
+          nativeMissing: manifest.nativeProfile
+            ? await this.native.files.missing(manifest.nativeProfile)
+            : []
+        })
+      } else if (route === '/native-part' && request.method === 'POST') {
+        const manifest = this.uploads.get(device)
+        if (!manifest?.nativeProfile || manifest.id !== url.searchParams.get('id')) {
+          json(409, {})
+          return
+        }
+        await this.native.files.receive(
+          manifest.nativeProfile,
+          Number(url.searchParams.get('file')),
+          Number(url.searchParams.get('part')),
+          await this.body(request, SYNC_PART_BYTES)
+        )
+        json(200, {})
       } else if (route === '/part' && request.method === 'POST') {
         const manifest = this.uploads.get(device)
         if (!manifest || manifest.id !== url.searchParams.get('id')) {
@@ -215,11 +266,16 @@ export class SyncReplicaEndpoint {
           json(403, {})
           return
         }
-        const applied = await this.deps.store.apply(
+        const applied = await this.native.apply(
+          this.deps.store,
           batch,
+          manifest,
           () => this.uploads.get(device) === manifest && this.deps.available() && authorized()
         )
-        if (applied) await this.files.discard(manifest.id, true)
+        if (applied) {
+          await this.files.discard(manifest.id, true)
+          await this.native.discard(manifest)
+        }
         json(applied ? 200 : 409, {
           cursor: this.deps.store.cursor(batch.replicaId),
           busy: !applied

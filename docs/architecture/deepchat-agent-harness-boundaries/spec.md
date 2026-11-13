@@ -1,5 +1,10 @@
 # DeepChat Runtime, Tool Execution and Hooks
 
+> Superseded by the [dim Rust integration](../dim-rust-harness-migration/spec.md).
+> The TypeScript runtime owners described below have been retired. Current built-in execution
+> belongs to dim Rust; DeepChat supplies product plugins and the independent Direct ACP client.
+> These sections remain historical context for legacy data readers and migration.
+
 The [Main host contract](../main-harness-portability/spec.md) defines the production entry and
 execution/persistence/output ports. This document defines the runtime owners beneath that boundary.
 Direct ACP uses its own backend; cross-agent state reads go through AgentManager.

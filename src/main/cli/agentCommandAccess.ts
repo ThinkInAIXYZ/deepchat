@@ -32,6 +32,21 @@ export type AgentCommandEnvironment = Readonly<{
   prependPath: readonly string[]
 }>
 
+export interface AgentCommandEnvironmentPort {
+  createEnvironment(
+    conversationId: string,
+    command: string,
+    commandShell: ResolvedCommandShell
+  ): AgentCommandEnvironment | undefined
+  createProgrammaticEnvironment?(
+    armed: ArmedAgentCliProgrammaticToken,
+    conversationId: string,
+    command: string,
+    stdin: string | undefined,
+    commandShell: ResolvedCommandShell
+  ): AgentCommandEnvironment
+}
+
 export type AgentCliCommandAccessOptions = Readonly<{
   tokenAuthority: Pick<AgentCliTokenAuthority, 'issue'>
   commandPermission: Pick<CommandPermissionService, 'extractBaseCommand' | 'hasShellControlSyntax'>

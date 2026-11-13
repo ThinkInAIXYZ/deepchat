@@ -1,0 +1,504 @@
+import { nativeMediaReference } from '@shared/dimMedia'
+import type {
+  AssistantMessageBlock,
+  ChatMessageRecord,
+  MessageMetadata,
+  UserMessageContent
+} from '@shared/types/agent-interface'
+import type { HtmlRenderDescriptor, ToolCallImagePreview } from '@shared/types/core/mcp'
+import type { DimSessionBinding } from '@/session/data/tables/dimSessionBindings'
+import { dimSequence, type DimEvent } from './sessionConnection'
+import { dimQuestions } from '@shared/dimQuestions'
+import { projectDimHistory } from './historyImport'
+
+export interface DimProjection {
+  event?: DimEvent
+  binding: DimSessionBinding
+  messages: ChatMessageRecord[]
+  retractions?: string[]
+  resetTranscript?: boolean
+  inputEvents?: DimEvent[]
+  consumedInputs?: string[]
+  completed?: { requestId: string; messageId: string; error?: string }
+}
+
+export function dimProjectionInputKey(input: DimEvent): string {
+  if (
+    input.type === 'deepchat' &&
+    input.name === 'input-representation' &&
+    typeof input.data.submissionId === 'string'
+  )
+    return `submission:${input.data.submissionId}`
+  if (input.type === 'deepchat' && input.name === 'history-chunk')
+    return `history:${input.data.migrationId}:${input.data.index}`
+  return input.id
+}
+
+/** A desktop read-model fold; none of these decisions can advance dim's execution. */
+export function projectDimEvent(
+  binding: DimSessionBinding,
+  event: DimEvent,
+  readMessage: (id: string) => ChatMessageRecord | null,
+  readInput: (id: string) => DimEvent | null
+): DimProjection {
+  if (dimSequence(event.sequence) <= dimSequence(binding.cursor)) return { binding, messages: [] }
+  const next = { ...binding, cursor: String(event.sequence) }
+  const messages: ChatMessageRecord[] = []
+  const result: DimProjection = { binding: next, messages, event }
+  const key = `${event.type}/${event.name}`
+  const now = event.create_at
+  if (key === 'deepchat/history-chunk') {
+    result.inputEvents = [event]
+    return result
+  }
+  if (key === 'deepchat/history-sealed') {
+    const imported = projectDimHistory(binding, event, readInput)
+    result.messages = imported.messages
+    result.consumedInputs = imported.keys
+    result.resetTranscript = true
+    for (const message of imported.messages)
+      next.nextOrderSeq = Math.max(next.nextOrderSeq, message.orderSeq + 1)
+    return result
+  }
+  const source = event.data.source
+  const sourceTurnId =
+    source &&
+    typeof source === 'object' &&
+    !Array.isArray(source) &&
+    typeof source.turn_id === 'string'
+      ? source.turn_id
+      : null
+  const turnId =
+    typeof event.data.turn_id === 'string'
+      ? event.data.turn_id
+      : (sourceTurnId ?? (event.type === 'approval' ? binding.activeTurnId : null))
+  const createMessage = (
+    id: string,
+    role: 'user' | 'assistant',
+    content: string,
+    status: ChatMessageRecord['status'],
+    orderSeq?: number
+  ): ChatMessageRecord => ({
+    id,
+    sessionId: binding.sessionId,
+    orderSeq: orderSeq ?? next.nextOrderSeq++,
+    role,
+    content,
+    status,
+    isContextEdge: 0,
+    metadata: JSON.stringify({
+      dim: {
+        sessionId: binding.dimSessionId,
+        branchId: binding.branchId,
+        eventId: event.id,
+        sequence: String(event.sequence),
+        revision: 0
+      }
+    }),
+    createdAt: now,
+    updatedAt: now
+  })
+  if (key === 'deepchat/input-representation') {
+    result.inputEvents = [event]
+    return result
+  }
+  if (key === 'deepchat/input-rejected' && typeof event.data.submissionId === 'string') {
+    result.consumedInputs = [`submission:${event.data.submissionId}`]
+    return result
+  }
+  const clearInputCache = (inputId: string) => {
+    const input = readInput(inputId)
+    result.consumedInputs = [inputId]
+    if (typeof input?.data.submission_id === 'string')
+      result.consumedInputs.push(`submission:${input.data.submission_id}`)
+  }
+  const userIdentity = (inputId: string) => {
+    const input = readInput(inputId)
+    const representation =
+      typeof input?.data.submission_id === 'string'
+        ? readInput(`submission:${input.data.submission_id}`)
+        : null
+    const reuse = representation?.data.reuseUserMessage
+    if (reuse != null) {
+      if (
+        typeof reuse !== 'object' ||
+        Array.isArray(reuse) ||
+        typeof reuse.messageId !== 'string' ||
+        !reuse.messageId ||
+        typeof reuse.orderSeq !== 'number' ||
+        !Number.isSafeInteger(reuse.orderSeq) ||
+        reuse.orderSeq < 1 ||
+        typeof reuse.createdAt !== 'number' ||
+        !Number.isSafeInteger(reuse.createdAt) ||
+        reuse.createdAt < 0
+      )
+        throw new Error('Invalid retried product message identity')
+      return { id: reuse.messageId, orderSeq: reuse.orderSeq, createdAt: reuse.createdAt }
+    }
+    return { id: dimUserMessageId(binding, inputId) }
+  }
+  if (key === 'input/deleted' && typeof event.data.input_id === 'string') {
+    result.retractions = [userIdentity(event.data.input_id).id]
+    clearInputCache(event.data.input_id)
+    return result
+  }
+  if (key === 'input/message') {
+    result.inputEvents = [event]
+    return result
+  }
+  if (key === 'input/consumed' && typeof event.data.input_id === 'string') {
+    const original = readMessage(userIdentity(event.data.input_id).id)
+    clearInputCache(event.data.input_id)
+    if (original) {
+      const metadata = JSON.parse(original.metadata) as MessageMetadata
+      if (metadata.dim && binding.activeTurnId)
+        metadata.dim = { ...metadata.dim, turnId: binding.activeTurnId }
+      if (metadata.inputReceipt) {
+        metadata.inputReceipt = { ...metadata.inputReceipt, readAt: now, delivery: 'applied' }
+      }
+      messages.push({ ...original, metadata: JSON.stringify(metadata), updatedAt: now })
+    }
+    return result
+  }
+  if (key === 'input/applied' && typeof event.data.input_id === 'string') {
+    const input = readInput(event.data.input_id)
+    if (
+      input?.data.mode === 'append' &&
+      typeof input.data.submission_id === 'string' &&
+      input.data.submission_id.startsWith('history:')
+    )
+      return result
+    const nativeUser = input?.data.user
+    if (!input || !nativeUser || typeof nativeUser !== 'object' || Array.isArray(nativeUser))
+      return result
+    const content = Array.isArray(nativeUser.content) ? nativeUser.content : []
+    const text = content
+      .flatMap((item) =>
+        item &&
+        typeof item === 'object' &&
+        !Array.isArray(item) &&
+        item.type === 'text' &&
+        typeof item.text === 'string'
+          ? [item.text]
+          : []
+      )
+      .join('\n')
+    const user: UserMessageContent = { text, files: [], links: [], search: false, think: false }
+    // Native attachment references are preserved with the input rather than silently dropping them.
+    for (const item of content) {
+      if (!item || typeof item !== 'object' || Array.isArray(item) || item.type !== 'image')
+        continue
+      const source = item.source
+      if (source && typeof source === 'object' && !Array.isArray(source)) {
+        const mediaType =
+          typeof source.mediaType === 'string' ? source.mediaType : 'application/octet-stream'
+        const url =
+          typeof source.url === 'string'
+            ? source.url
+            : `data:${mediaType};base64,${source.data ?? ''}`
+        user.files.push({
+          name: `image-${user.files.length + 1}`,
+          path: url,
+          mimeType: mediaType,
+          type: mediaType
+        })
+      }
+    }
+    const representation =
+      typeof input.data.submission_id === 'string'
+        ? readInput(`submission:${input.data.submission_id}`)?.data.content
+        : undefined
+    if (
+      representation !== undefined &&
+      (!representation ||
+        typeof representation !== 'object' ||
+        Array.isArray(representation) ||
+        typeof representation.text !== 'string' ||
+        !Array.isArray(representation.files) ||
+        !Array.isArray(representation.links) ||
+        typeof representation.search !== 'boolean' ||
+        typeof representation.think !== 'boolean')
+    )
+      throw new Error('Invalid native product input representation')
+    const identity = userIdentity(input.id)
+    const record = createMessage(
+      identity.id,
+      'user',
+      JSON.stringify(representation ?? user),
+      'sent',
+      identity.orderSeq
+    )
+    record.createdAt = identity.createdAt ?? input.create_at
+    if (identity.orderSeq !== undefined) {
+      record.orderSeq = identity.orderSeq
+      next.nextOrderSeq = Math.max(next.nextOrderSeq, identity.orderSeq + 1)
+    }
+    if (input.data.mode === 'steer')
+      record.metadata = JSON.stringify({
+        ...JSON.parse(record.metadata),
+        inputReceipt: { mode: 'steer', readAt: null, delivery: 'applied' }
+      })
+    messages.push(record)
+    return result
+  }
+  if (key === 'turn/start' && turnId) {
+    next.activeTurnId = turnId
+    next.assistantMessageId = `dim:${binding.dimSessionId}:${binding.branchId}:${turnId}`
+    next.status = 'generating'
+    const message = createMessage(next.assistantMessageId, 'assistant', '[]', 'pending')
+    message.metadata = JSON.stringify({ ...JSON.parse(message.metadata), runId: turnId })
+    messages.push(message)
+    return result
+  }
+  if (!turnId || turnId !== binding.activeTurnId || !binding.assistantMessageId) return result
+  const original = readMessage(binding.assistantMessageId)
+  if (!original) throw new Error('dim projection is missing its active assistant message')
+  const message: ChatMessageRecord = { ...original, updatedAt: now }
+  const blocks = JSON.parse(original.content) as AssistantMessageBlock[]
+  const metadata = JSON.parse(original.metadata) as MessageMetadata
+  let changed = false
+  if (key === 'approval/request' && typeof event.data.approval_id === 'string') {
+    const call = event.data.call
+    blocks.push({
+      id: event.data.approval_id,
+      type: 'action',
+      action_type: 'tool_call_permission',
+      status: 'pending',
+      timestamp: now,
+      content: typeof event.data.reason === 'string' ? event.data.reason : '',
+      tool_call: {
+        id: event.data.approval_id,
+        name: call && typeof call === 'object' && !Array.isArray(call) ? String(call.name) : ''
+      },
+      extra: { needsUserAction: true, permissionRequest: JSON.stringify(call) }
+    })
+    changed = true
+  } else if (key === 'approval/respond' || key === 'approval/cancelled') {
+    const block = blocks.find((candidate) => candidate.id === event.data.approval_id)
+    if (block) {
+      block.status = event.data.decision === 'allow' ? 'granted' : 'denied'
+      block.extra = { ...block.extra, needsUserAction: false }
+    }
+    changed = true
+  } else if (key === 'step/text' || key === 'step/thinking') {
+    const type = key === 'step/text' ? 'content' : 'reasoning_content'
+    const delta = typeof event.data.delta === 'string' ? event.data.delta : ''
+    const media =
+      key === 'step/text'
+        ? /^!\[(image\/[a-zA-Z0-9.+-]+|audio\/[a-zA-Z0-9.+-]+|video\/[a-zA-Z0-9.+-]+)\]\((imgcache:\/\/[^)\s]+)\)\n$/.exec(
+            delta
+          )
+        : null
+    if (media && nativeMediaReference(media[2])) {
+      blocks.push({
+        id: event.id,
+        type: 'image',
+        status: 'success',
+        timestamp: now,
+        image_data: { data: media[2], mimeType: media[1] }
+      })
+      message.content = JSON.stringify(blocks)
+      messages.push(message)
+      return result
+    }
+    const last = blocks.at(-1)
+    if (last?.type === type && last.status === 'loading')
+      last.content = (last.content ?? '') + delta
+    else blocks.push({ id: event.id, type, content: delta, status: 'loading', timestamp: now })
+    changed = true
+  } else if (key === 'step/tool-call' && Array.isArray(event.data.calls)) {
+    for (const value of event.data.calls) {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) continue
+      blocks.push({
+        id: `${event.data.request_id}:${value.id}`,
+        type: 'tool_call',
+        extra: { dimRequestId: String(event.data.request_id) },
+        status: 'loading',
+        timestamp: now,
+        tool_call: {
+          id: String(value.id),
+          name: String(value.name),
+          params: JSON.stringify(value.input ?? {})
+        }
+      })
+      const input = value.input
+      const questions =
+        value.name === 'ask_user' && input && typeof input === 'object' && !Array.isArray(input)
+          ? dimQuestions(input.questions)
+          : []
+      if (questions.length)
+        blocks.push({
+          id: `question:${event.data.request_id}:${value.id}`,
+          type: 'action',
+          action_type: 'question_request',
+          status: 'pending',
+          timestamp: now,
+          content: questions.map((question) => question.question).join('\n'),
+          tool_call: {
+            id: String(value.id),
+            name: 'ask_user',
+            params: JSON.stringify(value.input)
+          },
+          extra: {
+            needsUserAction: true,
+            questionResolution: 'asked',
+            dimRequestId: String(event.data.request_id),
+            dimQuestions: JSON.stringify(questions),
+            questionText: questions.map((question) => question.question).join('\n'),
+            questionOptions: questions[0].options,
+            questionMultiple: questions[0].multiSelect,
+            questionCustom: questions[0].allowCustom
+          }
+        })
+    }
+    changed = true
+  } else if (key === 'step/tool-completed' || key === 'step/tool-result') {
+    const results =
+      key === 'step/tool-completed'
+        ? [{ call_id: event.data.call_id, result: event.data.result }]
+        : event.data.results
+    if (Array.isArray(results))
+      for (const value of results) {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) continue
+        const block = blocks.find(
+          (candidate) =>
+            candidate.tool_call?.id === value.call_id &&
+            candidate.extra?.dimRequestId === event.data.request_id
+        )
+        if (!block?.tool_call) continue
+        const toolResult = value.result
+        block.tool_call.response = JSON.stringify(toolResult)
+        if (toolResult && typeof toolResult === 'object' && !Array.isArray(toolResult)) {
+          const structured = toolResult.structuredContent
+          const display =
+            structured && typeof structured === 'object' && !Array.isArray(structured)
+              ? structured.deepchatDisplay
+              : null
+          if (display && typeof display === 'object' && !Array.isArray(display)) {
+            if (typeof display.response === 'string') block.tool_call.response = display.response
+            const html = display.htmlRender
+            if (
+              toolResult.isError !== true &&
+              html &&
+              typeof html === 'object' &&
+              !Array.isArray(html) &&
+              html.schemaVersion === 1 &&
+              typeof html.title === 'string' &&
+              (html.panelId === undefined || typeof html.panelId === 'string') &&
+              (html.height === undefined ||
+                (typeof html.height === 'number' && Number.isFinite(html.height)))
+            )
+              block.tool_call.htmlRender = html as unknown as HtmlRenderDescriptor
+            if (Array.isArray(display.imagePreviews))
+              block.tool_call.imagePreviews = display.imagePreviews
+                .slice(0, 32)
+                .filter(
+                  (preview) =>
+                    !!preview &&
+                    typeof preview === 'object' &&
+                    !Array.isArray(preview) &&
+                    typeof preview.id === 'string' &&
+                    typeof preview.data === 'string' &&
+                    typeof preview.mimeType === 'string' &&
+                    ['tool_output', 'file_read', 'screenshot', 'mcp_image'].includes(
+                      String(preview.source)
+                    )
+                ) as unknown as ToolCallImagePreview[]
+          }
+        }
+        block.status =
+          toolResult &&
+          typeof toolResult === 'object' &&
+          !Array.isArray(toolResult) &&
+          toolResult.isError
+            ? 'error'
+            : 'success'
+        const action = blocks.find(
+          (candidate) =>
+            candidate.type === 'action' &&
+            candidate.tool_call?.id === value.call_id &&
+            candidate.extra?.dimRequestId === event.data.request_id
+        )
+        if (action) {
+          action.status = block.status
+          const content =
+            toolResult && typeof toolResult === 'object' && !Array.isArray(toolResult)
+              ? toolResult.content
+              : ''
+          action.extra = {
+            ...action.extra,
+            needsUserAction: false,
+            questionResolution: block.status === 'error' ? 'rejected' : 'replied',
+            answerText: typeof content === 'string' ? content : JSON.stringify(content)
+          }
+        }
+      }
+    changed = true
+  } else if (
+    key === 'model/usage' &&
+    event.data.usage &&
+    typeof event.data.usage === 'object' &&
+    !Array.isArray(event.data.usage)
+  ) {
+    const usage = event.data.usage
+    const add = (
+      key:
+        | 'inputTokens'
+        | 'outputTokens'
+        | 'totalTokens'
+        | 'cachedInputTokens'
+        | 'cacheWriteInputTokens',
+      value: unknown
+    ) => {
+      if (typeof value === 'number' && Number.isFinite(value))
+        metadata[key] = (metadata[key] ?? 0) + value
+    }
+    add('inputTokens', usage.promptTokens)
+    add('outputTokens', usage.completionTokens)
+    add('totalTokens', usage.totalTokens)
+    add('cachedInputTokens', usage.cacheReadTokens)
+    add('cacheWriteInputTokens', usage.cacheWriteTokens)
+    changed = true
+  } else if (key === 'turn/end') {
+    const error = typeof event.data.error === 'string' ? event.data.error : undefined
+    const cancelled = event.data.status === 'cancelled'
+    for (const block of blocks)
+      if (block.status === 'loading') block.status = error || cancelled ? 'error' : 'success'
+      else if (block.type === 'action' && block.status === 'pending') {
+        block.status = 'denied'
+        block.extra = { ...block.extra, needsUserAction: false, questionResolution: 'rejected' }
+      }
+    if (error)
+      blocks.push({ id: event.id, type: 'error', content: error, status: 'error', timestamp: now })
+    metadata.runOutcome = error ? 'error' : cancelled ? 'aborted' : 'completed'
+    if (typeof event.data.reason === 'string') metadata.runStopReason = event.data.reason
+    message.status = error || cancelled ? 'error' : 'sent'
+    next.status = error ? 'error' : 'idle'
+    next.activeTurnId = null
+    next.assistantMessageId = null
+    result.completed = { requestId: turnId, messageId: message.id, ...(error ? { error } : {}) }
+    changed = true
+  }
+  if (changed) {
+    message.content = JSON.stringify(blocks)
+    message.metadata = JSON.stringify({
+      ...metadata,
+      dim: {
+        sessionId: binding.dimSessionId,
+        branchId: binding.branchId,
+        eventId: event.id,
+        sequence: String(event.sequence),
+        revision: (metadata.dim?.revision ?? 0) + 1
+      }
+    })
+    messages.push(message)
+  }
+  return result
+}
+
+export function dimUserMessageId(
+  binding: Pick<DimSessionBinding, 'dimSessionId' | 'branchId'>,
+  inputId: string
+): string {
+  return `dim:${binding.dimSessionId}:${binding.branchId}:${inputId}`
+}

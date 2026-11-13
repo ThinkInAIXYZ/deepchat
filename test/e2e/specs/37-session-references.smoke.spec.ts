@@ -14,7 +14,7 @@ import { waitForAppReady } from '../helpers/wait'
 
 test('session references survive drafts and retrieve evidence without injecting history @smoke', async ({
   app
-}) => {
+}, testInfo) => {
   let sourceId = ''
   let sawReader = false
   let referenceRequest = ''
@@ -201,7 +201,7 @@ test('session references survive drafts and retrieve evidence without injecting 
     await editor.fill('@Launch')
     const candidate = app.page.getByRole('option', { name: /Launch research/ })
     await expect(candidate).toBeVisible()
-    const artifacts = resolve('.amp/in/artifacts')
+    const artifacts = testInfo.outputPath()
     mkdirSync(artifacts, { recursive: true })
     await app.page.screenshot({ path: resolve(artifacts, 'composer-experience-candidates.png') })
     await candidate.click()
@@ -223,6 +223,8 @@ test('session references survive drafts and retrieve evidence without injecting 
     await chip.getByRole('button', { name: /Delete|删除/ }).focus()
     await app.page.keyboard.press('Space')
     await expect(chip).toHaveCount(0)
+    const sidebarToggle = app.page.getByTestId('window-sidebar-toggle')
+    if ((await sidebarToggle.getAttribute('aria-expanded')) === 'false') await sidebarToggle.click()
     const sourceRow = app.page
       .locator(`[data-testid="sidebar-session-item"][data-session-id="${sourceId}"]`)
       .first()
@@ -376,6 +378,7 @@ test('session references survive drafts and retrieve evidence without injecting 
     )
     await expect(app.page.locator('[data-hero-clone="chat-input"]')).toHaveCount(0)
     const sentAttachment = app.page.getByTestId('chat-message-user').last()
+    await expect(sentAttachment).toHaveAttribute('data-message-id', /^dim:/)
     await expect(sentAttachment.getByTestId('chat-attachment-item')).toContainText(
       'composer-attachment.png'
     )
@@ -387,6 +390,20 @@ test('session references survive drafts and retrieve evidence without injecting 
     ).toHaveCount(0)
 
     // Restore the legacy inline representation without changing its backing uploaded material.
+    await expect
+      .poll(async () =>
+        app.page.evaluate(async (sessionId) => {
+          const { messages } = await window.deepchat.invoke('sessions.listMessagesPage', {
+            sessionId
+          })
+          return messages.some(
+            (message) =>
+              message.role === 'user' &&
+              message.content.includes('Attachment shelf editable before send.')
+          )
+        }, workspaceSessionId)
+      )
+      .toBe(true)
     const attachmentMessageId = await sentAttachment.getAttribute('data-message-id')
     await app.page.evaluate(
       async ({ sessionId, messageId }) => {
@@ -554,21 +571,20 @@ test('session references survive drafts and retrieve evidence without injecting 
     holdNextStream = true
     await sendMessage(app.page, 'Keep this turn open for queue editing.')
     await expect.poll(() => !!releaseStream).toBe(true)
-    const itemId = await app.page.evaluate(
+    await app.page.evaluate(
       async ({ sessionId, sourceId }) => {
         const { reference } = (await window.deepchat.invoke('sessions.resolveReference', {
           sessionId: sourceId
         })) as { reference: SessionReference }
         const text = 'Review  after the current turn.'
-        const { item } = (await window.deepchat.invoke('sessions.queuePendingInput', {
+        await window.deepchat.invoke('sessions.queuePendingInput', {
           sessionId,
           content: {
             text,
             files: [],
             inlineItems: [{ type: 'session', offset: 7, ...reference }]
           }
-        })) as { item: { id: string } }
-        return item.id
+        })
       },
       { sessionId: targetId, sourceId }
     )
@@ -589,7 +605,6 @@ test('session references survive drafts and retrieve evidence without injecting 
     await expect.poll(readQueue).toMatchObject({
       items: [
         {
-          id: itemId,
           payload: {
             text: 'Review  after the current turn. Please proceed.',
             inlineItems: [{ sessionId: sourceId, offset: 7 }]
@@ -604,17 +619,13 @@ test('session references survive drafts and retrieve evidence without injecting 
       .click()
     await queueEditor.press('ControlOrMeta+Enter')
     await expect(queueRow).toHaveText('Review after the current turn. Please proceed.')
-    await expect.poll(readQueue).toMatchObject({
-      items: [
-        {
-          id: itemId,
-          payload: { text: 'Review  after the current turn. Please proceed.', inlineItems: [] }
-        }
-      ]
-    })
+    await expect
+      .poll(async () => (await readQueue()).items.map((item) => item.payload.inlineItems ?? []))
+      .toEqual([[]])
     await app.page.getByTestId('pending-rail').screenshot({
       path: resolve(artifacts, 'composer-experience-queue.png')
     })
+    const itemId = (await readQueue()).items[0].id
     await app.page.evaluate(
       ({ sessionId, itemId }) =>
         window.deepchat.invoke('sessions.deletePendingInput', { sessionId, itemId }),
@@ -634,7 +645,7 @@ test('session references survive drafts and retrieve evidence without injecting 
         })) as { reference: SessionReference }
         const pinia = Reflect.get(document.getElementById('app')!, '__vue_app__').config
           .globalProperties.$pinia
-        const result = await pinia._s.get('session').createSession({
+        const result = await pinia._s.get('chat-session').createSession({
           agentId: 'deepchat',
           providerId,
           modelId: 'fixture-model',

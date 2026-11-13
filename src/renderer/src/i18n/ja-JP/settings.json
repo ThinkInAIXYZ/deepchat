@@ -472,7 +472,8 @@
       "saveAndTest": "保存してテスト",
       "saveOnly": "保存のみ",
       "saveAndTestFirst": "まずクラウド設定を保存してテストしてください。"
-    }
+    },
+    "legacyBackupPassword": "旧暗号化バックアップのパスワード（任意）"
   },
   "dashboard": {
     "badge": "使用ダッシュボード",
@@ -637,10 +638,6 @@
       "reasoningToggle": {
         "description": "このモデルで推論をデフォルトで有効にするかを制御します",
         "label": "推論を有効化"
-      },
-      "interleavedThinking": {
-        "label": "Interleaved Thinking",
-        "description": "このモデルで reasoning と tool-call メッセージを Interleaved Thinking として処理するかを制御します。プロバイダーの既定値がある場合は自動的に適用されます。"
       },
       "thinkingBudget": {
         "label": "思考予算",
@@ -2832,7 +2829,6 @@
     "thinkingBudget": "思考予算",
     "reasoningEffort": "推論強度",
     "verbosity": "詳細度",
-    "interleaved": "インターリーブ思考互換を強制",
     "systemPrompt": "既定のシステムプロンプト",
     "systemPromptPlaceholder": "空欄のシステムプロンプトにする場合は空のままにします",
     "defaultProjectPath": "既定のディレクトリ（任意）",

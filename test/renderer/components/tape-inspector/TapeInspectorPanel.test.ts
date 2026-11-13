@@ -1189,7 +1189,7 @@ describe('TapeInspectorPanel', () => {
     })
     expect(downloadBlob).toHaveBeenCalledWith(
       expect.any(Blob),
-      'tape-inspector-session_unsafe-2023-11-14T22-13-20-000Z.json'
+      'timeline-inspector-session_unsafe-2023-11-14T22-13-20-000Z.json'
     )
   })
 

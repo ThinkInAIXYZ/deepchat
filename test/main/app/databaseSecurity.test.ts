@@ -271,24 +271,12 @@ describe('DatabaseSecurityService', () => {
     expect(mocks.app.quit).toHaveBeenCalled()
   })
 
-  it('cleans legacy provider JSON before enabling encryption', async () => {
+  it('rejects retired encryption writes without touching the database', async () => {
     const { DatabaseSecurityService } = await import('@/app/databaseSecurity')
-    const presenter = new DatabaseSecurityService({ dbPath: '/tmp/deepchat-test/agent.db' })
-    const migrateDatabase = vi
-      .spyOn(presenter as unknown as { migrateDatabase: () => Promise<void> }, 'migrateDatabase')
-      .mockResolvedValue(undefined)
-    const cleanupLegacyProviderJsonForDatabaseEncryption = vi.fn(() => 1)
-
-    await presenter.enableEncryption({
-      password: 'secret',
-      database: {} as never,
-      providerSettings: {
-        cleanupLegacyProviderJsonForDatabaseEncryption
-      } as never
-    })
-
-    expect(cleanupLegacyProviderJsonForDatabaseEncryption).toHaveBeenCalledTimes(1)
-    expect(migrateDatabase).toHaveBeenCalledTimes(1)
+    const service = new DatabaseSecurityService({ dbPath: '/tmp/deepchat-test/agent.db' })
+    await expect(service.enableEncryption({} as never)).rejects.toThrow('retired')
+    await expect(service.changePassword({} as never)).rejects.toThrow('retired')
+    expect(mocks.openSQLiteDatabase).not.toHaveBeenCalled()
   })
 
   it('qualifies CREATE TABLE IF NOT EXISTS for the migration target schema', async () => {

@@ -510,6 +510,11 @@ $ pip install setuptools
 $ pnpm run dev
 ```
 
+开发需要 Rust 1.98.1（通过 rustup 安装；Windows 还需 Visual Studio C++ Build Tools）。
+`pnpm dev` 会先准备锁定版本的 Node/dim release、插件运行时和原生宿主，再启动 Electron。
+首次需要网络并构建宿主；之后复用已验证的本地资源，直到 runtime 源码或版本锁发生变化。
+详见[快速入门](docs/guides/getting-started.md)。正式安装包内置这些 runtime，用户无需安装 Rust。
+
 ### 构建
 
 ```bash

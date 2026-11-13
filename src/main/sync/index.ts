@@ -4,7 +4,6 @@ import { isNowledgeMachineLocalSetting } from '@shared/types/nowledgeMemPlugin'
 import path from 'path'
 import fs from 'fs'
 import Database from 'better-sqlite3-multiple-ciphers'
-import { unzip, Zip, AsyncZipDeflate } from 'fflate'
 import type { SyncBackupInfo, CloudSyncResult } from '@shared/types/sync'
 import { CloudStorageService } from './cloudStorageService'
 import type { DeepchatEventPublisher } from '@shared/contracts/events'
@@ -19,6 +18,15 @@ import type { SyncSettings } from './settings'
 import { withBackupSnapshot, type BackupReadLockOutcome } from '@/data/backupReadLock'
 import type { SettingsDatabase } from '@/settings/data/database'
 import type { ProviderDatabase } from '@/provider/data/database'
+import {
+  DimProfileRecoveryError,
+  type PreparedDimProfile,
+  type SyncNativeProfilePort
+} from '@/agent/dim/profileBackups'
+import type { DimProfileSnapshot } from '@/agent/dim/profileSnapshot'
+import { SyncImportRecovery } from './importRecovery'
+import { extractBackupArchive, writeBackupArchive, type BackupArchiveEntry } from './backupArchive'
+import { syncDirectory } from '../data/durableFile'
 
 interface PromptStore {
   prompts: Array<{ id?: string; [key: string]: unknown }>
@@ -69,25 +77,12 @@ const ZIP_PATHS = {
   customPrompts: 'configs/custom_prompts.json',
   systemPrompts: 'configs/system_prompts.json',
   mcpSettings: 'configs/mcp-settings.json',
-  manifest: 'manifest.json'
+  manifest: 'manifest.json',
+  nativeManifest: 'dim/manifest.json'
 }
 
 const toUint8ArrayView = (buffer: Buffer): Uint8Array =>
   new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength)
-
-const ZIP_LEVEL = 6
-const ZIP_SLICE_SIZE = 4 * 1024 * 1024
-
-const unzipAsync = (data: Uint8Array) =>
-  new Promise<Record<string, Uint8Array>>((resolve, reject) => {
-    unzip(data, (error, extracted) => {
-      if (error) {
-        reject(error)
-        return
-      }
-      resolve(extracted)
-    })
-  })
 
 type BackupDbSource = {
   type: 'agent' | 'chat'
@@ -128,7 +123,6 @@ export class SyncService {
   private readonly APP_SETTINGS_PATH = path.join(app.getPath('userData'), 'app-settings.json')
   private readonly CUSTOM_PROMPTS_PATH = path.join(app.getPath('userData'), 'custom_prompts.json')
   private readonly SYSTEM_PROMPTS_PATH = path.join(app.getPath('userData'), 'system_prompts.json')
-  private readonly MCP_SETTINGS_PATH = path.join(app.getPath('userData'), 'mcp-settings.json')
   private readonly DB_PATH = path.join(app.getPath('userData'), 'app_db', 'agent.db')
 
   constructor(
@@ -136,7 +130,13 @@ export class SyncService {
     private readonly database: SyncDatabasePort,
     private readonly settingsDatabase: SettingsDatabase,
     private readonly providerDatabase: ProviderDatabase,
-    private readonly publishEvent: DeepchatEventPublisher
+    private readonly publishEvent: DeepchatEventPublisher,
+    private readonly decryptLegacyBackup?: (
+      source: string,
+      target: string,
+      password: string
+    ) => void,
+    private readonly nativeProfile?: SyncNativeProfilePort
   ) {}
 
   public async checkSyncFolder(): Promise<{ exists: boolean; path: string }> {
@@ -323,7 +323,8 @@ export class SyncService {
   public async importFromSync(
     backupFileName: string,
     importMode: 'increment' | 'overwrite',
-    database: SyncImportDatabasePort
+    database: SyncImportDatabasePort,
+    legacyPassword?: string
   ): Promise<SyncImportResult> {
     const { exists, path: syncFolderPath } = await this.checkSyncFolder()
     if (!exists) {
@@ -343,14 +344,15 @@ export class SyncService {
       return { success: false, message: 'sync.error.noValidBackup' }
     }
 
-    return this.importBackupFile(backupZipPath, importMode, database)
+    return this.importBackupFile(backupZipPath, importMode, database, legacyPassword)
   }
 
   /** Internal entry point for a fully downloaded and verified private staging file. */
   public async importBackupFile(
     backupZipPath: string,
     importMode: 'increment' | 'overwrite',
-    database: SyncImportDatabasePort
+    database: SyncImportDatabasePort,
+    legacyPassword?: string
   ): Promise<SyncImportResult> {
     this.publishEvent('sync.import.started', {
       version: Date.now()
@@ -359,27 +361,22 @@ export class SyncService {
     const extractionDir = path.join(app.getPath('temp'), `deepchat-backup-${Date.now()}`)
     fs.mkdirSync(extractionDir, { recursive: true })
 
-    const tempCurrentFiles: Record<string, string | null> = {
-      db: null,
-      appSettings: null,
-      customPrompts: null,
-      systemPrompts: null,
-      mcpSettings: null
-    }
-
     let sqliteClosed = false
-    let sqliteReopenedForLegacyImport = false
+    let preparedNative: PreparedDimProfile | undefined
+    let installedNative: Awaited<ReturnType<PreparedDimProfile['install']>> | undefined
+    let recoveryRequired = false
+    let recovery: SyncImportRecovery | undefined
 
     try {
       await this.extractBackupArchive(backupZipPath, extractionDir)
       const configImportService = this.createConfigImportService()
-      const manifest = configImportService.readManifest(extractionDir)
+      let manifest = configImportService.readManifest(extractionDir)
       const backupVersion = this.resolveBackupVersion(manifest)
       const usesSqliteConfigStorage = backupVersion >= 2 && manifest?.configStorage === 'sqlite'
       const activeDatabasePassword = this.getActiveDatabasePassword()
-      const backupDatabasePassword = this.resolveBackupDatabasePassword(
+      let backupDatabasePassword = this.resolveBackupDatabasePassword(
         manifest,
-        activeDatabasePassword
+        legacyPassword ?? activeDatabasePassword
       )
 
       const backupDbSource = this.resolveBackupDbSource(extractionDir)
@@ -393,6 +390,14 @@ export class SyncService {
       if (usesSqliteConfigStorage && backupDbSource.type !== 'agent') {
         throw new Error('sync.error.noValidBackup')
       }
+      if (backupDatabasePassword && !activeDatabasePassword) {
+        if (!this.decryptLegacyBackup) throw new Error('sync.error.encryptedBackupPasswordMissing')
+        const decrypted = path.join(extractionDir, 'legacy-decrypted-agent.db')
+        this.decryptLegacyBackup(backupDbSource.path, decrypted, backupDatabasePassword)
+        backupDbSource.path = decrypted
+        backupDatabasePassword = undefined
+        manifest = manifest ? { ...manifest, databaseEncrypted: false } : null
+      }
       this.assertOverwriteEncryptionCompatible(
         backupDbSource.type,
         importMode,
@@ -400,31 +405,60 @@ export class SyncService {
         activeDatabasePassword
       )
 
+      if (backupDbSource.type === 'agent' && !manifest?.nativeProfile) {
+        const backupDb = this.openBackupDatabase(backupDbSource.path, backupDatabasePassword)
+        try {
+          // Product mappings alone cannot recover canonical Native content. Old legacy-only
+          // packages remain valid; incomplete early Native packages must not bind to live data.
+          if (this.countTableRows(backupDb, 'dim_session_bindings') > 0)
+            throw new Error('sync.error.noValidBackup')
+        } finally {
+          backupDb.close()
+        }
+      }
+
+      if (manifest?.nativeProfile !== undefined) {
+        if (manifest.nativeProfile !== ZIP_PATHS.nativeManifest || !this.nativeProfile)
+          throw new Error('sync.error.unsupportedBackupVersion')
+        await fs.promises.mkdir(path.join(extractionDir, 'dim/profile'), {
+          recursive: true,
+          mode: 0o700
+        })
+        const nativeManifest = JSON.parse(
+          await fs.promises.readFile(path.join(extractionDir, ZIP_PATHS.nativeManifest), 'utf8')
+        )
+        preparedNative = await this.nativeProfile[
+          importMode === ImportMode.OVERWRITE ? 'prepareRestore' : 'prepareMerge'
+        ](path.join(extractionDir, 'dim/profile'), nativeManifest)
+        const admitted = new Set(preparedNative.nativeSessionIds)
+        const product = this.openBackupDatabase(backupDbSource.path, backupDatabasePassword)
+        try {
+          for (const table of ['dim_session_bindings', 'dim_session_scopes']) {
+            if (!this.countTableRows(product, table)) continue
+            const rows = product
+              .prepare(`SELECT DISTINCT dim_session_id FROM "${table}"`)
+              .all() as Array<{ dim_session_id: string }>
+            if (rows.some((row) => !admitted.has(row.dim_session_id)))
+              throw new Error('sync.error.noValidBackup')
+          }
+        } finally {
+          product.close()
+        }
+      }
+
       database.close()
       sqliteClosed = true
 
-      tempCurrentFiles.db = this.createTempBackup(this.DB_PATH, 'agent.db')
-      tempCurrentFiles.appSettings = this.createTempBackup(
-        this.APP_SETTINGS_PATH,
-        'app-settings.json'
-      )
-      tempCurrentFiles.customPrompts = this.createTempBackup(
-        this.CUSTOM_PROMPTS_PATH,
-        'custom_prompts.json'
-      )
-      tempCurrentFiles.systemPrompts = this.createTempBackup(
-        this.SYSTEM_PROMPTS_PATH,
-        'system_prompts.json'
-      )
-      tempCurrentFiles.mcpSettings = this.createTempBackup(
-        this.MCP_SETTINGS_PATH,
-        'mcp-settings.json'
+      // Publish durable originals before the first live SQL/config mutation. The journal is
+      // also recovered before settings/SQL/Native open on the next application startup.
+      recovery = await SyncImportRecovery.begin(
+        app.getPath('userData'),
+        preparedNative?.recoveryDirectory
       )
 
       if (backupDbSource.type === 'chat') {
         database.reopen()
         sqliteClosed = false
-        sqliteReopenedForLegacyImport = true
       }
 
       let importedConversationCount = 0
@@ -505,7 +539,6 @@ export class SyncService {
 
         database.close()
         sqliteClosed = true
-        sqliteReopenedForLegacyImport = false
         configImportService.importLegacyConfig(
           extractionDir,
           importMode === ImportMode.OVERWRITE ? 'overwrite' : 'increment'
@@ -523,16 +556,29 @@ export class SyncService {
         }
       }
 
+      if (preparedNative) installedNative = await preparedNative.install()
       if (sqliteClosed) {
         database.reopen()
       }
       if (importMode === ImportMode.OVERWRITE) {
         await this.resetShellWindowsToSingleNewChatTab()
       }
-      this.publishEvent('sync.import.completed', {
-        version: Date.now(),
-        mode: importMode
-      })
+      await recovery.commit()
+      if (installedNative) {
+        // Cleanup is past the transaction's commit point and must not roll back imported SQL.
+        await installedNative
+          .commit()
+          .catch((error) => console.warn('[Sync] Native rollback cleanup failed:', error))
+        installedNative = undefined
+      }
+      await recovery
+        .cleanup()
+        .catch((error) => console.warn('[Sync] Committed import cleanup failed:', error))
+      try {
+        this.publishEvent('sync.import.completed', { version: Date.now(), mode: importMode })
+      } catch (error) {
+        console.warn('[Sync] Committed import notification failed:', error)
+      }
       return {
         success: true,
         message: 'sync.success.importComplete',
@@ -542,16 +588,24 @@ export class SyncService {
       }
     } catch (error) {
       console.error('import failed,reverting:', error)
+      if (error instanceof DimProfileRecoveryError) {
+        recoveryRequired = true
+        throw error
+      }
       const errorMessage = (error as Error).message || 'sync.error.unknown'
-      if (sqliteReopenedForLegacyImport && !sqliteClosed) {
+      if (recovery) {
         try {
           database.close()
           sqliteClosed = true
-        } catch (closeError) {
-          console.error('Failed to close sqlite before restore after import failure:', closeError)
+          await recovery.rollback()
+          installedNative = undefined
+        } catch (rollbackError) {
+          recoveryRequired = true
+          throw rollbackError instanceof DimProfileRecoveryError
+            ? rollbackError
+            : new DimProfileRecoveryError(app.getPath('userData'), rollbackError)
         }
       }
-      this.restoreFromTempBackup(tempCurrentFiles)
       if (sqliteClosed) {
         try {
           database.reopen()
@@ -568,7 +622,10 @@ export class SyncService {
         message: KNOWN_IMPORT_ERRORS.has(errorMessage) ? errorMessage : 'sync.error.importFailed'
       }
     } finally {
-      this.cleanupTempFiles(Object.values(tempCurrentFiles))
+      if (!recoveryRequired)
+        await preparedNative
+          ?.dispose()
+          .catch((error) => console.warn('[Sync] Native staging cleanup failed:', error))
       this.removeDirectory(extractionDir)
     }
   }
@@ -628,6 +685,7 @@ export class SyncService {
 
     let completedTimestamp: number | null = null
     let encounteredError = false
+    let native: DimProfileSnapshot | undefined
 
     try {
       if (!fs.existsSync(this.DB_PATH)) {
@@ -640,7 +698,16 @@ export class SyncService {
 
       this.emitBackupStatus('collecting')
       this.ensureSqliteConfigStorageReady()
-      const files = await this.collectBackupFiles()
+      const collected = this.nativeProfile
+        ? await this.nativeProfile.capture(() => this.collectBackupFiles())
+        : { value: await this.collectBackupFiles(), profile: undefined }
+      const files = collected.value
+      native = collected.profile
+      const nativeManifest = await native?.manifest()
+      if (nativeManifest)
+        files[ZIP_PATHS.nativeManifest] = new Uint8Array(
+          Buffer.from(JSON.stringify(nativeManifest), 'utf8')
+        )
       await this.removeSyncBookkeeping(files)
 
       const manifest = {
@@ -650,6 +717,7 @@ export class SyncService {
         configSchemaVersion: CURRENT_SYNC_CONFIG_SCHEMA_VERSION,
         databaseEncrypted: Boolean(this.getActiveDatabasePassword()),
         databaseCipher: this.getActiveDatabasePassword() ? 'sqlcipher' : undefined,
+        nativeProfile: native ? ZIP_PATHS.nativeManifest : undefined,
         files: Object.keys(files)
       }
       files[ZIP_PATHS.manifest] = new Uint8Array(
@@ -657,7 +725,13 @@ export class SyncService {
       )
 
       this.emitBackupStatus('compressing')
-      await this.writeZipToDisk(files, tempZipPath)
+      await this.writeZipToDisk(files, tempZipPath, native, nativeManifest?.files)
+      const archive = await fs.promises.open(tempZipPath, 'r+')
+      try {
+        await archive.sync()
+      } finally {
+        await archive.close()
+      }
 
       try {
         await fs.promises.unlink(finalZipPath)
@@ -668,6 +742,7 @@ export class SyncService {
       }
       this.emitBackupStatus('finalizing')
       await fs.promises.rename(tempZipPath, finalZipPath)
+      await syncDirectory(backupsDir)
 
       const backupStats = await fs.promises.stat(finalZipPath)
       this.settings.setLastSyncTime(timestamp)
@@ -692,6 +767,9 @@ export class SyncService {
       })
       throw error
     } finally {
+      await native
+        ?.dispose()
+        .catch((error) => console.warn('[Sync] Native snapshot cleanup failed:', error))
       this.isBackingUp = false
       const extra: Record<string, unknown> = {}
       if (completedTimestamp) {
@@ -780,52 +858,21 @@ export class SyncService {
 
   private async writeZipToDisk(
     files: Record<string, Uint8Array>,
-    targetPath: string
+    targetPath: string,
+    native?: DimProfileSnapshot,
+    nativeFiles: Array<{ path: string; size: number }> = []
   ): Promise<void> {
-    await new Promise<void>((resolve, reject) => {
-      const output = fs.createWriteStream(targetPath)
-      const archive = new Zip()
-      let drain: Promise<void> = Promise.resolve()
-      output.on('error', reject)
-      archive.ondata = (error, chunk, final) => {
-        if (error) {
-          output.destroy(error)
-          reject(error)
-          return
-        }
-        if (!output.write(Buffer.from(chunk.buffer, chunk.byteOffset, chunk.byteLength))) {
-          drain = new Promise<void>((drained) => {
-            output.once('drain', () => drained())
-            output.once('error', () => drained())
-          })
-        }
-        if (final) {
-          output.end(() => resolve())
-        }
-      }
-
-      void (async () => {
-        try {
-          for (const [name, data] of Object.entries(files)) {
-            const entry = new AsyncZipDeflate(name, { level: ZIP_LEVEL })
-            archive.add(entry)
-            for (let offset = 0; offset < data.length; offset += ZIP_SLICE_SIZE) {
-              await drain
-              const end = Math.min(offset + ZIP_SLICE_SIZE, data.length)
-              entry.push(new Uint8Array(data.slice(offset, end)), false)
-              await new Promise((resume) => setImmediate(resume))
-            }
-            await drain
-            entry.push(new Uint8Array(0), true)
-          }
-          await drain
-          archive.end()
-        } catch (error) {
-          output.destroy(error as Error)
-          reject(error)
-        }
-      })()
-    })
+    const entries: BackupArchiveEntry[] = Object.entries(files).map(([name, data]) => ({
+      name,
+      source: { data }
+    }))
+    if (native)
+      for (const file of nativeFiles)
+        entries.push({
+          name: `dim/profile/${file.path}`,
+          source: { file: path.join(native.directory, file.path), size: file.size }
+        })
+    await writeBackupArchive(targetPath, entries)
   }
 
   private async collectBackupFiles(): Promise<Record<string, Uint8Array>> {
@@ -885,7 +932,7 @@ export class SyncService {
     if (manifest.version > CURRENT_SYNC_BACKUP_VERSION) {
       throw new Error('sync.error.unsupportedBackupVersion')
     }
-    if (manifest.version === CURRENT_SYNC_BACKUP_VERSION) {
+    if (manifest.version === 2 || manifest.version === CURRENT_SYNC_BACKUP_VERSION) {
       if (manifest.configStorage !== 'sqlite' || typeof manifest.configSchemaVersion !== 'number') {
         throw new Error('sync.error.noValidBackup')
       }
@@ -1015,57 +1062,8 @@ export class SyncService {
     return null
   }
 
-  private async extractBackupArchive(zipPath: string, targetDir: string): Promise<void> {
-    const zipContent = new Uint8Array(await fs.promises.readFile(zipPath))
-    const extracted = await unzipAsync(zipContent)
-    const resolvedTargetDir = path.resolve(targetDir)
-
-    for (const entryName of Object.keys(extracted)) {
-      const fileContent = extracted[entryName]
-      if (!fileContent) {
-        continue
-      }
-
-      const normalizedEntry = entryName.replace(/\\/g, '/')
-      if (!normalizedEntry) {
-        continue
-      }
-
-      if (/^[A-Za-z]:/.test(normalizedEntry) || normalizedEntry.startsWith('/')) {
-        throw new Error('sync.error.noValidBackup')
-      }
-
-      const segments = normalizedEntry.split('/')
-      const safeSegments: string[] = []
-      for (const segment of segments) {
-        if (!segment || segment === '.') {
-          continue
-        }
-        if (segment === '..') {
-          throw new Error('sync.error.noValidBackup')
-        }
-        safeSegments.push(segment)
-      }
-
-      if (safeSegments.length === 0) {
-        continue
-      }
-
-      const isDirectoryEntry = normalizedEntry.endsWith('/')
-      const destination = path.resolve(resolvedTargetDir, ...safeSegments)
-      const relativeToTarget = path.relative(resolvedTargetDir, destination)
-      if (relativeToTarget.startsWith('..') || path.isAbsolute(relativeToTarget)) {
-        throw new Error('sync.error.noValidBackup')
-      }
-
-      if (isDirectoryEntry) {
-        await fs.promises.mkdir(destination, { recursive: true })
-        continue
-      }
-
-      await fs.promises.mkdir(path.dirname(destination), { recursive: true })
-      await fs.promises.writeFile(destination, Buffer.from(fileContent))
-    }
+  private extractBackupArchive(zipPath: string, targetDir: string): Promise<void> {
+    return extractBackupArchive(zipPath, targetDir)
   }
 
   private async validateBackupArchive(backupZipPath: string): Promise<void> {
@@ -1167,19 +1165,6 @@ export class SyncService {
     fs.writeFileSync(targetPath, JSON.stringify(mergedSettings, null, 2), 'utf-8')
   }
 
-  private createTempBackup(originalPath: string, name: string): string | null {
-    const tempPath = path.join(app.getPath('temp'), `${name}.${Date.now()}.bak`)
-    try {
-      this.copyFile(originalPath, tempPath)
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-        return null
-      }
-      throw error
-    }
-    return tempPath
-  }
-
   private copyFile(source: string, target: string): void {
     fs.mkdirSync(path.dirname(target), { recursive: true })
     fs.copyFileSync(source, target)
@@ -1211,40 +1196,6 @@ export class SyncService {
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
           console.warn('Failed to remove database sidecar file:', filePath, error)
-        }
-      }
-    }
-  }
-
-  private restoreFromTempBackup(tempFiles: Record<string, string | null>): void {
-    if (tempFiles.db) {
-      this.copyFile(tempFiles.db, this.DB_PATH)
-      this.cleanupDatabaseSidecarFiles(this.DB_PATH)
-    }
-    if (tempFiles.appSettings) {
-      this.copyFile(tempFiles.appSettings, this.APP_SETTINGS_PATH)
-    }
-    if (tempFiles.customPrompts) {
-      this.copyFile(tempFiles.customPrompts, this.CUSTOM_PROMPTS_PATH)
-    }
-    if (tempFiles.systemPrompts) {
-      this.copyFile(tempFiles.systemPrompts, this.SYSTEM_PROMPTS_PATH)
-    }
-    if (tempFiles.mcpSettings) {
-      this.copyFile(tempFiles.mcpSettings, this.MCP_SETTINGS_PATH)
-    }
-  }
-
-  private cleanupTempFiles(paths: Array<string | null>): void {
-    for (const filePath of paths) {
-      if (!filePath) {
-        continue
-      }
-      try {
-        fs.unlinkSync(filePath)
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-          console.warn('Failed to remove temp file:', filePath, error)
         }
       }
     }

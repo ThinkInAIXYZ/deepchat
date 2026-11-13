@@ -39,6 +39,7 @@ const APP_CLOSE_TIMEOUT_MS = 10_000
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 const isMainAppWindow = async (page: Page): Promise<boolean> => {
+  if (page.isClosed()) return false
   const url = page.url()
   if (
     url.startsWith('devtools://') ||
@@ -51,16 +52,16 @@ const isMainAppWindow = async (page: Page): Promise<boolean> => {
     return false
   }
 
-  if (
+  const knownMainUrl =
     url.includes('/renderer/index.html') ||
-    (url.includes('/renderer/') && url.endsWith('/index.html')) ||
-    url.endsWith('/renderer/index.html')
-  ) {
-    return true
-  }
-
-  const title = await page.title().catch(() => '')
-  return title === 'DeepChat' && !url.includes('/renderer/')
+    (url.includes('/renderer/') && url.endsWith('/index.html'))
+  if (!knownMainUrl && (await page.title().catch(() => '')) !== 'DeepChat') return false
+  // Startup and fallback windows can share the application title/renderer entry. Wait for
+  // the actual chat root before returning a Page that tests will retain across startup.
+  return page
+    .getByTestId('app-root')
+    .isVisible()
+    .catch(() => false)
 }
 
 const waitForMainAppWindow = async (electronApp: ElectronApplication): Promise<Page> => {
@@ -296,18 +297,6 @@ export const test = base.extend<ElectronFixtures>({
         timeout: 120_000
       })
 
-      // Development-only panels change native content bounds and can intercept UI automation.
-      await electronApp.evaluate(({ app, webContents }) => {
-        const closeDevTools = (contents: Electron.WebContents) => {
-          contents.on('devtools-opened', () => {
-            if (!contents.isDestroyed()) contents.closeDevTools()
-          })
-          contents.closeDevTools()
-        }
-        for (const contents of webContents.getAllWebContents()) closeDevTools(contents)
-        app.on('web-contents-created', (_event, contents) => closeDevTools(contents))
-      })
-
       let closeOutcomePromise: Promise<'graceful' | 'forced'> | undefined
       const app: ElectronAppInstance = {
         electronApp,
@@ -348,6 +337,17 @@ export const test = base.extend<ElectronFixtures>({
         const page = await waitForMainAppWindow(electronApp)
         attachPageListeners(page, `main-${currentLaunch}`)
         await page.waitForLoadState('domcontentloaded')
+        // Development-only panels change native content bounds and can intercept UI automation.
+        await electronApp.evaluate(({ app, webContents }) => {
+          const closeDevTools = (contents: Electron.WebContents) => {
+            contents.on('devtools-opened', () => {
+              if (!contents.isDestroyed()) contents.closeDevTools()
+            })
+            contents.closeDevTools()
+          }
+          for (const contents of webContents.getAllWebContents()) closeDevTools(contents)
+          app.on('web-contents-created', (_event, contents) => closeDevTools(contents))
+        })
         app.page = page
         return app
       } catch (error) {

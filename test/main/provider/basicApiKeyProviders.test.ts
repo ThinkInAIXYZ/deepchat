@@ -1,14 +1,11 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LLM_PROVIDER } from '@shared/types/provider'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_PROVIDERS } from '../../../src/main/provider/defaults'
-import { AiSdkProvider } from '../../../src/main/provider/providers/aiSdkProvider'
 import { resolveAiSdkProviderDefinition } from '../../../src/main/provider/providerRegistry'
+import { AiSdkProvider } from '../../../src/main/provider/providers/aiSdkProvider'
 
-const { mockGetProvider, mockRunAiSdkGenerateText } = vi.hoisted(() => ({
-  mockGetProvider: vi.fn(),
-  mockRunAiSdkGenerateText: vi.fn()
-}))
+const { mockGetProvider } = vi.hoisted(() => ({ mockGetProvider: vi.fn() }))
 
 const originalFetch = global.fetch
 
@@ -49,13 +46,6 @@ vi.mock('../../../src/main/provider/providerDbLoader', () => ({
   }
 }))
 
-vi.mock('../../../src/main/provider/aiSdk', () => ({
-  runAiSdkCoreStream: vi.fn(),
-  runAiSdkDimensions: vi.fn(),
-  runAiSdkEmbeddings: vi.fn(),
-  runAiSdkGenerateText: mockRunAiSdkGenerateText
-}))
-
 const createProvider = (overrides: Partial<LLM_PROVIDER>): LLM_PROVIDER => ({
   id: 'nvidia',
   name: 'NVIDIA',
@@ -83,7 +73,6 @@ describe('basic API-key provider registrations', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     global.fetch = originalFetch
-    mockRunAiSdkGenerateText.mockResolvedValue({ content: 'ok' })
   })
 
   afterEach(() => {
@@ -110,59 +99,6 @@ describe('basic API-key provider registrations', () => {
     ])
     expect(mockGetProvider).toHaveBeenCalledWith('fireworks-ai')
     expect(await provider.check()).toMatchObject({ isOk: false })
-    expect(mockRunAiSdkGenerateText).not.toHaveBeenCalled()
-  })
-
-  it.each([
-    [
-      'fireworks',
-      'https://api.fireworks.ai/inference',
-      'https://api.fireworks.ai/inference/v1/chat/completions'
-    ],
-    [
-      'fireworks',
-      'https://api.fireworks.ai/inference/',
-      'https://api.fireworks.ai/inference/v1/chat/completions'
-    ],
-    [
-      'custom-fireworks',
-      'https://api.fireworks.ai/inference/v1',
-      'https://api.fireworks.ai/inference/v1/chat/completions'
-    ],
-    [
-      'fireworks',
-      'https://proxy.example.com/inference',
-      'https://proxy.example.com/inference/chat/completions'
-    ]
-  ])('checks %s at %s without changing the saved URL', async (id, baseUrl, endpoint) => {
-    const config = createProvider({ id, apiType: 'fireworks', baseUrl })
-    const actual = await vi.importActual<typeof import('../../../src/main/provider/aiSdk')>(
-      '../../../src/main/provider/aiSdk'
-    )
-    mockRunAiSdkGenerateText.mockImplementationOnce(actual.runAiSdkGenerateText)
-    const fetchMock = vi.fn().mockResolvedValue(
-      Response.json({
-        id: 'completion-1',
-        object: 'chat.completion',
-        created: 1,
-        model: 'accounts/fireworks/models/gpt-oss-120b',
-        choices: [
-          { index: 0, message: { role: 'assistant', content: 'Hello' }, finish_reason: 'stop' }
-        ],
-        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }
-      })
-    )
-    global.fetch = fetchMock
-    const provider = new AiSdkProvider(config, createProviderSettings())
-    expect(await provider.check()).toEqual({ isOk: true, errorMsg: null })
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-    const [url, init] = fetchMock.mock.calls[0]
-    expect(String(url)).toBe(endpoint)
-    expect(new Headers(init.headers).get('authorization')).toBe('Bearer test-key')
-    expect(JSON.parse(init.body)).toMatchObject({ model: 'accounts/fireworks/models/gpt-oss-120b' })
-    expect(config.baseUrl).toBe(baseUrl)
-    mockRunAiSdkGenerateText.mockRejectedValueOnce(new Error('Invalid API key'))
-    expect(await provider.check()).toEqual({ isOk: false, errorMsg: 'Invalid API key' })
   })
 
   it('resolves OpenAI-compatible providers through provider-db backed definitions', () => {
@@ -345,7 +281,6 @@ describe('basic API-key provider registrations', () => {
         headers: expect.objectContaining({ Authorization: 'Bearer magpie' })
       })
     )
-    expect(mockRunAiSdkGenerateText).not.toHaveBeenCalled()
   })
 
   it('discovers AnonRouter models over authenticated OpenAI-compatible discovery', async () => {
@@ -395,7 +330,6 @@ describe('basic API-key provider registrations', () => {
         headers: expect.objectContaining({ Authorization: 'Bearer test-key' })
       })
     )
-    expect(mockRunAiSdkGenerateText).not.toHaveBeenCalled()
   })
 
   it('lists Requesty managed policies ahead of the authenticated catalog', async () => {
@@ -480,7 +414,6 @@ describe('basic API-key provider registrations', () => {
         headers: expect.objectContaining({ Authorization: 'Bearer test-key' })
       })
     )
-    expect(mockRunAiSdkGenerateText).not.toHaveBeenCalled()
   })
 
   it('reads LiteLLM aliases with their capabilities from the proxy model info', async () => {
@@ -825,7 +758,6 @@ describe('basic API-key provider registrations', () => {
         headers: expect.objectContaining({ Authorization: 'Bearer test-key' })
       })
     )
-    expect(mockRunAiSdkGenerateText).not.toHaveBeenCalled()
   })
 
   it('discovers Opper pool and pinned-route models over authenticated discovery', async () => {
@@ -875,7 +807,6 @@ describe('basic API-key provider registrations', () => {
         headers: expect.objectContaining({ Authorization: 'Bearer test-key' })
       })
     )
-    expect(mockRunAiSdkGenerateText).not.toHaveBeenCalled()
   })
 
   it('resolves AI Stupid Level as a text-only API-key gateway with model discovery', () => {
@@ -1028,47 +959,6 @@ describe('basic API-key provider registrations', () => {
       'Catalog unavailable'
     )
     expect(await provider.check()).toMatchObject({ isOk: false, errorMsg: 'Missing API key' })
-    expect(mockRunAiSdkGenerateText).not.toHaveBeenCalled()
-  })
-
-  it.each([200, 401])('checks apimodels.app credentials through chat (HTTP %s)', async (status) => {
-    const defaults = DEFAULT_PROVIDERS.find(({ id }) => id === 'apimodels')!
-    const actual = await vi.importActual<typeof import('../../../src/main/provider/aiSdk')>(
-      '../../../src/main/provider/aiSdk'
-    )
-    mockRunAiSdkGenerateText.mockImplementationOnce(actual.runAiSdkGenerateText)
-    const fetchMock = vi.fn().mockResolvedValue(
-      Response.json(
-        status === 200
-          ? {
-              id: 'completion-1',
-              object: 'chat.completion',
-              created: 1,
-              model: 'gpt-5.6-luna',
-              choices: [
-                { index: 0, message: { role: 'assistant', content: 'Hi' }, finish_reason: 'stop' }
-              ],
-              usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }
-            }
-          : { error: { message: 'Invalid API key', type: 'authentication_error' } },
-        { status }
-      )
-    )
-    global.fetch = fetchMock
-    const provider = new AiSdkProvider(
-      { ...defaults, apiKey: 'test-key' },
-      createProviderSettings()
-    )
-
-    expect(await provider.check()).toEqual({
-      isOk: status === 200,
-      errorMsg: status === 200 ? null : 'Invalid API key'
-    })
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-    const [url, init] = fetchMock.mock.calls[0]
-    expect(String(url)).toBe('https://api.apimodels.app/v1/chat/completions')
-    expect(new Headers(init.headers).get('authorization')).toBe('Bearer test-key')
-    expect(JSON.parse(init.body)).toMatchObject({ model: 'gpt-5.6-luna' })
   })
 
   it('resolves Y-API through authenticated OpenAI-compatible model discovery', () => {
@@ -1193,7 +1083,6 @@ describe('basic API-key provider registrations', () => {
       isOk: false,
       errorMsg: expect.stringContaining('Invalid API key')
     })
-    expect(mockRunAiSdkGenerateText).not.toHaveBeenCalled()
   })
 
   it('discovers AMD GPU Cloud models through the OpenAI-compatible endpoint', async () => {
@@ -1714,247 +1603,6 @@ describe('basic API-key provider registrations', () => {
     ])
   })
 
-  it('checks StepFun Token Plan with the recommended model and endpoint', async () => {
-    const provider = new AiSdkProvider(
-      createProvider({
-        id: 'stepfun-step-plan',
-        name: 'StepFun Token Plan',
-        baseUrl: 'https://api.stepfun.com/step_plan/v1'
-      }),
-      createProviderSettings()
-    )
-    ;(provider as any).isInitialized = true
-
-    await expect(provider.check()).resolves.toEqual({
-      isOk: true,
-      errorMsg: null
-    })
-    expect(mockRunAiSdkGenerateText).toHaveBeenCalledWith(
-      expect.objectContaining({
-        providerKind: 'openai-compatible',
-        provider: expect.objectContaining({
-          id: 'stepfun-step-plan',
-          apiKey: 'test-key',
-          baseUrl: 'https://api.stepfun.com/step_plan/v1'
-        })
-      }),
-      [{ role: 'user', content: 'Hello' }],
-      'step-3.7-flash',
-      expect.any(Object),
-      0.2,
-      16
-    )
-  })
-
-  it('checks Runcrate with a chat model instead of its public model list', async () => {
-    const defaults = DEFAULT_PROVIDERS.find((provider) => provider.id === 'runcrate')!
-    expect(defaults).toBeDefined()
-    const config = { ...defaults, apiKey: 'test-key' }
-    // Runcrate's /v1/models answers without a key, so listing models cannot validate one.
-    expect(resolveAiSdkProviderDefinition(config)).toMatchObject({
-      runtimeKind: 'openai-compatible',
-      modelSource: 'runcrate',
-      checkStrategy: 'generate-text',
-      credentialStrategy: 'api-key',
-      checkModelId: 'deepseek-ai/DeepSeek-V4.1-Flash'
-    })
-    const provider = new AiSdkProvider(config, createProviderSettings())
-    ;(provider as any).isInitialized = true
-
-    await expect(provider.check()).resolves.toEqual({ isOk: true, errorMsg: null })
-    expect(mockRunAiSdkGenerateText).toHaveBeenCalledWith(
-      expect.objectContaining({
-        providerKind: 'openai-compatible',
-        provider: expect.objectContaining({
-          id: 'runcrate',
-          apiKey: 'test-key',
-          baseUrl: 'https://api.runcrate.ai/v1'
-        })
-      }),
-      [{ role: 'user', content: 'Hello' }],
-      'deepseek-ai/DeepSeek-V4.1-Flash',
-      expect.any(Object),
-      0.2,
-      16
-    )
-  })
-
-  it('checks CloudGPU with a chat model instead of its public model list', async () => {
-    const defaults = DEFAULT_PROVIDERS.find((provider) => provider.id === 'cloudgpu')!
-    expect(defaults).toBeDefined()
-    const config = { ...defaults, apiKey: 'test-key' }
-    // CloudGPU's /v1/models answers without a key, so listing models cannot validate one.
-    expect(resolveAiSdkProviderDefinition(config)).toMatchObject({
-      runtimeKind: 'openai-compatible',
-      modelSource: 'cloudgpu',
-      checkStrategy: 'generate-text',
-      credentialStrategy: 'api-key',
-      embeddingStrategy: 'none',
-      checkModelId: 'deepseek-v4.1-flash'
-    })
-    const provider = new AiSdkProvider(config, createProviderSettings())
-    ;(provider as any).isInitialized = true
-
-    await expect(provider.check()).resolves.toEqual({ isOk: true, errorMsg: null })
-    expect(mockRunAiSdkGenerateText).toHaveBeenCalledWith(
-      expect.objectContaining({
-        providerKind: 'openai-compatible',
-        provider: expect.objectContaining({
-          id: 'cloudgpu',
-          apiKey: 'test-key',
-          baseUrl: 'https://cloudgpu.app/v1'
-        })
-      }),
-      [{ role: 'user', content: 'Hello' }],
-      'deepseek-v4.1-flash',
-      expect.any(Object),
-      0.2,
-      16
-    )
-  })
-
-  it('checks Wally with a chat model instead of its public model list', async () => {
-    const defaults = DEFAULT_PROVIDERS.find((provider) => provider.id === 'wally')!
-    expect(defaults).toBeDefined()
-    const config = { ...defaults, apiKey: 'test-key' }
-    // Wally's /v1/models answers without a key, so listing models cannot validate one.
-    expect(resolveAiSdkProviderDefinition(config)).toMatchObject({
-      runtimeKind: 'openai-compatible',
-      modelSource: 'openai',
-      checkStrategy: 'generate-text',
-      credentialStrategy: 'api-key',
-      embeddingStrategy: 'none',
-      checkModelId: 'deepseek-v4.1-flash'
-    })
-    const provider = new AiSdkProvider(config, createProviderSettings())
-    ;(provider as any).isInitialized = true
-
-    await expect(provider.check()).resolves.toEqual({ isOk: true, errorMsg: null })
-    expect(mockRunAiSdkGenerateText).toHaveBeenCalledWith(
-      expect.objectContaining({
-        providerKind: 'openai-compatible',
-        provider: expect.objectContaining({
-          id: 'wally',
-          apiKey: 'test-key',
-          baseUrl: 'https://inference.runanywhere.ai/v1'
-        })
-      }),
-      [{ role: 'user', content: 'Hello' }],
-      'deepseek-v4.1-flash',
-      expect.any(Object),
-      0.2,
-      16
-    )
-  })
-
-  it('checks TrustedRouter with a chat request instead of its public model list', async () => {
-    const defaults = DEFAULT_PROVIDERS.find((provider) => provider.id === 'trustedrouter')!
-    expect(defaults).toBeDefined()
-    const config = { ...defaults, apiKey: 'test-key' }
-    expect(resolveAiSdkProviderDefinition(config)).toMatchObject({
-      runtimeKind: 'openai-compatible',
-      modelSource: 'openai',
-      checkStrategy: 'generate-text',
-      credentialStrategy: 'api-key',
-      routeStrategy: 'none',
-      embeddingStrategy: 'none',
-      checkModelId: 'trustedrouter/auto'
-    })
-    const fetchMock = vi.fn().mockImplementation(async () =>
-      Response.json({
-        data: [
-          { id: 'trustedrouter/auto', name: 'TrustedRouter Auto' },
-          { id: 'anthropic/claude-sonnet-4.5', name: 'Claude Sonnet 4.5' }
-        ]
-      })
-    )
-    global.fetch = fetchMock as unknown as typeof fetch
-    const provider = new AiSdkProvider(config, createProviderSettings())
-
-    // Route and upstream ids are fully prefixed and must survive discovery unchanged.
-    await expect(provider.fetchModels({ suppressErrors: false })).resolves.toEqual([
-      expect.objectContaining({ id: 'trustedrouter/auto', providerId: 'trustedrouter' }),
-      expect.objectContaining({ id: 'anthropic/claude-sonnet-4.5', providerId: 'trustedrouter' })
-    ])
-    expect(fetchMock).toHaveBeenCalledWith(
-      'https://api.trustedrouter.com/v1/models',
-      expect.objectContaining({
-        method: 'GET',
-        headers: expect.objectContaining({ Authorization: 'Bearer test-key' })
-      })
-    )
-    await expect(provider.check()).resolves.toEqual({ isOk: true, errorMsg: null })
-    expect(mockRunAiSdkGenerateText).toHaveBeenCalledWith(
-      expect.objectContaining({
-        providerKind: 'openai-compatible',
-        provider: expect.objectContaining({
-          id: 'trustedrouter',
-          apiKey: 'test-key',
-          baseUrl: 'https://api.trustedrouter.com/v1'
-        })
-      }),
-      [{ role: 'user', content: 'Hello' }],
-      'trustedrouter/auto',
-      expect.any(Object),
-      0.2,
-      16
-    )
-  })
-
-  it('checks Standard Compute with a chat request instead of its public model list', async () => {
-    const defaults = DEFAULT_PROVIDERS.find((provider) => provider.id === 'standardcompute')!
-    expect(defaults).toBeDefined()
-    const config = { ...defaults, apiKey: 'test-key' }
-    expect(resolveAiSdkProviderDefinition(config)).toMatchObject({
-      runtimeKind: 'openai-compatible',
-      modelSource: 'openai',
-      checkStrategy: 'generate-text',
-      credentialStrategy: 'api-key',
-      routeStrategy: 'none',
-      embeddingStrategy: 'none',
-      checkModelId: 'StandardCompute'
-    })
-    const fetchMock = vi.fn().mockImplementation(async () =>
-      Response.json({
-        data: [
-          { id: 'StandardCompute', owned_by: 'StandardCompute' },
-          { id: 'deepseek/deepseek-v4-flash', display_name: 'DeepSeek V4 Flash' }
-        ]
-      })
-    )
-    global.fetch = fetchMock as unknown as typeof fetch
-    const provider = new AiSdkProvider(config, createProviderSettings())
-
-    // The routed id and the prefixed pinned ids must survive discovery unchanged.
-    await expect(provider.fetchModels({ suppressErrors: false })).resolves.toEqual([
-      expect.objectContaining({ id: 'StandardCompute', providerId: 'standardcompute' }),
-      expect.objectContaining({ id: 'deepseek/deepseek-v4-flash', providerId: 'standardcompute' })
-    ])
-    expect(fetchMock).toHaveBeenCalledWith(
-      'https://api.stdcmpt.com/v1/models',
-      expect.objectContaining({
-        method: 'GET',
-        headers: expect.objectContaining({ Authorization: 'Bearer test-key' })
-      })
-    )
-    await expect(provider.check()).resolves.toEqual({ isOk: true, errorMsg: null })
-    expect(mockRunAiSdkGenerateText).toHaveBeenCalledWith(
-      expect.objectContaining({
-        providerKind: 'openai-compatible',
-        provider: expect.objectContaining({
-          id: 'standardcompute',
-          apiKey: 'test-key',
-          baseUrl: 'https://api.stdcmpt.com/v1'
-        })
-      }),
-      [{ role: 'user', content: 'Hello' }],
-      'StandardCompute',
-      expect.any(Object),
-      0.2,
-      16
-    )
-  })
-
   it('accepts a zero-balance UberLLM key without calling a model', async () => {
     const defaults = DEFAULT_PROVIDERS.find(({ id }) => id === 'uberllm')!
     const provider = new AiSdkProvider(
@@ -1974,7 +1622,6 @@ describe('basic API-key provider registrations', () => {
         headers: expect.objectContaining({ Authorization: 'Bearer ull_byok_test' })
       })
     )
-    expect(mockRunAiSdkGenerateText).not.toHaveBeenCalled()
   })
 
   it('rejects a missing or invalid UberLLM key', async () => {
@@ -2021,7 +1668,7 @@ describe('basic API-key provider registrations', () => {
       'http://127.0.0.1:8787/v1/models',
       expect.objectContaining({ method: 'GET' })
     )
-    expect(mockRunAiSdkGenerateText).not.toHaveBeenCalled()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
   it('lists OpenLLM chat models with limits and capabilities from the catalog', async () => {
@@ -2108,19 +1755,19 @@ describe('basic API-key provider registrations', () => {
     const provider = new AiSdkProvider(config, createProviderSettings())
 
     await expect(provider.check()).resolves.toEqual({ isOk: true, errorMsg: null })
-    expect(fetchMock).toHaveBeenCalledWith(
-      'https://llm.wiro.ai/v1/models',
-      expect.objectContaining({
-        method: 'GET',
-        headers: expect.objectContaining({ Authorization: 'Bearer test-key' })
-      })
-    )
     // The catalog answers 401 without a valid key, so the same request rejects a bad one.
     await expect(provider.check()).resolves.toEqual({
       isOk: false,
       errorMsg: expect.stringContaining('The supplied API credentials are invalid.')
     })
-    expect(mockRunAiSdkGenerateText).not.toHaveBeenCalled()
+    const catalogRequest = [
+      'https://llm.wiro.ai/v1/models',
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({ Authorization: 'Bearer test-key' })
+      })
+    ]
+    expect(fetchMock.mock.calls).toEqual([catalogRequest, catalogRequest])
   })
 
   it('lists Wiro AI models with limits and capabilities from the catalog', async () => {
@@ -2250,40 +1897,6 @@ describe('basic API-key provider registrations', () => {
     )
   })
 
-  it('checks Obscurify.ai with a chat model instead of its public model list', async () => {
-    const defaults = DEFAULT_PROVIDERS.find((provider) => provider.id === 'obscurify')!
-    expect(defaults).toBeDefined()
-    const config = { ...defaults, apiKey: 'test-key' }
-    // The /v1/models catalog is public, so listing models cannot validate a key.
-    expect(resolveAiSdkProviderDefinition(config)).toMatchObject({
-      runtimeKind: 'openai-compatible',
-      modelSource: 'obscurify',
-      checkStrategy: 'generate-text',
-      credentialStrategy: 'api-key',
-      embeddingStrategy: 'none',
-      checkModelId: 'meta-llama/llama-3.3-70b-instruct'
-    })
-    const provider = new AiSdkProvider(config, createProviderSettings())
-    ;(provider as any).isInitialized = true
-
-    await expect(provider.check()).resolves.toEqual({ isOk: true, errorMsg: null })
-    expect(mockRunAiSdkGenerateText).toHaveBeenCalledWith(
-      expect.objectContaining({
-        providerKind: 'openai-compatible',
-        provider: expect.objectContaining({
-          id: 'obscurify',
-          apiKey: 'test-key',
-          baseUrl: 'https://obscurify.ai/v1'
-        })
-      }),
-      [{ role: 'user', content: 'Hello' }],
-      'meta-llama/llama-3.3-70b-instruct',
-      expect.any(Object),
-      0.2,
-      16
-    )
-  })
-
   it('reads chat models with context length and tool support from the Obscurify.ai catalog', async () => {
     const defaults = DEFAULT_PROVIDERS.find(({ id }) => id === 'obscurify')!
     const fetchMock = vi.fn().mockResolvedValue(
@@ -2389,169 +2002,6 @@ describe('basic API-key provider registrations', () => {
     expect(fetchMock).toHaveBeenCalledWith(
       'https://api.runcrate.ai/v1/models',
       expect.objectContaining({ method: 'GET' })
-    )
-  })
-
-  it('routes OpenCode Go chat completions models through OpenAI-compatible runtime', async () => {
-    const provider = new AiSdkProvider(
-      createProvider({
-        id: 'opencode-go',
-        name: 'OpenCode Go',
-        baseUrl: 'https://opencode.ai/zen/go/v1'
-      }),
-      createProviderSettings()
-    )
-    ;(provider as any).isInitialized = true
-
-    await expect(provider.check()).resolves.toEqual({
-      isOk: true,
-      errorMsg: null
-    })
-    expect(mockRunAiSdkGenerateText).toHaveBeenCalledWith(
-      expect.objectContaining({
-        providerKind: 'openai-compatible',
-        provider: expect.objectContaining({
-          id: 'opencode-go',
-          apiType: 'openai-completions',
-          baseUrl: 'https://opencode.ai/zen/go/v1'
-        })
-      }),
-      [{ role: 'user', content: 'Hello' }],
-      'kimi-k2.7-code',
-      expect.any(Object),
-      0.2,
-      16
-    )
-  })
-
-  it('uses Anthropic behavior for OpenCode Go messages models', async () => {
-    const providerSettings = createProviderSettings()
-    const provider = new AiSdkProvider(
-      createProvider({
-        id: 'opencode-go',
-        name: 'OpenCode Go',
-        baseUrl: 'https://opencode.ai/zen/go/v1'
-      }),
-      providerSettings
-    )
-    ;(provider as any).isInitialized = true
-    const resolveRouteDecision = vi.spyOn(provider as any, 'resolveRouteDecision')
-
-    await provider.summaryTitles(
-      [{ role: 'user', content: 'Explain provider routing' }],
-      'minimax-m3'
-    )
-
-    expect(mockRunAiSdkGenerateText).toHaveBeenCalledWith(
-      expect.objectContaining({
-        providerKind: 'anthropic'
-      }),
-      expect.any(Array),
-      'minimax-m3',
-      expect.any(Object),
-      0.3,
-      50
-    )
-    expect(resolveRouteDecision).toHaveBeenCalledTimes(1)
-    expect(providerSettings.getModelConfig).toHaveBeenCalledTimes(1)
-  })
-
-  it('keeps local request shortcuts independent from provider initialization', async () => {
-    const imageProviderSettings = createProviderSettings()
-    vi.mocked(imageProviderSettings.getModelRouteConfig).mockReturnValue({
-      endpointType: 'image-generation'
-    })
-    vi.mocked(imageProviderSettings.getModelConfig).mockReturnValue({
-      endpointType: 'image-generation'
-    })
-    const imageProvider = new AiSdkProvider(
-      createProvider({
-        id: 'new-api',
-        name: 'New API',
-        apiType: 'new-api',
-        baseUrl: 'https://new-api.example.com'
-      }),
-      imageProviderSettings
-    )
-    const compatibleProvider = new AiSdkProvider(createProvider({}), createProviderSettings())
-    ;(imageProvider as any).isInitialized = false
-    ;(compatibleProvider as any).isInitialized = false
-
-    await expect(
-      imageProvider.summaryTitles(
-        [{ role: 'user', content: 'Create a quiet mountain landscape' }],
-        'image-model'
-      )
-    ).resolves.toBe('Create a quiet mountain landscape')
-    await expect(
-      compatibleProvider.suggestions(
-        [{ role: 'assistant', content: 'There is no user turn.' }],
-        'microsoft/phi-4-mini-instruct'
-      )
-    ).resolves.toEqual([])
-    expect(mockRunAiSdkGenerateText).not.toHaveBeenCalled()
-  })
-
-  it('routes OpenCode Go messages models through Anthropic runtime', async () => {
-    const provider = new AiSdkProvider(
-      createProvider({
-        id: 'opencode-go',
-        name: 'OpenCode Go',
-        baseUrl: 'https://opencode.ai/zen/go/v1'
-      }),
-      createProviderSettings()
-    )
-    ;(provider as any).isInitialized = true
-
-    await provider.runText([{ role: 'user', content: 'Hello' }], 'minimax-m3')
-
-    expect(mockRunAiSdkGenerateText).toHaveBeenCalledWith(
-      expect.objectContaining({
-        providerKind: 'anthropic',
-        provider: expect.objectContaining({
-          id: 'opencode-go',
-          apiType: 'anthropic',
-          baseUrl: 'https://opencode.ai/zen/go/v1',
-          capabilityProviderId: 'anthropic'
-        })
-      }),
-      [{ role: 'user', content: 'Hello' }],
-      'minimax-m3',
-      expect.any(Object),
-      undefined,
-      undefined
-    )
-  })
-
-  it('uses the configured check model for MiniMax global', async () => {
-    const provider = new AiSdkProvider(
-      createProvider({
-        id: 'minimax-global',
-        name: 'MiniMax Global',
-        apiType: 'anthropic',
-        baseUrl: 'https://api.minimax.io/anthropic/v1'
-      }),
-      createProviderSettings()
-    )
-    ;(provider as any).isInitialized = true
-
-    await expect(provider.check()).resolves.toEqual({
-      isOk: true,
-      errorMsg: null
-    })
-    expect(mockRunAiSdkGenerateText).toHaveBeenCalledWith(
-      expect.objectContaining({
-        providerKind: 'anthropic',
-        provider: expect.objectContaining({
-          id: 'minimax-global',
-          baseUrl: 'https://api.minimax.io/anthropic/v1'
-        })
-      }),
-      [{ role: 'user', content: 'Hello' }],
-      'MiniMax-M2.1',
-      expect.any(Object),
-      0.2,
-      16
     )
   })
 })

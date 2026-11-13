@@ -15,14 +15,22 @@ test('connection saving does not depend on the fixed probe model @smoke', async 
       response.writeHead(404).end()
       return
     }
-    const { model } = JSON.parse(body)
+    const { model, stream } = JSON.parse(body)
     calls.push({ model, authorization: request.headers.authorization })
     const code =
       request.headers.authorization !== 'Bearer replacement-fixture-key'
         ? 'invalid_api_key'
-        : model === 'deepseek-v4-flash'
+        : model !== 'custom-text-fixture'
           ? 'AccessDenied.Unpurchased'
           : null
+    if (!code && stream) {
+      response
+        .writeHead(200, { 'Content-Type': 'text/event-stream' })
+        .end(
+          `data: ${JSON.stringify({ id: 'connection-fixture', object: 'chat.completion.chunk', created: 1, model, choices: [{ index: 0, delta: { role: 'assistant', content: 'OK' }, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`
+        )
+      return
+    }
     response.writeHead(code === 'invalid_api_key' ? 401 : code ? 403 : 200, {
       'Content-Type': 'application/json'
     })
@@ -77,7 +85,10 @@ test('connection saving does not depend on the fixed probe model @smoke', async 
         loadModels: false
       })
     }, baseUrl)
-    expect(baseline).toMatchObject({ isOk: false, errorMsg: 'AccessDenied.Unpurchased' })
+    expect(baseline).toMatchObject({
+      isOk: false,
+      errorMsg: 'Native auxiliary model request failed'
+    })
 
     const page = await openSettings(app)
     await page.setViewportSize({ width: 1440, height: 1000 })
@@ -86,11 +97,13 @@ test('connection saving does not depend on the fixed probe model @smoke', async 
     await expect(page.getByTestId('provider-api-key-summary')).toBeVisible()
     await page.getByTestId('provider-verify-button').click()
     await page.getByTestId('model-check-select').click()
-    await page.locator('[data-model-id="qwen3.8-flash"][data-testid="model-check-option"]').click()
+    await page
+      .locator('[data-model-id="custom-text-fixture"][data-testid="model-check-option"]')
+      .click()
     await page.getByTestId('model-check-submit').click()
     await expect(page.getByTestId('model-check-result')).toHaveAttribute('data-success', 'false')
     expect(calls.at(-1)).toEqual({
-      model: 'qwen3.8-flash',
+      model: 'custom-text-fixture',
       authorization: 'Bearer old-fixture-key'
     })
     await page
@@ -137,14 +150,20 @@ test('connection saving does not depend on the fixed probe model @smoke', async 
       .locator('[data-testid="model-check-option"][data-model-id="deepseek-v4-flash"]')
       .click()
     await page.getByTestId('model-check-submit').click()
-    await expect(page.getByTestId('model-check-result')).toContainText('AccessDenied.Unpurchased')
+    await expect(page.getByTestId('model-check-result')).toHaveAttribute('data-success', 'false')
+    expect(calls.at(-1)).toEqual({
+      model: 'deepseek-v4-flash',
+      authorization: 'Bearer replacement-fixture-key'
+    })
     await page.screenshot({ path: testInfo.outputPath('connection-model-denied.png') })
     await page.getByTestId('model-check-select').click()
-    await page.locator('[data-testid="model-check-option"][data-model-id="qwen3.8-flash"]').click()
+    await page
+      .locator('[data-testid="model-check-option"][data-model-id="custom-text-fixture"]')
+      .click()
     await page.getByTestId('model-check-submit').click()
     await expect(page.getByTestId('model-check-result')).toHaveAttribute('data-success', 'true')
     expect(calls.at(-1)).toEqual({
-      model: 'qwen3.8-flash',
+      model: 'custom-text-fixture',
       authorization: 'Bearer replacement-fixture-key'
     })
     await page
@@ -155,7 +174,7 @@ test('connection saving does not depend on the fixed probe model @smoke', async 
     await expect(page.getByTestId('provider-health-pill')).toContainText(
       /上次测试成功|Last test passed/
     )
-    await expect(page.getByTestId('provider-health-model')).toContainText('qwen3.8-flash')
+    await expect(page.getByTestId('provider-health-model')).toContainText('custom-text-fixture')
     await expect(page.getByTestId('model-check-dialog')).toHaveCount(0)
     await page.getByTestId('provider-health-pill').scrollIntoViewIfNeeded()
     await page.screenshot({ path: testInfo.outputPath('connection-verified.png') })
@@ -235,10 +254,10 @@ test('connection saving does not depend on the fixed probe model @smoke', async 
     await page.locator('#modelName').fill('Unsaved custom fixture')
     await page
       .getByRole('dialog')
-      .getByRole('button', { name: /^(保存配置|Save Configuration)$/ })
+      .getByRole('button', { name: /^(保存配置|Save configuration)$/ })
       .click()
     await expect(page.getByRole('dialog').getByRole('alert')).toContainText(
-      /保存失败|Failed to save/
+      /保存失败|Could not save/
     )
     await expect(page.locator('#modelId')).toHaveValue('unsaved-custom-fixture')
     await page.screenshot({ path: testInfo.outputPath('custom-model-save-failed.png') })

@@ -14,6 +14,15 @@ export interface UserPluginHook {
   statusMessage?: string
 }
 
+export interface UserPluginHookSource {
+  pluginId: string
+  digest: string
+  root: string
+  data: string
+  hooks: UserPluginHook[]
+  environment?: Record<string, string>
+}
+
 export interface UserPluginMcpServer {
   name: string
   type: 'stdio' | 'http' | 'sse'
@@ -74,34 +83,4 @@ export interface UserPluginHookDiagnostic {
   status: 'started' | 'completed' | 'failed' | 'uncertain'
   message?: string
   at: number
-}
-
-/** Called only at accepted input / successful compaction boundaries, never view replay. */
-export interface PluginContextInput {
-  sessionId: string
-  messageId: string
-  prompt: string
-  cwd: string | null
-  model: string
-  parentSessionId?: string
-  agentId?: string
-  source?: 'compact'
-  boundaryId?: string
-  signal?: AbortSignal
-}
-
-export interface PluginContextContribution {
-  pluginId: string
-  digest: string
-  invocationId: string
-  content: string
-  entryId?: number
-}
-
-export interface PluginContextPort {
-  beginRun?(sessionId: string): void
-  endRun?(sessionId: string): void
-  hasHooks(): boolean
-  accept(input: PluginContextInput): Promise<void>
-  getContext(sessionId: string, messageId: string): PluginContextContribution[]
 }

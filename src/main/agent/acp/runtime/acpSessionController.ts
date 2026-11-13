@@ -16,8 +16,8 @@ import {
   acpRemoteTasksSchema,
   type AcpExtensionNotification
 } from './acpLodyExtensions'
-import { accumulate } from '@/agent/deepchat/runtime/accumulator'
-import { createState, type StreamState } from '@/agent/deepchat/runtime/types'
+import { accumulate } from '@/agent/shared/streamAccumulator'
+import { createState, type StreamState } from '@/agent/shared/messageStream'
 import type * as schema from '@agentclientprotocol/sdk'
 import { RequestError } from '@agentclientprotocol/sdk'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'

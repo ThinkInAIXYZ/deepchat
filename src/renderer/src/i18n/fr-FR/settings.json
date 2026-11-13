@@ -472,7 +472,8 @@
       "saveAndTest": "Enregistrer et tester",
       "saveOnly": "Enregistrer uniquement",
       "saveAndTestFirst": "Enregistrez et testez d’abord la configuration cloud."
-    }
+    },
+    "legacyBackupPassword": "Mot de passe de l’ancienne sauvegarde chiffrée (facultatif)"
   },
   "dashboard": {
     "badge": "Tableau de bord d'utilisation",
@@ -637,10 +638,6 @@
       "reasoningToggle": {
         "description": "Contrôle si le raisonnement est activé par défaut pour ce modèle",
         "label": "Activer le raisonnement"
-      },
-      "interleavedThinking": {
-        "label": "Pensée entrelacée",
-        "description": "Détermine si ce modèle traite les messages de raisonnement et d'appel d'outil avec la pensée entrelacée. Les valeurs par défaut du fournisseur s'appliquent automatiquement."
       },
       "thinkingBudget": {
         "label": "Budget de réflexion",
@@ -2832,7 +2829,6 @@
     "thinkingBudget": "Budget de réflexion",
     "reasoningEffort": "Niveau de raisonnement",
     "verbosity": "Niveau de détail",
-    "interleaved": "Forcer la compatibilité avec le raisonnement intercalé",
     "systemPrompt": "Prompt système par défaut",
     "systemPromptPlaceholder": "Laissez vide pour utiliser un prompt système vide",
     "defaultProjectPath": "Répertoire par défaut (facultatif)",

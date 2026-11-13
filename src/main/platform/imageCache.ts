@@ -1,3 +1,4 @@
+import { materializeNativeMedia } from './nativeMediaCache'
 import type { CacheImageOptions } from '@shared/types/attachment'
 export type { CacheImageOptions } from '@shared/types/attachment'
 import fs from 'node:fs'
@@ -336,6 +337,7 @@ export async function resolveCachedImageDataUrl(
     throw new Error('Invalid cached image path')
   }
 
+  await materializeNativeMedia(normalizedSource)
   const fileStat = await fs.promises.lstat(fullPath)
   if (!fileStat.isFile() || fileStat.isSymbolicLink()) {
     throw new Error('Cached image reference is not a regular file')

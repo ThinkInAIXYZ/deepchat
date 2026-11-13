@@ -236,8 +236,6 @@
     "maxTokens": "Tokens máximos",
     "thinkingBudget": "Presupuesto de razonamiento",
     "verbosity": "Nivel de detalle",
-    "forceInterleavedThinkingCompat": "Interleaved Thinking",
-    "forceInterleavedThinkingCompatDescription": "Controla si esta sesión gestiona los mensajes de reasoning y tool-call con Interleaved Thinking.",
     "verbosityPlaceholder": "Seleccionar nivel de detalle",
     "currentCustomPrompt": "Personalizado actual",
     "useDefault": "Usar valor predeterminado",

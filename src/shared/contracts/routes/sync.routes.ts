@@ -57,7 +57,8 @@ export const syncImportRoute = defineRouteContract({
   name: 'sync.import',
   input: z.object({
     backupFile: z.string(),
-    mode: z.enum(['increment', 'overwrite']).optional()
+    mode: z.enum(['increment', 'overwrite']).optional(),
+    legacyPassword: z.string().min(1).max(4096).optional()
   }),
   output: z.object({
     result: z.object({

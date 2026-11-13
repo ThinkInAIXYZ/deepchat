@@ -105,6 +105,20 @@ describe('SessionPendingInputStore', () => {
     vi.clearAllMocks()
   })
 
+  it('exports interrupted claimed drafts for migration without changing the legacy archive', () => {
+    const { store, deepchatPendingInputsTable } = createStore([
+      createQueueRow('interrupted', 'session-1', 0, 'claimed'),
+      createQueueRow('waiting', 'session-1', 1, 'pending'),
+      createQueueRow('finished', 'session-1', 2, 'consumed')
+    ])
+    expect(store.listMigrationInputs('session-1').map(({ id, state }) => ({ id, state }))).toEqual([
+      { id: 'interrupted', state: 'retry_required' },
+      { id: 'waiting', state: 'pending' }
+    ])
+    expect(deepchatPendingInputsTable.get('interrupted')?.state).toBe('claimed')
+    expect(deepchatPendingInputsTable.update).not.toHaveBeenCalled()
+  })
+
   it('assigns the next queue order after claimed queue rows for pending inserts', () => {
     vi.mocked(nanoid).mockReturnValue('queued-next')
     const { store, deepchatPendingInputsTable } = createStore([

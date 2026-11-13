@@ -74,7 +74,6 @@ describe('ProviderInstanceManager ACP lifetime', () => {
         getProviders: () => [...providers.values()]
       } as never,
       locale: { getLanguage: () => 'en-US' },
-      activeStreams: new Map(),
       rateLimitManager: {
         syncProviders: vi.fn(),
         cleanupProviderRateLimit: vi.fn()
@@ -123,7 +122,6 @@ describe('ProviderInstanceManager ACP lifetime', () => {
         getProviders: () => [...providers.values()]
       } as never,
       locale: { getLanguage: () => 'en-US' },
-      activeStreams: new Map(),
       rateLimitManager: {
         syncProviders: vi.fn(),
         cleanupProviderRateLimit: vi.fn()
@@ -143,7 +141,7 @@ describe('ProviderInstanceManager ACP lifetime', () => {
     expect(setCurrentProviderId).not.toHaveBeenCalled()
   })
 
-  it('aborts compatibility streams and clears provider state when ACP is disabled', () => {
+  it('clears provider state when ACP is disabled', () => {
     const processShutdown = vi.fn()
     const sharedRuntime = {
       sessionManager: { clearAllSessions: vi.fn() },
@@ -151,7 +149,6 @@ describe('ProviderInstanceManager ACP lifetime', () => {
     } as unknown as AcpClientRuntime
     const owner = new AcpRuntimeOwner(() => sharedRuntime)
     const providers = new Map([[provider.id, provider]])
-    const abortController = new AbortController()
     const cleanupRateLimit = vi.fn()
     const setCurrentProviderId = vi.fn()
     const manager = new ProviderInstanceManager({
@@ -159,7 +156,6 @@ describe('ProviderInstanceManager ACP lifetime', () => {
         getProviders: () => [...providers.values()]
       } as never,
       locale: { getLanguage: () => 'en-US' },
-      activeStreams: new Map([['stream', { providerId: 'acp', abortController } as never]]),
       rateLimitManager: {
         syncProviders: vi.fn(),
         cleanupProviderRateLimit: cleanupRateLimit
@@ -180,7 +176,6 @@ describe('ProviderInstanceManager ACP lifetime', () => {
       requiresRebuild: true
     })
 
-    expect(abortController.signal.aborted).toBe(true)
     expect(acpProviderInstances[0].cleanup).toHaveBeenCalledTimes(1)
     expect(cleanupRateLimit).toHaveBeenCalledWith('acp', 'provider')
     expect(setCurrentProviderId).toHaveBeenCalledWith(null)
@@ -239,7 +234,6 @@ describe('ProviderInstanceManager ACP lifetime', () => {
     const manager = new ProviderInstanceManager({
       providerSettings: providerSettings as never,
       locale: { getLanguage: () => 'en-US' },
-      activeStreams: new Map(),
       rateLimitManager,
       getCurrentProviderId: () => null,
       setCurrentProviderId: vi.fn(),

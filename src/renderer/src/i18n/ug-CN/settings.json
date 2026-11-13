@@ -231,7 +231,6 @@
     "thinkingBudget": "پىكىر قىلىش بويىچە بۈجەت",
     "reasoningEffort": "ئەقلىي تەپەككۇرنىڭ كۈچىنى نامايەن قىلدى",
     "verbosity": "تەپسىلاتلىق دەرىجىسى",
-    "interleaved": "مەجبۇرىي ماسلىشىشچان تەپەككۇر",
     "systemPrompt": "سۈكۈتتىكى سىستېما ئەسكەرتمىسى",
     "systemPromptPlaceholder": "بوش قالغان بولسا، قۇرۇق سىستېما كۆرسەتمىسىنى ئىشلىتىڭ",
     "defaultProjectPath": "كۆڭۈلدىكى مۇندەرىجە (ئىختىيارى)",
@@ -847,7 +846,8 @@
         "workersAi": "Cloudflare Workers AI"
       },
       "applyFailed": "كىرگۈزۈش مەغلۇپ بولدى: {message}"
-    }
+    },
+    "legacyBackupPassword": "Legacy encrypted backup password (optional)"
   },
   "dashboard": {
     "badge": "تاختىسىدىن پاڭلانغانلىقىنى قوللان",
@@ -1012,10 +1012,6 @@
       "reasoningToggle": {
         "description": "مودېلنىڭ سۈكۈتتىكى خۇلاسە ئىقتىدارىنى قوزغىتىشنى كونترول قىلىدۇ",
         "label": "ئەقلىي تەپەككۇرنى ئىشقا ئاشۇرىدۇ"
-      },
-      "interleavedThinking": {
-        "label": "ئارىلاش پىكىر يۈرگۈزۈش",
-        "description": "مودېلنىڭ reasoning ۋە tool-call ئۇچۇرلارنى بىر تەرەپ قىلالمايدىغانلىقىنى Interleaved Thinking كونترول قىلىدۇ. ئەگەر provider قوللايدىغانلىقىنى جاكارلىغان بولسا، سۈكۈتتە ئاپتوماتىك قوزغىلىدۇ."
       },
       "thinkingBudget": {
         "label": "پىكىر قىلىش بويىچە بۈجەت",

@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import type { HtmlRenderSource } from '@/htmlRender/source'
 import { shell } from 'electron'
 import type { PermissionMode } from '@shared/types/agent-interface'
 import type {
@@ -215,11 +216,11 @@ export class McpAppHost implements McpAppHostPort {
         conversationId: string
         messageId: string
         blockId: string
-      }): { title: string; html: string; panelId?: string } | null
+      }): HtmlRenderSource | null | Promise<HtmlRenderSource | null>
       listHtmlRenderSections(
         conversationId: string,
         panelId: string
-      ): Array<{ id: string; html: string }>
+      ): Array<{ id: string; html: string }> | Promise<Array<{ id: string; html: string }>>
       persistModelContext(
         messageId: string,
         blockId: string,
@@ -337,7 +338,7 @@ export class McpAppHost implements McpAppHostPort {
     input: { conversationId: string; messageId: string; blockId: string },
     context: McpAppRouteContext
   ): Promise<McpHostPreparedView> {
-    const source = this.deps.readHtmlRenderSource(input)
+    const source = await this.deps.readHtmlRenderSource(input)
     if (!source) {
       throw new Error('The rendered page is no longer available')
     }
@@ -352,7 +353,12 @@ export class McpAppHost implements McpAppHostPort {
       html: buildHtmlRenderDocument(source.html),
       csp: HTML_RENDER_CSP,
       libraries: HTML_RENDER_LIBRARIES,
-      validateLive: () => this.deps.readHtmlRenderSource(input) !== null
+      validateLive:
+        source.isCurrent ??
+        (() => {
+          const current = this.deps.readHtmlRenderSource(input)
+          return !(current instanceof Promise) && current !== null
+        })
     })
     return {
       instanceId: instance.instanceId,
@@ -369,7 +375,7 @@ export class McpAppHost implements McpAppHostPort {
     messageId: string
     blockId: string
   }): Promise<Array<{ id: string; html: string }>> {
-    const source = this.deps.readHtmlRenderSource(input)
+    const source = await this.deps.readHtmlRenderSource(input)
     if (!source) {
       throw new Error('The rendered page is no longer available')
     }

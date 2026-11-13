@@ -225,12 +225,15 @@ Only matching `hookSpecificOutput.hookEventName` and textual `additionalContext`
 `systemMessage` is a diagnostic, not an instruction. Tool approval, blocking, rewriting,
 asynchronous handlers, prompt handlers and agent handlers are unsupported.
 
-Commands run through the platform shell. POSIX environment syntax is not translated into
-Windows syntax; supply `commandWindows` when necessary. A hook has a default timeout of five
+The dim Rust plugin executes commands through its native process owner and the platform shell.
+POSIX environment syntax is not translated into Windows syntax; supply `commandWindows` when necessary. A hook has a default timeout of five
 seconds, a maximum configured timeout of thirty seconds, and a shared ten-second boundary
 budget starting after queue admission. Input is limited to 1 MiB, stdout/stderr to 64 KiB each, and accepted context to 8 KiB
 per boundary. Failures are visible in **Recent hook activity** and do not stop model work unless
 its cancellation or a persistence failure requires stopping it.
+
+Execution receipts and recovery state live in dim Timeline. Old Tape receipts convert on continuation
+or explicit retry without running old commands; clearing the session removes their active context.
 
 Hook PATH includes the Node/uv directories selected in DeepChat's Toolchains settings. Other
 interpreters must be installed separately.

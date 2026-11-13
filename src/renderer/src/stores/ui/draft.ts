@@ -52,7 +52,6 @@ export const useDraftStore = defineStore('draft', () => {
     undefined
   )
   const verbosity = ref<SessionGenerationSettings['verbosity'] | undefined>(undefined)
-  const forceInterleavedThinkingCompat = ref<boolean | undefined>(undefined)
   const imageGeneration = shallowRef<SessionGenerationSettings['imageGeneration'] | undefined>(
     undefined
   )
@@ -113,9 +112,6 @@ export const useDraftStore = defineStore('draft', () => {
       settings.reasoningVisibility = reasoningVisibility.value
     }
     if (verbosity.value !== undefined) settings.verbosity = verbosity.value
-    if (forceInterleavedThinkingCompat.value !== undefined) {
-      settings.forceInterleavedThinkingCompat = forceInterleavedThinkingCompat.value
-    }
     const normalizedImageGeneration = normalizeDraftImageGeneration(imageGeneration.value)
     if (normalizedImageGeneration !== undefined) {
       settings.imageGeneration = normalizedImageGeneration
@@ -176,9 +172,6 @@ export const useDraftStore = defineStore('draft', () => {
     if (Object.prototype.hasOwnProperty.call(settings, 'verbosity')) {
       verbosity.value = settings.verbosity
     }
-    if (Object.prototype.hasOwnProperty.call(settings, 'forceInterleavedThinkingCompat')) {
-      forceInterleavedThinkingCompat.value = settings.forceInterleavedThinkingCompat
-    }
     if (Object.prototype.hasOwnProperty.call(settings, 'imageGeneration')) {
       imageGeneration.value = normalizeDraftImageGeneration(settings.imageGeneration)
     }
@@ -199,7 +192,6 @@ export const useDraftStore = defineStore('draft', () => {
     touchedReasoningFields.clear()
     reasoningVisibility.value = undefined
     verbosity.value = undefined
-    forceInterleavedThinkingCompat.value = undefined
     imageGeneration.value = undefined
     videoGeneration.value = undefined
   }
@@ -250,7 +242,6 @@ export const useDraftStore = defineStore('draft', () => {
     reasoningEffort,
     reasoningVisibility,
     verbosity,
-    forceInterleavedThinkingCompat,
     imageGeneration,
     videoGeneration,
     permissionMode,

@@ -231,7 +231,6 @@
     "thinkingBudget": "ᠢ ᠪᠣᠳᠣᠯᠬᠢᠯᠠᠬᠤ",
     "reasoningEffort": "ᠶᠢᠨ ᠪᠣᠳᠣᠬᠤ ᠬᠦᠴᠦᠨ",
     "verbosity": "ᠶᠢᠨ ᠨᠠᠷᠢᠨ ᠨᠢᠭ᠌ᠲᠠ",
-    "interleaved": "ᠶᠢᠨ ᠬᠦᠴᠦᠨ ᠦ ᠬᠠᠷᠢᠯᠴᠠᠨ ᠵᠣᠬᠢᠴᠠᠯᠳᠤᠭᠰᠠᠨ ᠰᠡᠳᠬᠢᠮᠵᠢ",
     "systemPrompt": "ᠳ᠋ᠤᠭᠠᠷ ᠰᠢᠰᠲ᠋ᠧᠮ ᠦᠨ ᠰᠠᠨᠠᠭᠤᠯᠤᠮᠵᠢ",
     "systemPromptPlaceholder": "ᠬᠣᠭᠣᠰᠣᠨ ᠭᠠᠵᠠᠷ ᠢ ᠦᠯᠡᠳᠡᠭᠡᠪᠡᠯ ᠬᠣᠭᠣᠰᠣᠨ ᠰᠢᠰᠲᠧᠮ ᠦᠨ ᠰᠠᠨᠠᠭᠤᠯᠤᠮᠵᠢ ᠬᠡᠷᠡᠭ᠍ᠯᠡᠬᠦ",
     "defaultProjectPath": "ᠶᠢᠨ ᠭᠠᠷᠴᠠᠭ ( ᠡᠷᠬᠡ ᠪᠡᠨ )",
@@ -847,7 +846,8 @@
         "workersAi": "Cloudflare Workers AI"
       },
       "applyFailed": "ᠠᠴᠠ ᠣᠷᠣᠭᠤᠯᠬᠤ ᠳᠤ ᠢᠯᠠᠭᠳᠠᠭᠰᠠᠨ ᠦᠭᠡᠢ ᠄ {message}"
-    }
+    },
+    "legacyBackupPassword": "Legacy encrypted backup password (optional)"
   },
   "dashboard": {
     "badge": "ᠢ ᠬᠡᠷᠡᠭᠯᠡᠬᠦ",
@@ -1024,10 +1024,6 @@
       "reasoningToggle": {
         "label": "ᠶᠢ ᠴᠢᠩᠭ᠋ᠠᠳᠬᠠᠬᠤ",
         "description": "ᠳᠤ ᠰᠠᠨᠠᠭᠠᠨ ᠳᠠᠭᠠᠨ ᠵᠠᠷᠭᠤ ᠶᠢ ᠬᠡᠷᠡᠭ᠍ᠯᠡᠬᠦ ᠡᠰᠡᠬᠦ ᠶᠢ  ᠢ ᠬᠢᠵᠠᠭᠠᠷᠯᠠᠬᠤ"
-      },
-      "interleavedThinking": {
-        "label": "ᠡᠭᠡᠯᠵᠢᠯᠡᠨ ᠪᠣᠳᠣᠬᠤ",
-        "description": "ᠡᠨᠡ ᠬᠡᠪ ᠵᠠᠭᠪᠤᠷ ᠤᠨ ᠮᠡᠳᠡᠭᠡ ᠶᠢ reasoning tool-call ᠶᠢ Interleaved Thinking ᠶᠢ ᠡᠵᠡᠮᠳᠡᠨ᠎ᠡ ᠃ ᠬᠡᠷᠪᠡ provider ᠶᠢ ᠨᠢᠭᠡᠨᠲᠡ ᠳᠡᠮᠵᠢᠵᠦ ᠪᠣᠯᠬᠤ ᠪᠠᠷ ᠵᠠᠷᠯᠠᠭᠰᠠᠨ ᠪᠣᠯ ᠂ ᠲᠡᠭᠦᠨ ᠢ ᠠᠵᠠ ᠪᠠᠷ ᠢᠶᠠᠨ ᠨᠡᠭᠡᠭᠡᠨ᠎ᠡ ᠃"
       },
       "thinkingBudget": {
         "label": "ᠢ ᠪᠣᠳᠣᠯᠬᠢᠯᠠᠬᠤ",

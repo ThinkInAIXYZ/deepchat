@@ -231,7 +231,6 @@
     "thinkingBudget": "Suy nghĩ về ngân sách",
     "reasoningEffort": "Nỗ lực lý luận",
     "verbosity": "Độ dài",
-    "interleaved": "Buộc tương thích tư duy xen kẽ",
     "systemPrompt": "system prompt mặc định",
     "systemPromptPlaceholder": "Để trống cho system prompt trống",
     "defaultProjectPath": "Thư mục mặc định (tùy chọn)",
@@ -847,7 +846,8 @@
       "saveAndTest": "Lưu và kiểm tra",
       "saveOnly": "Chỉ lưu",
       "saveAndTestFirst": "Hãy lưu và kiểm tra cấu hình đám mây trước."
-    }
+    },
+    "legacyBackupPassword": "Mật khẩu bản sao lưu mã hóa cũ (không bắt buộc)"
   },
   "dashboard": {
     "badge": "Trang tổng quan sử dụng",
@@ -1012,10 +1012,6 @@
       "reasoningToggle": {
         "description": "Kiểm soát xem lý luận có được bật theo mặc định cho mô hình này hay không",
         "label": "Kích hoạt lý luận"
-      },
-      "interleavedThinking": {
-        "label": "Suy nghĩ xen kẽ",
-        "description": "Kiểm soát xem mô hình này có xử lý các thông báo lý luận và lệnh gọi công cụ bằng Tư duy xen kẽ hay không. Mặc định của nhà cung cấp được áp dụng tự động."
       },
       "thinkingBudget": {
         "label": "Suy nghĩ về ngân sách",

@@ -3,6 +3,7 @@ import type { PendingSessionInputRecord } from '@shared/types/agent-interface'
 import {
   ChatMessageRecordSchema,
   EntityIdSchema,
+  DimTimelinePositionSchema,
   SessionCompactionStateSchema,
   SessionStatusSchema,
   defineEventContract
@@ -60,7 +61,8 @@ export const sessionsCompactionChangedEvent = defineEventContract({
   payload: SessionCompactionStateSchema.extend({
     sessionId: EntityIdSchema,
     emitSeq: z.number().int().positive(),
-    latestAnchorEntryId: z.number().int().positive().nullable()
+    latestAnchorEntryId: z.number().int().positive().nullable(),
+    timeline: DimTimelinePositionSchema.optional()
   })
 })
 

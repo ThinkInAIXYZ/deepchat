@@ -321,8 +321,6 @@
     "maxTokens": "ئەڭ كۆپ توكېن سانى",
     "thinkingBudget": "پىكىر قىلىش بويىچە بۈجەت",
     "verbosity": "جاۋاپ قىسقارغۇچلىقى",
-    "forceInterleavedThinkingCompat": "ئارىلاش پىكىر يۈرگۈزۈش",
-    "forceInterleavedThinkingCompatDescription": "نۆۋەتتىكى گەپ-سۆز سۆزلەشتە Interleaved Thinking ئۇسۇل بويىچە reasoning ۋە tool-call ئۇچۇرلىرىنى باشقۇرۇش",
     "verbosityPlaceholder": "قىسقارغۇچ دەرىجىسىنى تاللاڭ",
     "currentCustomPrompt": "نۆۋەتتىكى ئۆزگەرتىلگەن",
     "useDefault": "ئەسلى قىممەتنى ئىشلىتىش",

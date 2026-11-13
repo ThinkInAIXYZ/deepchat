@@ -231,7 +231,6 @@
     "thinkingBudget": "བསམ་གཞིག་སྔོན་རྩིས་",
     "reasoningEffort": "རིགས་པས་དཔག་པའི་ཤུགས་ཚད་",
     "verbosity": "ཞིབ་ཕྲའི་ཆུ་ཚད་",
-    "interleaved": "ཕན་ཚུན་འདྲེས་པའི་བསམ་གཞིགས་ཀྱི་བཙན་ཤུགས་མཐུན་པ།",
     "systemPrompt": "སྔོན་འགྲོའི་མ་ལག་གི་གསལ་བརྡ་",
     "systemPromptPlaceholder": "སྟོང་པ་བཞག་ནས་མ་ལག་སྟོང་པའི་བརྡ་སྟོན་བཀོལ་དགོས།",
     "defaultProjectPath": "སྔོན་སྒྲིག་དཀར་ཆག (གདམ་གསེས་)",
@@ -847,7 +846,8 @@
         "workersAi": "Cloudflare Workers AI"
       },
       "applyFailed": "ནང་འདྲེན་མ་བྱས་པ།{message}"
-    }
+    },
+    "legacyBackupPassword": "Legacy encrypted backup password (optional)"
   },
   "dashboard": {
     "badge": "ཁན་པན་བཀོལ་",
@@ -1024,10 +1024,6 @@
       "reasoningToggle": {
         "label": "རིགས་འདེད་བྱེད་ཐུབ་པ།",
         "description": "དཔེ་དབྱིབས་འདིའི་རིགས་འདེད་ལ་སྔོན་ཚུད་ནས་ནུས་པ་ཡོད་མེད་ལ་ཚོད་འཛིན་བྱེད་དགོས།"
-      },
-      "interleavedThinking": {
-        "label": "བར་འཛུད་བསམ་གཞིག",
-        "description": "དཔེ་དབྱིབས་འདིས་Interleaved Thinking ལྟར་reasoning དང་tool-call ཆ་འཕྲིན་ཐག་གཅོད་བྱེད་མིན་ལ་ཚོད་འཛིན་བྱེད་དགོས།གལ་ཏེ་provider རྒྱབ་སྐྱོར་ཁྱབ་བསྒྲགས་བྱས་ཡོད་ན། སྔོན་ཚུད་ནས་ནུས་པ་ཐོན་སྲིད།"
       },
       "thinkingBudget": {
         "label": "བསམ་གཞིག་སྔོན་རྩིས་",

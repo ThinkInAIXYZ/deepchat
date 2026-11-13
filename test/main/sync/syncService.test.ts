@@ -295,7 +295,7 @@ vi.mock('../../../src/main/sync/configImportService', async () => {
   }
 
   return {
-    CURRENT_SYNC_BACKUP_VERSION: 2,
+    CURRENT_SYNC_BACKUP_VERSION: 3,
     CURRENT_SYNC_CONFIG_SCHEMA_VERSION: 1,
     SyncConfigImportService: MockSyncConfigImportService
   }
@@ -439,6 +439,65 @@ describe('SyncService backup import', () => {
     )
   })
 
+  it.each([ImportMode.INCREMENT, ImportMode.OVERWRITE])(
+    'decrypts a legacy backup in staging before %s import into the plaintext database',
+    async (mode) => {
+      createLocalState(userDataDir, {
+        conversations: [{ id: 'conv-1', title: 'Local' }],
+        appSettings: {},
+        customPrompts: {},
+        systemPrompts: {},
+        mcpSettings: {}
+      })
+      const backup = createBackupArchive(
+        syncDir,
+        Date.now(),
+        {
+          conversations: [{ id: 'conv-2', title: 'Imported' }],
+          appSettings: {},
+          customPrompts: {},
+          systemPrompts: {},
+          mcpSettings: {}
+        },
+        {
+          manifest: {
+            version: 2,
+            createdAt: Date.now(),
+            configStorage: 'sqlite',
+            configSchemaVersion: 1,
+            databaseEncrypted: true,
+            files: [ZIP_PATHS.agentDb, ZIP_PATHS.appSettings]
+          }
+        }
+      )
+      const decrypt = vi.fn((source: string, target: string, password: string) => {
+        expect(password).toBe('legacy-password')
+        expect(sqlitePresenter.close).not.toHaveBeenCalled()
+        fs.copyFileSync(source, target)
+      })
+      const decrypting = new SyncService(
+        syncSettings,
+        sqlitePresenter,
+        { appSettingsTable: sqlitePresenter.appSettingsTable } as never,
+        { settingsTable: { listProviders: () => [] } } as never,
+        publishDeepchatEvent,
+        decrypt
+      )
+      const result = await decrypting.importFromSync(
+        backup,
+        mode,
+        importDatabase,
+        'legacy-password'
+      )
+      expect(result.success).toBe(true)
+      expect(decrypt).toHaveBeenCalledOnce()
+      expect(fs.readFileSync(path.join(userDataDir, 'app_db', 'agent.db'), 'utf8')).toContain(
+        'conv-2'
+      )
+      expect(sqlitePresenter.getDatabasePassword()).toBeUndefined()
+    }
+  )
+
   const runImport = (
     backupFileName: string,
     importMode: Parameters<InstanceType<typeof SyncService>['importFromSync']>[1]
@@ -504,7 +563,7 @@ describe('SyncService backup import', () => {
     expect(dbPragma).toHaveBeenCalledWith('wal_checkpoint(PASSIVE)')
     const manifest = JSON.parse(Buffer.from(files[ZIP_PATHS.manifest]).toString('utf-8'))
     expect(manifest).toMatchObject({
-      version: 2,
+      version: 3,
       configStorage: 'sqlite',
       configSchemaVersion: 1
     })

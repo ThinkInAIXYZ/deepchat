@@ -100,10 +100,17 @@ export class MemoryProviderGateway implements MemoryProviderGatewayPort {
     providerId: string,
     modelId: string,
     prompt: string,
-    purpose: Extract<MemoryProviderPurpose, 'extraction' | 'decision' | 'maintenance'>
+    purpose: Extract<MemoryProviderPurpose, 'extraction' | 'decision' | 'maintenance'>,
+    options?: { signal?: AbortSignal }
   ): Promise<string> {
-    return this.execute(agentId, providerId, modelId, purpose, (signal) =>
-      this.deps.generateText(providerId, modelId, prompt, signal)
+    return this.execute(
+      agentId,
+      providerId,
+      modelId,
+      purpose,
+      (signal) => this.deps.generateText(providerId, modelId, prompt, signal),
+      undefined,
+      options?.signal
     )
   }
 
@@ -147,14 +154,22 @@ export class MemoryProviderGateway implements MemoryProviderGatewayPort {
     modelId: string,
     purpose: MemoryProviderPurpose,
     operation: (signal: AbortSignal) => Promise<T>,
-    latencyProfile?: QueryEmbeddingLatencyProfile
+    latencyProfile?: QueryEmbeddingLatencyProfile,
+    sourceSignal?: AbortSignal
   ): Promise<T> {
     if (this.stopped) {
       return Promise.reject(
         createMemoryProviderCancellationError('[Memory] provider gateway disposed')
       )
     }
+    if (sourceSignal?.aborted)
+      return Promise.reject(
+        createMemoryProviderCancellationError('[Memory] source request aborted')
+      )
     const controller = new AbortController()
+    const abortSource = () => controller.abort(sourceSignal?.reason)
+    sourceSignal?.addEventListener('abort', abortSource, { once: true })
+    if (sourceSignal?.aborted) abortSource()
     const generation = this.generationByAgent.get(agentId) ?? 0
     let controllers = this.activeControllersByAgent.get(agentId)
     if (!controllers) {
@@ -259,22 +274,21 @@ export class MemoryProviderGateway implements MemoryProviderGatewayPort {
       )
     }
     const aborted = new Promise<never>((_resolve, reject) => {
-      controller.signal.addEventListener(
-        'abort',
-        () => {
-          if (!deadlineRecorded && !abortedRecorded) {
-            abortedRecorded = true
-            this.deps.diagnostics?.recordProviderRaceEvent('aborted')
-          }
-          reject(createMemoryProviderCancellationError('[Memory] provider request aborted'))
-        },
-        { once: true }
-      )
+      const rejectAbort = () => {
+        if (!deadlineRecorded && !abortedRecorded) {
+          abortedRecorded = true
+          this.deps.diagnostics?.recordProviderRaceEvent('aborted')
+        }
+        reject(createMemoryProviderCancellationError('[Memory] provider request aborted'))
+      }
+      controller.signal.addEventListener('abort', rejectAbort, { once: true })
+      if (controller.signal.aborted) rejectAbort()
     })
     return Promise.race([task, timeout, aborted]).finally(() => {
       raceSettled = true
       settleAdmission()
       if (timer) clearTimeout(timer)
+      sourceSignal?.removeEventListener('abort', abortSource)
       const current = this.activeControllersByAgent.get(agentId)
       current?.delete(controller)
       if (current?.size === 0) this.activeControllersByAgent.delete(agentId)

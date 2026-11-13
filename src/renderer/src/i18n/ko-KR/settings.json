@@ -472,7 +472,8 @@
       "saveAndTest": "저장 및 테스트",
       "saveOnly": "저장만",
       "saveAndTestFirst": "먼저 클라우드 설정을 저장하고 테스트하세요."
-    }
+    },
+    "legacyBackupPassword": "이전 암호화 백업 비밀번호 (선택 사항)"
   },
   "dashboard": {
     "badge": "사용 대시보드",
@@ -637,10 +638,6 @@
       "reasoningToggle": {
         "description": "이 모델에서 추론을 기본으로 활성화할지 제어합니다",
         "label": "추론 활성화"
-      },
-      "interleavedThinking": {
-        "label": "Interleaved Thinking",
-        "description": "이 모델이 reasoning 및 tool-call 메시지를 Interleaved Thinking 방식으로 처리할지 제어합니다. provider 기본값이 있으면 자동으로 적용됩니다."
       },
       "thinkingBudget": {
         "label": "사고 예산",
@@ -2832,7 +2829,6 @@
     "thinkingBudget": "사고 예산",
     "reasoningEffort": "추론 강도",
     "verbosity": "응답 상세도",
-    "interleaved": "인터리브드 사고 호환 강제",
     "systemPrompt": "기본 시스템 프롬프트",
     "systemPromptPlaceholder": "빈 시스템 프롬프트를 쓰려면 비워 두세요",
     "defaultProjectPath": "기본 디렉터리(선택)",

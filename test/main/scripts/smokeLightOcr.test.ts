@@ -383,6 +383,21 @@ describe('smoke-light-ocr', () => {
         Buffer.byteLength('node') + Buffer.byteLength('npm-runtime')
       )
 
+      const dimLink = path.join(unpackedRoot, 'runtime/dim/plugins/node_modules/rutis')
+      await writeTree(unpackedRoot, {
+        'runtime/dim/plugins/node_modules/.pnpm/rutis/index.mjs': 'dim-plugin-runtime'
+      })
+      await symlink('.pnpm/rutis', dimLink)
+      const withDimLink = await measurePackagedComponents(layout)
+      expect(withDimLink.otherRuntime.unpackedBytes).toBe(Buffer.byteLength('uv-runtime'))
+      expect(withDimLink.dimRuntime.unpackedBytes).toBe(
+        Buffer.byteLength('dim-plugin-runtime')
+      )
+      await rm(dimLink)
+      await symlink(path.join(unpackedRoot, 'runtime/node/lib'), dimLink)
+      await expect(measurePackagedComponents(layout)).rejects.toThrow(/escapes its measured root/)
+      await rm(dimLink)
+
       await rm(npmLink)
       const externalTarget = path.join(tempDir, 'external-runtime')
       await writeFile(externalTarget, 'not-packaged')

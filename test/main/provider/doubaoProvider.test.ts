@@ -1,6 +1,6 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LLM_PROVIDER } from '@shared/types/provider'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AiSdkProvider } from '../../../src/main/provider/providers/aiSdkProvider'
 
 const { mockGetProvider } = vi.hoisted(() => ({
@@ -30,13 +30,6 @@ vi.mock('../../../src/main/provider/providerDbLoader', () => ({
     getProvider: mockGetProvider,
     getModel: vi.fn()
   }
-}))
-
-vi.mock('../../../src/main/provider/aiSdk', () => ({
-  runAiSdkCoreStream: vi.fn(),
-  runAiSdkDimensions: vi.fn(),
-  runAiSdkEmbeddings: vi.fn(),
-  runAiSdkGenerateText: vi.fn()
 }))
 
 const createProvider = (overrides?: Partial<LLM_PROVIDER>): LLM_PROVIDER => ({

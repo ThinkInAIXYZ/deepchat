@@ -25,10 +25,7 @@ const TYPESCRIPT_SOURCE_EXTENSION = /\.[cm]?tsx?$/
 const CAPABILITY_SCOPED_CONSUMER_FILES = [
   'agent/acp/compatibility/adapters.ts',
   'agent/acp/compatibility/dependencies.ts',
-  'agent/deepchat/memory/memoryRuntimeCoordinator.ts',
-  'agent/deepchat/runtime/contextOccupancyCoordinator.ts',
-  'agent/deepchat/runtime/deepChatLoopRunner.ts',
-  'agent/deepchat/runtime/turnCoordinator.ts',
+  'memory/session/memoryRuntimeCoordinator.ts',
   'app/startupMigrations/legacyChatImportService.ts',
   'memory/routes.ts',
   'session/data/settings.ts',
@@ -65,7 +62,6 @@ const ALLOWED_STORAGE_EXCEPTIONS = new Map<string, StorageBoundaryException>([
     'sync/replica/store.ts',
     { physicalName: 'invalidate affected Tape projections after atomic import' }
   ],
-  ['app/databaseSecurity.ts', { physicalName: 'database table-name security allowlist' }],
   [
     'app/startupMigrations/legacyChatImportService.ts',
     { physicalName: 'migration-only full-table replacement and projection cleanup' }
@@ -360,10 +356,7 @@ describe('Tape layer boundaries', () => {
       })
       .sort()
 
-    expect(callSites).toEqual([
-      'agent/deepchat/runtime/skillContextMaterializer.ts',
-      'skill/skillExecutionAuthority.ts'
-    ])
+    expect(callSites).toEqual(['skill/skillExecutionAuthority.ts'])
   })
 
   it('narrows Skill Tape collaborators to their runtime capability sets', () => {
@@ -491,7 +484,7 @@ describe('Tape layer boundaries', () => {
 
   it.each([
     ['Session', '@/session/data/transcript'],
-    ['Agent', '@/agent/deepchat/runtime/process'],
+    ['Agent', '@/agent/dim/content'],
     ['Memory', '@/memory/routes'],
     ['App', '@/app/composition'],
     ['Tape ports', '@/tape/ports/capabilities'],

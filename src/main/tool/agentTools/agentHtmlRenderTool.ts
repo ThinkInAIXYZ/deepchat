@@ -206,8 +206,21 @@ export class AgentHtmlRenderTool {
     }
     const now = Date.now()
     this.releaseExpiredSections(now)
-    const key = `${conversationId}\n${panelId}`
     const stored = panels.measurePanel(conversationId, panelId)
+    const accept = (stored: Awaited<ReturnType<AgentHtmlRenderPanelPort['measurePanel']>>) =>
+      this.acceptSection(conversationId, panelId, sectionId, html, now, stored)
+    return stored instanceof Promise ? stored.then(accept) : accept(stored)
+  }
+
+  private acceptSection(
+    conversationId: string,
+    panelId: string,
+    sectionId: string,
+    html: string,
+    now: number,
+    stored: Awaited<ReturnType<AgentHtmlRenderPanelPort['measurePanel']>>
+  ) {
+    const key = `${conversationId}\n${panelId}`
     if (stored === null) {
       this.acceptedSections.delete(key)
       throw new Error(

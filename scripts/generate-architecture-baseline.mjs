@@ -12,26 +12,27 @@ const execFileAsync = promisify(execFile)
 const AGENT_SYSTEM_SOURCE_ROOTS = [
   'src/main/agent/shared',
   'src/main/agent/manager',
-  'src/main/agent/deepchat',
-  'src/main/agent/acp'
+  'src/main/agent/dim',
+  'src/main/agent/acp',
+  'src/main/agent/repository',
+  'src/main/memory/session',
+  'src/main/tool/catalog'
 ]
 const AGENT_SYSTEM_RUNTIME_BOUNDARY_FILES = [
   'src/main/session/query.ts',
   'src/main/session/assignment.ts',
   'src/main/session/turn.ts',
   'src/main/session/lifecycle.ts',
-  'src/main/agent/deepchat/harness/deepChatAgentHarness.ts',
-  'src/main/agent/deepchat/harness/createDeepChatAgentHarness.ts',
-  'src/main/agent/deepchat/runtime/runLifecycleCoordinator.ts',
-  'src/main/agent/deepchat/runtime/sessionStatusPublisher.ts',
-  'src/main/agent/deepchat/runtime/pendingInputAdmissionCoordinator.ts',
-  'src/main/agent/deepchat/runtime/pendingInputPump.ts',
-  'src/main/agent/deepchat/runtime/turnCoordinator.ts',
-  'src/main/agent/deepchat/runtime/compactionRuntimeCoordinator.ts',
-  'src/main/agent/deepchat/runtime/sessionSettingsCoordinator.ts',
-  'src/main/agent/deepchat/runtime/runtimeHookSink.ts',
-  'src/main/agent/deepchat/runtime/process.ts',
-  'src/main/agent/deepchat/runtime/dispatch.ts',
+  'src/main/agent/dim/createDimAgent.ts',
+  'src/main/agent/dim/sessionRuntime.ts',
+  'src/main/agent/dim/content.ts',
+  'src/main/agent/dim/productGateway.ts',
+  'src/main/agent/dim/projectionStore.ts',
+  'src/main/agent/dim/legacyMigration.ts',
+  'src/main/agent/dim/modelCatalog.ts',
+  'src/main/agent/shared/resources/sessionStatus.ts',
+  'src/main/agent/shared/resources/sessionHooks.ts',
+  'src/main/memory/session/memoryRuntimeCoordinator.ts',
   'src/main/session/data/transcript.ts',
   'src/main/tape/application/sessionTape.ts',
   'src/main/tape/ports/capabilities.ts',
@@ -45,13 +46,9 @@ const AGENT_SYSTEM_EXPECTED_FILES = [
   'src/main/agent/manager/sessionHandles.ts',
   'src/main/agent/manager/deepChatAgentBackend.ts',
   'src/main/agent/manager/directAcpAgentBackend.ts',
-  'src/main/agent/deepchat/instance/deepChatAgentRuntime.ts',
-  'src/main/agent/deepchat/instance/deepChatAgentInstance.ts',
-  'src/main/agent/deepchat/loop/deepChatLoopEngine.ts',
-  'src/main/agent/deepchat/loop/ports.ts',
-  'src/main/agent/deepchat/memory/memoryRuntimeCoordinator.ts',
-  'src/main/agent/deepchat/memory/memoryPromptContributor.ts',
-  'src/main/agent/deepchat/memory/memoryIngestionObserver.ts',
+  'src/main/agent/dim/runtimeSupervisor.ts',
+  'src/main/memory/session/memoryPromptContributor.ts',
+  'src/main/memory/session/memoryIngestionObserver.ts',
   'src/main/agent/acp/instance/acpAgentRuntime.ts',
   'src/main/agent/acp/instance/acpAgentInstance.ts',
   ...AGENT_SYSTEM_RUNTIME_BOUNDARY_FILES
@@ -68,21 +65,14 @@ const AGENT_SYSTEM_OWNER_EVIDENCE = [
     'src/main/agent/manager/directAcpAgentBackend.ts',
     /\b(?:function|const) createDirectAcpAgentBackend\b/g
   ],
-  [
-    'deepChatRuntime',
-    'src/main/agent/deepchat/instance/deepChatAgentRuntime.ts',
-    /\bclass DeepChatAgentRuntime\b/g
-  ],
-  [
-    'deepChatInstance',
-    'src/main/agent/deepchat/instance/deepChatAgentInstance.ts',
-    /\bclass DeepChatAgentInstance\b/g
-  ],
-  [
-    'deepChatLoopEngine',
-    'src/main/agent/deepchat/loop/deepChatLoopEngine.ts',
-    /\bclass DeepChatLoopEngine\b/g
-  ],
+  ['dimAgent', 'src/main/agent/dim/createDimAgent.ts', /\bfunction createDimAgent\b/g],
+  ['dimHost', 'src/main/agent/dim/runtimeSupervisor.ts', /\bclass DimRuntimeSupervisor\b/g],
+  ['dimSession', 'src/main/agent/dim/sessionRuntime.ts', /\bclass DimSessionRuntime\b/g],
+  ['dimContent', 'src/main/agent/dim/content.ts', /\bclass DimContent\b/g],
+  ['dimModels', 'src/main/agent/dim/modelCatalog.ts', /\bclass DimModelCatalog\b/g],
+  ['dimProjection', 'src/main/agent/dim/projectionStore.ts', /\bclass DimProjectionStore\b/g],
+  ['dimMigration', 'src/main/agent/dim/legacyMigration.ts', /\bclass DimLegacyMigration\b/g],
+  ['dimGateway', 'src/main/agent/dim/productGateway.ts', /\bclass DimProductGateway\b/g],
   [
     'tapeToolFactWriter',
     'src/main/tape/ports/capabilities.ts',
@@ -90,96 +80,38 @@ const AGENT_SYSTEM_OWNER_EVIDENCE = [
   ],
   [
     'memoryRuntimeCoordinator',
-    'src/main/agent/deepchat/memory/memoryRuntimeCoordinator.ts',
+    'src/main/memory/session/memoryRuntimeCoordinator.ts',
     /\bclass MemoryRuntimeCoordinator\b/g
   ],
   [
     'memoryPromptContributor',
-    'src/main/agent/deepchat/memory/memoryPromptContributor.ts',
+    'src/main/memory/session/memoryPromptContributor.ts',
     /\binterface MemoryPromptContributor\b/g
   ],
   [
     'memoryIngestionObserver',
-    'src/main/agent/deepchat/memory/memoryIngestionObserver.ts',
+    'src/main/memory/session/memoryIngestionObserver.ts',
     /\binterface MemoryIngestionObserver\b/g
   ],
-  [
-    'acpRuntime',
-    'src/main/agent/acp/instance/acpAgentRuntime.ts',
-    /\bclass AcpAgentRuntime\b/g
-  ],
-  [
-    'acpInstance',
-    'src/main/agent/acp/instance/acpAgentInstance.ts',
-    /\bclass AcpAgentInstance\b/g
-  ],
-  [
-    'sessionQuery',
-    'src/main/session/query.ts',
-    /\bclass SessionQuery\b/g
-  ],
-  [
-    'sessionAssignment',
-    'src/main/session/assignment.ts',
-    /\bclass SessionAssignment\b/g
-  ],
-  [
-    'sessionTurn',
-    'src/main/session/turn.ts',
-    /\bclass SessionTurn\b/g
-  ],
-  [
-    'sessionLifecycle',
-    'src/main/session/lifecycle.ts',
-    /\bclass SessionLifecycle\b/g
-  ],
-  [
-    'deepChatAgentHarness',
-    'src/main/agent/deepchat/harness/deepChatAgentHarness.ts',
-    /\bclass DeepChatAgentHarness\b/g
-  ],
-  [
-    'runLifecycleCoordinator',
-    'src/main/agent/deepchat/runtime/runLifecycleCoordinator.ts',
-    /\bclass RunLifecycleCoordinator\b/g
-  ],
+  ['acpRuntime', 'src/main/agent/acp/instance/acpAgentRuntime.ts', /\bclass AcpAgentRuntime\b/g],
+  ['acpInstance', 'src/main/agent/acp/instance/acpAgentInstance.ts', /\bclass AcpAgentInstance\b/g],
+  ['sessionQuery', 'src/main/session/query.ts', /\bclass SessionQuery\b/g],
+  ['sessionAssignment', 'src/main/session/assignment.ts', /\bclass SessionAssignment\b/g],
+  ['sessionTurn', 'src/main/session/turn.ts', /\bclass SessionTurn\b/g],
+  ['sessionLifecycle', 'src/main/session/lifecycle.ts', /\bclass SessionLifecycle\b/g],
   [
     'sessionStatusPublisher',
-    'src/main/agent/deepchat/runtime/sessionStatusPublisher.ts',
+    'src/main/agent/shared/resources/sessionStatus.ts',
     /\bclass SessionStatusPublisher\b/g
   ],
   [
-    'pendingInputAdmissionCoordinator',
-    'src/main/agent/deepchat/runtime/pendingInputAdmissionCoordinator.ts',
-    /\bclass PendingInputAdmissionCoordinator\b/g
-  ],
-  [
-    'pendingInputPump',
-    'src/main/agent/deepchat/runtime/pendingInputPump.ts',
-    /\bclass PendingInputPump\b/g
-  ],
-  [
-    'turnCoordinator',
-    'src/main/agent/deepchat/runtime/turnCoordinator.ts',
-    /\bclass TurnCoordinator\b/g
-  ],
-  [
-    'compactionRuntimeCoordinator',
-    'src/main/agent/deepchat/runtime/compactionRuntimeCoordinator.ts',
-    /\bclass CompactionRuntimeCoordinator\b/g
-  ],
-  [
-    'sessionSettingsCoordinator',
-    'src/main/agent/deepchat/runtime/sessionSettingsCoordinator.ts',
-    /\bclass SessionSettingsCoordinator\b/g
-  ],
-  [
     'runtimeHookSink',
-    'src/main/agent/deepchat/runtime/runtimeHookSink.ts',
+    'src/main/agent/shared/resources/sessionHooks.ts',
     /\bclass RuntimeHookSink\b/g
   ]
 ]
 const AGENT_SYSTEM_RETIRED_PATHS = [
+  'src/main/agent/deepchat',
   'src/main/agent/manager/legacyAgentBackends.ts',
   'src/main/lib/agentRuntime',
   'src/main/presenter/index.ts',
@@ -191,6 +123,13 @@ const AGENT_SYSTEM_RETIRED_PATHS = [
   'src/shared/types/presenters/session.presenter.d.ts'
 ]
 const AGENT_SYSTEM_RETIRED_SYMBOL_PATTERNS = [
+  ['DeepChatAgentHarness', /\bDeepChatAgentHarness\b/g],
+  ['DeepChatAgentInstance', /\bDeepChatAgentInstance\b/g],
+  ['DeepChatAgentRuntime', /\bDeepChatAgentRuntime\b/g],
+  ['DeepChatLoopEngine', /\bDeepChatLoopEngine\b/g],
+  ['DeepChatLoopRunner', /\bDeepChatLoopRunner\b/g],
+  ['LoopRun', /\bLoopRun\b/g],
+
   ['AgentRegistry', /\bAgentRegistry\b/g],
   ['AgentSessionPresenter', /\bAgentSessionPresenter\b/g],
   ['IAgentSessionPresenter', /\bIAgentSessionPresenter\b/g],
@@ -204,18 +143,13 @@ const AGENT_SYSTEM_RETIRED_SYMBOL_PATTERNS = [
 ]
 const AGENT_HANDLE_BACKEND_RUNTIME_KIND_PATTERN =
   /\bruntimeKind\b\s*(?::|={1,3}|!==?)\s*['"](?:legacy|direct)['"]/g
-const AGENT_SYSTEM_CONTRACT_ROOTS = [
-  'src/shared/contracts/routes',
-  'src/shared/contracts/events'
-]
+const AGENT_SYSTEM_CONTRACT_ROOTS = ['src/shared/contracts/routes', 'src/shared/contracts/events']
 const SQLITE_SCHEMA_ROOTS = [
   'src/main/data/schemaCatalog.ts',
   'src/main/data/schemaCatalogMetadata.ts',
   'src/main/data/schemaTypes.ts'
 ]
-const MEMORY_SIDECAR_SCHEMA_FILES = [
-  'src/main/memory/infra/memoryVectorStore.ts'
-]
+const MEMORY_SIDECAR_SCHEMA_FILES = ['src/main/memory/infra/memoryVectorStore.ts']
 const COMPOSITION_LIFECYCLE_FILES = [
   'src/main/app/mainProcess.ts',
   'src/main/app/composition.ts',
@@ -256,11 +190,7 @@ const ANALYSIS_TARGETS = [
   }
 ]
 
-const RENDERER_BUSINESS_ROOTS = [
-  RENDERER_SOURCE_ROOT,
-  RENDERER_SETTINGS_ROOT,
-  RENDERER_SHARED_ROOT
-]
+const RENDERER_BUSINESS_ROOTS = [RENDERER_SOURCE_ROOT, RENDERER_SETTINGS_ROOT, RENDERER_SHARED_ROOT]
 const RENDERER_QUARANTINE_ROOT = path.join(ROOT, 'src/renderer/api/legacy')
 const RENDERER_QUARANTINE_ROOTS = []
 const RENDERER_QUARANTINE_EXIT_MAX_FILES = 0
@@ -272,7 +202,7 @@ const BRIDGE_REGISTER_PATH = path.join(
 const HOT_PATH_FILES = [
   path.join(ROOT, 'src/main/app/composition.ts'),
   path.join(ROOT, 'src/main/routes/index.ts'),
-  path.join(ROOT, 'src/main/agent/deepchat/harness/createDeepChatAgentHarness.ts'),
+  path.join(ROOT, 'src/main/agent/dim/createDimAgent.ts'),
   path.join(ROOT, 'src/main/provider/index.ts')
 ]
 
@@ -288,7 +218,7 @@ const MIGRATED_RAW_CHANNEL_GUARD_PATHS = [
   path.join(ROOT, 'src/renderer/src/pages/NewThreadPage.vue'),
   path.join(ROOT, 'src/main/desktop/window'),
   path.join(ROOT, 'src/main/config'),
-  path.join(ROOT, 'src/main/agent/deepchat/runtime'),
+  path.join(ROOT, 'src/main/agent/dim'),
   path.join(ROOT, 'src/main/presenter/sessionPresenter'),
   path.join(ROOT, 'src/main/provider'),
   path.join(ROOT, 'src/shared/contracts'),
@@ -386,9 +316,13 @@ async function getHeadCommit() {
 }
 
 async function getRelevantDirtyFiles(relativeRoots) {
-  const { stdout } = await execFileAsync('git', ['status', '--porcelain=v1', '--untracked-files=all'], {
-    cwd: ROOT
-  })
+  const { stdout } = await execFileAsync(
+    'git',
+    ['status', '--porcelain=v1', '--untracked-files=all'],
+    {
+      cwd: ROOT
+    }
+  )
   const candidates = stdout
     .split('\n')
     .filter(Boolean)
@@ -404,7 +338,9 @@ async function getRelevantDirtyFiles(relativeRoots) {
 function collectSqlTableIdentifiers(sources) {
   const identifiers = new Set()
   for (const source of sources) {
-    for (const match of source.matchAll(/CREATE (?:VIRTUAL )?TABLE IF NOT EXISTS ([a-z][a-z0-9_]*)/g)) {
+    for (const match of source.matchAll(
+      /CREATE (?:VIRTUAL )?TABLE IF NOT EXISTS ([a-z][a-z0-9_]*)/g
+    )) {
       identifiers.add(match[1])
     }
   }
@@ -458,7 +394,7 @@ async function buildAgentSystemBaseline() {
     agentManagerSource,
     AGENT_HANDLE_BACKEND_RUNTIME_KIND_PATTERN
   )
-  const loopFiles = await collectRelativeSourceFiles(['src/main/agent/deepchat/loop'])
+  const loopFiles = await collectRelativeSourceFiles(['src/main/agent/dim'])
   const loopImports = []
   for (const file of loopFiles) {
     const source = await fs.readFile(path.join(ROOT, file), 'utf8')
@@ -503,7 +439,7 @@ async function buildAgentSystemBaseline() {
   }))
 
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     goal: 'agent-system-layered-runtime',
     headCommit: await getHeadCommit(),
     relevantWorkingTree: {
@@ -519,11 +455,17 @@ async function buildAgentSystemBaseline() {
       symbols: retiredSymbols
     },
     runtimeOwnership: {
-      deepchat: {
-        runtime: ownerEvidence.deepChatRuntime.file,
-        instance: ownerEvidence.deepChatInstance.file,
-        loopEngine: ownerEvidence.deepChatLoopEngine.file,
-        backend: ownerEvidence.typedDeepChatBackend.file
+      dim: {
+        agentFacade: ownerEvidence.dimAgent.file,
+        host: ownerEvidence.dimHost.file,
+        session: ownerEvidence.dimSession.file,
+        content: ownerEvidence.dimContent.file,
+        models: ownerEvidence.dimModels.file,
+        gateway: ownerEvidence.dimGateway.file,
+        projection: ownerEvidence.dimProjection.file,
+        migration: ownerEvidence.dimMigration.file,
+        backend: ownerEvidence.typedDeepChatBackend.file,
+        execution: 'Pinned dim Rust SDK; desktop plugins and projections only'
       },
       acp: {
         runtime: ownerEvidence.acpRuntime.file,
@@ -559,22 +501,20 @@ async function buildAgentSystemBaseline() {
       sha256: await hashFiles(compositionLifecycleFiles)
     },
     dependencyMetrics: {
-      loopFiles,
-      loopToPresenter: resolvedLoopImports.filter(
+      dimFiles: loopFiles,
+      dimToPresenter: resolvedLoopImports.filter(
         ({ absolute }) => absolute && isUnder(absolute, presenterRoot)
       ).length,
-      loopToSqlite: resolvedLoopImports.filter(
+      dimToSqlite: resolvedLoopImports.filter(
         ({ absolute }) => absolute && isUnder(absolute, sqliteRoot)
       ).length,
-      loopToElectron: loopImports.filter(({ specifier }) =>
-        /^electron(?:\/|$)/.test(specifier)
-      ).length,
-      loopToRoutes: resolvedLoopImports.filter(
+      dimToElectron: loopImports.filter(({ specifier }) => /^electron(?:\/|$)/.test(specifier))
+        .length,
+      dimToRoutes: resolvedLoopImports.filter(
         ({ absolute }) => absolute && isUnder(absolute, routesRoot)
       ).length,
-      loopToAcp: resolvedLoopImports.filter(
-        ({ absolute }) => absolute && isUnder(absolute, acpRoot)
-      ).length
+      dimToAcp: resolvedLoopImports.filter(({ absolute }) => absolute && isUnder(absolute, acpRoot))
+        .length
     }
   }
 }
@@ -1261,7 +1201,9 @@ function renderBridgeRegisterReport(register, bridgeSummary) {
 
   lines.push('## Entries')
   lines.push('')
-  lines.push('| id | owner | legacyEntry | newTarget | introducedIn | deleteByPhase | status | notes |')
+  lines.push(
+    '| id | owner | legacyEntry | newTarget | introducedIn | deleteByPhase | status | notes |'
+  )
   lines.push('| --- | --- | --- | --- | --- | --- | --- | --- |')
 
   for (const bridge of register.bridges) {
@@ -1279,10 +1221,7 @@ function withFinalNewline(content) {
 }
 
 export function assertBaselineOutputSafety(outputDir, relevantDirtyFiles) {
-  if (
-    path.resolve(outputDir) === path.resolve(REPORT_DIR) &&
-    relevantDirtyFiles.length > 0
-  ) {
+  if (path.resolve(outputDir) === path.resolve(REPORT_DIR) && relevantDirtyFiles.length > 0) {
     throw new Error(
       `Refusing to update canonical architecture baselines from a dirty relevant tree: ${relevantDirtyFiles.join(', ')}`
     )
@@ -1322,7 +1261,8 @@ export async function generateArchitectureBaseline({ outputDir = REPORT_DIR } = 
   const usePresenterCountsByLayer = await collectRendererPatternCountsByLayer(
     LEGACY_PRESENTER_HELPER_CALL_PATTERN
   )
-  const windowElectronCountsByLayer = await collectRendererPatternCountsByLayer(WINDOW_ELECTRON_PATTERN)
+  const windowElectronCountsByLayer =
+    await collectRendererPatternCountsByLayer(WINDOW_ELECTRON_PATTERN)
   const windowApiCountsByLayer = await collectRendererPatternCountsByLayer(WINDOW_API_PATTERN)
   const rawTimerCounts = await collectPatternCounts(mainAndRendererFiles, RAW_TIMER_PATTERN)
   const migratedRawChannelCounts = await collectMigratedRawChannelCounts()
@@ -1490,27 +1430,31 @@ export async function generateArchitectureBaseline({ outputDir = REPORT_DIR } = 
     ),
     fs.writeFile(
       path.join(outputDir, 'main-kernel-boundary-baseline.md'),
-      withFinalNewline(renderBoundaryBaselineReport({
-        currentPhase: bridgeRegister.currentPhase,
-        metrics,
-        rendererLegacySplit,
-        quarantineSourceFiles: quarantineSourceFiles.map((file) => relativePath(file)),
-        phaseGates,
-        usePresenterSummary,
-        windowElectronSummary,
-        windowApiSummary,
-        rawTimerSummary,
-        migratedRawChannelSummary,
-        hotPathEdges
-      }))
+      withFinalNewline(
+        renderBoundaryBaselineReport({
+          currentPhase: bridgeRegister.currentPhase,
+          metrics,
+          rendererLegacySplit,
+          quarantineSourceFiles: quarantineSourceFiles.map((file) => relativePath(file)),
+          phaseGates,
+          usePresenterSummary,
+          windowElectronSummary,
+          windowApiSummary,
+          rawTimerSummary,
+          migratedRawChannelSummary,
+          hotPathEdges
+        })
+      )
     ),
     fs.writeFile(
       path.join(outputDir, 'main-kernel-migration-scoreboard.md'),
-      withFinalNewline(renderMigrationScoreboardReport({
-        currentPhase: bridgeRegister.currentPhase,
-        metrics,
-        phaseGates
-      }))
+      withFinalNewline(
+        renderMigrationScoreboardReport({
+          currentPhase: bridgeRegister.currentPhase,
+          metrics,
+          phaseGates
+        })
+      )
     ),
     fs.writeFile(
       path.join(outputDir, 'main-kernel-migration-scoreboard.json'),

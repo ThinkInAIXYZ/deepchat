@@ -78,14 +78,15 @@ export const useSyncStore = defineStore('sync', () => {
   }
 
   const importBackupMutation = useIpcMutation({
-    mutation: (backupFile: string, mode: 'increment' | 'overwrite') =>
-      syncClient.importFromSync(backupFile, mode),
+    mutation: (backupFile: string, mode: 'increment' | 'overwrite', legacyPassword?: string) =>
+      syncClient.importFromSync(backupFile, mode, legacyPassword),
     invalidateQueries: () => [backupQueryKey()]
   })
 
   const importData = async (
     backupFile: string,
-    mode: 'increment' | 'overwrite' = 'increment'
+    mode: 'increment' | 'overwrite' = 'increment',
+    legacyPassword?: string
   ): Promise<{
     success: boolean
     message: string
@@ -97,7 +98,11 @@ export const useSyncStore = defineStore('sync', () => {
 
     isImporting.value = true
     try {
-      const result = (await importBackupMutation.mutateAsync([backupFile, mode])) as {
+      const result = (await importBackupMutation.mutateAsync([
+        backupFile,
+        mode,
+        legacyPassword
+      ])) as {
         success: boolean
         message: string
         count?: number

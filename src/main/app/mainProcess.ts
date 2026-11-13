@@ -20,6 +20,8 @@ import { ProviderDatabase } from '@/provider/data/database'
 import { McpDatabase } from '@/mcp/data/database'
 import { AgentDatabase } from '@/agent/data/database'
 import { mainLogger, setMainLoggingEnabled } from '@/logging'
+import { SyncImportRecovery } from '../sync/importRecovery'
+import { NativeReplicaRecovery } from '../sync/replica/nativeRecovery'
 
 export type { MainProcessControl } from './composition'
 
@@ -36,6 +38,7 @@ export async function startMainProcess(
 
   try {
     electronApp.setAppUserModelId('com.wefonk.deepchat')
+    await SyncImportRecovery.recover(app.getPath('userData'))
     const settingsStore = createSettingsStore()
     setMainLoggingEnabled(settingsStore.get<boolean>('loggingEnabled') ?? false)
     const secretStore = new SecretStore(settingsStore)
@@ -78,10 +81,23 @@ export async function startMainProcess(
         }
       }
     })
+    const startupDatabase = database
+    await databaseSecurityService.migrateLegacyEncryption({
+      getDatabasePath: () => startupDatabase.getDatabasePath(),
+      getDatabasePassword: () => startupDatabase.getDatabasePassword(),
+      checkpointAndClose: () => {
+        startupDatabase.getDatabase().pragma('wal_checkpoint(TRUNCATE)')
+        startupDatabase.close()
+      },
+      close: () => startupDatabase.close(),
+      reopenWithPassword: (password) => startupDatabase.reopenWithPassword(password),
+      isOpen: () => startupDatabase.getDatabase().open
+    })
     splashWindow.showDatabaseUnlockProgress({
       active: false,
       safeStorageAvailable: databaseSecurityService.getStatus().safeStorageAvailable
     })
+    await NativeReplicaRecovery.recover(app.getPath('userData'), startupDatabase.getDatabase())
     const settingsDatabase = new SettingsDatabase(database)
     const providerDatabase = new ProviderDatabase(database)
     const mcpDatabase = new McpDatabase(database)

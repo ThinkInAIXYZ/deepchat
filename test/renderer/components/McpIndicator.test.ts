@@ -71,6 +71,7 @@ const setup = async (options?: {
   defaultToolMode?: 'agent' | 'code' | 'minimal'
   toolModeOverride?: 'agent' | 'code' | 'minimal' | null
   sessionStatus?: 'completed' | 'working' | 'error' | 'none'
+  nativeCatalog?: boolean
   subagentsAvailable?: boolean
 }) => {
   vi.resetModules()
@@ -152,9 +153,9 @@ const setup = async (options?: {
     getConfigurableAgentToolDefinitions: vi
       .fn()
       .mockResolvedValue([
-        buildTool('read', 'agent-filesystem'),
-        buildTool('exec', 'agent-filesystem'),
-        buildTool('deepchat_question', 'agent-core'),
+        buildTool('read', options?.nativeCatalog ? 'dim' : 'agent-filesystem'),
+        buildTool('exec', options?.nativeCatalog ? 'dim' : 'agent-filesystem'),
+        buildTool('ask_user', options?.nativeCatalog ? 'dim' : 'agent-core'),
         buildTool('cdp_send', 'yobrowser'),
         buildTool('mcp_tool', 'demo-server', 'mcp')
       ])
@@ -370,25 +371,23 @@ describe('McpIndicator', () => {
     ])
   })
 
-  it('renders deepchat_question inside Agent Core and toggles it individually', async () => {
+  it('renders ask_user inside Agent Core and toggles it individually', async () => {
     const { wrapper, agentSessionPresenter } = await setup({
       hasActiveSession: true,
       activeAgentId: 'deepchat'
     })
 
     expect(wrapper.text()).toContain('Agent Core')
-    expect(wrapper.text()).toContain('deepchat_question')
+    expect(wrapper.text()).toContain('ask_user')
 
-    const questionButton = wrapper
-      .findAll('button')
-      .find((button) => button.text() === 'deepchat_question')
+    const questionButton = wrapper.findAll('button').find((button) => button.text() === 'ask_user')
     expect(questionButton).toBeTruthy()
 
     await questionButton!.trigger('click')
     await flushPromises()
 
     expect(agentSessionPresenter.updateSessionDisabledAgentTools).toHaveBeenCalledWith('s1', [
-      'deepchat_question'
+      'ask_user'
     ])
   })
 
@@ -459,15 +458,13 @@ describe('McpIndicator', () => {
       selectedAgentId: 'deepchat'
     })
 
-    const questionButton = wrapper
-      .findAll('button')
-      .find((button) => button.text() === 'deepchat_question')
+    const questionButton = wrapper.findAll('button').find((button) => button.text() === 'ask_user')
     expect(questionButton).toBeTruthy()
 
     await questionButton!.trigger('click')
     await flushPromises()
 
-    expect(draftStore.disabledAgentTools).toEqual(['deepchat_question'])
+    expect(draftStore.disabledAgentTools).toEqual(['ask_user'])
     expect(agentSessionPresenter.updateSessionDisabledAgentTools).not.toHaveBeenCalled()
   })
 
@@ -505,7 +502,7 @@ describe('McpIndicator', () => {
     })
   })
 
-  it('shows fixed Code tools as active read-only items', async () => {
+  it('falls back from legacy Code mode without offering the retired entrypoint', async () => {
     const { wrapper, agentSessionPresenter } = await setup({
       providerId: 'deepseek',
       defaultToolMode: 'code',
@@ -515,70 +512,40 @@ describe('McpIndicator', () => {
     expect(wrapper.text()).toContain('Model default')
     expect(
       wrapper.findAll('[role="radio"]').map((radio) => radio.element.parentElement?.textContent)
-    ).toEqual(['Agent', 'Code', 'Minimal'])
-    expect(wrapper.text()).toContain('run_code')
-    expect(wrapper.text()).toContain('Code callable · Agent Filesystem')
-    expect(wrapper.text()).toContain('deepchat_question')
-    expect(wrapper.text()).toContain('deepchat_subagents')
-    const fixedToolNames = ['run_code', 'deepchat_question', 'deepchat_subagents']
-    const fixedToolItems = wrapper
-      .findAll('span')
-      .filter((item) => fixedToolNames.includes(item.text()))
-    expect(fixedToolItems).toHaveLength(fixedToolNames.length)
-    expect(fixedToolItems.every((item) => item.attributes('variant') === 'default')).toBe(true)
-    await fixedToolItems[1].trigger('click')
-    await fixedToolItems[2].trigger('click')
-    await flushPromises()
+    ).toEqual(['Agent', 'Minimal'])
+    expect(wrapper.text()).not.toContain('run_code')
+    expect(wrapper.text()).not.toContain('Code callable · Agent Filesystem')
+    expect(wrapper.text()).toContain('ask_user')
+    expect(wrapper.text()).toContain('Direct tool calls')
     expect(agentSessionPresenter.updateSessionDisabledAgentTools).not.toHaveBeenCalled()
     expect(wrapper.text()).toContain('demo-server')
   })
 
-  it('persists Minimal Mode and only replaces the filesystem tool group', async () => {
-    const { wrapper, sessionStore, agentSessionPresenter } = await setup({
+  it('persists Minimal and displays only the native catalog', async () => {
+    const { wrapper, sessionStore } = await setup({
       defaultToolMode: 'code',
-      pluginEnabled: true,
+      nativeCatalog: true,
       subagentsAvailable: true
     })
-    const minimalRadio = wrapper.findAll('[role="radio"]')[2]
-
-    await minimalRadio.trigger('click')
+    await wrapper.findAll('[role="radio"]')[1].trigger('click')
     await flushPromises()
-
     expect(sessionStore.setSessionToolMode).toHaveBeenCalledWith('minimal')
-    expect(wrapper.text()).toContain('exec')
-    expect(wrapper.text()).toContain('process')
-    expect(wrapper.text()).toContain('str_replace_editor')
-    expect(wrapper.findAll('button').some((button) => button.text() === 'read')).toBe(false)
-    expect(wrapper.text()).toContain('deepchat_question')
-    expect(wrapper.text()).toContain('deepchat_subagents')
-    expect(wrapper.text()).toContain('demo-server')
-    expect(wrapper.text()).toContain('CUA Driver')
-    const fixedToolNames = [
-      'exec',
-      'process',
-      'str_replace_editor',
-      'deepchat_question',
-      'deepchat_subagents'
-    ]
-    const fixedToolItems = wrapper
-      .findAll('span')
-      .filter((item) => fixedToolNames.includes(item.text()))
-    expect(fixedToolItems).toHaveLength(fixedToolNames.length)
-    expect(fixedToolItems.every((item) => item.attributes('variant') === 'default')).toBe(true)
-    await fixedToolItems[3].trigger('click')
-    await fixedToolItems[4].trigger('click')
-    await flushPromises()
-    expect(agentSessionPresenter.updateSessionDisabledAgentTools).not.toHaveBeenCalled()
+    for (const name of ['read', 'exec', 'ask_user'])
+      expect(wrapper.findAll('button').some((button) => button.text() === name)).toBe(true)
+    for (const name of ['str_replace_editor', 'apply_patch', 'process', 'deepchat_subagents'])
+      expect(wrapper.text()).not.toContain(name)
   })
 
-  it('hides the Minimal editor when a required filesystem tool is disabled', async () => {
+  it('keeps native tools visible when a filesystem tool is disabled', async () => {
     const { wrapper } = await setup({
+      nativeCatalog: true,
       toolModeOverride: 'minimal',
       disabledAgentTools: ['read']
     })
-
+    const read = wrapper.findAll('button').find((button) => button.text() === 'read')
+    expect(read).toBeTruthy()
+    expect(read!.attributes('variant')).toBe('outline')
     expect(wrapper.text()).toContain('exec')
-    expect(wrapper.text()).toContain('process')
     expect(wrapper.text()).not.toContain('str_replace_editor')
   })
 
@@ -586,7 +553,7 @@ describe('McpIndicator', () => {
     const { wrapper, sessionStore } = await setup({ sessionStatus: 'working' })
     const radios = wrapper.findAll('[role="radio"]')
 
-    expect(radios).toHaveLength(3)
+    expect(radios).toHaveLength(2)
     expect(radios.every((radio) => radio.attributes('disabled') !== undefined)).toBe(true)
     await radios[1].trigger('click')
     await flushPromises()

@@ -40,6 +40,10 @@ export class SessionPendingInputs implements SessionPendingInputsPort {
     return this.store.listPendingInputs(sessionId)
   }
 
+  listMigrationInputs(sessionId: string): PendingSessionInputRecord[] {
+    return this.store.listMigrationInputs(sessionId)
+  }
+
   getInput(sessionId: string, itemId: string): PendingSessionInputRecord | null {
     const record = this.store.getInput(itemId)
     if (!record) {

@@ -510,6 +510,11 @@ $ pip install setuptools
 $ pnpm run dev
 ```
 
+開発には Rust 1.98.1（rustup 経由、Windows では Visual Studio C++ Build Tools も）が必要です。
+`pnpm dev` は固定バージョンの Node/dim、プラグインランタイム、ネイティブホストを準備してから
+Electron を起動します。初回はネットワーク接続とビルドが必要です。以後はソースやロックの変更まで
+検証済みのローカル資産を再利用します。配布アプリにはランタイムが同梱され、Rust は不要です。
+
 ### ビルド
 
 ```bash

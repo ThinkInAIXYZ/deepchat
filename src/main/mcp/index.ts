@@ -1,4 +1,5 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
+import type { HtmlRenderSource } from '@/htmlRender/source'
 import logger from '@shared/logger'
 import { performance } from 'node:perf_hooks'
 import type { Prompt } from '@shared/types/prompt'
@@ -60,6 +61,8 @@ import { hasMcpIdentityBearingChange } from './serverIdentity'
 import type { CacheImageOptions } from '@/platform/imageCache'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import { childProcessRegistry } from '@/agent/shared/process/childProcessRegistry'
+import { nativeMcpSessionConfiguration } from './nativeSessionConfiguration'
+import type { DimMcpServer } from '@/agent/dim/mcp'
 
 type McpToolAccessContext = {
   enabledTools?: string[]
@@ -98,6 +101,33 @@ export class McpService implements McpServicePort {
   private serverManager: ServerManager
   private toolManager: ToolManager
   private mcpOAuthManager: McpOAuthManager
+
+  async nativeSessionConfiguration(
+    selectedServerIds: readonly string[] | null | undefined,
+    stdio: (serverName: string, config: MCPServerConfig) => Promise<DimMcpServer | null>
+  ) {
+    const [enabled, servers] = await Promise.all([
+      this.mcpSettings.getMcpEnabled(),
+      this.mcpSettings.getMcpServers()
+    ])
+    const result = await nativeMcpSessionConfiguration({
+      selectedServerIds,
+      enabled,
+      servers,
+      pluginOwns: (name) => this.pluginRuntimeSupervisor.ownsServer(name),
+      authorization: (name, config) => this.mcpOAuthManager.nativeAuthorization(name, config),
+      stdio
+    })
+    // Do not hand a stale endpoint, selection or identity to a new native connection after an
+    // asynchronous token refresh. Credentials themselves are intentionally absent from settings.
+    const [currentEnabled, current] = await Promise.all([
+      this.mcpSettings.getMcpEnabled(),
+      this.mcpSettings.getMcpServers()
+    ])
+    if (enabled !== currentEnabled || JSON.stringify(current) !== JSON.stringify(servers))
+      throw new Error('MCP configuration changed during native export')
+    return result
+  }
   private providerSettings: Pick<ProviderSettingsPort, 'getProviderModels' | 'getCustomModels'>
   private readonly promptSettings: Pick<PromptSettings, 'getCustomPrompts'>
   private readonly mcpSettings: McpSettings
@@ -188,11 +218,11 @@ export class McpService implements McpServicePort {
         conversationId: string
         messageId: string
         blockId: string
-      }): { title: string; html: string; panelId?: string } | null
+      }): HtmlRenderSource | null | Promise<HtmlRenderSource | null>
       listHtmlRenderSections(
         conversationId: string,
         panelId: string
-      ): Array<{ id: string; html: string }>
+      ): Array<{ id: string; html: string }> | Promise<Array<{ id: string; html: string }>>
       persistModelContext(
         messageId: string,
         blockId: string,

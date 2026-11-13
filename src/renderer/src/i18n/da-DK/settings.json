@@ -405,7 +405,8 @@
       "saveAndTest": "Gem og test",
       "saveOnly": "Gem kun",
       "saveAndTestFirst": "Gem og test cloud-konfigurationen først."
-    }
+    },
+    "legacyBackupPassword": "Adgangskode til gammel krypteret sikkerhedskopi (valgfri)"
   },
   "dashboard": {
     "badge": "Brugsoverblik",
@@ -570,10 +571,6 @@
       "reasoningToggle": {
         "description": "Styrer om ræsonnering er aktiveret som standard for denne model",
         "label": "Aktivér ræsonnering"
-      },
-      "interleavedThinking": {
-        "label": "Interleaved Thinking",
-        "description": "Styrer, om denne model håndterer beskeder med ræsonnering og tool-calls med Interleaved Thinking. Leverandørens standarder anvendes automatisk."
       },
       "thinkingBudget": {
         "label": "Tænke-budget",
@@ -2832,7 +2829,6 @@
     "thinkingBudget": "Tænkningsbudget",
     "reasoningEffort": "Ræsonnementsniveau",
     "verbosity": "Detaljegrad",
-    "interleaved": "Gennemtving kompatibilitet for interleaved thinking",
     "systemPrompt": "Standard systemprompt",
     "systemPromptPlaceholder": "Lad stå tomt for en tom systemprompt",
     "defaultProjectPath": "Standardmappe (valgfri)",

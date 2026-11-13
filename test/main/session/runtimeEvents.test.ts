@@ -3,7 +3,7 @@ import {
   buildAssistantDeliverySegments,
   buildAssistantResponseMarkdown,
   extractWaitingInteraction
-} from '@/agent/deepchat/runtime/sessionUpdates'
+} from '@/agent/shared/sessionUpdates'
 import { SessionRuntimeEvents } from '@/session/runtimeEvents'
 import {
   projectFinalAnswerFromDeliverySegments,

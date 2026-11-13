@@ -89,11 +89,9 @@ export function createSessionDataFromDatabase(
       return Promise.resolve(toTapeAnchor(sessionTape.handoff(sessionId, name, state)))
     },
     listMessageViewManifests(sessionId, messageId) {
-      ensureTape(sessionId)
       return Promise.resolve(sessionTape.listViewManifestsByMessage(sessionId, messageId))
     },
     listNestedExecutionAuditForMessage(sessionId, messageId) {
-      ensureTape(sessionId)
       return Promise.resolve(sessionTape.listNestedExecutionAuditForMessage(sessionId, messageId))
     },
     // Inspector reads must not bootstrap or write Tape state. Incarnation mismatches are returned
@@ -121,6 +119,7 @@ export function createSessionDataFromDatabase(
   const pendingInputs = new SessionPendingInputs(pendingInputStore, transcript, events)
   return {
     database,
+    legacyTape: database.legacyTape,
     settings,
     runtime: {
       sessionSettings: settings,

@@ -231,7 +231,6 @@
     "thinkingBudget": "Thinking Budget",
     "reasoningEffort": "Reasoning Effort",
     "verbosity": "Verbosity",
-    "interleaved": "Force interleaved thinking compat",
     "systemPrompt": "Default system prompt",
     "systemPromptPlaceholder": "Leave blank for an empty system prompt",
     "defaultProjectPath": "Default directory (optional)",
@@ -847,7 +846,8 @@
         "workersAi": "Cloudflare Workers AI"
       },
       "applyFailed": "Import failed: {message}"
-    }
+    },
+    "legacyBackupPassword": "Legacy encrypted backup password (optional)"
   },
   "dashboard": {
     "badge": "Usage Dashboard",
@@ -1012,10 +1012,6 @@
       "reasoningToggle": {
         "description": "Controls whether reasoning is enabled by default for this model",
         "label": "Enable reasoning"
-      },
-      "interleavedThinking": {
-        "label": "Interleaved Thinking",
-        "description": "Controls whether this model handles reasoning and tool-call messages with Interleaved Thinking. Provider defaults are applied automatically."
       },
       "thinkingBudget": {
         "label": "Thinking Budget",

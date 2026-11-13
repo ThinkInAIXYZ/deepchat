@@ -2,7 +2,7 @@ import { AcpAgentRepository } from '@/agent/acp/acpAgentRepository'
 import {
   BUILTIN_DEEPCHAT_AGENT_ID,
   DeepChatAgentRepository
-} from '@/agent/deepchat/deepChatAgentRepository'
+} from '@/agent/repository/deepChatAgentRepository'
 import {
   AgentNotFoundError,
   decodeAgentCatalogRow,

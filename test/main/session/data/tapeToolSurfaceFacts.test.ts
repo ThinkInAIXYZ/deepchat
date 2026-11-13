@@ -11,7 +11,7 @@ import {
   TOOL_SEARCH_AGENT_TOOL_MAX_RESULTS,
   TOOL_SEARCH_AGENT_TOOL_SERVER_NAME
 } from '@shared/agentTools'
-import { buildCanonicalToolCatalog } from '@/agent/deepchat/runtime/toolSurface'
+import { buildCanonicalToolCatalog } from '@/tool/catalog/toolSurface'
 import { hashJsonData } from '@/tape/domain/canonicalJson'
 import { buildExecutionToolTargetKey } from '@/tape/domain/executionContract'
 import {

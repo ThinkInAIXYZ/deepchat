@@ -321,8 +321,6 @@
     "maxTokens": "ᠬᠠᠮᠤᠭ ᠶᠡᠬᠡ ᠭᠠᠷᠭᠠᠯᠲᠠ",
     "thinkingBudget": "ᠢ ᠪᠣᠳᠣᠯᠬᠢᠯᠠᠬᠤ",
     "verbosity": "ᠶᠢᠨ ᠨᠠᠷᠢᠨ ᠲᠠᠰ ᠤᠨ ᠬᠠᠷᠢᠭᠤᠯᠲᠠ",
-    "forceInterleavedThinkingCompat": "ᠡᠭᠡᠯᠵᠢᠯᠡᠨ ᠪᠣᠳᠣᠬᠤ",
-    "forceInterleavedThinkingCompatDescription": "ᠶᠢᠨ ᠨᠢᠭᠡ ᠤᠳᠠᠭᠠᠨ ᠤ ᠬᠤᠷᠠᠯ ᠳᠤ reasoning ᠪᠠ tool-call ᠶᠢᠨ ᠮᠡᠳᠡᠭᠡ ᠶᠢ Interleaved Thinking ᠶᠢ ᠡᠵᠡᠮᠰᠢᠨ᠎ᠡ ᠃",
     "verbosityPlaceholder": "ᠶᠢ ᠢᠯᠭᠠᠬᠤ",
     "currentCustomPrompt": "ᠵᠠᠩ ᠦᠢᠯᠡ ᠶᠢᠨ",
     "useDefault": "ᠶᠢ ᠬᠡᠷᠡᠭ᠍ᠯᠡᠬᠦ",

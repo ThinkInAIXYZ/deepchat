@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import logger from '@shared/logger'
 import { shell } from 'electron'
 import { URL } from 'url'
@@ -326,7 +327,7 @@ export class OpenAICodexAuth {
     }
   }
 
-  async forceRefreshBackendAuth(): Promise<OpenAICodexBackendAuth> {
+  async forceRefreshBackendAuth(rejectedLease?: string): Promise<OpenAICodexBackendAuth> {
     this.assertEnabled()
     const tokens = this.store.load()
     if (!tokens?.refreshToken) {
@@ -339,6 +340,11 @@ export class OpenAICodexAuth {
       })
     }
 
+    if (
+      rejectedLease &&
+      createHash('sha256').update(tokens.accessToken).digest('hex') !== rejectedLease
+    )
+      return this.getBackendAuth()
     const refreshed = await this.refreshAccessToken(tokens, true)
     return {
       accessToken: refreshed.accessToken,

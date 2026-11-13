@@ -1,17 +1,7 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
-import type { JevJudgmentRequest, JevJudgmentResult } from '@shared/jevProtocol'
 import { ModelType } from '@shared/model'
-import type { ChatMessage } from '@shared/types/core/chat-message'
-import { createStreamEvent, type LLMCoreStreamEvent } from '@shared/types/core/llm-events'
-import type { MCPToolDefinition } from '@shared/types/mcp'
-import type {
-  LLM_PROVIDER,
-  LLMResponse,
-  MODEL_META,
-  ModelConfig,
-  ProviderStreamOptions
-} from '@shared/types/provider'
-import { BaseLLMProvider, type ProviderGenerateTextOptions } from '../baseProvider'
+import type { LLM_PROVIDER, MODEL_META } from '@shared/types/provider'
+import { BaseLLMProvider } from '../baseProvider'
 import type { ProviderLocalePort } from '../ports'
 import { createProviderHttpErrorFromResponse, ProviderHttpError } from '../providerFailure'
 
@@ -72,24 +62,6 @@ const isMissingCatalogError = (error: unknown): boolean =>
   error instanceof ProviderHttpError &&
   (error.failure.statusCode === 404 || error.failure.statusCode === 405)
 
-/**
- * Structural type guard for the judgment capability. Used by the runtime so a provider that cannot
- * judge fails with a clear message instead of a missing-method crash. It is structural rather than
- * `instanceof JevProvider` because one provider can serve judgments *and* ordinary chat models —
- * Cloudflare Workers AI does — so the capability cannot be tied to the System One class.
- */
-export function supportsJevJudgment(provider: unknown): provider is JevJudgmentCapable {
-  return typeof (provider as Partial<JevJudgmentCapable> | undefined)?.runJudgment === 'function'
-}
-
-/** The judgment capability, as the runtime consumes it. */
-export type JevJudgmentCapable = {
-  runJudgment(
-    request: JevJudgmentRequest,
-    options?: { signal?: AbortSignal }
-  ): Promise<JevJudgmentResult>
-}
-
 type JevModelRecord = {
   name: string
   description?: string
@@ -134,32 +106,6 @@ export function extractJevModelRecords(payload: unknown): JevModelRecord[] {
   return records
 }
 
-/**
- * Parses the System One answer payload. Exported because a second transport (Cloudflare Workers AI)
- * returns the same answer shape inside its own envelope and unwraps it into this parser.
- */
-export function parseJudgmentAnswers(payload: unknown): JevJudgmentResult {
-  const root = asRecord(payload)
-  const answers = asRecord(root?.answers)
-  if (!answers) {
-    throw new Error('Invalid TypeSafe judgment response: missing answers')
-  }
-
-  const usage = asRecord(root?.usage)
-  return {
-    model: normalizeString(root?.model) ?? '',
-    answers: answers as JevJudgmentResult['answers'],
-    ...(usage
-      ? {
-          usage: {
-            input_tokens: typeof usage.input_tokens === 'number' ? usage.input_tokens : undefined,
-            output_tokens: typeof usage.output_tokens === 'number' ? usage.output_tokens : undefined
-          }
-        }
-      : {})
-  }
-}
-
 export class JevProvider extends BaseLLMProvider {
   constructor(
     provider: LLM_PROVIDER,
@@ -191,97 +137,6 @@ export class JevProvider extends BaseLLMProvider {
         return { isOk: true, errorMsg: null }
       }
       return { isOk: false, errorMsg: error instanceof Error ? error.message : String(error) }
-    }
-  }
-
-  public async summaryTitles(_messages: ChatMessage[], _modelId: string): Promise<string> {
-    throw new Error(JEV_UNSUPPORTED_CAPABILITY_ERROR)
-  }
-
-  public async completions(
-    _messages: ChatMessage[],
-    _modelId: string,
-    _temperature?: number,
-    _maxTokens?: number
-  ): Promise<LLMResponse> {
-    throw new Error(JEV_UNSUPPORTED_CAPABILITY_ERROR)
-  }
-
-  public async summaries(
-    _text: string,
-    _modelId: string,
-    _temperature?: number,
-    _maxTokens?: number
-  ): Promise<LLMResponse> {
-    throw new Error(JEV_UNSUPPORTED_CAPABILITY_ERROR)
-  }
-
-  public async generateText(
-    _prompt: string,
-    _modelId: string,
-    _temperature?: number,
-    _maxTokens?: number,
-    _options?: ProviderGenerateTextOptions
-  ): Promise<LLMResponse> {
-    throw new Error(JEV_UNSUPPORTED_CAPABILITY_ERROR)
-  }
-
-  public async *coreStream(
-    _messages: ChatMessage[],
-    _modelId: string,
-    _modelConfig: ModelConfig,
-    _temperature: number,
-    _maxTokens: number,
-    _mcpTools: MCPToolDefinition[],
-    options?: ProviderStreamOptions
-  ): AsyncGenerator<LLMCoreStreamEvent> {
-    options?.signal?.throwIfAborted()
-    yield createStreamEvent.error(JEV_UNSUPPORTED_CAPABILITY_ERROR)
-    yield createStreamEvent.stop('error')
-  }
-
-  /**
-   * Evaluates typed questions against a state. This is the only operation this provider supports,
-   * and it returns typed answers rather than text.
-   */
-  public async runJudgment(
-    request: JevJudgmentRequest,
-    options?: { signal?: AbortSignal }
-  ): Promise<JevJudgmentResult> {
-    if (!this.provider.apiKey) {
-      throw new Error('API key is required')
-    }
-    if (Object.keys(request.questions ?? {}).length === 0) {
-      throw new Error('Jev judgment requires at least one question')
-    }
-
-    const { signal, cleanup } = this.createRequestSignal(options?.signal)
-    try {
-      // The configured base URL *is* the System One endpoint: vendors expose it at different paths,
-      // so nothing is appended to it.
-      const { endpoint } = this.resolveEndpoint()
-      const response = await this.fetchProvider(endpoint, {
-        method: 'POST',
-        headers: this.getAuthHeaders(),
-        body: JSON.stringify({
-          state: request.state,
-          model: request.model,
-          questions: request.questions
-        }),
-        signal
-      })
-
-      if (!response.ok) {
-        throw createProviderHttpErrorFromResponse(
-          `TypeSafe judgment failed: ${response.status} ${response.statusText}`,
-          response,
-          'jev_http_error'
-        )
-      }
-
-      return parseJudgmentAnswers(await response.json())
-    } finally {
-      cleanup()
     }
   }
 

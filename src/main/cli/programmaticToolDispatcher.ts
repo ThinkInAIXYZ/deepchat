@@ -1,4 +1,4 @@
-import type { ProgrammaticToolCapabilityV1 } from '@/agent/deepchat/runtime/programmaticToolSurface'
+import type { ProgrammaticToolCapabilityV1 } from '@/tool/catalog/programmaticToolSurface'
 import type { CliRouteCaller } from '@/routes/routeRegistry'
 import { canonicalJsonStringifyData, hashJsonData } from '@/tape/domain/canonicalJson'
 import type { AgentCliProgrammaticOperationGrant } from './agentTokenAuthority'
@@ -35,8 +35,8 @@ import {
 import {
   recordToolSurfaceCanaryDiscovery,
   recordToolSurfaceCanarySettledToolResult
-} from '@/agent/deepchat/runtime/toolSurfaceCanaryDiagnostics'
-import { ToolSurfaceError } from '@/agent/deepchat/runtime/toolSurface'
+} from '@/tool/catalog/toolSurfaceCanaryDiagnostics'
+import { ToolSurfaceError } from '@/tool/catalog/toolSurface'
 import { ExecutionContractDispatchError } from '@/tape/domain/executionContract'
 import { McpPreDispatchError } from '@/mcp/errors'
 

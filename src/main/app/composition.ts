@@ -1,11 +1,19 @@
-import { createMemoryIngestionProjectionPort } from '@/memory/data/ingestionProjectionPort'
-import { createDeepChatProgrammaticToolPort } from '@/cli/deepChatToolPort'
+import { DimMediaFiles } from '@/agent/dim/mediaFiles'
+import { DimHtmlRender } from '@/agent/dim/htmlRender'
+import { ModelType } from '@shared/model'
+import { registerNativeMediaCache } from '@/platform/nativeMediaCache'
+import { createDimSessionReferenceSource } from '@/agent/dim/sessionReferences'
 import { createAcpCompatibilityDependencies } from '@/agent/acp/compatibility/dependencies'
 import { createDeepChatOutputProjection } from '@/session/outputProjection'
 import { createSessionStatusProjection } from '@/session/sessionStatusProjection'
+import { DesktopSessionState } from '@/session/desktopSessionState'
 import { SyncSessionActivity } from '@/sync/sessionActivity'
-import type { DeepChatInternalSessionUpdate } from '@/agent/deepchat/runtime/sessionUpdates'
+import { DimProfileBackups, DimProfileRecoveryError } from '@/agent/dim/profileBackups'
+import type { DeepChatInternalSessionUpdate } from '@/agent/shared/sessionUpdates'
 import { SyncReplicaStore } from '@/sync/replica/store'
+import { SyncReplicaNative } from '@/sync/replica/native'
+import { NativeReplicaRecovery } from '@/sync/replica/nativeRecovery'
+import type { SyncBatch } from '@shared/contracts/syncReplica'
 import { SyncReplicaEndpoint } from '@/sync/replica/endpoint'
 import { AutomaticSync } from '@/sync/replica/automatic'
 import { SyncPeerService } from '../sync/peer'
@@ -21,12 +29,9 @@ import {
 } from '@/logging'
 import {
   classifyMainLogError,
-  normalizeMainLogRunStopReason,
-  type MainLogRunStopReason,
   type MainLogShutdownReason,
   type MainLogStartupComponent,
-  type MainLogStartupComponentFailureCategory,
-  type SafeLogError
+  type MainLogStartupComponentFailureCategory
 } from '@/logging/mainLogEvents'
 import { projectEnvironmentsChangedEvent } from '@shared/contracts/events/project.events'
 import {
@@ -170,10 +175,6 @@ import { SchedulerService, createCronJobRunSessionStarter } from '../scheduler'
 import { AgentManager } from '@/agent/manager/agentManager'
 import { createDeepChatAgentBackend } from '@/agent/manager/deepChatAgentBackend'
 import { createDirectAcpAgentBackend } from '@/agent/manager/directAcpAgentBackend'
-import {
-  TOOL_SURFACE_PRODUCTION_ROLLOUT_POLICY_V1,
-  ToolSurfaceRolloutOwner
-} from '@/agent/deepchat/runtime/toolSurfaceRollout'
 import { AppSessionService } from '@/agent/shared/appSessionService'
 import { createSessionData } from '@/session/data'
 import { MemoryDatabase } from '@/memory/data/database'
@@ -183,19 +184,46 @@ import { AgentUnavailableError } from '@/agent/shared/agentCatalogCodec'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import { SessionQuery } from '@/session/query'
 import { SessionAssignmentPolicy } from '@/session/assignmentPolicy'
-import { sanitizeGenerationSettings } from '@/agent/deepchat/runtime/generationSettings'
+import { sanitizeGenerationSettings } from '@/agent/shared/generationSettings'
 import { SessionAssignment } from '@/session/assignment'
 import { SessionDeletion } from '@/session/deletion'
 import { SessionTranscriptMutations } from '@/session/transcriptMutations'
 import { SessionTurn } from '@/session/turn'
 import { SessionLifecycle } from '@/session/lifecycle'
-import { createDeepChatAgentHarness, type DeepChatAgentHarness } from '@/agent/deepchat/harness'
-import type { RunJournalObservation } from '@/agent/deepchat/runtime/types'
+import { createDimAgent } from '@/agent/dim/createDimAgent'
+import { DimRuntimeSupervisor } from '@/agent/dim/runtimeSupervisor'
+import { DimProductGateway } from '@/agent/dim/productGateway'
+import { DimProductTools } from '@/agent/dim/productTools'
+import { DimProductContext } from '@/agent/dim/productContext'
+import { DimPluginHooks } from '@/agent/dim/pluginHooks'
+import { DimSkillCatalog } from '@/agent/dim/skillCatalog'
+import { DimSkillContext } from '@/agent/dim/skillContext'
+import { DimModelCatalog } from '@/agent/dim/modelCatalog'
+import { DimModelBridge } from '@/agent/dim/modelBridge'
+import { DimEmbeddingModels } from '@/agent/dim/embeddingModels'
+import { DimDecisions } from '@/agent/dim/decisions'
+import { DimAuxiliaryModels } from '@/agent/dim/auxiliaryModels'
+import { DimMediaModels } from '@/agent/dim/mediaModels'
+import { DimModality } from '@/agent/dim/modality'
+import { DimProviderCredentials } from '@/agent/dim/providerCredentials'
+import { resolveAiSdkProviderDefinition } from '@/provider/providerRegistry'
+import { DimContent } from '@/agent/dim/content'
+import { DimTimelineInspector } from '@/agent/dim/timelineInspector'
+import { DimScopes } from '@/agent/dim/scopes'
+import { DimLegacySource } from '@/agent/dim/legacySource'
+import { DimInputPreparation } from '@/agent/dim/inputPreparation'
+import { createDimMemoryRuntime } from '@/agent/dim/memoryRuntime'
+import { createDimDesktopTools } from './dimDesktopTools'
+import { AgentToolManager } from '@/tool/agentTools/agentToolManager'
+import { DimToolCatalog } from '@/agent/dim/toolCatalog'
+import { nativeMcpStdio } from '@/mcp/nativeStdio'
+import { RuntimeHelper } from '@/lib/runtimeHelper'
+import { createDesktopTranscriptRuntime } from '@/session/desktopTranscriptRuntime'
 import { AcpAgentRuntime } from '@/agent/acp/instance'
 import { createAcpRuntimeOwner } from '@/agent/acp/createRuntimeOwner'
 import { createAcpRoutes } from '@/agent/acp/routes'
 import { AcpSessionPersistence } from '@/agent/acp/runtime'
-import type { MemoryIngestionDrainOutcome } from '@/agent/deepchat/memory/memoryIngestionObserver'
+import type { MemoryIngestionDrainOutcome } from '@/memory/session/memoryIngestionObserver'
 import { MemoryService, isSafeAgentId, type MemoryServicePort } from '../memory'
 import { createMemoryVectorStorePaths, MemoryVectorStore } from '../memory/infra/memoryVectorStore'
 import { ProjectService } from '../project'
@@ -224,7 +252,7 @@ import { createPluginRoutes } from '../plugin/routes'
 import { PluginRuntimeSupervisor } from '../plugin/runtimeSupervisor'
 import { AgentRepository } from '../agent/repository'
 import { AgentDatabase } from '@/agent/data/database'
-import { DeepChatDefaults } from '../agent/deepchat/defaults'
+import { DeepChatDefaults } from '@/agent/agentDefaults'
 import { CommandShellService } from '@/agent/shared/process/commandShellService'
 import { AgentTraceSettings } from '../agent/traceSettings'
 import type { MainDatabase } from '../data/mainDatabase'
@@ -239,7 +267,6 @@ import {
 import { DEFAULT_DISABLED_AGENT_TOOLS } from '@shared/agentTools'
 import { composeSubagentAuthority } from '@/session/subagentAuthority'
 import type {
-  AcpAsLlmProviderPermissionPort,
   AcpAsLlmProviderSessionControlPort,
   AcpProviderAdminPort,
   ProviderCatalogPort
@@ -329,101 +356,6 @@ export interface MainProcessControl {
   hasMainWindows(): boolean
   stop(reason: MainLogShutdownReason): Promise<MainShutdownActionClaim | undefined>
   stopForCleanup(): Promise<void>
-}
-
-function classifyRunError(stopReason: MainLogRunStopReason): SafeLogError {
-  switch (stopReason) {
-    case 'journal_error':
-      return { category: 'persistence' }
-    case 'provider_error':
-      return { category: 'provider' }
-    case 'post_dispatch_permission':
-      return { category: 'permission' }
-    case 'context_window':
-    case 'max_tokens':
-    case 'max_tool_calls':
-    case 'max_turn_requests':
-    case 'max_turns':
-      return { category: 'resource' }
-    default:
-      return { category: 'unknown' }
-  }
-}
-
-function emitRunJournalObservation(observation: RunJournalObservation): void {
-  if (observation.type === 'started') {
-    if (observation.runKind === 'loop') {
-      mainLogger.emit('agent.run.started', {
-        runId: observation.runId,
-        sessionId: observation.sessionId,
-        messageId: observation.messageId,
-        runKind: 'loop',
-        initialRequestSeq: observation.initialRequestSeq
-      })
-    } else {
-      mainLogger.emit('agent.run.started', {
-        runId: observation.runId,
-        sessionId: observation.sessionId,
-        messageId: observation.messageId,
-        runKind: 'deferred_tool'
-      })
-    }
-    return
-  }
-
-  const stopReason = normalizeMainLogRunStopReason(observation.stopReason, observation.outcome)
-  if (observation.runKind === 'loop') {
-    if (observation.outcome === 'error') {
-      mainLogger.emit('agent.run.terminal', {
-        runId: observation.runId,
-        sessionId: observation.sessionId,
-        messageId: observation.messageId,
-        runKind: 'loop',
-        outcome: 'error',
-        stopReason,
-        ...(observation.durationMs === undefined ? {} : { durationMs: observation.durationMs }),
-        logicalRounds: observation.logicalRounds,
-        toolCalls: observation.toolCalls,
-        error: classifyRunError(stopReason)
-      })
-      return
-    }
-    mainLogger.emit('agent.run.terminal', {
-      runId: observation.runId,
-      sessionId: observation.sessionId,
-      messageId: observation.messageId,
-      runKind: 'loop',
-      outcome: observation.outcome,
-      stopReason,
-      ...(observation.durationMs === undefined ? {} : { durationMs: observation.durationMs }),
-      logicalRounds: observation.logicalRounds,
-      toolCalls: observation.toolCalls
-    })
-    return
-  }
-
-  if (observation.outcome === 'error') {
-    mainLogger.emit('agent.run.terminal', {
-      runId: observation.runId,
-      sessionId: observation.sessionId,
-      messageId: observation.messageId,
-      runKind: 'deferred_tool',
-      outcome: 'error',
-      stopReason,
-      ...(observation.durationMs === undefined ? {} : { durationMs: observation.durationMs }),
-      error: classifyRunError(stopReason)
-    })
-    return
-  }
-  mainLogger.emit('agent.run.terminal', {
-    runId: observation.runId,
-    sessionId: observation.sessionId,
-    messageId: observation.messageId,
-    runKind: 'deferred_tool',
-    outcome: observation.outcome,
-    stopReason,
-    ...(observation.durationMs === undefined ? {} : { durationMs: observation.durationMs })
-  })
 }
 
 function emitLiveDelegationObservation(observation: LiveDelegationLifecycleObservation): void {
@@ -555,7 +487,11 @@ export async function createMainProcessControl(dependencies: {
   let knowledgeService: KnowledgeServicePort
   let workspaceService: WorkspaceServicePort
   let toolService: ToolService
-  let deepChatAgentHarness: DeepChatAgentHarness
+  let dimAgent: ReturnType<typeof createDimAgent>
+  let dimMemory: ReturnType<typeof createDimMemoryRuntime>
+  let dimTools: DimProductTools
+  let dimInspector: DimTimelineInspector
+  let dimContext: DimProductContext
   let yoBrowserPresenter: IYoBrowserPresenter
   let computerUsePreviewPresenter: ComputerUsePreviewPresenter
   let agentPreviewCoordinator: AgentPreviewCoordinator
@@ -592,7 +528,6 @@ export async function createMainProcessControl(dependencies: {
   let sessionTranslation: SessionTranslation
   let liveDelegationService: LiveDelegationService
   let acpAsLlmProviderSessionControl: AcpAsLlmProviderSessionControlPort
-  let acpAsLlmProviderPermission: AcpAsLlmProviderPermissionPort
   let routeDispatcher: RouteDispatcher | undefined
   let cliComputeService: CliComputeService
   let cliAudioTranscriptionService: CliAudioTranscriptionService
@@ -643,7 +578,6 @@ export async function createMainProcessControl(dependencies: {
     getBoundRendererIds: (sessionId) => resolveBoundRendererIds(sessionId)
   })
   const agentCliTokenAuthority = new AgentCliTokenAuthority()
-  const toolSurfaceRollout = new ToolSurfaceRolloutOwner(TOOL_SURFACE_PRODUCTION_ROLLOUT_POLICY_V1)
   let programmaticToolDispatcher: ProgrammaticToolDispatcher
   const artifactSpool = new ArtifactSpool({
     directory: path.join(app.getPath('userData'), 'local-control', 'artifacts'),
@@ -817,7 +751,8 @@ export async function createMainProcessControl(dependencies: {
     }
   )
   const tapeInspectorHeadWatcher = new TapeInspectorHeadWatcher({
-    readHead: (sessionId) => sessionData.tapeStore.getTapeInspectorHead(sessionId),
+    readHead: (sessionId) =>
+      dimInspector?.getHead(sessionId) ?? sessionData.tapeStore.getTapeInspectorHead(sessionId),
     emit: (webContentsId, pulse) => {
       typedEventHub.publish(sessionsTapeInspectorHeadChangedEvent.name, pulse, {
         kind: 'renderer',
@@ -1104,6 +1039,109 @@ export async function createMainProcessControl(dependencies: {
       return () => target.removeListener('destroyed', callback)
     }
   })
+  const dimGateway = new DimProductGateway({
+    resolve: (id) => dimTools.resolve(id),
+    pluginHooks: async (request, signal) => {
+      const scope = await dimScopes.owner(request.sessionId, signal)
+      authorizeDimScope(scope.binding)
+      const sources = (await pluginService.contextHooks?.nativeSources(signal)) ?? []
+      scope.assertCurrent()
+      authorizeDimScope(scope.binding)
+      return sources
+        .map((source) => ({
+          ...source,
+          hooks: source.hooks.filter(
+            (hook) =>
+              hook.event === request.event &&
+              (request.includeUnmatched ||
+                !hook.matcher ||
+                new RegExp(hook.matcher).test(request.matcher))
+          )
+        }))
+        .filter((source) => source.hooks.length > 0)
+    },
+    context: (request, signal) => dimContext.prepare(request, signal),
+    mediaInput: async (request, signal) => {
+      const scope = await dimScopes.owner(request.sessionId, signal)
+      authorizeDimScope(scope.binding)
+      const input = await dimScopes.mediaInput(request, signal)
+      scope.assertCurrent()
+      authorizeDimScope(scope.binding)
+      return input
+    },
+    titleModel: async (id, signal) => {
+      const scope = dimScopes.bound(id, signal)
+      if (!scope) return null
+      authorizeDimScope(scope.binding)
+      const session = appSessionService.get(scope.binding.sessionId)
+      if (!session) throw new Error('Title model has no desktop owner')
+      const preference = (await agentSettings.resolveDeepChatAgentConfig(session.agentId))
+        .assistantModel
+      scope.assertCurrent()
+      if (!preference?.providerId || !preference.modelId) return null
+      const model = await dimModels.admit(preference.providerId, preference.modelId)
+      scope.assertCurrent()
+      authorizeDimScope(scope.binding)
+      const current = (await agentSettings.resolveDeepChatAgentConfig(session.agentId))
+        .assistantModel
+      scope.assertCurrent()
+      if (current?.providerId !== preference.providerId || current.modelId !== preference.modelId)
+        throw new Error('Title model preference changed during admission')
+      return model
+    },
+    mcp: async (id, signal) => {
+      const scope = await dimScopes.owner(id, signal)
+      authorizeDimScope(scope.binding)
+      scope.assertCurrent()
+      const configuration = await dimMcpConfiguration(scope.binding.sessionId)
+      scope.assertCurrent()
+      authorizeDimScope(scope.binding)
+      scope.assertCurrent()
+      return configuration.servers
+    },
+    credential: (id, reference, signal) => dimModels.credential(id, reference, signal),
+    connectionAuth: (id, modelId, rejectedLease, signal) =>
+      dimModels.connectionAuth(id, modelId, rejectedLease, signal)
+  })
+  const nativeRuntimeRoot = app.isPackaged
+    ? path.join(process.resourcesPath, 'app.asar.unpacked', 'runtime')
+    : path.join(app.getAppPath(), 'runtime')
+  const dimHost = new DimRuntimeSupervisor({
+    runtimeRoot: path.join(nativeRuntimeRoot, 'dim'),
+    profileRoot: app.getPath('userData'),
+    nodeExecutable: path.join(
+      nativeRuntimeRoot,
+      'node',
+      ...(process.platform === 'win32' ? ['node.exe'] : ['bin', 'node'])
+    ),
+    nativePlugins: true,
+    contextBridge: true,
+    gatewayAddress: await dimGateway.start()
+  })
+  const dimModelBridge = new DimModelBridge(dimHost)
+  const dimCredentials = new DimProviderCredentials()
+  registerNativeMediaCache(new DimModality(dimHost), new DimMediaFiles(dimHost))
+  const dimModels = new DimModelCatalog({
+    settings: providerSettings,
+    models: dimModelBridge,
+    grants: sessionData.database.dimProviderGrantsTable,
+    credential: (provider, signal) => dimCredentials.resolve(provider, signal),
+    connectionAuth: (provider, rejectedLease, signal) =>
+      resolveAiSdkProviderDefinition(provider)?.runtimeKind === 'openai-codex'
+        ? dimCredentials.codexConnection(signal, rejectedLease)
+        : Promise.resolve(null)
+  })
+  const dimAuxiliary = new DimAuxiliaryModels({
+    models: dimModels,
+    bridge: dimModelBridge,
+    parameters: (providerId, modelId) => {
+      const config = providerSettings.getModelConfig(modelId, providerId)
+      return dimModels.parameters(providerId, modelId, {
+        ...config,
+        temperature: config.temperature ?? 0.7
+      })
+    }
+  })
   providerRuntime = new ProviderRuntime(
     providerSettings,
     desktopSettings,
@@ -1112,6 +1150,20 @@ export async function createMainProcessControl(dependencies: {
     acpRuntimeOwner,
     acpSessionPersistence,
     publishDeepchatEvent
+  )
+  providerRuntime.setNativeModels(dimAuxiliary)
+  providerRuntime.setNativeDecisions(
+    new DimDecisions({ models: dimModels, bridge: dimModelBridge })
+  )
+  providerRuntime.setNativeEmbedding(
+    new DimEmbeddingModels({ models: dimModels, bridge: dimModelBridge })
+  )
+  providerRuntime.setNativeMedia(
+    new DimMediaModels({
+      settings: providerSettings,
+      models: dimModels,
+      media: new DimModality(dimHost)
+    })
   )
   cliComputeService = new CliComputeService({
     providerSettings,
@@ -1143,7 +1195,6 @@ export async function createMainProcessControl(dependencies: {
   })
   acpProviderAdminPort = providerRuntime
   acpAsLlmProviderSessionControl = providerRuntime
-  acpAsLlmProviderPermission = providerRuntime
   const commandPermissionHandler = new CommandPermissionService()
   const resolveCliDirectory = () =>
     resolveBundledCliDirectory({
@@ -1353,12 +1404,22 @@ export async function createMainProcessControl(dependencies: {
     dependencies.settingsStore,
     dependencies.mcpSettings
   )
+  const dimProfileBackups = new DimProfileBackups({
+    runtimeRoot: path.join(nativeRuntimeRoot, 'dim'),
+    profileRoot: app.getPath('userData'),
+    temporaryRoot: app.getPath('temp'),
+    host: dimHost,
+    readers: () => dimAgent.runtime
+  })
   syncService = new SyncService(
     syncSettings,
     mainDatabase,
     settingsDatabase,
     providerDatabase,
-    publishDeepchatEvent
+    publishDeepchatEvent,
+    (source, target, password) =>
+      databaseSecurityService.decryptLegacyBackup(source, target, password),
+    dimProfileBackups
   )
   const syncTokenStorage = {
     protectToken: (token: string) => {
@@ -1388,11 +1449,14 @@ export async function createMainProcessControl(dependencies: {
   syncReplica = new SyncReplicaStore({
     database: () => mainDatabase.getDatabase(),
     directory: path.join(app.getPath('userData'), 'sync-replica'),
+    nativeProfiles: true,
     canApply: (kind, id) =>
       databaseMaintenanceState === 'running' &&
       (kind === 'session'
         ? !syncActiveSessions.has(id) &&
           !sessionData.pendingInputs.hasUnconsumedInputs(id) &&
+          !sessionData.database.dimScopeChangesTable.get(id) &&
+          sessionData.database.dimInputIntentsTable.pending(id).length === 0 &&
           (syncAppliedSessions.has(id) || !sessionDeletionGate.hasActiveOperations(id))
         : syncActiveSessions.size === 0 &&
           !sessionDeletionGate.hasActiveOperationsOutside(syncAppliedSessions)),
@@ -1406,12 +1470,17 @@ export async function createMainProcessControl(dependencies: {
         if (
           syncActiveSessions.has(id) ||
           sessionData.pendingInputs.hasUnconsumedInputs(id) ||
+          sessionData.database.dimScopeChangesTable.get(id) ||
+          sessionData.database.dimInputIntentsTable.pending(id).length > 0 ||
           sessionDeletionGate.hasActiveOperations(id)
         )
           return false
         return sessionDeletionGate.runWithSessionDeletion(id, async () => {
           if (syncActiveSessions.has(id)) return false
-          await deepChatAgentHarness.cleanupSession(id)
+          // Incoming LWW admission must not cancel an idle Native branch and create
+          // a new local business fact before deciding which history wins.
+          if (sessionData.database.dimSessionBindingsTable.get(id)) await dimAgent.runtime.close(id)
+          else await dimAgent.backend.cleanupSession(toAppSessionId(id))
           await acpAgentRuntime.cleanupSession(toAppSessionId(id))
           syncAppliedSessions.add(id)
           try {
@@ -1489,7 +1558,7 @@ export async function createMainProcessControl(dependencies: {
             mcpEnabled: await dependencies.mcpSettings.getMcpEnabled(),
             version: Date.now()
           })
-          deepChatAgentHarness.refreshToolRegistry()
+          refreshDimTools()
         }
         if (kind === 'setting' && id === 'customPrompts')
           publishDeepchatEvent('config.customPrompts.changed', {
@@ -1505,8 +1574,40 @@ export async function createMainProcessControl(dependencies: {
       publishDeepchatEvent('sync.device.changed', { version: Date.now() })
     }
   })
+  const nativeReplica = new SyncReplicaNative({
+    root: app.getPath('userData'),
+    database: () => mainDatabase.getDatabase(),
+    backups: dimProfileBackups,
+    host: dimHost,
+    readers: () => dimAgent.runtime,
+    exportGuard: async <T>(batch: SyncBatch, operation: () => Promise<T>): Promise<T> => {
+      const ids = [
+        ...new Set(batch.units.filter((unit) => unit.kind === 'session').map((unit) => unit.id))
+      ].sort()
+      const acquire = async (index: number): Promise<T> => {
+        if (databaseMaintenanceState !== 'running') throw new Error('sync.tunnel.error.busy')
+        if (index === ids.length) return operation()
+        const id = ids[index]
+        if (
+          syncActiveSessions.has(id) ||
+          sessionData.pendingInputs.hasUnconsumedInputs(id) ||
+          sessionData.database.dimScopeChangesTable.get(id) ||
+          sessionData.database.dimInputIntentsTable.pending(id).length > 0 ||
+          sessionDeletionGate.hasActiveOperations(id)
+        )
+          throw new Error('sync.tunnel.error.busy')
+        return sessionDeletionGate.runWithSessionDeletion(id, async () => {
+          if (syncActiveSessions.has(id) || sessionData.pendingInputs.hasUnconsumedInputs(id))
+            throw new Error('sync.tunnel.error.busy')
+          return acquire(index + 1)
+        })
+      }
+      return acquire(0)
+    }
+  })
   const replicaEndpoint = new SyncReplicaEndpoint({
     store: syncReplica,
+    native: nativeReplica,
     directory: path.join(app.getPath('userData'), 'sync-host'),
     hostId: () => syncHostService.getHostId(),
     available: () =>
@@ -1516,6 +1617,7 @@ export async function createMainProcessControl(dependencies: {
   })
   automaticSync = new AutomaticSync({
     store: syncReplica,
+    native: nativeReplica,
     directory: path.join(app.getPath('userData'), 'sync-peer'),
     connection: () => syncPeerService.connection(),
     available: () =>
@@ -1575,6 +1677,11 @@ export async function createMainProcessControl(dependencies: {
     }
   })
   const pluginRuntimeSupervisor = new PluginRuntimeSupervisor()
+  const dimHtmlRender = new DimHtmlRender({
+    database: sessionData.database,
+    host: dimHost,
+    synchronize: (id) => dimAgent.runtime.synchronize(id)
+  })
   mcpService = new McpService(
     providerSettings,
     agentSettings,
@@ -1592,7 +1699,7 @@ export async function createMainProcessControl(dependencies: {
       knowledgeService: knowledgeService
     }),
     providerRuntime,
-    () => deepChatAgentHarness.refreshToolRegistry(),
+    () => refreshDimTools(),
     semanticNotifications,
     publishDeepchatEvent,
     (data, options) => deviceService.cacheImage(data, options),
@@ -1616,6 +1723,8 @@ export async function createMainProcessControl(dependencies: {
         )
       },
       readHtmlRenderSource: (input) => {
+        if (sessionData.database.dimSessionBindingsTable.get(input.conversationId))
+          return dimHtmlRender.source(input)
         const message = sessionData.database.deepchatMessagesTable.get(input.messageId)
         return message?.session_id === input.conversationId
           ? sessionData.database.deepchatAssistantBlocksTable.readHtmlRenderSource(
@@ -1624,11 +1733,13 @@ export async function createMainProcessControl(dependencies: {
             )
           : null
       },
-      listHtmlRenderSections: (conversationId, panelId) =>
-        sessionData.database.deepchatAssistantBlocksTable.listHtmlRenderSections(
-          conversationId,
-          panelId
-        ),
+      listHtmlRenderSections: async (conversationId, panelId) =>
+        sessionData.database.dimSessionBindingsTable.get(conversationId)
+          ? ((await dimHtmlRender.panel(conversationId, panelId))?.sections ?? [])
+          : sessionData.database.deepchatAssistantBlocksTable.listHtmlRenderSections(
+              conversationId,
+              panelId
+            ),
       persistModelContext: (messageId, blockId, descriptor, toolInput, context) =>
         sessionData.database.deepchatAssistantBlocksTable.updateMcpAppModelContext(
           messageId,
@@ -1787,10 +1898,12 @@ export async function createMainProcessControl(dependencies: {
       sessionData.sessionReferences.read(callerSessionId, input),
     htmlRenderPanels: {
       measurePanel: (conversationId, panelId) =>
-        sessionData.database.deepchatAssistantBlocksTable.measureHtmlRenderPanel(
-          conversationId,
-          panelId
-        )
+        sessionData.database.dimSessionBindingsTable.get(conversationId)
+          ? dimHtmlRender.panel(conversationId, panelId)
+          : sessionData.database.deepchatAssistantBlocksTable.measureHtmlRenderPanel(
+              conversationId,
+              panelId
+            )
     },
     agentInvocationAdmission,
     sessions: {
@@ -1856,14 +1969,6 @@ export async function createMainProcessControl(dependencies: {
         }
       }
     },
-    tape: {
-      searchTape: async (conversationId, query, options) => {
-        return await sessionQuery.searchTape(conversationId, query, options)
-      },
-      getTapeContext: async (conversationId, entryIds, options) => {
-        return await sessionQuery.getTapeContext(conversationId, entryIds, options)
-      }
-    },
     memory: {
       isMemoryEnabled: (agentId) => memoryService.isEnabled(agentId),
       rememberMemory: async (agentId, input, sourceSession, model, beforeMutation) =>
@@ -1888,19 +1993,6 @@ export async function createMainProcessControl(dependencies: {
       },
       forgetMemory: async (agentId, memoryId, beforeMutation) =>
         await memoryService.forgetMemory(agentId, memoryId, beforeMutation)
-    },
-    cronJobs: {
-      listCronJobs: async () => await cronJobs.list(),
-      upsertCronJob: async (input, beforeMutation) =>
-        (await cronJobs.upsert(input, beforeMutation)).job,
-      deleteCronJob: async (id, beforeMutation) => {
-        await cronJobs.delete(id, beforeMutation)
-      },
-      toggleCronJob: async (id, enabled, beforeMutation) =>
-        (await cronJobs.toggle(id, enabled, beforeMutation)).job,
-      runCronJobNow: async (id, beforeMutation) => (await cronJobs.runNow(id, beforeMutation)).run,
-      listCronJobRuns: async (jobId, limit) => cronJobs.listRuns(jobId, limit),
-      previewCronSchedule: async (input) => cronJobs.previewSchedule(input)
     },
     subagents: {
       createSubagentSession: async (input) => {
@@ -1970,8 +2062,26 @@ export async function createMainProcessControl(dependencies: {
     }
   }
 
+  const dimToolCatalog = new DimToolCatalog({
+    host: dimHost,
+    models: dimModels,
+    cwd: app.getPath('home'),
+    defaultModel: async () => {
+      for (const entry of await providerSettings.getAllEnabledModels()) {
+        if (providerSettings.getProviderById(entry.providerId)?.apiType === 'acp') continue
+        const model = entry.models.find((model) => {
+          const type = providerSettings.getModelConfig(model.id, entry.providerId).type
+          return !type || type === 'chat'
+        })
+        if (model) return { providerId: entry.providerId, modelId: model.id }
+      }
+      return null
+    }
+  })
+
   // Initialize the merged MCP and built-in Tool service.
   toolService = new ToolService({
+    nativeToolDefinitions: () => dimToolCatalog.definitions(),
     mcpService: mcpService,
     providerSettings: providerSettings,
     settings: dependencies.settingsStore,
@@ -2002,7 +2112,6 @@ export async function createMainProcessControl(dependencies: {
   pluginService = new PluginService({
     nowledgeMem: nowledgeMemConnections,
     exportNowledgeSession: (input) => agentSessionExportService.submitToNowledgeMem(input),
-    contextTape: sessionData.tapeStore,
     mcpSettings: dependencies.mcpSettings,
     mcpService: mcpService,
     skillService: skillService,
@@ -2118,16 +2227,188 @@ export async function createMainProcessControl(dependencies: {
     })
   }
 
-  // Initialize new agent architecture presenters
-  deepChatAgentHarness = createDeepChatAgentHarness({
-    providerRuntime,
+  const desktopSessionState = new DesktopSessionState({
+    database: sessionData.database,
     providerSettings,
-    agentSettings,
-    ...sessionData.runtime,
-    toolService,
-    hookObserver: hookService,
-    pluginContext: pluginService.contextHooks,
-    onSessionCompleted: notifySessionCompleted,
+    promptSettings
+  })
+  const dimIdentity = {
+    getAgentId: (id: string) => appSessionService.get(id)?.agentId,
+    getSessionKind: (id: string) => appSessionService.get(id)?.sessionKind ?? null
+  }
+  dimMemory = createDimMemoryRuntime({
+    database: sessionData.database,
+    host: dimHost,
+    port: memoryService,
+    identity: dimIdentity,
+    transcript: sessionData.transcript,
+    cursors: {
+      getMemoryCursorOrderSeq: (id) => sessionData.settings.getMemoryCursorOrderSeq(id),
+      updateMemoryCursorOrderSeq: (id, order) =>
+        sessionData.settings.updateMemoryCursorOrderSeq(id, order),
+      rewindMemoryCursorOrderSeq: (id, order) =>
+        sessionData.settings.rewindMemoryCursorOrderSeq(id, order)
+    }
+  })
+  const authorizeDimScope = async (binding: { sessionId: string }) => {
+    const session = appSessionService.get(binding.sessionId)
+    if (!session || databaseMaintenanceState !== 'running')
+      throw new Error('Desktop session is unavailable')
+    const descriptor = agentRepository.getAgent(session.agentId)
+    if (!descriptor || !descriptor.enabled || descriptor.agentType !== 'deepchat')
+      throw new Error('Desktop agent is unavailable')
+  }
+  const dimMcpConfiguration = async (sessionId: string) => {
+    const session = appSessionService.get(sessionId)
+    if (!session) throw new Error('Desktop session is unavailable')
+    const config = await agentSettings.resolveDeepChatAgentConfig(session.agentId)
+    const [npmRegistry, uvRegistry] = await Promise.all([
+      mcpService.getNpmRegistry(),
+      mcpService.getUvRegistry()
+    ])
+    return mcpService.nativeSessionConfiguration(
+      config.enabledMcpServerIds,
+      async (_name, server) =>
+        nativeMcpStdio(server, {
+          home: app.getPath('home'),
+          paths: ToolchainService.getInstance().resolvedBinDirs(),
+          expand: (value) => RuntimeHelper.getInstance().expandPath(value),
+          rewrite: (command, args) => ToolchainService.getInstance().rewriteCommand(command, args),
+          npmRegistry,
+          uvRegistry
+        })
+    )
+  }
+  const dimScopes = new DimScopes({ database: sessionData.database, host: dimHost })
+  dimTools = new DimProductTools({
+    owner: dimScopes.owner,
+    database: sessionData.database,
+    authorize: authorizeDimScope,
+    catalog: createDimDesktopTools({
+      desktop: new AgentToolManager({
+        providerSettings,
+        agentSettings,
+        skillSettings,
+        desktopSettings,
+        dependencies: agentToolDependencies
+      }),
+      mcp: mcpService,
+      selection: async (id) => {
+        const session = appSessionService.get(id)
+        if (!session) throw new Error('Desktop session is unavailable')
+        const config = await agentSettings.resolveDeepChatAgentConfig(session.agentId)
+        return {
+          agentId: session.agentId,
+          disabled: sessionData.settings.getDisabledAgentTools(id),
+          enabledServerIds: config.enabledMcpServerIds,
+          bridgeServerNames: (await dimMcpConfiguration(id)).bridgeServerNames
+        }
+      }
+    })
+  })
+  const dimSkills = new DimSkillContext({
+    skills: skillService,
+    catalog: new DimSkillCatalog(dimHost),
+    session: (id) => appSessionService.get(id)
+  })
+  const dimPluginHooks = pluginService.contextHooks
+    ? new DimPluginHooks({
+        database: sessionData.database,
+        host: dimHost,
+        hooks: pluginService.contextHooks,
+        resolve: dimScopes.context,
+        prepareLegacy: (id) => dimAgent.prepareNative(id)
+      })
+    : undefined
+  if (dimPluginHooks) pluginService.contextHooks?.useNative(dimPluginHooks)
+  dimContext = new DimProductContext({
+    database: sessionData.database,
+    content: new DimContent(dimHost),
+    resolve: dimScopes.context,
+    authorize: authorizeDimScope,
+    prepare: async (binding, request, signal) => {
+      const skillScope = await dimScopes.context(request, signal)
+      const skills = await dimSkills.contribute(binding, signal, skillScope.ref)
+      const memory = await dimMemory.contribute(binding, request, signal)
+      const hooks = await dimPluginHooks?.contribute(binding, request, signal)
+      return {
+        messages: [...skills.messages, ...memory.messages, ...(hooks?.messages ?? [])],
+        receipts: [
+          ...(skills.receipts ?? []),
+          ...(memory.receipts ?? []),
+          ...(hooks?.receipts ?? [])
+        ]
+      }
+    }
+  })
+  dimAgent = createDimAgent({
+    database: sessionData.database,
+    host: dimHost,
+    state: desktopSessionState,
+    models: dimModels,
+    legacy: new DimLegacySource({
+      database: sessionData.database,
+      transcript: sessionData.transcript,
+      tape: sessionData.legacyTape,
+      summary: sessionData.settings,
+      pending: sessionData.pendingInputs
+    }),
+    identity: async (id) => {
+      const session = appSessionService.get(id)
+      if (!session) throw new Error('Desktop session is unavailable')
+      const agent = agentRepository.getAgent(session.agentId)
+      return {
+        name: agent?.name ?? session.agentId,
+        description: agent?.description ?? '',
+        cwd: session.projectDir ?? app.getPath('home')
+      }
+    },
+    prepareInput: new DimInputPreparation({
+      attachments: attachmentRouter,
+      audio: async (id, part, prompt, signal) => {
+        const before = sessionData.settings.get(id)
+        const record = appSessionService.get(id)
+        if (sessionData.database.dimScopeChangesTable.get(id))
+          throw new Error('Desktop session is changing')
+        if (!before || !record) throw new Error('Desktop session is not initialized')
+        const binding = sessionData.database.dimSessionBindingsTable.get(id)
+        const result = await dimAuxiliary.audioEvidence(
+          before.provider_id,
+          before.model_id,
+          part,
+          prompt,
+          signal
+        )
+        const after = sessionData.settings.get(id)
+        const current = sessionData.database.dimSessionBindingsTable.get(id)
+        if (
+          !after ||
+          appSessionService.get(id)?.agentId !== record?.agentId ||
+          appSessionService.get(id)?.projectDir !== record?.projectDir ||
+          sessionData.database.dimScopeChangesTable.get(id) ||
+          after.provider_id !== before.provider_id ||
+          after.model_id !== before.model_id ||
+          current?.dimSessionId !== binding?.dimSessionId ||
+          current?.branchId !== binding?.branchId ||
+          current?.generation !== binding?.generation
+        )
+          throw new Error('Audio preparation belongs to a replaced session configuration')
+        return result
+      },
+      capabilities: (id) => {
+        const row = sessionData.settings.get(id)
+        if (!row) throw new Error('Desktop session is not initialized')
+        const config = providerSettings.getModelConfig(row.model_id, row.provider_id)
+        const capability = providerSettings.getCapabilitySnapshot({
+          providerId: row.provider_id,
+          modelId: row.model_id
+        })
+        return {
+          vision: config.vision || config.type === ModelType.ImageGeneration,
+          audio: capability.supportsAudioInput
+        }
+      }
+    }).prepare,
     output: createDeepChatOutputProjection({
       publishEvent: publishDeepchatEvent,
       publishSessionUpdate
@@ -2137,39 +2418,53 @@ export async function createMainProcessControl(dependencies: {
       publishSessionUpdate,
       sessionUiPort
     }),
-    providerCatalogPort,
-    sessionPermissionPort,
-    acpAsLlmProviderPermission: acpAsLlmProviderPermission,
-    memoryPort: memoryService,
-    getMemoryIngestionProjection: () =>
-      createMemoryIngestionProjectionPort(() => memoryDatabase.ingestionProjectionTable),
-    cacheImage: (data, options) => deviceService.cacheImage(data, options),
-    runJournalObserver: emitRunJournalObservation,
-    skillService: skillService,
-    skillSettings,
-    traceSettings,
-    commandShell: commandShellService,
-    promptSettings,
-    attachmentRouter,
-    interactionContinuationAdmission: {
-      resume: async (sessionId, signal) =>
-        await liveDelegationService.beforeInteractionContinuation(sessionId, signal),
-      suspend: (sessionId) => liveDelegationService.suspendInteractionContinuation(sessionId)
+    publishEvent: publishDeepchatEvent,
+    completed: notifySessionCompleted,
+    committed: dimMemory.observe,
+    titleChanged: (sessionId, title) => {
+      appSessionService.update(sessionId, { title })
+      publishDeepchatEvent('sessions.updated', { sessionIds: [sessionId], reason: 'updated' })
     },
-    taskContractContext: {
-      prepare: (sessionId) => liveDelegationService.prepareTaskContractContext(sessionId)
+    failed: (sessionId, error) =>
+      logger.error('[dim] Desktop projection failed', { sessionId, error }),
+    mcpServers: async (binding) => (await dimMcpConfiguration(binding.sessionId)).servers,
+    refreshTools: async (binding) => {
+      await (
+        await dimHost.start()
+      ).call('session.deepchat_tools.refresh', {
+        sessionId: binding.dimSessionId,
+        branchId: binding.branchId
+      })
     },
-    toolSurfaceRunMode: toolSurfaceRollout,
-    programmaticTools: createDeepChatProgrammaticToolPort(
-      programmaticToolParents,
-      agentCliTokenAuthority
-    )
+    closed: dimMemory.closed,
+    invalidateHistory: (id, order) => dimMemory.coordinator.invalidateFromOrderSeq(id, order),
+    beginDestroy: dimMemory.beginDestroy,
+    finishDestroy: dimMemory.finishDestroy,
+    deleteLegacyMetadata: (id) => sessionData.pendingInputs.deleteBySession(id)
   })
+  sessionData.sessionReferences.setNativeSource(
+    createDimSessionReferenceSource({
+      database: sessionData.database,
+      host: dimHost,
+      synchronize: (id) => dimAgent.runtime.synchronize(id)
+    })
+  )
   const sessionTranscriptMutations = new SessionTranscriptMutations({
     transcript: sessionData.transcript,
     settings: sessionData.settings,
     pendingInputs: sessionData.pendingInputs,
-    runtime: deepChatAgentHarness,
+    runtime: createDesktopTranscriptRuntime({
+      database: sessionData.database,
+      pending: sessionData.pendingInputs,
+      cancel: (id) => acpAgentRuntime.cancel(toAppSessionId(id))
+    }),
+    native: {
+      owns: (id) => {
+        const session = appSessionService.get(id)
+        return !!session && agentRepository.getAgent(session.agentId)?.agentType === 'deepchat'
+      },
+      mutations: dimAgent.mutations
+    },
     runInTransaction: (operation) => sessionData.database.getDatabase().transaction(operation)()
   })
   acpAgentRuntime = new AcpAgentRuntime(
@@ -2206,42 +2501,69 @@ export async function createMainProcessControl(dependencies: {
       ),
     sessionData.pendingInputs
   )
-  agentManager = new AgentManager(agentRepository, appSessionService, {
-    deepchat: createDeepChatAgentBackend({
-      port: deepChatAgentHarness,
-      transcript: sessionData.transcript,
-      tape: sessionData.tape
-    }),
-    acp: createDirectAcpAgentBackend({
-      runtime: acpAgentRuntime,
-      sessionState: deepChatAgentHarness,
-      transcript: sessionData.transcript,
-      tape: sessionData.tape,
-      deleteDurableSession: async (sessionId) => {
-        await acpSessionPersistence.deleteSessions(sessionId)
-      },
-      resolveInput: async (sessionId, descriptor) => {
-        const session = appSessionService.get(sessionId)
-        if (!session || resolveAcpAgentAlias(session.agentId) !== descriptor.id) {
-          throw new AgentUnavailableError(descriptor.id, 'invalid-config', 'acp')
+  agentManager = new AgentManager(
+    agentRepository,
+    appSessionService,
+    {
+      deepchat: createDeepChatAgentBackend({
+        port: dimAgent.backend,
+        transcript: sessionData.transcript,
+        tape: sessionData.tape
+      }),
+      acp: createDirectAcpAgentBackend({
+        runtime: acpAgentRuntime,
+        sessionState: desktopSessionState,
+        transcript: sessionData.transcript,
+        tape: sessionData.tape,
+        deleteDurableSession: async (sessionId) => {
+          await acpSessionPersistence.deleteSessions(sessionId)
+          sessionData.transcript.deleteBySession(sessionId)
+          sessionData.settings.delete(sessionId)
+        },
+        resolveInput: async (sessionId, descriptor) => {
+          const session = appSessionService.get(sessionId)
+          const selection = sessionData.settings.get(sessionId)
+          const compatibility =
+            session &&
+            agentRepository.getDeepChatAgentConfig(session.agentId) !== null &&
+            selection?.provider_id === 'acp' &&
+            resolveAcpAgentAlias(selection.model_id) === descriptor.id
+          if (
+            !session ||
+            (resolveAcpAgentAlias(session.agentId) !== descriptor.id && !compatibility)
+          ) {
+            throw new AgentUnavailableError(descriptor.id, 'invalid-config', 'acp')
+          }
+          const agent = (await agentSettings.getAcpAgents()).find(
+            (candidate) => candidate.id === descriptor.id && candidate.source === descriptor.source
+          )
+          if (!agent || !agent.command.trim()) {
+            throw new AgentUnavailableError(descriptor.id, 'invalid-config', 'acp')
+          }
+          return {
+            sessionId: toAppSessionId(session.id),
+            descriptor,
+            agent,
+            scope: session.sessionKind === 'subagent' ? 'subagent' : 'regular',
+            workdir: session.projectDir?.trim() ?? ''
+          }
         }
-        const agent = (await agentSettings.getAcpAgents()).find(
-          (candidate) => candidate.id === descriptor.id && candidate.source === descriptor.source
-        )
-        if (!agent || !agent.command.trim()) {
-          throw new AgentUnavailableError(descriptor.id, 'invalid-config', 'acp')
-        }
-        return {
-          sessionId: toAppSessionId(session.id),
-          descriptor,
-          agent,
-          scope: session.sessionKind === 'subagent' ? 'subagent' : 'regular',
-          workdir: session.projectDir?.trim() ?? ''
-        }
+      })
+    },
+    {
+      compatibilityAcpAgent: (sessionId) => {
+        const selection = sessionData.settings.get(sessionId)
+        return selection?.provider_id === 'acp' ? selection.model_id : undefined
       }
-    })
+    }
+  )
+  dimInspector = new DimTimelineInspector({
+    database: sessionData.database,
+    host: dimHost,
+    content: new DimContent(dimHost)
   })
   sessionQuery = new SessionQuery({
+    nativeInspector: dimInspector,
     sessions: appSessionService,
     runtime: {
       getAgentKind: (agentId) => agentManager.resolveBackend(agentId).kind,
@@ -2259,14 +2581,20 @@ export async function createMainProcessControl(dependencies: {
     messages: createLivePort(() => sessionData.database.deepchatMessagesTable),
     searchResults: createLivePort(() => sessionData.database.deepchatMessageSearchResultsTable),
     traces: createLivePort(() => sessionData.database.deepchatMessageTracesTable),
-    usesAgentTitle: (sessionId) =>
-      !!acpRuntimeOwner.peek()?.sessionController.getSession(toAppSessionId(sessionId))?.extensions
-        ?.sessionTitle,
-    onTitleRenamed: async (sessionId, agentId) => {
+    usesAgentTitle: (sessionId) => {
+      const session = appSessionService.get(sessionId)
+      return (
+        (!!session && agentManager.resolveBackend(session.agentId).kind === 'deepchat') ||
+        !!acpRuntimeOwner.peek()?.sessionController.getSession(toAppSessionId(sessionId))
+          ?.extensions?.sessionTitle
+      )
+    },
+    onTitleRenamed: async (sessionId, agentId, title) => {
       if (agentManager.resolveBackend(agentId).kind === 'acp')
         await acpRuntimeOwner
           .getOrCreate()
           .sessionController.markTitleManual(toAppSessionId(sessionId), agentId)
+      else await dimAgent.rename(sessionId, title)
     },
     titles: providerRuntime,
     agentConfig: {
@@ -2338,7 +2666,7 @@ export async function createMainProcessControl(dependencies: {
       destroySessionBrowser: async (sessionId) =>
         await yoBrowserPresenter.destroySessionBrowser(sessionId)
     },
-    state: deepChatAgentHarness,
+    state: { destroySession: (id) => dimAgent.backend.destroySession(toAppSessionId(id)) },
     permissions: sessionPermissionPort,
     skills: {
       clearNewAgentSessionSkills: async (sessionId) =>
@@ -2348,6 +2676,7 @@ export async function createMainProcessControl(dependencies: {
     }
   })
   sessionAssignment = new SessionAssignment({
+    toolPreferencesChanged: (id) => dimAgent.settings.refreshToolPreferences(id),
     sessions: appSessionService,
     runtime: {
       getSessionAgentKind: (sessionId) =>
@@ -2466,7 +2795,19 @@ export async function createMainProcessControl(dependencies: {
         const { handle } = agentManager.resolveSessionHandle(sessionId)
         return {
           kind: handle.kind,
-          initialize: (config) => handle.lifecycle.initialize(config),
+          initialize: async (config) => {
+            if (config.providerId !== 'acp' || handle.kind === 'acp')
+              return handle.lifecycle.initialize(config)
+            const target = agentManager.resolveBackend(config.modelId)
+            if (target.kind !== 'acp')
+              throw new Error('ACP compatibility target is not an ACP agent')
+            if (sessionData.database.dimSessionBindingsTable.get(sessionId))
+              throw new Error('An existing native session cannot be replaced by an ACP client')
+            const selection = { ...config, modelId: target.descriptor.id }
+            await agentManager
+              .resolveSessionHandle(sessionId, target.descriptor.id)
+              .handle.lifecycle.initialize(selection)
+          },
           isInitialized: () => handle.lifecycle.isInitialized(),
           snapshot: () => handle.snapshot(),
           getGenerationSettings: () => handle.settings.getGenerationSettings(),
@@ -2539,7 +2880,7 @@ export async function createMainProcessControl(dependencies: {
     assignmentPolicy: sessionAssignmentPolicy,
     assignment: sessionAssignment,
     permissions: sessionPermissionPort,
-    executionSnapshots: deepChatAgentHarness
+    executionSnapshots: dimAgent.settings
   })
   const createLiveDelegationService = (): LiveDelegationService =>
     new LiveDelegationService({
@@ -2952,7 +3293,8 @@ export async function createMainProcessControl(dependencies: {
     }
 
     try {
-      deepChatAgentHarness.refreshToolRegistry()
+      refreshDimTools()
+      await recoverDimSessions()
       deeplinkService.processPendingMcpInstall()
     } catch (error) {
       reportMainStartupComponentFailure(dependencies.startupRunId, 'mcp_integration', 'unknown')
@@ -3031,7 +3373,6 @@ export async function createMainProcessControl(dependencies: {
     await runDestroyStep('remoteService.destroy', () => remoteService.destroy())
     await runDestroyStep('hookService.stop', () => hookService.stop())
     await runDestroyStep('sessionRuntimes.suspend', () => suspendSessionRuntimes())
-    await runDestroyStep('toolService.shutdownCodeRuntime', () => toolService.shutdownCodeRuntime())
     const pendingSkillInitialization = skillInitializationPromise
     if (pendingSkillInitialization) {
       await runDestroyStep('skillInitialization.drain', async () => {
@@ -3094,7 +3435,7 @@ export async function createMainProcessControl(dependencies: {
     // awaiting the existing chains. This avoids both late SQLite writes and shutdown deadlocks.
     const memoryIngestionDrain = (() => {
       try {
-        return deepChatAgentHarness.drainMemoryIngestion().then(
+        return dimMemory.coordinator.drainAndFence().then(
           (outcome) => ({ outcome }) as const,
           (error) => ({ error }) as const
         )
@@ -3116,6 +3457,11 @@ export async function createMainProcessControl(dependencies: {
     }
     await runDestroyStep('knowledgeService.destroy', () => knowledgeService.destroy())
     await runDestroyStep('ocrRuntimeService.close', () => ocrRuntimeService.close())
+    await runDestroyStep('dim.stop', async () => {
+      await dimAgent.mcp.stop()
+      await dimAgent.runtime.stop()
+      await dimGateway.stop()
+    })
     await runDestroyStep('providerRuntime.shutdown', () => providerRuntime.shutdown())
     await runDestroyStep('acpRuntime.shutdown', () => acpRuntimeOwner.shutdown())
     await runDestroyStep('mainDatabase.close', () => mainDatabase.close())
@@ -3202,7 +3548,9 @@ export async function createMainProcessControl(dependencies: {
       memoryService,
       getAgentType: (agentId) => agentSettings.getAgentType(agentId),
       getTapeInspection: () => sessionData.tapeStore,
-      getAuditEntries: () => memoryDatabase.agentMemoryAuditTable
+      getAuditEntries: () => memoryDatabase.agentMemoryAuditTable,
+      listDimViews: (agentId, query) => dimMemory.views.list(agentId, query),
+      readDimSources: (id, sources) => dimMemory.evidence.read(id, sources)
     })
     const desktopRoutes = createDesktopRoutes({
       ownsDraftSession: (sessionId, webContentsId) =>
@@ -3341,9 +3689,14 @@ export async function createMainProcessControl(dependencies: {
     const syncRoutes = createSyncRoutes({
       sync: syncService,
       settings: syncSettings,
-      importFromSync: (backupFileName, importMode) =>
+      importFromSync: (backupFileName, importMode, legacyPassword) =>
         runDatabaseMaintenance((database) =>
-          syncService.importFromSync(backupFileName, importMode ?? ImportMode.INCREMENT, database)
+          syncService.importFromSync(
+            backupFileName,
+            importMode ?? ImportMode.INCREMENT,
+            database,
+            legacyPassword
+          )
         ),
       pullLatestBackupFromCloud: (importMode) => pullLatestBackupFromCloud(importMode),
       recordActivity: (input) => {
@@ -3412,18 +3765,9 @@ export async function createMainProcessControl(dependencies: {
       startup: startupWorkloadCoordinator,
       ensureDefaultWorkspace: () => projectService.ensureDefaultWorkspace(),
       enableDatabaseEncryption: (password) =>
-        runDatabaseMaintenance((database) =>
-          databaseSecurityService.enableEncryption({ password, database, providerSettings })
-        ),
+        databaseSecurityService.enableEncryption({ password }),
       changeDatabasePassword: (currentPassword, newPassword) =>
-        runDatabaseMaintenance((database) =>
-          databaseSecurityService.changePassword({
-            currentPassword,
-            newPassword,
-            database,
-            providerSettings
-          })
-        ),
+        databaseSecurityService.changePassword({ currentPassword, newPassword }),
       disableDatabaseEncryption: (currentPassword) =>
         runDatabaseMaintenance((database) =>
           databaseSecurityService.disableEncryption({
@@ -3786,7 +4130,7 @@ export async function createMainProcessControl(dependencies: {
       await cronJobs.stop()
       await remoteService.destroy()
       await hookService.stop()
-      const drain = await deepChatAgentHarness.drainMemoryIngestion()
+      const drain = await dimMemory.coordinator.drainAndFence()
       if (drain.timedOut) {
         throw new Error(
           `Memory ingestion did not drain for sessions: ${drain.pendingSessions.join(', ')}`
@@ -3799,34 +4143,54 @@ export async function createMainProcessControl(dependencies: {
         )
       }
       await suspendSessionRuntimes()
-      operationResult = await operation({
-        getDatabasePath: () => mainDatabase.getDatabasePath(),
-        checkpointAndClose: () => {
-          const database = mainDatabase.getDatabase()
-          if (database.open) {
-            database.pragma('wal_checkpoint(TRUNCATE)')
+      await dimHost.withStopped(async () => {
+        try {
+          // A completed device import may still have durable cleanup pending. Settle
+          // it against the current product SQL before another import can replace SQL.
+          try {
+            await NativeReplicaRecovery.recover(app.getPath('userData'), mainDatabase.getDatabase())
+          } catch (error) {
+            throw new DimProfileRecoveryError(app.getPath('userData'), error)
           }
-          mainDatabase.close()
-        },
-        close: () => mainDatabase.close(),
-        reopen: () => reopenApplicationDatabase(),
-        reopenWithPassword: (password) => {
-          mainDatabase.reopenWithPassword(password)
-        },
-        isOpen: () => mainDatabase.getDatabase().open,
-        importLegacyChatDb: (sourceDbPath, mode) =>
-          legacyChatImportService.importFromSourceDb(sourceDbPath, mode)
+          operationResult = await operation({
+            getDatabasePath: () => mainDatabase.getDatabasePath(),
+            checkpointAndClose: () => {
+              const database = mainDatabase.getDatabase()
+              if (database.open) {
+                database.pragma('wal_checkpoint(TRUNCATE)')
+              }
+              mainDatabase.close()
+            },
+            close: () => mainDatabase.close(),
+            reopen: () => reopenApplicationDatabase(),
+            reopenWithPassword: (password) => {
+              mainDatabase.reopenWithPassword(password)
+            },
+            isOpen: () => mainDatabase.getDatabase().open,
+            importLegacyChatDb: (sourceDbPath, mode) =>
+              legacyChatImportService.importFromSourceDb(sourceDbPath, mode)
+          })
+        } finally {
+          // Auxiliary/model owners also share the supervisor. Keep their starts fenced until
+          // the application database is usable again, including failed imports and rollback.
+          if (!mainDatabase.getDatabase().open) reopenApplicationDatabase()
+        }
       })
     } catch (error) {
       operationError = error
     }
 
+    if (operationError instanceof DimProfileRecoveryError) {
+      databaseMaintenanceState = 'failed'
+      dimHost.requireProfileRecovery(operationError)
+      await stopForCleanup()
+      throw operationError
+    }
     try {
       if (!mainDatabase.getDatabase().open) {
         reopenApplicationDatabase()
       }
-      deepChatAgentHarness.reconcileAfterDatabaseReopen()
-      deepChatAgentHarness.resumeMemoryIngestion()
+      dimMemory.coordinator.resumeIngestion()
       memoryService.startBackgroundMaintenance()
       hookService.start()
       cronJobs.start()
@@ -3836,6 +4200,7 @@ export async function createMainProcessControl(dependencies: {
       const startupRunId = startupWorkloadCoordinator.createRun('main')
       scheduleBackgroundWork(startupRunId)
       databaseMaintenanceState = 'running'
+      await recoverDimSessions()
       syncReplica?.wake()
       await automaticSync?.start()
     } catch (error) {
@@ -3852,12 +4217,55 @@ export async function createMainProcessControl(dependencies: {
     mainDatabase.reopen()
   }
 
+  function refreshDimTools(): void {
+    if (!dimAgent || databaseMaintenanceState !== 'running') return
+    for (const session of appSessionService.list({ includeSubagents: true })) {
+      const binding = sessionData.database.dimSessionBindingsTable.get(session.id)
+      if (!binding) continue
+      void dimAgent.mcp
+        .refresh(binding)
+        .then(async () => {
+          await (
+            await dimHost.start()
+          ).call('session.deepchat_tools.refresh', {
+            sessionId: binding.dimSessionId,
+            branchId: binding.branchId
+          })
+        })
+        .catch((error) =>
+          logger.warn('[dim] Product tools refresh failed', { sessionId: session.id, error })
+        )
+    }
+  }
+
+  async function recoverDimSessions(): Promise<void> {
+    for (const session of appSessionService.list({ includeSubagents: true })) {
+      if (databaseMaintenanceState !== 'running' || appLifecycleState !== 'running') return
+      const binding = sessionData.database.dimSessionBindingsTable.get(session.id)
+      if (!binding || agentRepository.getAgentType(session.agentId) !== 'deepchat') continue
+      try {
+        // Only previously admitted native scopes are attached. Native owners resume their own
+        // queues; legacy sessions remain untouched until an explicit continuation or mutation.
+        await dimAgent.runtime.open(session.id)
+        await dimAgent.mcp.refresh(binding)
+        await (
+          await dimHost.start()
+        ).call('session.deepchat_tools.refresh', {
+          sessionId: binding.dimSessionId,
+          branchId: binding.branchId
+        })
+      } catch (error) {
+        logger.warn('[dim] Native session recovery failed', { sessionId: session.id, error })
+      }
+    }
+  }
+
   async function suspendSessionRuntimes(): Promise<void> {
     const results = await Promise.allSettled(
       appSessionService.list({ includeSubagents: true }).map(async (session) => {
         const sessionId = toAppSessionId(session.id)
         await Promise.all([
-          deepChatAgentHarness.cleanupSession(sessionId),
+          dimAgent.backend.cleanupSession(sessionId),
           acpAgentRuntime.cleanupSession(sessionId)
         ])
       })

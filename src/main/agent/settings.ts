@@ -1,3 +1,4 @@
+import { dimDisabledTools } from '@shared/lib/nativeToolPreferences'
 import logger from '@shared/logger'
 import { isDeepStrictEqual } from 'node:util'
 import path from 'node:path'
@@ -27,7 +28,7 @@ import { AcpLaunchSpecService } from '@/agent/acp/launch/acpLaunchSpecService'
 import {
   normalizeAutoCompactionRetainRecentPairs,
   normalizeAutoCompactionTriggerThreshold
-} from '@/agent/deepchat/defaults'
+} from '@/agent/agentDefaults'
 import { AgentRepository, BUILTIN_DEEPCHAT_AGENT_ID } from '@/agent/repository'
 import type { AgentLifecycleGatePort } from '@/agent/lifecycleGate'
 
@@ -125,9 +126,9 @@ const findChangedAcpRegistryAgentIds = (
 
 const withDeepChatAgentDefaults = (config: DeepChatAgentConfig): DeepChatAgentConfig => ({
   ...config,
-  disabledAgentTools: Array.isArray(config.disabledAgentTools)
-    ? [...config.disabledAgentTools]
-    : [...DEFAULT_DISABLED_AGENT_TOOLS]
+  disabledAgentTools: dimDisabledTools(
+    config.disabledAgentTools ?? [...DEFAULT_DISABLED_AGENT_TOOLS]
+  )
 })
 
 const mergeDefaultDisabledAgentTools = (

@@ -1,6 +1,8 @@
 # Inline HTML Render
 
-Status: implemented; manual check in the app pending (`plan.md` step 7).
+Status: integrated with the dim Rust harness. Native tool content is read through the storage
+plugin; legacy SQL remains a compatibility source. End-to-end acceptance is recorded in the
+[dim migration plan](../../architecture/dim-rust-harness-migration/plan.md).
 
 ## Context
 
@@ -135,12 +137,8 @@ const htmlRenderSectionSchema = z.strictObject({
   toggled one by one: with only `html_render` disabled, `html_render_section` stays listed but
   every call fails for lack of a panel. They are grouped with the `agent-core` tools, so the settings and session tool lists
   need no new group label.
-- Code Mode: both tools are Code Mode direct tools (`CODE_MODE_DIRECT_TOOL_NAMES`), exposed
-  beside `run_code` / `exec` instead of inside them. Nested Code Mode calls return only
-  `content` / `structuredContent` to the script and drop `rawData`, which carries the
-  `htmlRender` descriptor, and a section's html is read from its own tool block's params, so a
-  nested call would run but never display. `question` and the live delegation tool are direct for
-  the same reason.
+- Code Mode is currently disabled pending dim native support. Both HTML tools are desktop
+  extensions registered with the dim tool provider; their results retain the UI descriptor.
 - `height` is the reserved height before the page reports its size. Default 360.
 
 Description text of `html_render` (layout and theme lines are shared with the section tool):
@@ -206,14 +204,15 @@ back to the model.
 
 ## Persistence
 
-The HTML already lives in the tool block's `tool_params` (stored in full in
-`deepchat_assistant_blocks`). No new file, table, or cleanup path is needed.
+For dim sessions, complete HTML and section arguments live in Native Timeline tool calls.
+`DimHtmlRender` reads the fixed transcript through `deepchat-storage`, derives the latest section
+versions and measures their UTF-8 size. Product SQL retains a rebuildable projection and validates
+source identity for an existing frame; it is not the Native content source. Legacy sessions keep
+the original `deepchat_assistant_blocks` reader until their on-demand conversion.
 
-Model context does not replay it. When the assistant history (`contextBuilder`) or the running
-turn's conversation (`dispatch`) carries an `html_render` or `html_render_section` call, the `html`
-argument is replaced by `[omitted from context: <n> characters; send the full HTML again to change it]`
-(`compactHtmlRenderToolArguments`). The model keeps the title, panel and section ids; without this,
-every later request would resend up to 2 MB per panel.
+Context assembly, budgeting and compaction belong to dim. The former `contextBuilder` / `dispatch`
+argument rewriting is not reintroduced with the deleted TypeScript harness. Native canonical
+arguments remain complete for panel reconstruction and backup.
 
 There is no tool to read a page back. Whatever it returned would enter the context and stay in
 every later request, and the model cannot see the render, so reading back would not verify
@@ -234,9 +233,11 @@ interface HtmlRenderDescriptor {
 Sections need no descriptor: a successful `html_render_section` block is the record, and its
 params carry `panelId`, `sectionId` and `html`.
 
-It travels `AgentToolCallResult.rawData` → `MCPToolResponse.htmlRender` → `dispatch.ts`
-`updateToolCallBlock` → `tool_call.htmlRender` → `extra_json.toolCallExtra.htmlRender`
-(`messageContent.ts`). The renderer gate is the presence of this descriptor on a successful block.
+The descriptor travels from `AgentToolCallResult.rawData` through the product plugin's
+`structuredContent.deepchatDisplay` into Native tool results. `messageProjection` reconstructs
+`tool_call.htmlRender` for the renderer and rebuildable SQL metadata. A frame requires a successful
+tool block and this descriptor. Captured scope generation and projected source identity invalidate
+it after replacement, removal or clearing; raw HTML is fetched from the Native owner.
 
 ## Rendering Pipeline
 
@@ -482,9 +483,7 @@ the existing `mcp-app` render item.
   16:9 box (`McpAppView.vue` `frameViewportClass`, `handleSizeChange`).
 - `html_preview` for vision models.
 - Expose `html_render` to ACP agents through a DeepChat MCP server.
-- Code Mode drops the UI projection (`rawData`) of every nested call, including MCP App results
-  from MCP tools called inside `run_code`. `html_render` avoids it by being direct; MCP Apps in
-  Code Mode need their own fix.
+- Re-enable Code Mode after native dim support is available.
 - Save as `.html` and include renders in conversation export.
 - Outbound links through the host consent flow, which today requires a server-bound instance.
 

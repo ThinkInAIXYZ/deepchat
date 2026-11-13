@@ -22,9 +22,11 @@ const MIB = 1024 * 1024
 export const DEFAULT_INSTALLER_DELTA_BYTES = 90 * MIB
 const MACOS_INSTALLER_GROWTH_BYTES = 112 * MIB
 export const PACKAGE_SIZE_TRANSIENT_DELTA = Object.freeze({
-  reason: 'stop-shipping-bundled-node',
+  // Native 0.21 linux-x64 is 77,296,084 bytes gzip; the independent runtime
+  // component gate caps it at 84 MiB. The pinned baseline predates this runtime.
+  reason: 'native-dim-runtime-added-to-pre-rust-baseline',
   baselineCommit: 'dfb4ba0f34c008c27cfb6bd98a08fdbd36f7b343',
-  bytes: -50 * MIB
+  bytes: 80 * MIB
 })
 
 const role = (name, directory, suffixes, options = {}) =>
@@ -260,8 +262,8 @@ export function resolvePackageSizeExpectedDelta(policy, baselineCommit) {
   const expected = policy?.expectedDelta
   if (!expected) return 0
   if (expected.baselineCommit !== baselineCommit) return 0
-  if (!Number.isSafeInteger(expected.bytes) || expected.bytes > 0) {
-    throw new Error('Package-size policy expectedDelta.bytes must be a non-positive integer')
+  if (!Number.isSafeInteger(expected.bytes)) {
+    throw new Error('Package-size policy expectedDelta.bytes must be a safe integer')
   }
   return expected.bytes
 }

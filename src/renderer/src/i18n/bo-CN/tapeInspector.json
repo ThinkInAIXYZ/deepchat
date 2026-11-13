@@ -5,7 +5,7 @@
     "expand": "རྒྱ་ཆེར་གཏོང་བ",
     "collapse": "རྡིབ་པ།",
     "refresh": "གསར་སྒྱུར་བྱེད་",
-    "loadOlder": "སྔ་དུས་ཀྱི་Tape Entry",
+    "loadOlder": "སྔ་དུས་ཀྱི་timeline event",
     "loadMore": "དེ་ལས་མང་བ་འཇུག",
     "loadEvidence": "དཔེ་དབྱིབས་ཀྱི་རེ་བ་མང་ཙམ་འདོན་དགོས།",
     "loadMatchingEntries": "བབ་མཚུངས་ཀྱི་Entry",
@@ -23,8 +23,8 @@
     "waterfall": "རྦབ་ཆུའི་དཔེ་རིས།"
   },
   "search": {
-    "loadedLabel": "འཚོལ་ཞིབ Tape Entry དང་དཔེ་དབྱིབས་ཀྱི་རེ་ཞུ།",
-    "loadedPlaceholder": "འཚོལ་ཞིབ Tape Entry དང་དཔེ་དབྱིབས་ཀྱི་རེ་ཞུ།",
+    "loadedLabel": "འཚོལ་ཞིབ timeline event དང་དཔེ་དབྱིབས་ཀྱི་རེ་ཞུ།",
+    "loadedPlaceholder": "འཚོལ་ཞིབ timeline event དང་དཔེ་དབྱིབས་ཀྱི་རེ་ཞུ།",
     "loadedScope": "ཡི་གེའི་འཚོལ་བཤེར་གྱིས་ནང་འཇུག་གི་ཁྱབ་ཁོངས་ཁོ་ནར་ཁྱབ་ཡོད།"
   },
   "filters": {
@@ -104,11 +104,11 @@
     "timingNotRecorded": "ཟིན་ཐོ་འདིས་དུས་མཉམ་དུ་དུས་ཚོད་ཀྱི་དབྱེ་མཚམས་གཉིས་སྐྱོབ་ཐུབ་མེད།",
     "timingInconsistent": "ཟིན་བྲིས་སུ་བཀོད་པའི་དུས་ཚོད་ཀྱི་དབྱེ་མཚམས་གཅིག་མཐུན་མིན།",
     "notApplicable": "ལས་གཞི་འདི་བཀོལ་སྤྱོད་བྱེད་མི་ཐུབ",
-    "empty": "ཆ་འགྲིག་གི་Tape Entry དང་དཔེ་དབྱིབས་ཀྱི་རེ་བ་མེད།",
-    "loadedCounts": "{entries} Tape Entry ·{evidence} དཔེ་དབྱིབས་ཀྱི་རེ་ཞུ།",
-    "pageLoaded": "ནང་འཇུག་{count} Tape Entry ཡོད།ད་ལྟའི་གནས་ས་སོར་ཉར་བྱས་ཡོད་པས་མུ་མཐུད་དུ་བལྟ་རོགས།",
-    "pageLoadedComplete": "{count} Tape Entry བླུགས་ནས་ད་ལྟ་Tape འགོ་འཛུགས་སར་སླེབས།",
-    "pageNoMatches": "མཚམས་ཐིག་རྗེས་མ་དེ་ཞིབ་ལྟ་བྱས་ཡོད་མོད། འོན་ཀྱང་མིག་སྔའི་ཆ་རྐྱེན་དང་མཐུན་པའི་Tape Entry མ་རྙེད།",
+    "empty": "ཆ་འགྲིག་གི་timeline event དང་དཔེ་དབྱིབས་ཀྱི་རེ་བ་མེད།",
+    "loadedCounts": "{entries} timeline event ·{evidence} དཔེ་དབྱིབས་ཀྱི་རེ་ཞུ།",
+    "pageLoaded": "ནང་འཇུག་{count} timeline event ཡོད།ད་ལྟའི་གནས་ས་སོར་ཉར་བྱས་ཡོད་པས་མུ་མཐུད་དུ་བལྟ་རོགས།",
+    "pageLoadedComplete": "{count} timeline event བླུགས་ནས་ད་ལྟ་Tape འགོ་འཛུགས་སར་སླེབས།",
+    "pageNoMatches": "མཚམས་ཐིག་རྗེས་མ་དེ་ཞིབ་ལྟ་བྱས་ཡོད་མོད། འོན་ཀྱང་མིག་སྔའི་ཆ་རྐྱེན་དང་མཐུན་པའི་timeline event མ་རྙེད།",
     "pageNoMatchesComplete": "འགོ་འཛུགས་ས་Tape སླེབས། མིག་སྔའི་ཆ་རྐྱེན་དང་Entry སྔ་ཙམ་མེད།",
     "matchingEntriesUnavailable": "བབ་མཚུངས་ཀྱི་ལོ་རྒྱུས་ནང་འཇུག་མ་བྱས་གོང་ལ་གོ་རིམ་Tape བཀོལ་ནས་Entry འཚག་ཆས་གཙང་སེལ་གནང་རོགས།",
     "live": "དུས་ཐོག་ངོ་མ།",
@@ -129,7 +129,7 @@
     "duration": "དུས་ཡུན།",
     "point": "དུས་ཚོད།",
     "error": "ནོར་འཛོལ་བྱུང་བ།",
-    "earlierNotLoaded": "དེ་སྔའི་Tape Entry ད་དུང་ནང་འཇུག་བྱས་མེད།"
+    "earlierNotLoaded": "དེ་སྔའི་timeline event ད་དུང་ནང་འཇུག་བྱས་མེད།"
   },
   "detail": {
     "title": "ཞིབ་ཕྲ།",

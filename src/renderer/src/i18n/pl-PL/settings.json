@@ -231,7 +231,6 @@
     "thinkingBudget": "Myślący budżet",
     "reasoningEffort": "Wysiłek rozumowania",
     "verbosity": "Szczegółowość",
-    "interleaved": "Kompatybilność myślenia z przeplataniem siły",
     "systemPrompt": "Domyślny system prompt",
     "systemPromptPlaceholder": "Pozostaw puste dla pustego system prompt",
     "defaultProjectPath": "Katalog domyślny (opcjonalnie)",
@@ -847,7 +846,8 @@
       "saveAndTest": "Zapisz i testuj",
       "saveOnly": "Tylko zapisz",
       "saveAndTestFirst": "Najpierw zapisz i przetestuj konfigurację chmury."
-    }
+    },
+    "legacyBackupPassword": "Hasło starej zaszyfrowanej kopii zapasowej (opcjonalne)"
   },
   "dashboard": {
     "badge": "Panel użytkowania",
@@ -1012,10 +1012,6 @@
       "reasoningToggle": {
         "description": "Określa, czy dla tego modelu jest domyślnie włączone wnioskowanie",
         "label": "Włącz rozumowanie"
-      },
-      "interleavedThinking": {
-        "label": "Przeplatane myślenie",
-        "description": "Kontroluje, czy ten model obsługuje rozumowanie i komunikaty wywołań narzędzi za pomocą myślenia przeplatanego. Domyślne ustawienia dostawcy są stosowane automatycznie."
       },
       "thinkingBudget": {
         "label": "Myślący budżet",

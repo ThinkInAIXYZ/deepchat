@@ -1,8 +1,8 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ModelType } from '../../../src/shared/model'
 import type { LLM_PROVIDER, MODEL_META, OllamaModel } from '@shared/types/provider'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { OllamaProvider } from '../../../src/main/provider/providers/ollamaProvider'
+import { ModelType } from '../../../src/shared/model'
 
 const { mockExecFile, mockOllamaConstructorOptions, mockOllamaPs } = vi.hoisted(() => ({
   mockExecFile: vi.fn(),
@@ -129,8 +129,8 @@ describe('OllamaProvider.fetchModels', () => {
     }
   })
 
-  it('normalizes Ollama SDK host and OpenAI-compatible runtime base URL', () => {
-    const ollamaProvider = new OllamaProvider(
+  it('normalizes the metadata SDK host and preserves authentication headers', () => {
+    new OllamaProvider(
       {
         ...provider,
         apiKey: 'test-key',
@@ -138,19 +138,10 @@ describe('OllamaProvider.fetchModels', () => {
       },
       providerSettings
     )
-    const runtimeContext = (ollamaProvider as any).getAiSdkRuntimeContext('local-custom-model')
 
     expect(mockOllamaConstructorOptions.at(-1)).toEqual({
       host: 'http://localhost:11434',
       headers: { Authorization: 'Bearer test-key' }
-    })
-    expect(runtimeContext.providerKind).toBe('openai-compatible')
-    expect(runtimeContext.provider.baseUrl).toBe('http://localhost:11434/v1')
-    expect(runtimeContext.capabilitySnapshot.identity).toMatchObject({
-      providerId: 'ollama',
-      requestModelId: 'local-custom-model',
-      catalogMatched: false,
-      catalogModelId: null
     })
   })
 
@@ -349,7 +340,7 @@ describe('OllamaProvider.fetchModels', () => {
 
   it('keeps the running context separate from theoretical model metadata', async () => {
     const ollamaProvider = new OllamaProvider(provider, providerSettings)
-    let runtimeContextLength: unknown = 8192
+    const runtimeContextLength = 8192
     const ps = vi.fn(async () => ({
       models: [
         {
@@ -384,126 +375,8 @@ describe('OllamaProvider.fetchModels', () => {
       runtimeContextLength: 8192,
       model_info: { context_length: 262144 }
     })
-    expect(await ollamaProvider.getRuntimeContextLimitTokens('qwen3:8b')).toBe(8192)
-    runtimeContextLength = 16384
-    expect(await ollamaProvider.getRuntimeContextLimitTokens('qwen3:8b')).toBe(16384)
-    runtimeContextLength = 0
-    await expect(ollamaProvider.getRuntimeContextLimitTokens('qwen3:8b')).rejects.toThrow(
-      'Upgrade Ollama to v0.9.7 or newer'
-    )
     expect(show).toHaveBeenCalledTimes(1)
     expect(ps).toHaveBeenCalledTimes(1)
-    expect(mockOllamaPs).toHaveBeenCalledTimes(3)
-  })
-
-  it('distinguishes a stopped model from an unavailable runtime query', async () => {
-    const ollamaProvider = new OllamaProvider(provider, providerSettings)
-    mockOllamaPs
-      .mockResolvedValueOnce({ models: [] })
-      .mockRejectedValueOnce(new Error('ps unavailable'))
-
-    await expect(ollamaProvider.getRuntimeContextLimitTokens('qwen3:8b')).resolves.toBeUndefined()
-    await expect(ollamaProvider.getRuntimeContextLimitTokens('qwen3:8b')).rejects.toThrow(
-      'Failed to read the Ollama runtime context for qwen3:8b: ps unavailable'
-    )
-    expect(mockOllamaPs).toHaveBeenCalledTimes(2)
-  })
-
-  it('diagnoses a running model from Ollama versions without runtime context metadata', async () => {
-    const ollamaProvider = new OllamaProvider(provider, providerSettings)
-    mockOllamaPs.mockResolvedValue({
-      models: [{ name: 'qwen3:8b' }]
-    })
-
-    await expect(ollamaProvider.getRuntimeContextLimitTokens('qwen3:8b')).rejects.toThrow(
-      'Upgrade Ollama to v0.9.7 or newer'
-    )
-  })
-
-  it('matches the implicit latest tag in either model-name direction', async () => {
-    const ollamaProvider = new OllamaProvider(provider, providerSettings)
-    mockOllamaPs
-      .mockResolvedValueOnce({
-        models: [{ name: 'qwen3', context_length: 8192 }]
-      })
-      .mockResolvedValueOnce({
-        models: [{ name: 'qwen3:latest', context_length: 16384 }]
-      })
-      .mockResolvedValueOnce({
-        models: [{ name: 'qwen3:8b', context_length: 32768 }]
-      })
-
-    await expect(ollamaProvider.getRuntimeContextLimitTokens('qwen3:latest')).resolves.toBe(8192)
-    await expect(ollamaProvider.getRuntimeContextLimitTokens('qwen3')).resolves.toBe(16384)
-    await expect(ollamaProvider.getRuntimeContextLimitTokens('qwen3')).resolves.toBeUndefined()
-  })
-
-  it('bounds a stalled runtime context query without loading the model', async () => {
-    vi.useFakeTimers()
-    try {
-      const ollamaProvider = new OllamaProvider(provider, providerSettings)
-      let transportSignal: AbortSignal | undefined
-      const transportFetch = vi.fn(
-        (_input: string | URL | Request, init?: RequestInit) =>
-          new Promise<Response>((_resolve, reject) => {
-            transportSignal = init?.signal as AbortSignal | undefined
-            transportSignal?.addEventListener('abort', () => reject(transportSignal?.reason), {
-              once: true
-            })
-          })
-      )
-      vi.stubGlobal('fetch', transportFetch)
-      mockOllamaPs.mockImplementation(async (options) => {
-        const requestFetch = (options as { fetch?: typeof fetch }).fetch
-        await requestFetch?.('http://127.0.0.1:11434/api/ps')
-        return { models: [] }
-      })
-
-      const limitPromise = ollamaProvider.getRuntimeContextLimitTokens('qwen3:8b')
-      const rejection = expect(limitPromise).rejects.toThrow(
-        'Timed out after 400ms while reading Ollama runtime models'
-      )
-      await vi.advanceTimersByTimeAsync(400)
-
-      await rejection
-      expect(mockOllamaPs).toHaveBeenCalledTimes(1)
-      expect(transportFetch).toHaveBeenCalledTimes(1)
-      expect(transportSignal?.aborted).toBe(true)
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
-  it('propagates cancellation of a stalled runtime context query', async () => {
-    const ollamaProvider = new OllamaProvider(provider, providerSettings)
-    let transportSignal: AbortSignal | undefined
-    const transportFetch = vi.fn(
-      (_input: string | URL | Request, init?: RequestInit) =>
-        new Promise<Response>((_resolve, reject) => {
-          transportSignal = init?.signal as AbortSignal | undefined
-          transportSignal?.addEventListener('abort', () => reject(transportSignal?.reason), {
-            once: true
-          })
-        })
-    )
-    vi.stubGlobal('fetch', transportFetch)
-    mockOllamaPs.mockImplementation(async (options) => {
-      const requestFetch = (options as { fetch?: typeof fetch }).fetch
-      await requestFetch?.('http://127.0.0.1:11434/api/ps')
-      return { models: [] }
-    })
-    const abortController = new AbortController()
-
-    const limitPromise = ollamaProvider.getRuntimeContextLimitTokens(
-      'qwen3:8b',
-      abortController.signal
-    )
-    abortController.abort()
-
-    await expect(limitPromise).rejects.toMatchObject({ name: 'AbortError' })
-    expect(mockOllamaPs).toHaveBeenCalledTimes(1)
-    expect(transportFetch).toHaveBeenCalledTimes(1)
-    expect(transportSignal?.aborted).toBe(true)
   })
 
   it('confirms pull success against the ollama list model set', async () => {

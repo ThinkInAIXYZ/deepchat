@@ -64,6 +64,7 @@ const expectedJobNames = [
 ]
 
 const expectedActionUses = [
+  'actions/cache@caa296126883cff596d87d8935842f9db880ef25',
   ...Array(5).fill('actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd'),
   ...Array(5).fill('actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e'),
   ...Array(5).fill('pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093'),
@@ -111,9 +112,7 @@ describe('PR Check workflow contracts', () => {
     const actionSteps = Object.values(workflow.jobs).flatMap((job) =>
       (job.steps ?? []).filter((step) => step.uses)
     )
-    expect(
-      actionSteps.map((step) => step.uses).sort()
-    ).toEqual([...expectedActionUses].sort())
+    expect(actionSteps.map((step) => step.uses).sort()).toEqual([...expectedActionUses].sort())
     for (const step of actionSteps) {
       expect(step.uses).toMatch(/^[^@]+@[0-9a-f]{40}$/)
     }
@@ -150,6 +149,9 @@ describe('PR Check workflow contracts', () => {
     ])
     expect(getRunCommands(workflow.jobs['test-main'])).toEqual([
       'pnpm install --frozen-lockfile',
+      'pnpm run installRuntime:dim',
+      'rustup toolchain install 1.98.1 --profile minimal',
+      'pnpm run build:dim-host --dev',
       'pnpm run test:main',
       'pnpm run test:harness:node'
     ])
@@ -195,9 +197,7 @@ describe('PR Check workflow contracts', () => {
     expect(indexes.every((index) => index >= 0)).toBe(true)
     expect(indexes).toEqual([...indexes].sort((left, right) => left - right))
     expect(
-      getRunCommands(nativeJob).some((command) =>
-        command.includes('pnpm run test:memory:scope')
-      )
+      getRunCommands(nativeJob).some((command) => command.includes('pnpm run test:memory:scope'))
     ).toBe(false)
     expect(getStep(nativeJob, 'Install and verify DuckDB VSS').run).toContain(
       'pnpm run installRuntime:duckdb:vss:linux:x64'
@@ -205,9 +205,7 @@ describe('PR Check workflow contracts', () => {
     expect(getStep(nativeJob, 'Install and verify DuckDB VSS').run).toContain(
       'pnpm run smoke:duckdb:vss -- --platform linux --arch x64'
     )
-    expect(getStep(nativeJob, 'Validate portable memory behavior').run).toBe(
-      'pnpm run test:memory'
-    )
+    expect(getStep(nativeJob, 'Validate portable memory behavior').run).toBe('pnpm run test:memory')
     // better-sqlite3-multiple-ciphers 13+ ships N-API prebuilds; the Node-ABI
     // rebuild step is gone and must not come back.
     expect(
@@ -278,13 +276,7 @@ describe('PR Check workflow contracts', () => {
       BUILD_RESULT: '${{ needs.build.result }}'
     })
     expect(aggregateStep.run).toContain('if [[ "${result}" != "success" ]]')
-    for (const jobName of [
-      'static',
-      'test-main',
-      'test-renderer',
-      'test-native-memory',
-      'build'
-    ]) {
+    for (const jobName of ['static', 'test-main', 'test-renderer', 'test-native-memory', 'build']) {
       expect(aggregateStep.run).toContain(`require_success "${jobName}"`)
     }
     expect(workflowSource).not.toContain('package-impact')

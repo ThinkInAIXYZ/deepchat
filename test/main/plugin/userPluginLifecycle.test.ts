@@ -10,7 +10,6 @@ import { McpSettings } from '@/mcp/settings'
 import { mcpVariableBindingScope } from '@/mcp/environmentBindings'
 import { SecretStore } from '@/config/secretStore'
 import { safeStorage } from 'electron'
-import type { TapeAnchorAppendInput, DeepChatTapeEntryRow } from '@/tape/domain/entry'
 import { USER_PLUGIN_INSTALL_DIRECTORY } from '@shared/pluginPaths'
 
 vi.unmock('fs')
@@ -78,17 +77,7 @@ function fixture() {
       pending = structuredClone(next)
     }
   }
-  const hooks = new UserPluginHooks({
-    getTapeIncarnationId: () => 'test-incarnation',
-    getBySession: () => [],
-    appendAnchor: (_input: TapeAnchorAppendInput) => {
-      throw new Error('Unexpected hook execution')
-    }
-  } as {
-    getTapeIncarnationId: () => string
-    getBySession: () => DeepChatTapeEntryRow[]
-    appendAnchor: (input: TapeAnchorAppendInput) => DeepChatTapeEntryRow
-  })
+  const hooks = new UserPluginHooks()
   const wrappedSecrets = new Map<string, string>()
   vi.spyOn(safeStorage, 'isEncryptionAvailable').mockReturnValue(true)
   const secrets = new SecretStore({

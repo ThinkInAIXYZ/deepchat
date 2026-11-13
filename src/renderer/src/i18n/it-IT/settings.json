@@ -231,7 +231,6 @@
     "thinkingBudget": "Budget ragionamento",
     "reasoningEffort": "Intensità reasoning",
     "verbosity": "Livello di dettaglio",
-    "interleaved": "Forza compatibilità Interleaved Thinking",
     "systemPrompt": "Prompt di sistema predefinito",
     "systemPromptPlaceholder": "Lascia vuoto per usare un prompt di sistema vuoto",
     "defaultProjectPath": "Directory predefinita (opzionale)",
@@ -847,7 +846,8 @@
       "saveAndTest": "Salva e testa",
       "saveOnly": "Solo salva",
       "saveAndTestFirst": "Salva e testa prima la configurazione cloud."
-    }
+    },
+    "legacyBackupPassword": "Password del vecchio backup cifrato (facoltativa)"
   },
   "dashboard": {
     "badge": "Dashboard utilizzo",
@@ -1024,10 +1024,6 @@
       "reasoningToggle": {
         "label": "Attiva reasoning",
         "description": "Controlla se il reasoning è attivo per impostazione predefinita su questo modello"
-      },
-      "interleavedThinking": {
-        "label": "Interleaved Thinking",
-        "description": "Controlla se questo modello gestisce i messaggi di reasoning e tool-call con Interleaved Thinking. Se il provider dichiara il supporto, verrà attivato automaticamente."
       },
       "thinkingBudget": {
         "label": "Budget ragionamento",

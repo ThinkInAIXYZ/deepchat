@@ -7,7 +7,8 @@ export interface AgentSessionSendInput {
     emitRefreshBeforeStream?: boolean
     maxProviderRounds?: number
     preserveResolvedRepresentations?: boolean
-    beforeHistoryPreparation?: () => void
+    beforeHistoryPreparation?: () => void | Promise<void>
+    reuseUserMessage?: { messageId: string; orderSeq: number; createdAt: number }
     signal?: AbortSignal
   }
   queue?: {

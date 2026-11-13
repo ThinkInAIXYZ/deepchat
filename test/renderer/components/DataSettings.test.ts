@@ -346,9 +346,6 @@ const findResetEntryButton = (wrapper: ReturnType<typeof mount>) =>
 const findResetConfirmButton = (wrapper: ReturnType<typeof mount>) =>
   findButtonByText(wrapper, 'settings.data.confirmReset', 'Reset confirm')
 
-const findDatabaseEncryptionButton = (wrapper: ReturnType<typeof mount>, text: string) =>
-  findButtonByText(wrapper, text, 'Database encryption')
-
 const findClearSandboxConfirmButton = (wrapper: ReturnType<typeof mount>) =>
   findButtonByText(wrapper, 'settings.data.yoBrowser.confirmAction', 'Clear YoBrowser sandbox')
 
@@ -378,7 +375,7 @@ describe('DataSettings', () => {
     expect(wrapper.text()).toContain('Privacy Mode')
     expect(wrapper.text()).toContain('App update checks')
     expect(wrapper.text()).toContain('settings.data.databaseRepair.title')
-    expect(wrapper.text()).toContain('settings.data.databaseEncryption.title')
+    expect(wrapper.text()).not.toContain('settings.data.databaseEncryption.title')
     expect(wrapper.text()).toContain('settings.data.modelConfigUpdate.title')
     expect(wrapper.text()).toContain('settings.data.dangerZone.title')
     expect(wrapper.text()).toContain('settings.data.resetChatData')
@@ -386,7 +383,7 @@ describe('DataSettings', () => {
     expect(wrapper.text()).toContain('settings.data.resetConfig')
     expect(wrapper.text()).toContain('settings.data.resetAll')
     expect(wrapper.text()).toContain('settings.data.yoBrowser.title')
-    expect(wrapper.text()).toContain('settings.data.databaseEncryption.systemCredentialStore')
+    expect(wrapper.text()).not.toContain('settings.data.databaseEncryption.setPasswordButton')
   })
 
   it('defaults cloud sync setup to the R2 guide with R2 defaults', async () => {
@@ -632,75 +629,32 @@ describe('DataSettings', () => {
     )
   })
 
-  it('enables database encryption after matching password input', async () => {
-    const { wrapper, databaseSecurityClient, notifyRenderer } = await setup()
-    await findDatabaseEncryptionButton(
-      wrapper,
-      'settings.data.databaseEncryption.setPasswordButton'
-    ).trigger('click')
-    await nextTick()
-
-    await wrapper.get('#database-new-password').setValue('sqlite-pass')
-    await wrapper.get('#database-confirm-password').setValue('sqlite-pass')
-    await wrapper.get('[data-testid="database-encryption-submit"]').trigger('click')
-    await flushPromises()
-
-    expect(databaseSecurityClient.enable).toHaveBeenCalledWith('sqlite-pass')
-    // 成功反馈走按钮 ✅ 态，不再弹 toast
-    expect(notifyRenderer).not.toHaveBeenCalledWith(
-      expect.objectContaining({ code: 'settings.data.databaseSecurity.updated' })
-    )
-    expect(
-      (wrapper.vm as unknown as { isDatabaseEncryptionDialogOpen: boolean })
-        .isDatabaseEncryptionDialogOpen
-    ).toBe(false)
+  it('retires database encryption controls while preserving backup and repair', async () => {
+    const { wrapper, databaseSecurityClient } = await setup()
+    expect(wrapper.find('#database-new-password').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="database-encryption-status-badge"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="backup-sync-section"]').exists()).toBe(true)
+    expect(databaseSecurityClient.enable).not.toHaveBeenCalled()
+    expect(databaseSecurityClient.getStatus).not.toHaveBeenCalled()
   })
 
-  it('keeps database encryption failures in the dialog without exposing details', async () => {
-    const { wrapper, databaseSecurityClient, notifyRenderer } = await setup()
-    databaseSecurityClient.enable.mockRejectedValueOnce(
-      new Error('SQLCipher rejected sqlite-pass at /private/database.db')
+  it('passes an import-only legacy password and clears it after import', async () => {
+    const { wrapper, syncStore } = await setup()
+    syncStore.importData.mockResolvedValue({ success: true, message: 'sync.importSuccess' })
+    const vm = wrapper.vm as unknown as {
+      selectedBackup: string
+      handleImport(): Promise<void>
+      legacyBackupPassword: string
+    }
+    vm.selectedBackup = 'backup-legacy.zip'
+    await wrapper.get('#legacy-backup-password').setValue('legacy-secret')
+    await vm.handleImport()
+    expect(syncStore.importData).toHaveBeenCalledWith(
+      'backup-legacy.zip',
+      'increment',
+      'legacy-secret'
     )
-
-    await findDatabaseEncryptionButton(
-      wrapper,
-      'settings.data.databaseEncryption.setPasswordButton'
-    ).trigger('click')
-    await nextTick()
-    await wrapper.get('#database-new-password').setValue('sqlite-pass')
-    await wrapper.get('#database-confirm-password').setValue('sqlite-pass')
-    await wrapper.get('[data-testid="database-encryption-submit"]').trigger('click')
-    await flushPromises()
-
-    expect(notifyRenderer).not.toHaveBeenCalledWith(
-      expect.objectContaining({ code: 'settings.data.databaseSecurity.updateFailed' })
-    )
-    expect(wrapper.get('[role="alert"]').text()).toContain(
-      'settings.data.databaseEncryption.failedTitle'
-    )
-    expect(wrapper.text()).not.toContain('/private/database.db')
-    expect(wrapper.text()).not.toContain('sqlite-pass')
-    expect(
-      (wrapper.vm as unknown as { isDatabaseEncryptionDialogOpen: boolean })
-        .isDatabaseEncryptionDialogOpen
-    ).toBe(true)
-  })
-
-  it('shows database encryption status as unknown when status loading fails', async () => {
-    const { wrapper } = await setup({
-      databaseSecurityGetStatus: vi.fn().mockRejectedValue(new Error('status unavailable'))
-    })
-
-    expect(wrapper.text()).toContain('settings.data.databaseEncryption.unknown')
-    expect(wrapper.text()).not.toContain('settings.data.databaseEncryption.disabled')
-    expect(wrapper.text()).not.toContain('settings.data.databaseEncryption.notRequired')
-    expect(
-      wrapper
-        .findAllComponents(buttonStub)
-        .some((button) =>
-          button.text().includes('settings.data.databaseEncryption.setPasswordButton')
-        )
-    ).toBe(false)
+    expect(vm.legacyBackupPassword).toBe('')
   })
 
   it('reports privacy update failures as an error toast without exposing transport details', async () => {

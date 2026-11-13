@@ -1,75 +1,71 @@
+import { AcpRuntimeOwner } from '@/agent/acp/client'
+import { AcpSessionPersistence } from '@/agent/acp/runtime'
+import type { DimAuxiliaryModels } from '@/agent/dim/auxiliaryModels'
+import type { DimDecisions } from '@/agent/dim/decisions'
+import type { DimEmbeddingModels } from '@/agent/dim/embeddingModels'
+import type { DimMediaModels } from '@/agent/dim/mediaModels'
+import { dimModelParameters, dimReasoningContext } from '@/agent/dim/modelCatalog'
+import type { AgentSettingsPort } from '@/agent/settings'
+import type { McpSettings } from '@/mcp/settings'
 import type { ProviderSettingsPort } from '@/provider/settings'
+import type { DeepchatEventPublisher } from '@shared/contracts/events'
+import type { ImageGenerationOptions } from '@shared/imageGenerationSettings'
+import type { JevJudgmentResult, JevQuestion } from '@shared/jevProtocol'
 import logger from '@shared/logger'
-import type { LLMResponse } from '@shared/types/provider'
+import {
+  ProviderBatchUpdate,
+  ProviderChange,
+  checkRequiresRebuild
+} from '@shared/provider-operations'
+import type { TtsSettings } from '@shared/ttsSettings'
+import type { AcpConfigState, AcpDebugRequest, AcpDebugRunResult } from '@shared/types/acp'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type {
-  ProviderRuntimePort,
+  KeyStatus,
+  LLMResponse,
+  LLM_EMBEDDING_ATTRS,
   LLM_PROVIDER,
   MODEL_META,
   ModelConfig,
-  OllamaModel,
-  KeyStatus,
-  LLM_EMBEDDING_ATTRS,
-  StandaloneImageGenerationResult,
-  StandaloneSpeechGenerationResult,
-  StandaloneVideoGenerationResult,
   ModelScopeMcpSyncOptions,
   ModelScopeMcpSyncResult,
+  OllamaModel,
+  ProviderRuntimePort,
+  ProviderStreamOptions,
   RateLimitQueueSnapshot,
-  ProviderStreamOptions
+  StandaloneImageGenerationResult,
+  StandaloneSpeechGenerationResult,
+  StandaloneVideoGenerationResult
 } from '@shared/types/provider'
-import type { AcpConfigState, AcpDebugRequest, AcpDebugRunResult } from '@shared/types/acp'
-import { ApiEndpointType, ModelType } from '@shared/model'
-import type { JevJudgmentResult, JevQuestion } from '@shared/jevProtocol'
-import { supportsJevJudgment } from './providers/jevProvider'
+import type {
+  ProviderCatalogRefreshReason,
+  ProviderCatalogRefreshResult,
+  ProviderCatalogSnapshot
+} from '@shared/types/providerCatalog'
+import type { VideoGenerationOptions } from '@shared/videoGenerationSettings'
+import { ShowResponse } from 'ollama'
 import {
-  normalizeImageGenerationOptions,
-  type ImageGenerationOptions
-} from '@shared/imageGenerationSettings'
-import {
-  normalizeVideoGenerationOptions,
-  type VideoGenerationOptions
-} from '@shared/videoGenerationSettings'
-import { normalizeTtsSettings, type TtsSettings } from '@shared/ttsSettings'
-import {
-  ProviderChange,
-  ProviderBatchUpdate,
-  checkRequiresRebuild
-} from '@shared/provider-operations'
+  BaseLLMProvider,
+  SUMMARY_TITLES_PROMPT,
+  type ProviderGenerateTextOptions
+} from './baseProvider'
+import { ProviderCatalogService } from './catalog/providerCatalogService'
+import { ModelManager } from './managers/modelManager'
+import { ModelScopeSyncManager } from './managers/modelScopeSyncManager'
+import { OllamaManager } from './managers/ollamaManager'
+import { ProviderInstanceManager } from './managers/providerInstanceManager'
+import { RateLimitManager } from './managers/rateLimitManager'
 import type {
   AcpAsLlmProviderPermissionPort,
   AcpAsLlmProviderSessionControlPort,
   AcpProviderAdminPort,
   ProviderLocalePort
 } from './ports'
-import {
-  BaseLLMProvider,
-  isAudioTranscriptionNotSupportedError,
-  type ProviderGenerateTextOptions
-} from './baseProvider'
-import { ProviderConfig, StreamState } from './types'
-import { RateLimitManager } from './managers/rateLimitManager'
-import { ProviderInstanceManager } from './managers/providerInstanceManager'
-import { ModelManager } from './managers/modelManager'
-import { OllamaManager } from './managers/ollamaManager'
-import { EmbeddingManager } from './managers/embeddingManager'
-import { ModelScopeSyncManager } from './managers/modelScopeSyncManager'
-import type { McpSettings } from '@/mcp/settings'
-import type { OllamaProvider } from './providers/ollamaProvider'
-import { ShowResponse } from 'ollama'
-import { AcpRuntimeOwner } from '@/agent/acp/client'
-import { AcpSessionPersistence } from '@/agent/acp/runtime'
+import { resolveAiSdkProviderDefinition } from './providerRegistry'
 import { AcpProvider } from './providers/acpProvider'
-import type { AgentSettingsPort } from '@/agent/settings'
-import type { DeepchatEventPublisher } from '@shared/contracts/events'
-import type {
-  ProviderCatalogRefreshReason,
-  ProviderCatalogRefreshResult,
-  ProviderCatalogSnapshot
-} from '@shared/types/providerCatalog'
-import { ProviderCatalogService } from './catalog/providerCatalogService'
+import type { OllamaProvider } from './providers/ollamaProvider'
 
 const createAbortError = (): Error => {
   if (typeof DOMException !== 'undefined') {
@@ -116,24 +112,6 @@ const createAbortPromise = (
   }
 }
 
-const closeAsyncIterator = <T>(stream: AsyncIterator<T>): void => {
-  try {
-    const closing = stream.return?.()
-    if (closing) void closing.catch(() => undefined)
-  } catch {
-    // Iterator teardown is best effort and must not replace the cancellation outcome.
-  }
-}
-
-const AUDIO_TRANSCRIPTION_PROMPT = [
-  'Transcribe the provided audio.',
-  'Return only the transcription text of the audio content.',
-  'Do not translate, summarize, explain, add speaker labels, or use markdown.',
-  'If there is no discernible speech, return an empty string.',
-  '请只返回音频中的转写文本，不要翻译、总结、解释、添加说话人标签或 Markdown。',
-  '如果没有可辨识的语音，请返回空字符串。'
-].join(' ')
-
 export class ProviderRuntime
   implements
     ProviderRuntimePort,
@@ -142,21 +120,75 @@ export class ProviderRuntime
     AcpProviderAdminPort
 {
   private currentProviderId: string | null = null
-  private readonly activeStreams: Map<string, StreamState> = new Map()
   private readonly providerSettings: ProviderSettingsPort
-  private readonly config: ProviderConfig = {
-    maxConcurrentStreams: 10
-  }
   private readonly rateLimitManager: RateLimitManager
   private readonly providerInstanceManager: ProviderInstanceManager
   private readonly providerCatalogService: ProviderCatalogService
   private readonly modelManager: ModelManager
   private readonly ollamaManager: OllamaManager
-  private readonly embeddingManager: EmbeddingManager
   private readonly modelScopeSyncManager: ModelScopeSyncManager
   private readonly acpRuntimeOwner: AcpRuntimeOwner
   private readonly acpSessionPersistence: AcpSessionPersistence
   private shutdownPromise?: Promise<void>
+  private nativeEmbedding?: DimEmbeddingModels
+  private nativeModels?: DimAuxiliaryModels
+  private nativeMedia?: DimMediaModels
+  private nativeDecisions?: DimDecisions
+
+  /** Desktop catalog administration remains here; production text inference belongs to dim. */
+  setNativeEmbedding(embedding: DimEmbeddingModels): void {
+    this.nativeEmbedding = embedding
+  }
+
+  setNativeModels(models: DimAuxiliaryModels): void {
+    this.nativeModels = models
+  }
+
+  setNativeDecisions(decisions: DimDecisions): void {
+    this.nativeDecisions = decisions
+  }
+
+  setNativeMedia(media: DimMediaModels): void {
+    this.nativeMedia = media
+  }
+
+  private requireNativeModels(): DimAuxiliaryModels {
+    if (!this.nativeModels) throw new Error('Native dim model service is unavailable')
+    return this.nativeModels
+  }
+  private requireNativeEmbedding(): DimEmbeddingModels {
+    if (!this.nativeEmbedding) throw new Error('Native dim embedding service is unavailable')
+    return this.nativeEmbedding
+  }
+
+  private async nativeCompletion(
+    providerId: string,
+    modelId: string,
+    messages: ChatMessage[],
+    temperature?: number,
+    maxTokens?: number,
+    signal?: AbortSignal
+  ): Promise<LLMResponse> {
+    const reply = await this.requireNativeModels().complete({
+      providerId,
+      modelId,
+      messages,
+      parameters: { temperature, maxTokens },
+      signal
+    })
+    return {
+      content: reply.text,
+      ...(reply.usage
+        ? {
+            totalUsage: {
+              prompt_tokens: reply.usage.promptTokens,
+              completion_tokens: reply.usage.completionTokens,
+              total_tokens: reply.usage.totalTokens
+            }
+          }
+        : {})
+    }
+  }
 
   constructor(
     providerSettings: ProviderSettingsPort,
@@ -188,7 +220,6 @@ export class ProviderRuntime
       providerSettings,
       locale,
       agentSettings,
-      activeStreams: this.activeStreams,
       rateLimitManager: this.rateLimitManager,
       getCurrentProviderId: () => this.currentProviderId,
       setCurrentProviderId: (providerId) => {
@@ -205,9 +236,6 @@ export class ProviderRuntime
     this.ollamaManager = new OllamaManager({
       getProviderInstance: this.getProviderInstance.bind(this),
       publishEvent: this.publishEvent
-    })
-    this.embeddingManager = new EmbeddingManager({
-      getProviderInstance: this.getProviderInstance.bind(this)
     })
     this.modelScopeSyncManager = new ModelScopeSyncManager({
       providerSettings,
@@ -374,9 +402,6 @@ export class ProviderRuntime
   }
 
   async setCurrentProvider(providerId: string): Promise<void> {
-    // 如果有正在生成的流，先停止它们
-    await this.stopAllStreams()
-
     const provider = this.getProviderById(providerId)
     if (!provider) {
       throw new Error(`Provider ${providerId} not found`)
@@ -388,7 +413,6 @@ export class ProviderRuntime
   }
 
   private replaceProviders(providers: LLM_PROVIDER[]): void {
-    this.stopAllStreams()
     this.providerInstanceManager.setProviders(providers)
   }
 
@@ -398,14 +422,6 @@ export class ProviderRuntime
 
   public getExistingProviderInstance(providerId: string): BaseLLMProvider | undefined {
     return this.providerInstanceManager.getExistingProviderInstance(providerId)
-  }
-
-  public async getRuntimeContextLimitTokens(
-    providerId: string,
-    modelId: string,
-    signal?: AbortSignal
-  ): Promise<number | undefined> {
-    return await this.getProviderInstance(providerId).getRuntimeContextLimitTokens(modelId, signal)
   }
 
   public streamChat(
@@ -418,7 +434,21 @@ export class ProviderRuntime
     tools: MCPToolDefinition[],
     options?: ProviderStreamOptions
   ): AsyncGenerator<LLMCoreStreamEvent> {
-    return this.getProviderInstance(providerId).coreStream(
+    if (this.providerSettings.getProviderById(providerId)?.apiType !== 'acp') {
+      if (tools.length)
+        throw new Error('Agent tools must be dispatched by the native session owner')
+      return this.requireNativeModels().stream({
+        providerId,
+        modelId,
+        messages,
+        parameters: dimModelParameters(
+          { ...modelConfig, temperature, maxTokens },
+          dimReasoningContext(this.providerSettings, providerId, modelId, modelConfig)
+        ),
+        signal: options?.signal
+      })
+    }
+    return this.acpExecution(providerId).coreStream(
       messages,
       modelId,
       modelConfig,
@@ -432,7 +462,6 @@ export class ProviderRuntime
   async shutdown(): Promise<void> {
     if (this.shutdownPromise) return await this.shutdownPromise
     this.shutdownPromise = (async () => {
-      await this.stopAllStreams()
       this.providerInstanceManager.shutdown()
     })()
     return await this.shutdownPromise
@@ -511,29 +540,6 @@ export class ProviderRuntime
     await this.rateLimitManager.executeWithRateLimit(providerId, options)
   }
 
-  isGenerating(eventId: string): boolean {
-    return this.activeStreams.has(eventId)
-  }
-
-  getStreamState(eventId: string): StreamState | null {
-    return this.activeStreams.get(eventId) || null
-  }
-
-  async stopStream(eventId: string): Promise<void> {
-    const stream = this.activeStreams.get(eventId)
-    if (stream) {
-      stream.abortController.abort()
-      // The consuming agent runtime deletes the stream after an end event or abort signal.
-    }
-  }
-
-  private async stopAllStreams(): Promise<void> {
-    const promises = Array.from(this.activeStreams.keys()).map((eventId) =>
-      this.stopStream(eventId)
-    )
-    await Promise.all(promises)
-  }
-
   // 非流式方法
   async generateCompletion(
     providerId: string,
@@ -542,22 +548,14 @@ export class ProviderRuntime
     temperature?: number,
     maxTokens?: number
   ): Promise<string> {
+    if (this.providerSettings.getProviderById(providerId)?.apiType !== 'acp')
+      return (await this.nativeCompletion(providerId, modelId, messages, temperature, maxTokens))
+        .content
     // Record input messages to the large model
     logger.info('generateCompletion', providerId, modelId, temperature, maxTokens, messages)
-    const provider = this.getProviderInstance(providerId)
+    const provider = this.acpExecution(providerId)
     const response = await provider.completions(messages, modelId, temperature, maxTokens)
     return response.content
-  }
-
-  async generateSummary(
-    providerId: string,
-    text: string,
-    modelId: string,
-    temperature?: number,
-    maxTokens?: number
-  ): Promise<LLMResponse> {
-    const provider = this.getProviderInstance(providerId)
-    return provider.summaries(text, modelId, temperature, maxTokens)
   }
 
   async generateText(
@@ -568,7 +566,16 @@ export class ProviderRuntime
     maxTokens?: number,
     options?: Pick<ProviderGenerateTextOptions, 'signal'>
   ): Promise<LLMResponse> {
-    const provider = this.getProviderInstance(providerId)
+    if (this.providerSettings.getProviderById(providerId)?.apiType !== 'acp')
+      return this.nativeCompletion(
+        providerId,
+        modelId,
+        [{ role: 'user', content: prompt }],
+        temperature,
+        maxTokens,
+        options?.signal
+      )
+    const provider = this.acpExecution(providerId)
     return options
       ? provider.generateText(prompt, modelId, temperature, maxTokens, options)
       : provider.generateText(prompt, modelId, temperature, maxTokens)
@@ -582,7 +589,26 @@ export class ProviderRuntime
     maxTokens?: number,
     options?: { signal?: AbortSignal; swallowErrors?: boolean }
   ): Promise<string> {
-    const provider = this.getProviderInstance(providerId)
+    if (this.providerSettings.getProviderById(providerId)?.apiType !== 'acp') {
+      this.requireNativeModels()
+      try {
+        return (
+          await this.nativeCompletion(
+            providerId,
+            modelId,
+            messages,
+            temperature,
+            maxTokens,
+            options?.signal
+          )
+        ).content
+      } catch (error) {
+        options?.signal?.throwIfAborted()
+        if (options?.swallowErrors === false) throw error
+        return ''
+      }
+    }
+    const provider = this.acpExecution(providerId)
     let response = ''
     const signal = options?.signal
     const shouldSwallowErrors = options?.swallowErrors !== false
@@ -628,12 +654,8 @@ export class ProviderRuntime
     request: { state: unknown; questions: Record<string, JevQuestion> },
     options?: { signal?: AbortSignal }
   ): Promise<JevJudgmentResult> {
-    const provider = this.getProviderInstance(providerId)
-    if (!supportsJevJudgment(provider)) {
-      throw new Error(`Provider ${providerId} does not support System One judgments`)
-    }
-
-    return await provider.runJudgment({ ...request, model: modelId }, options)
+    if (!this.nativeDecisions) throw new Error('Native dim decision service is unavailable')
+    return this.nativeDecisions.runJudgment(providerId, modelId, request, options)
   }
 
   async transcribeAudioStandalone(
@@ -662,53 +684,44 @@ export class ProviderRuntime
 
     await this.executeWithRateLimit(providerId, { signal })
 
-    const provider = this.getProviderInstance(providerId)
-    try {
-      return (
-        await provider.transcribeAudio(
-          modelId,
-          normalizedAudioBase64,
-          normalizedMimeType,
-          filename,
+    const config = this.providerSettings.getModelConfig(modelId, providerId)
+    const capability = this.providerSettings.getCapabilitySnapshot({ providerId, modelId })
+    if (!config.speechRecognition && capability.supportsAudioInput) {
+      const reply = await this.requireNativeModels().complete({
+        providerId,
+        modelId,
+        messages: [
           {
-            signal
-          }
-        )
-      ).trim()
-    } catch (error) {
-      if (!isAudioTranscriptionNotSupportedError(error)) {
-        throw error
-      }
-    }
-
-    const text = await this.generateCompletionStandalone(
-      providerId,
-      [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'text',
-              text: AUDIO_TRANSCRIPTION_PROMPT
-            },
-            {
-              type: 'input_audio',
-              input_audio: {
-                data: normalizedAudioBase64,
-                media_type: normalizedMimeType,
-                ...(filename?.trim() ? { filename: filename.trim() } : {})
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: 'Transcribe the provided audio. Return only the transcription, in its original language, without explanations, translation, speaker labels or formatting. Return an empty string if there is no discernible speech.'
+              },
+              {
+                type: 'input_audio',
+                input_audio: {
+                  data: normalizedAudioBase64,
+                  media_type: normalizedMimeType,
+                  ...(filename?.trim() ? { filename: filename.trim() } : {})
+                }
               }
-            }
-          ]
-        }
-      ],
+            ]
+          }
+        ],
+        parameters: { temperature: 0 },
+        signal
+      })
+      return reply.text.trim()
+    }
+    return this.requireNativeMedia().transcribeAudioStandalone(
+      providerId,
       modelId,
-      0,
-      undefined,
-      { signal, swallowErrors: false }
+      normalizedAudioBase64,
+      normalizedMimeType,
+      filename,
+      options
     )
-
-    return text.trim()
   }
 
   async generateImageStandalone(
@@ -730,66 +743,13 @@ export class ProviderRuntime
 
     await this.executeWithRateLimit(providerId, { signal })
 
-    const provider = this.getProviderInstance(providerId)
-    const modelConfig = this.providerSettings.getModelConfig(modelId, providerId)
-    const mergedImageOptions = normalizeImageGenerationOptions({
-      ...modelConfig.imageGeneration,
-      ...imageOptions
-    })
-    const resolvedModelConfig: ModelConfig = {
-      ...modelConfig,
-      type: ModelType.ImageGeneration,
-      apiEndpoint: ApiEndpointType.Image,
-      imageGeneration: mergedImageOptions
-    }
-    const stream = provider.coreStream(
-      [{ role: 'user', content: normalizedPrompt }],
-      modelId,
-      resolvedModelConfig,
-      modelConfig.temperature ?? 0.7,
-      modelConfig.maxTokens ?? 1024,
-      [],
-      { signal }
-    )
-    const images: StandaloneImageGenerationResult['images'] = []
-    const abort = createAbortPromise(signal, () => {
-      closeAsyncIterator(stream)
-    })
-
-    const collect = async () => {
-      for await (const event of stream) {
-        if (signal?.aborted) {
-          throw createAbortError()
-        }
-
-        if (event.type === 'image_data') {
-          images.push({
-            data: event.image_data.data,
-            mimeType: event.image_data.mimeType
-          })
-        }
-        if (event.type === 'error') {
-          throw Object.assign(new Error(event.error_message), { failure: event.failure })
-        }
-      }
-    }
-
-    try {
-      await (abort.promise ? Promise.race([collect(), abort.promise]) : collect())
-    } finally {
-      abort.cleanup()
-    }
-
-    if (images.length === 0) {
-      throw new Error('Image generation completed without image output')
-    }
-
-    return {
+    return this.requireNativeMedia().generateImageStandalone(
       providerId,
+      normalizedPrompt,
       modelId,
-      ...(mergedImageOptions ? { options: mergedImageOptions } : {}),
-      images
-    }
+      imageOptions,
+      options
+    )
   }
 
   async generateVideoStandalone(
@@ -811,69 +771,13 @@ export class ProviderRuntime
 
     await this.executeWithRateLimit(providerId, { signal })
 
-    const provider = this.getProviderInstance(providerId)
-    const modelConfig = this.providerSettings.getModelConfig(modelId, providerId)
-    const mergedVideoOptions = normalizeVideoGenerationOptions({
-      ...modelConfig.videoGeneration,
-      ...videoOptions
-    })
-    const resolvedModelConfig: ModelConfig = {
-      ...modelConfig,
-      type: ModelType.VideoGeneration,
-      apiEndpoint: ApiEndpointType.Video,
-      videoGeneration: mergedVideoOptions
-    }
-    const stream = provider.coreStream(
-      [{ role: 'user', content: normalizedPrompt }],
-      modelId,
-      resolvedModelConfig,
-      modelConfig.temperature ?? 0.7,
-      modelConfig.maxTokens ?? 1024,
-      [],
-      { signal }
-    )
-    const videos: StandaloneVideoGenerationResult['videos'] = []
-    const abort = createAbortPromise(signal, () => {
-      closeAsyncIterator(stream)
-    })
-
-    const collect = async () => {
-      for await (const event of stream) {
-        if (signal?.aborted) {
-          throw createAbortError()
-        }
-
-        if (
-          event.type === 'image_data' &&
-          event.image_data.mimeType.trim().toLowerCase().startsWith('video/')
-        ) {
-          videos.push({
-            data: event.image_data.data,
-            mimeType: event.image_data.mimeType
-          })
-        }
-        if (event.type === 'error') {
-          throw Object.assign(new Error(event.error_message), { failure: event.failure })
-        }
-      }
-    }
-
-    try {
-      await (abort.promise ? Promise.race([collect(), abort.promise]) : collect())
-    } finally {
-      abort.cleanup()
-    }
-
-    if (videos.length === 0) {
-      throw new Error('Video generation completed without video output')
-    }
-
-    return {
+    return this.requireNativeMedia().generateVideoStandalone(
       providerId,
+      normalizedPrompt,
       modelId,
-      ...(mergedVideoOptions ? { options: mergedVideoOptions } : {}),
-      videos
-    }
+      videoOptions,
+      options
+    )
   }
 
   async generateSpeechStandalone(
@@ -895,81 +799,18 @@ export class ProviderRuntime
 
     await this.executeWithRateLimit(providerId, { signal })
 
-    const provider = this.getProviderInstance(providerId)
-    const modelConfig = this.providerSettings.getModelConfig(modelId, providerId)
-    const mergedSpeechOptions = normalizeTtsSettings({
-      ...modelConfig.tts,
-      ...speechOptions
-    })
-    const resolvedModelConfig: ModelConfig = {
-      ...modelConfig,
-      type: ModelType.TTS,
-      apiEndpoint: ApiEndpointType.AudioSpeech,
-      tts: mergedSpeechOptions
-    }
-    const stream = provider.coreStream(
-      [{ role: 'user', content: normalizedText }],
-      modelId,
-      resolvedModelConfig,
-      modelConfig.temperature ?? 0.7,
-      modelConfig.maxTokens ?? 1024,
-      [],
-      { signal }
-    )
-    let audio: StandaloneSpeechGenerationResult['audio'] | undefined
-    const abort = createAbortPromise(signal, () => {
-      closeAsyncIterator(stream)
-    })
-
-    const collect = async () => {
-      for await (const event of stream) {
-        if (signal?.aborted) {
-          throw createAbortError()
-        }
-
-        if (
-          event.type === 'image_data' &&
-          event.image_data.mimeType.trim().toLowerCase().startsWith('audio/')
-        ) {
-          if (audio) {
-            throw new Error('Speech generation returned multiple audio outputs')
-          }
-          audio = {
-            data: event.image_data.data,
-            mimeType: event.image_data.mimeType
-          }
-        }
-        if (event.type === 'error') {
-          throw Object.assign(new Error(event.error_message), { failure: event.failure })
-        }
-      }
-    }
-
-    try {
-      await (abort.promise ? Promise.race([collect(), abort.promise]) : collect())
-    } finally {
-      abort.cleanup()
-    }
-
-    if (!audio) {
-      throw new Error('Speech generation completed without audio output')
-    }
-
-    return {
+    return this.requireNativeMedia().generateSpeechStandalone(
       providerId,
+      normalizedText,
       modelId,
-      ...(mergedSpeechOptions ? { options: mergedSpeechOptions } : {}),
-      audio
-    }
+      speechOptions,
+      options
+    )
   }
 
-  // 配置相关方法
-  setMaxConcurrentStreams(max: number): void {
-    this.config.maxConcurrentStreams = max
-  }
-
-  getMaxConcurrentStreams(): number {
-    return this.config.maxConcurrentStreams
+  private requireNativeMedia(): DimMediaModels {
+    if (!this.nativeMedia) throw new Error('Native dim media service is unavailable')
+    return this.nativeMedia
   }
 
   async check(
@@ -977,14 +818,35 @@ export class ProviderRuntime
     modelId?: string
   ): Promise<{ isOk: boolean; errorMsg: string | null }> {
     try {
-      const provider = this.getProviderInstance(providerId)
-
-      // 如果提供了modelId，使用completions方法进行测试
+      const configured = this.providerSettings.getProviderById(providerId)
+      if (configured && configured.apiType !== 'acp' && !modelId) {
+        const definition = resolveAiSdkProviderDefinition(configured)
+        if (definition?.checkStrategy === 'generate-text') modelId = definition.checkModelId
+      }
+      // Explicit model tests follow the same native inference boundary as production calls.
       if (modelId) {
         try {
+          if (configured && configured.apiType !== 'acp' && !configured.enable) {
+            await this.requireNativeModels().completeDraft(
+              configured,
+              modelId,
+              'hi',
+              AbortSignal.timeout(60_000)
+            )
+            return { isOk: true, errorMsg: null }
+          }
           const testMessage = [{ role: 'user' as const, content: 'hi' }]
           const response: LLMResponse | null = await Promise.race([
-            provider.completions(testMessage, modelId, 0.1, 10),
+            this.providerSettings.getProviderById(providerId)?.apiType !== 'acp'
+              ? this.nativeCompletion(
+                  providerId,
+                  modelId,
+                  testMessage,
+                  0.1,
+                  10,
+                  AbortSignal.timeout(60_000)
+                )
+              : this.acpExecution(providerId).completions(testMessage, modelId, 0.1, 10),
             new Promise<null>((resolve) => setTimeout(() => resolve(null), 60000))
           ])
           // 检查响应是否有效
@@ -1007,7 +869,7 @@ export class ProviderRuntime
           `[ProviderRuntime] No modelId provided, using provider's own check method for ${providerId}`
         )
         try {
-          return await provider.check()
+          return await this.getProviderInstance(providerId).check()
         } catch (error) {
           console.error(`Provider ${providerId} check failed:`, error)
           const errorMessage = error instanceof Error ? error.message : String(error)
@@ -1056,7 +918,18 @@ export class ProviderRuntime
     }
 
     try {
-      const checkResult = await instance.check()
+      const definition = resolveAiSdkProviderDefinition(draft)
+      const checkResult =
+        definition?.checkStrategy === 'generate-text'
+          ? await this.requireNativeModels()
+              .completeDraft(
+                draft,
+                definition.checkModelId || '',
+                definition.checkPrompt || 'Hello',
+                AbortSignal.timeout(60_000)
+              )
+              .then(() => ({ isOk: true, errorMsg: null }))
+          : await instance.check()
       if (!checkResult.isOk) {
         return { ...checkResult, models: [] }
       }
@@ -1133,7 +1006,17 @@ export class ProviderRuntime
     providerId: string,
     modelId: string
   ): Promise<string> {
-    const provider = this.getProviderInstance(providerId)
+    if (this.providerSettings.getProviderById(providerId)?.apiType !== 'acp') {
+      const response = await this.nativeCompletion(
+        providerId,
+        modelId,
+        [{ role: 'system', content: SUMMARY_TITLES_PROMPT }, ...messages],
+        0.5,
+        128
+      )
+      return response.content.replace(/["']/g, '').trim()
+    }
+    const provider = this.acpExecution(providerId)
     return provider.summaryTitles(messages, modelId)
   }
 
@@ -1167,7 +1050,7 @@ export class ProviderRuntime
     texts: string[],
     signal?: AbortSignal
   ): Promise<number[][]> {
-    return this.embeddingManager.getEmbeddings(providerId, modelId, texts, signal)
+    return this.requireNativeEmbedding().getEmbeddings(providerId, modelId, texts, signal)
   }
 
   /**
@@ -1181,7 +1064,7 @@ export class ProviderRuntime
     modelId: string,
     signal?: AbortSignal
   ): Promise<{ data: LLM_EMBEDDING_ATTRS; errorMsg?: string }> {
-    return this.embeddingManager.getDimensions(providerId, modelId, signal)
+    return this.requireNativeEmbedding().getDimensions(providerId, modelId, signal)
   }
 
   async syncModelScopeMcpServers(
@@ -1291,6 +1174,13 @@ export class ProviderRuntime
       throw new Error('ACP provider unavailable')
     }
     await provider.resolvePermissionRequest(requestId, granted)
+  }
+
+  /** Only the direct ACP client exposes a Node-side execution interface. */
+  private acpExecution(providerId: string): AcpProvider {
+    if (this.providerSettings.getProviderById(providerId)?.apiType !== 'acp')
+      throw new Error('Provider inference belongs to native dim')
+    return this.getProviderInstance(providerId) as AcpProvider
   }
 
   private getAcpProviderInstance(): AcpProvider | null {

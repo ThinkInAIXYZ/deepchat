@@ -11,7 +11,6 @@ import { ApimartProvider } from '../providers/apimartProvider'
 import { JevProvider } from '../providers/jevProvider'
 import { WorkersAiProvider } from '../providers/workersAiProvider'
 import { RateLimitManager } from './rateLimitManager'
-import { StreamState } from '../types'
 import type { AcpRuntimeOwner } from '@/agent/acp/client'
 import { resolveAiSdkProviderDefinition } from '../providerRegistry'
 import type { ProviderLocalePort } from '../ports'
@@ -24,7 +23,6 @@ interface ProviderInstanceManagerOptions {
   providerSettings: ProviderSettingsPort
   locale: ProviderLocalePort
   agentSettings: Pick<AgentSettingsPort, 'getAcpEnabled' | 'getAcpAgents'>
-  activeStreams: Map<string, StreamState>
   rateLimitManager: RateLimitManager
   getCurrentProviderId: () => string | null
   setCurrentProviderId: (providerId: string | null) => void
@@ -237,20 +235,6 @@ export class ProviderInstanceManager {
   }
 
   private cleanupProviderInstance(providerId: string, preserveCurrent = false): void {
-    const activeStreamsToStop = Array.from(this.options.activeStreams.entries()).filter(
-      ([, streamState]) => streamState.providerId === providerId
-    )
-
-    for (const [eventId, streamState] of activeStreamsToStop) {
-      logger.info(`Stopping active stream for disabled provider ${providerId}: ${eventId}`)
-      try {
-        streamState.abortController.abort()
-      } catch (error) {
-        console.error(`Failed to abort stream ${eventId}:`, error)
-      }
-      this.options.activeStreams.delete(eventId)
-    }
-
     const instance = this.providerInstances.get(providerId)
     if (instance) {
       logger.info(`Removing provider instance: ${providerId}`)

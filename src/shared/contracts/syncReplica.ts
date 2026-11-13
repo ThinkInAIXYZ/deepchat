@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { SyncNativeTransferSchema } from './syncNative'
 
 export const SYNC_REPLICA_PREFIX = '/sync/v2'
 export const SYNC_QUIET_MS = 15_000
@@ -43,14 +44,16 @@ export const SyncReplicaInfoSchema = z.object({
   hostId: Identity,
   replicaId: Identity,
   revision: Integer,
-  writable: z.boolean()
+  writable: z.boolean(),
+  nativeProfiles: z.literal(1).optional()
 })
 export const SyncBatchManifestSchema = z.object({
   id: z.string().regex(/^[a-f0-9]{64}$/),
   size: Integer.max(SYNC_MAX_BATCH_BYTES),
   parts: Integer.max(Math.ceil(SYNC_MAX_BATCH_BYTES / SYNC_PART_BYTES)),
   through: Integer,
-  replicaId: Identity
+  replicaId: Identity,
+  nativeProfile: SyncNativeTransferSchema.optional()
 })
 export type SyncBatchManifest = z.infer<typeof SyncBatchManifestSchema>
 export const SyncAutomaticStatusSchema = z.object({

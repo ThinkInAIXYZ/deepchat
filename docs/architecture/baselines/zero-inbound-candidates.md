@@ -1,34 +1,39 @@
 # Zero Inbound Candidates
 
-Generated on 2026-09-06.
+Generated on 2026-11-10.
 
 These files have no in-repo importers inside their scope and need manual classification before deletion.
 
 ## main
 
-- Candidate count: 11
+- Candidate count: 17
 
 - `agent/shared/agentCatalogEventSink.ts`
+- `agent/shared/process/commandShellPath.ts`
+- `agent/vision/sessionVisionResolver.ts`
 - `backgroundExecUtilityHostEntry.ts`
-- `codeModeUtilityHostEntry.ts`
+- `cli/deepChatToolPort.ts`
 - `config/aes.ts`
 - `env.d.ts`
 - `fileWatcherUtilityHostEntry.ts`
 - `lib/system.ts`
 - `lib/terminalHelper.ts`
 - `lightOcrHelperEntry.ts`
+- `memory/data/ingestionProjectionPort.ts`
+- `plugin/context.ts`
 - `schedulerUtilityHostEntry.ts`
 - `session/data/tables/attachments.ts`
+- `skill/sync/scanWorkerEntry.ts`
+- `tool/catalog/toolSurfaceRollout.ts`
 
 ## renderer-main
 
-- Candidate count: 43
+- Candidate count: 38
 
 - `components/ChatConfig.vue`
 - `components/ChatConfig/ConfigSwitchField.vue`
 - `components/FileItem.vue`
 - `components/ModelSelect.vue`
-- `components/artifacts/ArtifactBlock.vue`
 - `components/chat-input/SkillsPanel.vue`
 - `components/chat-input/VoiceCallWidget.vue`
 - `components/chat-input/composables/useAgentMcpData.ts`
@@ -47,10 +52,6 @@ These files have no in-repo importers inside their scope and need manual classif
 - `components/message/MessageActionButtons.vue`
 - `components/message/ReferencePreview.vue`
 - `components/settings/ModelConfigItem.vue`
-- `composables/useArtifactCodeEditor.ts`
-- `composables/useArtifactContext.ts`
-- `composables/useArtifactExport.ts`
-- `composables/useArtifactViewMode.ts`
 - `composables/useSearchConfig.ts`
 - `composables/useViewportSize.ts`
 - `env.d.ts`

@@ -1,4 +1,4 @@
-import type { ProviderSettingsPort } from '@/provider/settings'
+import { randomUUID } from 'node:crypto'
 import { app, safeStorage } from 'electron'
 import ElectronStore from 'electron-store'
 import fs from 'fs'
@@ -8,7 +8,6 @@ import Database from 'better-sqlite3-multiple-ciphers'
 import type { DatabaseSecurityStatus } from '@shared/contracts/routes'
 import type { DatabaseUnlockReason } from '@shared/contracts/databaseSecurity'
 import { openSQLiteDatabase } from '../data/databaseConnection'
-import { configureSQLCipherCompatibility } from '@/data/connectionConfig'
 import {
   isDecryptedDatabaseCorruptionError,
   OrphanWalDatabaseError
@@ -34,12 +33,7 @@ type UnlockRequest = {
 
 type UnlockProvider = (request: UnlockRequest) => Promise<string | null>
 
-type MigrationDirection = 'enable' | 'change-password' | 'disable'
-type ProviderEncryptionCleanupPort = Pick<
-  ProviderSettingsPort,
-  'cleanupLegacyProviderJsonForDatabaseEncryption'
->
-
+type MigrationDirection = 'disable'
 export interface DatabaseSecurityMigrationDatabasePort {
   getDatabasePath(): string
   checkpointAndClose(): void
@@ -54,16 +48,6 @@ const DEFAULT_METADATA: DatabaseSecurityMetadata = {
   cipher: 'sqlcipher',
   passwordStorage: 'none'
 }
-
-const VALIDATION_TABLES = [
-  'schema_versions',
-  'new_sessions',
-  'deepchat_sessions',
-  'deepchat_tape_entries',
-  'providers',
-  'mcp_servers',
-  'agents'
-]
 
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
 
@@ -175,6 +159,10 @@ export class DatabaseSecurityService {
 
   async resolveStartupPassword(unlockProvider: UnlockProvider): Promise<string | undefined> {
     const metadata = this.getMetadata()
+    if (metadata.enabled && this.isPlaintextDatabase()) {
+      this.clearEncryptionMetadata()
+      return undefined
+    }
     if (!metadata.enabled) {
       return undefined
     }
@@ -233,57 +221,27 @@ export class DatabaseSecurityService {
     }
   }
 
-  async enableEncryption(input: {
-    password: string
-    database: DatabaseSecurityMigrationDatabasePort
-    providerSettings: ProviderEncryptionCleanupPort
-  }): Promise<DatabaseSecurityStatus> {
-    this.assertPassword(input.password)
-    const metadata = this.getMetadata()
-    if (metadata.enabled) {
-      throw new Error('Database encryption is already enabled')
-    }
-
-    this.cleanupLegacyProviderJson(input.providerSettings)
-    await this.migrateDatabase({
-      database: input.database,
-      sourcePassword: undefined,
-      targetPassword: input.password,
-      direction: 'enable'
-    })
-    this.persistUnlockedMetadata(input.password, 'enable')
-    return this.getStatus()
+  async enableEncryption(_input: unknown): Promise<DatabaseSecurityStatus> {
+    throw new Error('Database encryption has been retired; only legacy decryption is supported.')
   }
 
-  async changePassword(input: {
-    currentPassword: string
-    newPassword: string
-    database: DatabaseSecurityMigrationDatabasePort
-    providerSettings: ProviderEncryptionCleanupPort
-  }): Promise<DatabaseSecurityStatus> {
-    this.assertEnabled()
-    this.assertPassword(input.currentPassword)
-    this.assertPassword(input.newPassword)
-    if (input.currentPassword === input.newPassword) {
-      throw new Error('New SQLite password must differ from the current password')
-    }
-    this.validatePassword(input.currentPassword)
+  async changePassword(_input: unknown): Promise<DatabaseSecurityStatus> {
+    throw new Error('Database encryption has been retired; only legacy decryption is supported.')
+  }
 
-    this.cleanupLegacyProviderJson(input.providerSettings)
-    await this.migrateDatabase({
-      database: input.database,
-      sourcePassword: input.currentPassword,
-      targetPassword: input.newPassword,
-      direction: 'change-password'
-    })
-    this.persistUnlockedMetadata(input.newPassword, 'change-password')
-    return this.getStatus()
+  /** Called before desktop services are constructed. No new session uses an encrypted database. */
+  async migrateLegacyEncryption(
+    database: DatabaseSecurityMigrationDatabasePort & { getDatabasePassword(): string | undefined }
+  ): Promise<void> {
+    const password = database.getDatabasePassword()
+    if (!password) return
+    await this.disableEncryption({ currentPassword: password, database })
   }
 
   async disableEncryption(input: {
     currentPassword: string
     database: DatabaseSecurityMigrationDatabasePort
-    providerSettings: ProviderEncryptionCleanupPort
+    providerSettings?: unknown
   }): Promise<DatabaseSecurityStatus> {
     this.assertEnabled()
     this.assertPassword(input.currentPassword)
@@ -292,7 +250,6 @@ export class DatabaseSecurityService {
     await this.migrateDatabase({
       database: input.database,
       sourcePassword: input.currentPassword,
-      targetPassword: undefined,
       direction: 'disable'
     })
     this.persistMetadata({
@@ -301,6 +258,21 @@ export class DatabaseSecurityService {
       lastMigrationDirection: 'disable'
     })
     return this.getStatus()
+  }
+
+  /** Decrypt an extracted legacy backup before it can replace the active plaintext database. */
+  decryptLegacyBackup(sourcePath: string, targetPath: string, password: string): void {
+    this.assertPassword(password)
+    const counts = this.collectValidationCounts(sourcePath, password)
+    try {
+      this.exportDatabaseToTemp(sourcePath, targetPath, password)
+      fs.chmodSync(targetPath, 0o600)
+      this.verifyMigratedDatabase(targetPath, undefined, counts)
+    } catch (error) {
+      this.removeIfExists(targetPath)
+      this.removeSidecars(targetPath)
+      throw error
+    }
   }
 
   validatePassword(password: string): void {
@@ -312,10 +284,28 @@ export class DatabaseSecurityService {
     }
   }
 
+  private isPlaintextDatabase(): boolean {
+    if (!fs.existsSync(this.dbPath)) return false
+    const fd = fs.openSync(this.dbPath, 'r')
+    const header = Buffer.alloc(16)
+    try {
+      if (fs.readSync(fd, header, 0, 16, 0) !== 16 || header.toString() !== 'SQLite format 3\0')
+        return false
+    } finally {
+      fs.closeSync(fd)
+    }
+    const db = openSQLiteDatabase(this.dbPath)
+    try {
+      db.prepare('SELECT name FROM sqlite_master LIMIT 1').get()
+      return true
+    } finally {
+      db.close()
+    }
+  }
+
   private async migrateDatabase(input: {
     database: DatabaseSecurityMigrationDatabasePort
     sourcePassword: string | undefined
-    targetPassword: string | undefined
     direction: MigrationDirection
   }): Promise<void> {
     const dbPath = input.database.getDatabasePath()
@@ -331,14 +321,36 @@ export class DatabaseSecurityService {
       this.removeSidecars(rollbackPath)
       input.database.checkpointAndClose()
 
+      if (input.sourcePassword && input.direction === 'disable') {
+        const size = fs.statSync(dbPath).size
+        const disk = fs.statfsSync(path.dirname(dbPath))
+        if (disk.bavail * disk.bsize < size * 2 + 32 * 1024 * 1024)
+          throw new Error('Not enough disk space for legacy database decryption and recovery copy')
+        // Keep the checkpointed encrypted input even after the normal rollback is retired.
+        const backup = `${dbPath}.legacy-encrypted.${Date.now()}.${randomUUID()}.bak`
+        const partial = `${backup}.partial`
+        try {
+          fs.copyFileSync(dbPath, partial, fs.constants.COPYFILE_EXCL)
+          fs.chmodSync(partial, 0o600)
+          const backupFd = fs.openSync(partial, 'r')
+          try {
+            fs.fsyncSync(backupFd)
+          } finally {
+            fs.closeSync(backupFd)
+          }
+          fs.renameSync(partial, backup)
+        } finally {
+          this.removeIfExists(partial)
+        }
+      }
       const expectedCounts = this.collectValidationCounts(dbPath, input.sourcePassword)
-      this.exportDatabaseToTemp(dbPath, tempPath, input.sourcePassword, input.targetPassword)
-      this.verifyMigratedDatabase(tempPath, input.targetPassword, expectedCounts)
+      this.exportDatabaseToTemp(dbPath, tempPath, input.sourcePassword)
+      this.verifyMigratedDatabase(tempPath, undefined, expectedCounts)
 
       this.replaceDatabaseWithRollback(dbPath, tempPath, rollbackPath)
 
       try {
-        input.database.reopenWithPassword(input.targetPassword)
+        input.database.reopenWithPassword(undefined)
       } catch (error) {
         input.database.close()
         this.restoreRollbackDatabase(dbPath, rollbackPath)
@@ -371,14 +383,13 @@ export class DatabaseSecurityService {
   private exportDatabaseToTemp(
     sourcePath: string,
     tempPath: string,
-    sourcePassword: string | undefined,
-    targetPassword: string | undefined
+    sourcePassword: string | undefined
   ): void {
     const sourceDb = openSQLiteDatabase(sourcePath, sourcePassword)
     try {
       sourceDb.pragma('wal_checkpoint(TRUNCATE)')
       sourceDb.pragma('journal_mode = DELETE')
-      this.attachMigrationTarget(sourceDb, tempPath, sourcePassword, targetPassword)
+      this.attachMigrationTarget(sourceDb, tempPath, sourcePassword)
       this.copySchemaAndData(sourceDb)
       sourceDb.prepare(`DETACH DATABASE ${MIGRATION_TARGET_SCHEMA}`).run()
     } finally {
@@ -389,18 +400,8 @@ export class DatabaseSecurityService {
   private attachMigrationTarget(
     db: Database.Database,
     tempPath: string,
-    sourcePassword: string | undefined,
-    targetPassword: string | undefined
+    sourcePassword: string | undefined
   ): void {
-    if (targetPassword) {
-      configureSQLCipherCompatibility(db)
-      db.prepare(`ATTACH DATABASE ? AS ${MIGRATION_TARGET_SCHEMA} KEY ?`).run(
-        tempPath,
-        targetPassword
-      )
-      return
-    }
-
     if (sourcePassword) {
       db.prepare(`ATTACH DATABASE ? AS ${MIGRATION_TARGET_SCHEMA} KEY ?`).run(tempPath, '')
       return
@@ -605,33 +606,13 @@ export class DatabaseSecurityService {
 
   private collectValidationCountsFromOpenDb(db: Database.Database): Record<string, number> {
     const counts: Record<string, number> = {}
-    for (const table of VALIDATION_TABLES) {
-      const exists = db
-        .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?")
-        .get(table) as { 1: number } | undefined
-      if (!exists) {
-        continue
-      }
-      const row = db.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get() as
+    for (const { name: table } of this.listMigratableTables(db)) {
+      const row = db.prepare(`SELECT COUNT(*) AS count FROM ${quoteIdentifier(table)}`).get() as
         | { count: number }
         | undefined
       counts[table] = row?.count ?? 0
     }
     return counts
-  }
-
-  private persistUnlockedMetadata(password: string, direction: MigrationDirection): void {
-    const safeStorageAvailable = this.isSafeStorageAvailable()
-    this.persistMetadata({
-      version: 1,
-      enabled: true,
-      cipher: 'sqlcipher',
-      passwordStorage: safeStorageAvailable ? 'safeStorage' : 'manual',
-      wrappedPassword: safeStorageAvailable ? this.wrapPassword(password) : undefined,
-      safeStorageBackend: this.getSafeStorageBackend(),
-      lastMigrationAt: Date.now(),
-      lastMigrationDirection: direction
-    })
   }
 
   private getMetadata(): DatabaseSecurityMetadata {
@@ -646,10 +627,6 @@ export class DatabaseSecurityService {
 
   private persistMetadata(metadata: DatabaseSecurityMetadata): void {
     this.store.set('metadata', metadata)
-  }
-
-  private cleanupLegacyProviderJson(providerSettings: ProviderEncryptionCleanupPort): void {
-    providerSettings.cleanupLegacyProviderJsonForDatabaseEncryption()
   }
 
   private wrapPassword(password: string): string {

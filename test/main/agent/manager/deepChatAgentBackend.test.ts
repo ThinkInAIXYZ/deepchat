@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { DeepChatAgentBackendPort } from '@/agent/manager/deepChatAgentBackend'
-import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
+import { SessionResourcesRegistry as DeepChatAgentRuntime } from '@/agent/shared/resources/resourceRegistry'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import { createDeepChatAgentBackendFixture } from './deepChatAgentBackendFixture'
 

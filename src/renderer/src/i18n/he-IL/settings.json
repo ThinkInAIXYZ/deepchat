@@ -472,7 +472,8 @@
       "saveAndTest": "שמור ובדוק",
       "saveOnly": "שמור בלבד",
       "saveAndTestFirst": "שמור ובדוק קודם את תצורת הענן."
-    }
+    },
+    "legacyBackupPassword": "סיסמת הגיבוי המוצפן הישן (אופציונלי)"
   },
   "dashboard": {
     "badge": "לוח שימוש",
@@ -637,10 +638,6 @@
       "reasoningToggle": {
         "description": "שולט אם ההנמקה מופעלת כברירת מחדל עבור המודל הזה",
         "label": "הפעלת הנמקה"
-      },
-      "interleavedThinking": {
-        "label": "Interleaved Thinking",
-        "description": "קובע אם המודל הזה יעבד הודעות reasoning ו-tool-call באמצעות Interleaved Thinking. ברירות המחדל של הספק מוחלות אוטומטית."
       },
       "thinkingBudget": {
         "label": "תקציב חשיבה",
@@ -2832,7 +2829,6 @@
     "thinkingBudget": "תקציב חשיבה",
     "reasoningEffort": "רמת נימוק",
     "verbosity": "רמת פירוט",
-    "interleaved": "כפיית תאימות לחשיבה משולבת",
     "systemPrompt": "הנחיית מערכת ברירת מחדל",
     "systemPromptPlaceholder": "השאירו ריק כדי להשתמש בהנחיית מערכת ריקה",
     "defaultProjectPath": "תיקיית ברירת מחדל (אופציונלי)",

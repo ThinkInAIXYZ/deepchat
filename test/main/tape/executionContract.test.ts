@@ -5,7 +5,7 @@ import { TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/core/mcp'
 import {
   assemblePromptSections,
   createPromptAssemblySection
-} from '@/agent/deepchat/resources/promptAssembly'
+} from '@/agent/shared/resources/promptAssembly'
 import { hashJsonData } from '@/tape/domain/canonicalJson'
 import {
   ExecutionContractError,

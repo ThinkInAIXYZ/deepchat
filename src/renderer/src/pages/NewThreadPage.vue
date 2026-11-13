@@ -1493,7 +1493,6 @@ const applyDraftDefaultsForSelectedAgent = async (requestSeq: number): Promise<v
   draftStore.reasoningEffort = undefined
   draftStore.reasoningVisibility = undefined
   draftStore.verbosity = undefined
-  draftStore.forceInterleavedThinkingCompat = undefined
   draftStore.imageGeneration = undefined
   draftStore.videoGeneration = undefined
 

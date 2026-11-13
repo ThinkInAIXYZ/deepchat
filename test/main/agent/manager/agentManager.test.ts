@@ -292,3 +292,30 @@ describe('AgentManager', () => {
     expect(getSession).not.toHaveBeenCalled()
   })
 })
+
+it('routes an old ACP provider selection through the ACP client while retaining the shell identity', async () => {
+  const deepchat = implementation('deepchat')
+  const acp = implementation('acp')
+  const client = directBackend(acp)
+  const compatibilityAcpAgent = vi.fn<() => string | undefined>().mockReturnValue(undefined)
+  const sessionId = toAppSessionId('legacy-acp-provider')
+  const record = { id: sessionId, agentId: 'shell', sessionKind: 'regular' } as never
+  const manager = new AgentManager(
+    {
+      resolveExecutableDescriptor: (id) =>
+        id === 'shell' ? { ...descriptor('deepchat'), id } : descriptor('acp')
+    },
+    { get: () => record },
+    { deepchat: createDeepChatAgentBackendFixture(deepchat), acp: client as never },
+    { compatibilityAcpAgent }
+  )
+  expect(manager.resolveBackend('shell').kind).toBe('deepchat')
+  expect(manager.resolveSessionHandle(sessionId, 'agent').kind).toBe('acp')
+  compatibilityAcpAgent.mockReturnValue('agent')
+  expect(manager.resolveSessionHandle(sessionId).kind).toBe('acp')
+  expect(client.open).toHaveBeenCalledWith(sessionId, descriptor('acp'))
+  await manager.cancelGenerationByEventId(sessionId, 'request')
+  expect(acp.cancelGenerationByEventId).toHaveBeenCalledWith(sessionId, 'request')
+  expect(deepchat.cancelGenerationByEventId).not.toHaveBeenCalled()
+  expect(record).toMatchObject({ agentId: 'shell' })
+})

@@ -277,42 +277,27 @@ export class ProviderModelHelper {
 
   getProviderModel(providerId: string, modelId: string): MODEL_META | undefined {
     const store = this.getProviderModelStore(providerId)
-    const cached = this.providerModelsCache.get(providerId)
-    const hasFreshCache = cached !== undefined && cached.expiresAt > Date.now()
-    if (cached && hasFreshCache) {
-      const cachedModel = cached.modelsById.get(modelId)
-      if (cachedModel) {
-        return this.cloneModel(cachedModel)
-      }
-    }
+    // A refreshed catalog can rediscover a custom model's ID without its declared limits.
+    // Explicit custom facts must survive that refresh, including a warm provider-list cache.
+    const customModel = store.getProviderModel
+      ? store.getProviderModel('custom', modelId)
+      : ((store.get('custom_models') || []) as MODEL_META[]).find((model) => model.id === modelId)
+    if (customModel) return this.normalizeStoredModel(customModel, providerId, 'getProviderModel')
 
-    if (store.getProviderModel) {
-      const providerModel = store.getProviderModel('provider', modelId)
-      if (providerModel) {
-        return this.normalizeStoredModel(
+    const cached = this.providerModelsCache.get(providerId)
+    if (cached && cached.expiresAt > Date.now()) {
+      const model = cached.modelsById.get(modelId)
+      if (model) return this.cloneModel(model)
+    }
+    const providerModel = store.getProviderModel
+      ? store.getProviderModel('provider', modelId)
+      : this.getStoredProviderModels(providerId).find((model) => model.id === modelId)
+    return providerModel
+      ? this.normalizeStoredModel(
           stripDerivedProviderModelFields(providerModel, providerId),
           providerId,
           'getProviderModel'
         )
-      }
-      const customModel = store.getProviderModel('custom', modelId)
-      return customModel
-        ? this.normalizeStoredModel(customModel, providerId, 'getProviderModel')
-        : undefined
-    }
-
-    const providerModel = this.getStoredProviderModels(providerId).find(
-      (model) => model.id === modelId
-    )
-    if (providerModel) {
-      return this.cloneModel(providerModel)
-    }
-
-    const customModel = ((store.get('custom_models') || []) as MODEL_META[]).find(
-      (model) => model.id === modelId
-    )
-    return customModel
-      ? this.normalizeStoredModel(customModel, providerId, 'getProviderModel')
       : undefined
   }
 
@@ -321,39 +306,10 @@ export class ProviderModelHelper {
     modelId: string,
     resolvedConfig?: ModelRouteConfig
   ): ProviderModelRouteMetadata | undefined {
-    const store = this.getProviderModelStore(providerId)
-    let cached = this.providerModelsCache.get(providerId)
-    if ((!cached || cached.expiresAt <= Date.now()) && !store.getProviderModel) {
-      this.getStoredProviderModels(providerId)
-      cached = this.providerModelsCache.get(providerId)
-    }
-    const hasFreshCache = Boolean(cached && cached.expiresAt > Date.now())
-    const cachedModel = hasFreshCache ? cached?.modelsById.get(modelId) : undefined
-    const rawStoredModel =
-      cachedModel !== undefined || !store.getProviderModel
-        ? undefined
-        : store.getProviderModel('provider', modelId)
-    const storedModel =
-      cachedModel ??
-      (rawStoredModel
-        ? this.normalizeStoredModel(
-            stripDerivedProviderModelFields(rawStoredModel, providerId),
-            providerId,
-            'getProviderModelRouteMetadata'
-          )
-        : undefined)
-    if (storedModel) {
-      return this.resolveProviderModelRouteMetadata(providerId, storedModel, resolvedConfig)
-    }
-
-    const customModel = store.getProviderModel
-      ? store.getProviderModel('custom', modelId)
-      : ((store.get('custom_models') || []) as MODEL_META[]).find((model) => model.id === modelId)
-    if (!customModel) {
-      return undefined
-    }
-
-    return this.resolveProviderModelRouteMetadata(providerId, customModel, resolvedConfig)
+    const model = this.getProviderModel(providerId, modelId)
+    return model
+      ? this.resolveProviderModelRouteMetadata(providerId, model, resolvedConfig)
+      : undefined
   }
 
   setProviderModels(providerId: string, models: MODEL_META[]): void {

@@ -1,7 +1,4 @@
 export { AgentToolManager, type AgentToolCallResult } from './agentToolManager'
-export { AgentFileSystemHandler } from './agentFileSystemHandler'
-export { AgentBashHandler } from './agentBashHandler'
-export { AgentFffSearchHandler, GLOB_TOOL_NAME, GREP_TOOL_NAME } from './agentFffSearchHandler'
 export {
   IMAGE_GENERATE_TOOL_NAME,
   IMAGE_GENERATION_TOOL_SERVER_NAME
@@ -12,7 +9,7 @@ export {
   CHAT_SETTINGS_SKILL_NAME,
   CHAT_SETTINGS_TOOL_NAMES
 } from './chatSettingsTools'
-export { AGENT_TAPE_TOOL_SERVER_NAME, AgentTapeToolHandler } from './agentTapeTools'
+export { AGENT_TAPE_TOOL_SERVER_NAME } from '@shared/agentTools'
 export { TAPE_TOOL_NAMES } from '@shared/agentTools'
 export {
   TOOL_SEARCH_DEFAULT_RESULT_LIMIT,
@@ -25,8 +22,3 @@ export {
   type ToolSearchInput,
   type ToolSearchInputParseResult
 } from './toolSearchTool'
-export {
-  CRON_JOB_TOOL_SERVER_NAME,
-  CronJobToolHandler,
-  cronJobActionNeedsPermission
-} from './cronJobTool'

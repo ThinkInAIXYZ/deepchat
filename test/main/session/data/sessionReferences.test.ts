@@ -3,6 +3,8 @@ import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SessionReferences } from '@/session/data/sessionReferences'
 import { SessionDatabase } from '@/session/data/database'
+import { DimSessionBindingsTable } from '@/session/data/tables/dimSessionBindings'
+import { DimSessionScopesTable } from '@/session/data/tables/dimSessionScopes'
 import { createSessionDataFromDatabase } from '@/session/data'
 import { DeepChatMessagesTable } from '@/session/data/tables/deepchatMessages'
 import { DeepChatSearchDocumentsTable } from '@/session/data/tables/deepchatSearchDocuments'
@@ -46,6 +48,8 @@ describeIfNativeSqlite('SessionReferences', () => {
     new NewSessionsTable(db).createTable()
     new DeepChatSessionsTable(db).createTable()
     new DeepChatTapeEntriesTable(db).createTable()
+    new DimSessionBindingsTable(db).createTable()
+    new DimSessionScopesTable(db).createTable()
     messages = new DeepChatMessagesTable(db)
     messages.createTable()
     search = new DeepChatSearchDocumentsTable(db)
@@ -163,6 +167,34 @@ describeIfNativeSqlite('SessionReferences', () => {
   beforeEach(() => {
     addSession('caller')
     addSession('source')
+  })
+
+  it('never initializes Tape for passive trace and nested audit inspection', async () => {
+    database.dimSessionBindingsTable.bind('source', 'native-source')
+    const data = createSessionDataFromDatabase(database, {
+      publishMessagesChanged() {},
+      publishPendingInputsChanged() {}
+    })
+    await expect(data.tape.listMessageViewManifests('source', 'native-message')).resolves.toEqual(
+      []
+    )
+    await expect(
+      data.tape.listNestedExecutionAuditForMessage('source', 'native-message')
+    ).resolves.toMatchObject({ state: 'available', operations: [] })
+    expect(database.deepchatTapeEntriesTable.getBySession('source')).toEqual([])
+  })
+
+  it('requires a native content owner before reference selection or reads', async () => {
+    database.dimSessionBindingsTable.bind('source', 'native-source')
+    incarnations.delete('source')
+    await expect(reader.resolve('source')).rejects.toThrow(
+      'Native session content owner is unavailable'
+    )
+    await expect(
+      reader.read('source', { sessionId: 'source', action: 'messages' })
+    ).rejects.toThrow('Native session content owner is unavailable')
+    expect(incarnations.has('source')).toBe(false)
+    expect(database.deepchatTapeEntriesTable.getBySession('source')).toEqual([])
   })
 
   it('initializes an absent Tape only during explicit selection, never during model reads', async () => {
@@ -881,5 +913,107 @@ describeIfNativeSqlite('SessionReferences', () => {
       messageId: 'huge'
     })
     expect(JSON.stringify(detail).length).toBeLessThan(9000)
+  })
+
+  function nativeReferenceReader() {
+    database.sessionReferenceEpochsTable.createTable()
+    database.sessionReferenceEpochsTable.ensure('source', 'inc-source')
+    const tape = {
+      getSessionReferenceIdentity: vi.fn(() => {
+        throw new Error('Native source must not read Tape')
+      }),
+      getProjectedMessageRevision: vi.fn(() => {
+        throw new Error('Native source must not read Tape')
+      })
+    }
+    const canonical = {
+      id: 'canonical',
+      sessionId: 'source',
+      orderSeq: 1,
+      role: 'user' as const,
+      status: 'sent' as const,
+      isContextEdge: 0,
+      metadata: '{}',
+      createdAt: 1,
+      updatedAt: 1,
+      content: 'Native canonical detail'
+    }
+    const message = vi.fn(async () => ({ ...canonical }))
+    const prepared = { assertCurrent: vi.fn(), message }
+    const prepare = vi.fn(async () => prepared)
+    const nativeReader = new SessionReferences(database, tape, vi.fn())
+    nativeReader.setNativeSource({ has: (id) => id === 'source', prepare })
+    return { nativeReader, canonical, prepare, prepared, tape }
+  }
+
+  it('reads Native canonical detail without Tape and rejects stale chunk revisions', async () => {
+    const { nativeReader, canonical, tape } = nativeReferenceReader()
+    addMessage({ id: 'canonical', content: 'stale SQL display copy', orderSeq: 1 })
+    canonical.content = '🙂'.repeat(8200)
+    const first = (await nativeReader.read('source', {
+      sessionId: 'source',
+      action: 'message',
+      messageId: 'canonical'
+    })) as {
+      message: { content: string; revision: string; nextOffset: number; totalCharacters: number }
+    }
+    expect([...first.message.content]).toHaveLength(8192)
+    expect(first.message.totalCharacters).toBe(8200)
+    const second = (await nativeReader.read('source', {
+      sessionId: 'source',
+      action: 'message',
+      messageId: 'canonical',
+      offset: first.message.nextOffset,
+      revision: first.message.revision
+    })) as { message: { content: string } }
+    expect(second.message.content).toBe('🙂'.repeat(8))
+    canonical.content = 'Changed native owner content'
+    await expect(
+      nativeReader.read('source', {
+        sessionId: 'source',
+        action: 'message',
+        messageId: 'canonical',
+        offset: first.message.nextOffset,
+        revision: first.message.revision
+      })
+    ).rejects.toThrow('Referenced message changed')
+    expect(tape.getSessionReferenceIdentity).not.toHaveBeenCalled()
+    expect(tape.getProjectedMessageRevision).not.toHaveBeenCalled()
+  })
+
+  it('checks a persisted grant before Native I/O and rechecks it after asynchronous preparation', async () => {
+    const { nativeReader, prepare, prepared } = nativeReferenceReader()
+    const input = { sessionId: 'source', action: 'message' as const, messageId: 'canonical' }
+    await expect(nativeReader.read('caller', input)).rejects.toThrow('not authorized')
+    expect(prepare).not.toHaveBeenCalled()
+    grant()
+    let release!: () => void
+    prepare.mockImplementationOnce(async () => {
+      await new Promise<void>((resolve) => {
+        release = resolve
+      })
+      return prepared
+    })
+    const pending = nativeReader.read('caller', input)
+    const rejected = expect(pending).rejects.toThrow('not authorized')
+    await vi.waitFor(() => expect(prepare).toHaveBeenCalledOnce())
+    db.prepare('DELETE FROM deepchat_messages WHERE session_id=?').run('caller')
+    release()
+    await rejected
+    expect(prepared.message).not.toHaveBeenCalled()
+  })
+
+  it('revokes Native references after an epoch reset without resetting a Tape', async () => {
+    const { nativeReader, tape } = nativeReferenceReader()
+    const reference = await nativeReader.resolve('source')
+    grant('source', reference.tapeIncarnationId)
+    database.sessionReferenceEpochsTable.rotate('source')
+    await expect(nativeReader.resolve('source', reference.tapeIncarnationId)).rejects.toThrow(
+      'stale'
+    )
+    await expect(
+      nativeReader.read('caller', { sessionId: 'source', action: 'messages' })
+    ).rejects.toThrow('not authorized')
+    expect(tape.getSessionReferenceIdentity).not.toHaveBeenCalled()
   })
 })

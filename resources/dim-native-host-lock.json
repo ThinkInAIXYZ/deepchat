@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "sourceRevision": "092aaa7ff9c536474b0b2ed396eb98cdbc904b75",
+  "baseRelease": "0.1.0-alpha.23",
+  "serverVersion": "0.1.0-alpha.18",
+  "bridgeVersion": "0.44.0",
+  "storeFormat": 44,
+  "apiVersion": 1,
+  "cargoLockSha256": "2b1c78cd0da80dfd0512e592d88b8ec37061d3d38e8a8b8c79b09de7d1dcc90d",
+  "assemblyPatch": {
+    "path": "crates/dim-app-server/src/provider.rs",
+    "sha256": "1efdf44c936721817646c7517e3d35daf15282b655fd466eaf258dbaf80def3e"
+  },
+  "extensionPatches": [
+    {
+      "path": "crates/dim-agent-runtime/src/assembly.rs",
+      "sha256": "02d775e6e89a383f8f117f4b035b1eade2b04dc8afb24b59c255484b1ccad087"
+    },
+    {
+      "path": "crates/dim-app-server/src/provider/secrets.rs",
+      "sha256": "b5aa2958949ae9e28c75ada15549d234bab7eaf50e8655ff17b341d61a4e80ad"
+    },
+    {
+      "path": "crates/dim-app-server/src/lib.rs",
+      "sha256": "578cfaa74397044b3fcb3e73072656c3700749ab7c32ce95ba4b7ebee1baf8a7"
+    },
+    {
+      "path": "crates/dim-app-server/src/agent_records.rs",
+      "sha256": "8fc59027c8dd6891bc44c02d84c844661fb6324d759185828163986f13ed5254"
+    },
+    {
+      "path": "crates/dim-app-server/src/storage/files.rs",
+      "sha256": "43d6079e761c910d477912d8166b001d6809f82b2c9778338df8e6ef512e0b6d"
+    },
+    {
+      "path": "crates/dim-app-server/src/storage/timeline.rs",
+      "sha256": "14cb99850602b2d57efa5a07cc645cab5c3f07d754c072a3def81980e7dd5e57"
+    },
+    {
+      "path": "crates/dim-app-server/src/mcp/temporary.rs",
+      "sha256": "c47e501f35cfca6dcb9f77dec998896125214b4b70125de9aad1542f9368c452"
+    },
+    {
+      "path": "crates/dim-app-server/src/mcp.rs",
+      "sha256": "7ba8388e9699ade70a4a6548f9dc42e5f7f85206f59a2824b0d5b51928c3abae"
+    },
+    {
+      "path": "crates/dim-session-title/src/lib.rs",
+      "sha256": "2f31795c3afcc08510373c574fc290cd688171fce85250b88faeb007caa03cc2"
+    },
+    {
+      "path": "vendor/aimux/aimux-providers/src/jev.rs",
+      "sha256": "ef20cea18241780a5e5bfc489d571a7a8f10fee0889206e731ff8adfefc41ba8"
+    },
+    {
+      "path": "crates/dim-agent-capabilities/src/host_platform.rs",
+      "sha256": "2064b40eb2095e093179e3c38f3393eb951bcbc33806c3904e3952e848fe5bb7"
+    }
+  ]
+}
