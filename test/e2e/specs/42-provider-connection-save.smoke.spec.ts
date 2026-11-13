@@ -254,10 +254,10 @@ test('connection saving does not depend on the fixed probe model @smoke', async 
     await page.locator('#modelName').fill('Unsaved custom fixture')
     await page
       .getByRole('dialog')
-      .getByRole('button', { name: /^(保存配置|Save Configuration)$/ })
+      .getByRole('button', { name: /^(保存配置|Save configuration)$/ })
       .click()
     await expect(page.getByRole('dialog').getByRole('alert')).toContainText(
-      /保存失败|Failed to save/
+      /保存失败|Could not save/
     )
     await expect(page.locator('#modelId')).toHaveValue('unsaved-custom-fixture')
     await page.screenshot({ path: testInfo.outputPath('custom-model-save-failed.png') })

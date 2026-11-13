@@ -645,7 +645,7 @@ test('session references survive drafts and retrieve evidence without injecting 
         })) as { reference: SessionReference }
         const pinia = Reflect.get(document.getElementById('app')!, '__vue_app__').config
           .globalProperties.$pinia
-        const result = await pinia._s.get('session').createSession({
+        const result = await pinia._s.get('chat-session').createSession({
           agentId: 'deepchat',
           providerId,
           modelId: 'fixture-model',
