@@ -21,6 +21,8 @@ pub(crate) struct Transfer {
     session_ids: Option<Vec<String>>,
     #[serde(default)]
     initialize_target: bool,
+    #[serde(default)]
+    upgrade_source: bool,
 }
 
 pub(crate) async fn transfer(
@@ -48,7 +50,12 @@ pub(crate) async fn transfer(
         Some(directory) => Some(super::archive_rebase::installed_home(directory).await?),
         None => None,
     };
-    let (source_db, format) = SqliteStorage::open_read_only(source.join("dimcode.sqlite"))?;
+    let source_path = source.join("dimcode.sqlite");
+    if input.upgrade_source {
+        // DeepChat passes only a disposable, verified copy here.
+        SqliteStorage::open(source_path.clone())?.close().await?;
+    }
+    let (source_db, format) = SqliteStorage::open_read_only(source_path)?;
     let result = async {
         if format != dim_app_server::storage::STORE_FORMAT {
             return Err(RpcError::invalid("Archive format requires migration"));

@@ -124,10 +124,15 @@ export async function validateDimProfile(
 ): Promise<DimProfileManifest> {
   if (!value || typeof value !== 'object') throw new Error('Invalid native profile manifest')
   const manifest = value as DimProfileManifest
+  const previousRelease =
+    identity.storeFormat === 44 &&
+    manifest.storeFormat === 36 &&
+    manifest.sourceRevision === '0423b321abc923900525d79d030fd690110f91c4'
   if (
     manifest.version !== 1 ||
-    manifest.sourceRevision !== identity.sourceRevision ||
-    manifest.storeFormat !== identity.storeFormat ||
+    (!previousRelease &&
+      (manifest.sourceRevision !== identity.sourceRevision ||
+        manifest.storeFormat !== identity.storeFormat)) ||
     typeof manifest.bridgeVersion !== 'string' ||
     !Array.isArray(manifest.files)
   )

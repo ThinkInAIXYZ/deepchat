@@ -19,7 +19,7 @@
 
 聊天 UI、队列、模型与产品辅助入口、旧会话按需转换和一次性解密已接入。设备同步采用原生选择性导出与冷暂存安装。接入范围如下：
 
-- Code Mode 按用户决定暂时不可用，等待 dim 原生实现；不迁移 DeepChat 旧 Code Mode、ToolSearch 或 programmatic dispatch。dim 有同等功能的内置工具直接替换 DeepChat 对应工具，插件只注入剩余产品能力。
+- Code Mode 暂停。dim alpha.23 已发布原生 `codemode`，App Server 仅向协议 v4 客户端开放；DeepChat 继续使用 v3。接入前须验证按会话启用、MCP 绑定、权限与结果展示；不恢复旧 Code Mode、ToolSearch 或 programmatic dispatch。dim 有同等功能的内置工具直接替换 DeepChat 对应工具，插件只注入剩余产品能力。
 - 队列直接复用 dim 的完整实现，DeepChat 只接 UI 和命令，不另建队列或预设上游缺口。
 - ACP 完全由 DeepChat 现有 client 负责；不新增 dim ACP gateway、ExternalAgent 或跨 ACP 委托任务，也不经 ACP 与 dim 通信。
 - 旧会话在首次续聊前 migration，转换为 dim 的会话内容；历史浏览不触发 agent 执行或全量迁移。
@@ -43,25 +43,24 @@
 | 自动设备同步 | 产品 SQL 批次附独立原生文件清单；稳定闭包导出、有界分块与续传、会话 LWW 冷暂存替换、独立提交回执恢复。 |
 | 旧 Tape 和旧加密库 | 保留只读历史与首次续聊转换；旧库/备份一次性解密，不再持续加密新数据。 |
 
-私有桥与插件版本由锁文件校验。当前桥版本为 `0.43.0`，底层 dim source/store 锁定值未随
-设备同步模块改变。原生 profile 的唯一写入者仍是 dim；DeepChat 管理目录、生命周期与产品事务。
+私有桥与插件版本由锁文件校验。当前桥版本为 `0.44.0`，原生存储为 v44。原生 profile 的唯一写入者仍是 dim；DeepChat 管理目录、生命周期与产品事务。
 
 ## 2. 调研基线与证据
 
-核对日期：2026-11-09。DeepChat 已 fetch 远端 `dev`，方案分支为 `docs/dim-rust-harness-migration`。
+核对日期：2026-11-13。DeepChat 已 fetch 远端 `dev`，方案分支为 `docs/dim-rust-harness-migration`。
 
 | 对象 | 锁定依据 | 使用边界 |
 | --- | --- | --- |
 | DeepChat `origin/dev` | `42569d6a8f2128ac9c60daf7c4f15706894ccb04` | 本文现状、功能和路径基线 |
-| dim 最新抓取的 `main` | `157d0fc642e9be6f7ab0f58f49fc08e75765fe76` | 调研参考；接入 SDK 以实际选用 release 为准 |
-| dim `v0.1.0-alpha.21` | release manifest 的 `sourceCommit`：`0423b321abc923900525d79d030fd690110f91c4` | 当前集成锁定版本，随 DeepChat 私有装配验证与打包 |
-| Linux x64 release | `dimcode-linux-x64-0.1.0-alpha.21.tar.gz`；SHA-256 `b38f8a68f75b9199a1b4c37053db716c077f09b72c29df5829907623692a02df` | 已与 release `SHA256SUMS` 比对并执行 |
+| dim 最新抓取的 `main` | `affb4be509d0f837e78e5dff911cbd7379df0a29` | 调研参考；接入 SDK 以实际选用 release 为准 |
+| dim `v0.1.0-alpha.23` | release manifest 的 `sourceCommit`：`092aaa7ff9c536474b0b2ed396eb98cdbc904b75` | 当前集成锁定版本，随 DeepChat 私有装配验证与打包 |
+| 早期 Linux x64 探针基线 | `dimcode-linux-x64-0.1.0-alpha.21.tar.gz`；SHA-256 `b38f8a68f75b9199a1b4c37053db716c077f09b72c29df5829907623692a02df` | 已与 release `SHA256SUMS` 比对并执行 |
 
-[Release 资源](https://github.com/arcships/dim/releases/tag/v0.1.0-alpha.21) 包含 macOS/Linux/Windows 的 x64/arm64 原生包、manifest 和 SHA256SUMS。实际二进制报告 `0.1.0-alpha.21`；该 tag 的 Cargo/npm 源模板仍含 `alpha.18`，因此**必须联合校验二进制版本、manifest、源码 commit、插件 SDK 和能力，不只读 package.json**。
+[Release 资源](https://github.com/arcships/dim/releases/tag/v0.1.0-alpha.23) 包含 macOS/Linux/Windows 的 x64/arm64 原生包、manifest 和 SHA256SUMS。实际二进制报告 `0.1.0-alpha.23`；该 tag 的 Cargo/npm 源模板仍含 `alpha.18`，因此**必须联合校验二进制版本、manifest、源码 commit、插件 SDK 和能力，不只读 package.json**。
 
-alpha.21 的 Rust API 已支持完整 `ModelConfig` 和 `ProviderSecretHost`，但当前 TS 插件绑定没有导出这两个入口。因此保留官方 release 安装与回归，同时通过同一 release 的锁定源码装配 `native/dim-host`：增加设置和辅助模型插件；显式启用 stock Provider 的现有凭据引用依赖，并让自定义 Header 的不透明引用通过同一 ProviderSecretHost 在请求时解析；匿名连接如声明产品准入引用，也通过此公开 owner 在每次请求检查当前启停/模型/连接身份，认证模式仍是 Anonymous，不向供应商发送确认值（源码准备脚本精确核对 Provider 装配、Header 引用与匿名引用检查的变更，并拒绝其余 tracked 文件变更）。另在 builder 装配 API 增加显式 per-Session host factory，使用原生 SessionIdentity 替换默认 IdentityContext，让产品插件实现公开 PrepareContext；其独立源码 hash 记入 extensionPatches。原生 context 仍校验固定历史前缀并负责预算/压缩，profile 空闲检查另外复用公开 AgentIndex/Session.in_use、ModalityTasks 与 ProviderService；仅重新导出已有公开 AgentIndex 类型并增加只读 provider 活动计数，不引入第二份任务状态。不修改 loop、队列、context 或模型驱动实现。当前桥版本 0.43.0，包含 Session 产品 ToolProvider、媒体 provider 名称适配和向量插件；媒体任务/连接/驱动复用 dim，向量经过公开非聊天连接 owner 后由同一锁定源码内的 Aimux 执行。二进制 manifest 记录 release、真实 server version、source commit、Cargo.lock/hash 和装配变更 hash，启动再核对插件 provenance。待官方 release 直接暴露这些扩展口后，可移除这个装配例外。
+alpha.23 的 Rust API 支持完整 `ModelConfig` 和 `ProviderSecretHost`，但当前 TS 插件绑定没有导出这两个入口。因此保留官方 release 安装与回归，同时通过同一 release 的锁定源码装配 `native/dim-host`：增加设置和辅助模型插件；显式启用 stock Provider 的现有凭据引用依赖，并让自定义 Header 的不透明引用通过同一 ProviderSecretHost 在请求时解析；匿名连接如声明产品准入引用，也通过此公开 owner 在每次请求检查当前启停/模型/连接身份，认证模式仍是 Anonymous，不向供应商发送确认值（源码准备脚本精确核对 Provider 装配、Header 引用与匿名引用检查的变更，并拒绝其余 tracked 文件变更）。另在 builder 装配 API 增加显式 per-Session host factory，使用原生 SessionIdentity 替换默认 IdentityContext，让产品插件实现公开 PrepareContext；其独立源码 hash 记入 extensionPatches。原生 context 仍校验固定历史前缀并负责预算/压缩，profile 空闲检查另外复用公开 AgentIndex/Session.in_use、ModalityTasks 与 ProviderService；仅重新导出已有公开 AgentIndex 类型并增加只读 provider 活动计数，不引入第二份任务状态。不修改 loop、队列、context 或模型驱动实现。当前桥版本 0.44.0，包含 Session 产品 ToolProvider、媒体 provider 名称适配和向量插件；媒体任务/连接/驱动复用 dim，向量经过公开非聊天连接 owner 后由同一锁定源码内的 Aimux 执行。二进制 manifest 记录 release、真实 server version、source commit、Cargo.lock/hash 和装配变更 hash，启动再核对插件 provenance。待官方 release 直接暴露这些扩展口后，可移除这个装配例外。
 
-已在临时独立目录执行 release 的 `dimcode app-server --mock-model --home … --unix … --no-ws`：
+在临时独立目录执行 alpha.21 release 的基线探针 `dimcode app-server --mock-model --home … --unix … --no-ws`：
 
 - 协议 v3 `hello` 成功；无需编译 Rust、无需启动 TUI。
 - `session.create`、`session.attach`、带 `submissionId` 的 `session.submit` 成功。
@@ -203,7 +202,7 @@ dim 已有 `mcp.catalog/configuration/save/update/remove/inspect`、OAuth 和 Se
 
 模型调用、请求构造、流、重试和 usage 全部交给 dim Rust。DeepChat 的模型设置 UI、产品预设和相关配置通过 `deepchat-host` 注入到 dim 对应 services；桥只做参数、身份和结果映射，不调用旧 TypeScript Provider。
 
-会话和辅助调用按实际模型路由生成推理配置。旧 `forceInterleavedThinkingCompat` 字段保留在产品设置与持久化层，Rust 推理参数省略该字段。Anthropic 支持手动预算及自适应 effort，Gemini 按模型使用预算或 level，OpenAI Chat 和 Responses 接收 effort。锁定的 Native 合同未提供 Anthropic `thinking.display`，也未提供 Chat 或 Responses 的 token 预算。
+会话和辅助调用按实际模型路由生成推理配置。旧 interleaved 开关已退出产品设置和推理参数，仅保留旧数据库列和修复兼容。Anthropic 支持手动预算及自适应 effort，Gemini 按模型使用预算或 level，OpenAI Chat 和 Responses 接收 effort。锁定的 Native 合同未提供 Anthropic `thinking.display`，也未提供 Chat 或 Responses 的 token 预算。
 
 主对话之外的标题、摘要、翻译、建议、记忆提取、embedding/rerank、图像/语音模型工作，同样经插件调用 dim 的 model/auxiliary/modality 能力。非模型的知识索引、向量存储和系统服务仍属于产品，通过插件提供工具或资源。
 
@@ -249,7 +248,7 @@ attach 与历史补读需要无缝边界：先建立监听并暂存实时事件�
 
 备份、同步、删除、恢复与多窗口继续由 DeepChat desktop 管理，本次只把其内容访问替换为 `deepchat-storage`。它们不是 dim 的缺失功能，也不要求 dim 重新实现 desktop 工作流。
 
-备份沿用桌面层调度与文件格式管理，经插件取得一致的 dim 内容及附件闭包；直接复制数据库时先用现有生命周期协调停止写入并完成关闭，不能漏掉 WAL/外部文件。同步继续走 DeepChat 的快照/导入与冲突策略，不对活跃 dim DB 直接做多端写入或文件合并。 停机维护使用共用 Native supervisor 启动屏障，辅助模型也不能在 SQL 关闭/恢复期间重新启动宿主；回调恢复存储可用后才释放等待者，维护失败不隐式接纳等待中的调用。 需要避免中断工作的备份选择原生 daemon.shutdown.ifIdle，busy 或未确认退出时不访问冷文件，也不对空闲停机尝试执行强制终止；媒体、后台执行及内部辅助模型均按各自 Native owner 的状态决定是否延后。当前 v3 包包含完整不透明 profile 文件 manifest 与产品 SQL，读者暂停不撤销输入 scope，hash/压缩在恢复 Native 后完成。覆盖恢复先校验文件闭包与锁定 store 格式，再交换目录；保留不可变附件的只读权限。导入由 profile 内持久日志记录产品原件与 Native 交换阶段，启动先于设置/SQL/Native 加载恢复；未提交事务回滚，已提交事务仅清理，损坏快照拒绝恢复并保留原件。发布备份和导入提交前 flush 相应文件/目录。归档使用流式 ZIP64，验证文件 CRC、大小与路径，manifest 读取跳过其余文件内容；已实际验证超过 4 GiB 的单文件写入。Native 增量合并、目录变更下的附件路径、历史媒体反馈和大文件闭包已通过联合验证。删除操作保持可恢复的 operation ID 与引用清理。
+备份沿用桌面层调度与文件格式管理，经插件取得一致的 dim 内容及附件闭包；直接复制数据库时先用现有生命周期协调停止写入并完成关闭，不能漏掉 WAL/外部文件。同步继续走 DeepChat 的快照/导入与冲突策略，不对活跃 dim DB 直接做多端写入或文件合并。 停机维护使用共用 Native supervisor 启动屏障，辅助模型也不能在 SQL 关闭/恢复期间重新启动宿主；回调恢复存储可用后才释放等待者，维护失败不隐式接纳等待中的调用。 需要避免中断工作的备份选择原生 daemon.shutdown.ifIdle，busy 或未确认退出时不访问冷文件，也不对空闲停机尝试执行强制终止；媒体、后台执行及内部辅助模型均按各自 Native owner 的状态决定是否延后。当前 v3 包包含完整不透明 profile 文件 manifest 与产品 SQL，读者暂停不撤销输入 scope，hash/压缩在恢复 Native 后完成。覆盖恢复先校验文件闭包与锁定 store 格式，再交换目录；保留不可变附件的只读权限。alpha.21/v36 归档通过锁定来源校验后，仅在暂存副本中由 dim 升到 v44；覆盖、增量合并、选择导入和设备副本使用同一验证规则。导入由 profile 内持久日志记录产品原件与 Native 交换阶段，启动先于设置/SQL/Native 加载恢复；未提交事务回滚，已提交事务仅清理，损坏快照拒绝恢复并保留原件。发布备份和导入提交前 flush 相应文件/目录。归档使用流式 ZIP64，验证文件 CRC、大小与路径，manifest 读取跳过其余文件内容；已实际验证超过 4 GiB 的单文件写入。Native 增量合并、目录变更下的附件路径、历史媒体反馈和大文件闭包已通过联合验证。删除操作保持可恢复的 operation ID 与引用清理。
 
 设备自动同步分别传输产品 SQL 批次和不透明 Native 文件清单。源端经插件导出稳定的原生会话闭包，按 SQL 批次固定快照，16 MiB 分块、校验和持久缺块续传；不复制活跃 Native SQLite。接收端在 Native 空闲后冷暂存选择性替换 LWW 胜出历史，安装与产品 SQL 通过独立导入 token 的事务回执关联；启动检查精确回执后完成清理或恢复原目录。胜出集合、授权或游标在等待期间变化就回滚并重试。源端允许无关会话继续执行；接收端忙碌时等待，不推进同步游标。
 
@@ -334,7 +333,7 @@ timeline query 与公开 `session.history` 用途不同：history 用聊天；In
 | 备份、同步、删除、窗口、CLI/Remote | DeepChat desktop 及现有入口 | 内容读取改走插件，既有产品工作流继续可用 |
 | 数据库持续加解密 | 按用户决定移除 | 旧加密库及备份可一次性解密迁入，无原件损坏或密码泄露 |
 
-Code Mode 暂停，等待 dim 原生能力后再启用。旧库和备份可一次性解密，新数据库使用明文存储。插件集成、UI/配置绑定、内容转换和桌面读写适配已通过本地验收。迁移代码在 `73a2e8a67` 通过 Windows、Linux、macOS 各 x64 和 ARM64 的 Native 回归、打包及离线验证，具体任务与当前候选提交的检查入口见 [验收记录](./plan.md#方案验证记录与-pr-状态)。设备同步接收端在 Native 空闲时安装胜出会话，忙碌时延后且保留当前游标。§9 的 p95 指标仍需可比的旧版基线。
+Code Mode 在完成原生协议与产品权限接入前保持暂停。旧库和备份可一次性解密，新数据库使用明文存储。插件集成、UI/配置绑定、内容转换和桌面读写适配已通过本地验收。迁移代码在 `73a2e8a67` 通过 Windows、Linux、macOS 各 x64 和 ARM64 的 Native 回归、打包及离线验证，具体任务与当前候选提交的检查入口见 [验收记录](./plan.md#方案验证记录与-pr-状态)。设备同步接收端在 Native 空闲时安装胜出会话，忙碌时延后且保留当前游标。§9 的 p95 指标仍需可比的旧版基线。
 
 ## 9. 安全、性能与故障不变量
 

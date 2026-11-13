@@ -154,3 +154,31 @@ it('rejects unlisted files, duplicate paths, traversal and transient socket rows
     await rm(root, { recursive: true, force: true })
   }
 })
+
+it('admits alpha.21 archives for the v44 upgrade only with their pinned source and format', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'dim-profile-upgrade-'))
+  const previous = {
+    sourceRevision: '0423b321abc923900525d79d030fd690110f91c4',
+    bridgeVersion: '0.43.0',
+    storeFormat: 36
+  }
+  try {
+    const captured = await captureDimProfile(path.join(root, 'absent'), root, previous)
+    const manifest = await captured.manifest()
+    const current = { ...identity, storeFormat: 44 }
+    await expect(validateDimProfile(captured.directory, manifest, current)).resolves.toEqual(
+      manifest
+    )
+    for (const incompatible of [
+      { ...manifest, sourceRevision: 'f'.repeat(40) },
+      { ...manifest, storeFormat: 37 },
+      { ...manifest, sourceRevision: current.sourceRevision, storeFormat: 45 }
+    ]) {
+      await expect(
+        validateDimProfile(captured.directory, incompatible, current)
+      ).rejects.toThrow('Unsupported')
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})

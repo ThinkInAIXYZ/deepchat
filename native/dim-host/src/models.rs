@@ -22,7 +22,7 @@ use std::{
     time::Instant,
 };
 
-pub const SOURCE_REVISION: &str = "0423b321abc923900525d79d030fd690110f91c4";
+pub const SOURCE_REVISION: &str = "092aaa7ff9c536474b0b2ed396eb98cdbc904b75";
 
 pub fn install(builder: &mut AgentBuilder) {
     builder.plugin(|names| Ok(Box::new(Models::new(names)?)));

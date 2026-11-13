@@ -34,7 +34,7 @@
 
 ## P1. 打包 dim release 并注入插件
 
-目标：优先使用官方 Rust release，将 DeepChat 插件装入 dim 的服务体系。alpha.21 对完整参数/凭据引用使用锁定 release 源码的薄原生插件装配；具体依据见 spec §2，不修改执行核心。
+目标：优先使用官方 Rust release，将 DeepChat 插件装入 dim 的服务体系。alpha.23 对完整参数/凭据引用使用锁定 release 源码的薄原生插件装配；具体依据见 spec §2，不修改执行核心。
 
 负责边界：runtime packaging、`src/main/agent/dim/` supervisor、插件装载。
 

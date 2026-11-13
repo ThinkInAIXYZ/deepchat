@@ -124,7 +124,7 @@ history never overwrites another conversation when native event IDs are shared. 
 retain the native request identity, because a model may reuse a call ID in another request.
 
 The small [native plugin assembly](../../native/dim-host/README.md) uses the same locked release
-source for settings adoption and credential references not exposed by alpha.21's TS bindings.
+source for settings adoption and credential references not exposed by alpha.23's TS bindings.
 It calls native owners, including auxiliary model execution with arbitrary validated ModelConfig.
 An explicit one-line Provider assembly patch enables its existing secret-store extension. Official
 release smoke checks remain in place. Production wiring uses this host, and package verification

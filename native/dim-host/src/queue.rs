@@ -249,13 +249,11 @@ async fn finish(
             } else if !conflicted {
                 matches!(
                     queue
-                        .withdraw(
-                            InputWithdrawData {
-                                input_id: id.clone(),
-                                reason: Some(reason.clone())
-                            },
-                            None
-                        )
+                        .withdraw(InputWithdrawData {
+                            input_id: id.clone(),
+                            reason: Some(reason.clone()),
+                            steer: None,
+                        })
                         .await?
                         .0,
                     Withdrawal::Deleted { .. }

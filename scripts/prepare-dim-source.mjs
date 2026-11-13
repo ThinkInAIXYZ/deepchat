@@ -28,7 +28,7 @@ try {
 }
 if (git(['rev-parse', 'HEAD']) !== lock.sourceCommit)
   throw new Error('Pinned dim source revision mismatch')
-// alpha.21 exposes ProviderSecretHost publicly but its stock product assembly opts out.
+// The stock product assembly opts out of its public ProviderSecretHost.
 // Enable that existing extension and resolve explicit header references through the same host.
 // No execution owner is replaced; only opaque references enter native storage.
 const filename = 'crates/dim-app-server/src/provider.rs'
@@ -167,18 +167,6 @@ const temporaryMcpFile = 'crates/dim-app-server/src/mcp/temporary.rs'
 const titleFile = 'crates/dim-session-title/src/lib.rs'
 const decisionFile = 'vendor/aimux/aimux-providers/src/jev.rs'
 const commandFile = 'crates/dim-agent-capabilities/src/host_platform.rs'
-const generatedDocs = JSON.parse(
-  await readFile(path.join(root, 'resources/dim-sdk/generated-docs-lock.json'), 'utf8')
-)
-const generatedPaths = [
-  'docs/architecture/rust-agent/generated/modules.json',
-  'docs/architecture/rust-agent/generated/modules.mmd'
-]
-if (
-  generatedDocs.length !== generatedPaths.length ||
-  generatedDocs.some((entry, index) => entry.path !== generatedPaths[index])
-)
-  throw new Error('Unexpected generated dim architecture paths')
 const digest = (content) => createHash('sha256').update(content).digest('hex')
 const commandOriginal = git(['show', `HEAD:${commandFile}`]) + '\n'
 const commandBefore =
@@ -198,32 +186,6 @@ if (commandCurrent !== commandOriginal && commandCurrent !== commandExpected)
   throw new Error('Pinned native command argument handling has unexpected changes')
 if (commandCurrent !== commandExpected)
   await writeFile(path.join(directory, commandFile), commandExpected)
-const docStates = await Promise.all(
-  generatedDocs.map(async (entry) => {
-    const original = Buffer.from(git(['show', `HEAD:${entry.path}`]) + '\n')
-    if (digest(original) !== entry.originalSha256)
-      throw new Error('Pinned dim architecture baseline mismatch')
-    const current = digest(await readFile(path.join(directory, entry.path)))
-    if (
-      current !== entry.originalSha256 &&
-      current !== entry.sha256 &&
-      current !== entry.previousSha256
-    )
-      throw new Error('Pinned dim architecture has unexpected changes')
-    return { original, current }
-  })
-)
-const docsPrepared = docStates.every(
-  (entry, index) => entry.current === generatedDocs[index].sha256
-)
-const docsOriginal = docStates.every(
-  (entry, index) => entry.current === generatedDocs[index].originalSha256
-)
-const docsPrevious = docStates.every(
-  (entry, index) => entry.current === generatedDocs[index].previousSha256
-)
-if (!docsPrepared && !docsOriginal && !docsPrevious)
-  throw new Error('Pinned dim architecture is only partially prepared')
 git([
   'diff',
   '--exit-code',
@@ -240,8 +202,7 @@ git([
   `:!${temporaryMcpFile}`,
   `:!${titleFile}`,
   `:!${decisionFile}`,
-  `:!${commandFile}`,
-  ...generatedPaths.map((entry) => `:!${entry}`)
+  `:!${commandFile}`
 ])
 if (current !== expected) await writeFile(path.join(directory, filename), expected)
 // Add an explicit host-value replacement to the builder's assembly API. It changes no
@@ -302,7 +263,7 @@ if (secretsCurrent !== secretsExpected)
 // service available to an embedding plugin without accessing private storage or agents.
 const servicesOriginal = git(['show', `HEAD:${servicesFile}`]) + '\n'
 const indexImport = 'use agents::{AgentIndex, AgentsPlugin};'
-const indexExport = 'pub use agents::{SessionPermissions, SessionRef, SessionsError};'
+const indexExport = 'pub use agents::{SessionDeleted, SessionPermissions, SessionRef, SessionsError};'
 if (
   servicesOriginal.split(indexImport).length !== 2 ||
   servicesOriginal.split(indexExport).length !== 2
@@ -312,12 +273,12 @@ const servicesPrevious = servicesOriginal
   .replace(indexImport, 'use agents::AgentsPlugin;')
   .replace(
     indexExport,
-    'pub use agents::{AgentIndex, SessionPermissions, SessionRef, SessionsError};'
+    'pub use agents::{AgentIndex, SessionDeleted, SessionPermissions, SessionRef, SessionsError};'
   )
 const servicesExpected = servicesPrevious.replace(
-  'pub use agents::{AgentIndex, SessionPermissions, SessionRef, SessionsError};',
+  'pub use agents::{AgentIndex, SessionDeleted, SessionPermissions, SessionRef, SessionsError};',
   'pub use agent_records::{AgentRecord, AgentRecords, SessionOwner};\n' +
-    'pub use agents::{AgentIndex, SessionPermissions, SessionRef, SessionsError};'
+    'pub use agents::{AgentIndex, SessionDeleted, SessionPermissions, SessionRef, SessionsError};'
 )
 const servicesCurrent = await readFile(path.join(directory, servicesFile), 'utf8')
 if (
@@ -526,27 +487,6 @@ if (decisionCurrent !== decisionOriginal && decisionCurrent !== decisionExpected
   throw new Error('Pinned native Jev transport has unexpected changes')
 if (decisionCurrent !== decisionExpected)
   await writeFile(path.join(directory, decisionFile), decisionExpected)
-if (!docsPrepared) {
-  const patch = path.join(root, 'resources/dim-sdk/generated-docs.patch')
-  const body = await readFile(patch, 'utf8')
-  const headers = [...body.matchAll(/^diff --git a\/(.+) b\/(.+)$/gm)]
-  if (
-    headers.length !== generatedPaths.length ||
-    headers.some(
-      (entry, index) => entry[1] !== generatedPaths[index] || entry[2] !== generatedPaths[index]
-    )
-  )
-    throw new Error('Unexpected paths in generated dim architecture patch')
-  if (docsPrevious)
-    for (const [index, entry] of docStates.entries())
-      await writeFile(path.join(directory, generatedDocs[index].path), entry.original)
-  git(['apply', '--check', patch])
-  git(['apply', patch])
-}
-for (const entry of generatedDocs) {
-  if (digest(await readFile(path.join(directory, entry.path))) !== entry.sha256)
-    throw new Error('Generated dim architecture checksum mismatch')
-}
 export const nativeSource = {
   sourceRevision: lock.sourceCommit,
   storeFormat: Number(
@@ -564,7 +504,6 @@ export const nativeSource = {
     ...mcpPatches,
     { path: titleFile, sha256: createHash('sha256').update(titleExpected).digest('hex') },
     { path: decisionFile, sha256: digest(decisionExpected) },
-    { path: commandFile, sha256: digest(commandExpected) },
-    ...generatedDocs.map(({ path, sha256 }) => ({ path, sha256 }))
+    { path: commandFile, sha256: digest(commandExpected) }
   ]
 }

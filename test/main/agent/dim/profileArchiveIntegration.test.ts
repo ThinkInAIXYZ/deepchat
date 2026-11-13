@@ -171,7 +171,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
           after,
           limit: 1
         })
-        expect(page.storeFormat).toBe(36)
+        expect(page.storeFormat).toBe(44)
         expect(page.totalSessions).toBe(3)
         expect(page.sessions).toHaveLength(1)
         const session = page.sessions[0]

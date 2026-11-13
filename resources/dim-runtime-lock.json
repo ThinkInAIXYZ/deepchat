@@ -1,39 +1,39 @@
 {
   "schemaVersion": 1,
-  "version": "0.1.0-alpha.21",
-  "sourceCommit": "0423b321abc923900525d79d030fd690110f91c4",
+  "version": "0.1.0-alpha.23",
+  "sourceCommit": "092aaa7ff9c536474b0b2ed396eb98cdbc904b75",
   "protocolVersion": 3,
   "pluginApiVersion": 1,
   "rutisVersion": "0.19.3",
   "artifacts": {
     "darwin-arm64": {
-      "filename": "dimcode-darwin-arm64-0.1.0-alpha.21.tar.gz",
-      "archiveSha256": "aa1b1e925b0c79cc8d83c985a02a2464c896d0757cd455206428ab63bb789fe6",
+      "filename": "dimcode-darwin-arm64-0.1.0-alpha.23.tar.gz",
+      "archiveSha256": "873b28503b752ee7ec1c8bd351d80a1e2fa8fc255bb011528229bffad2c45ce6",
       "directory": "dimcode-darwin-arm64"
     },
     "darwin-x64": {
-      "filename": "dimcode-darwin-x64-0.1.0-alpha.21.tar.gz",
-      "archiveSha256": "36651a8fe840cbc755402ba39be38fff99c1ac4630df90ef1d125f512ed53313",
+      "filename": "dimcode-darwin-x64-0.1.0-alpha.23.tar.gz",
+      "archiveSha256": "9859b5715598e8cee5b26e271b9961a75f4fe9de47e3e88ca199ae96fc297b16",
       "directory": "dimcode-darwin-x64"
     },
     "linux-arm64": {
-      "filename": "dimcode-linux-arm64-0.1.0-alpha.21.tar.gz",
-      "archiveSha256": "b4b91b66b5c9542e129f121428283299a2dce0f1869d48503d06d7f81e846974",
+      "filename": "dimcode-linux-arm64-0.1.0-alpha.23.tar.gz",
+      "archiveSha256": "6cc3db36ea3e442d12d75e7233c9cd4a9bcb69792794d5ae143b1fbbe7fb7ab2",
       "directory": "dimcode-linux-arm64"
     },
     "linux-x64": {
-      "filename": "dimcode-linux-x64-0.1.0-alpha.21.tar.gz",
-      "archiveSha256": "b38f8a68f75b9199a1b4c37053db716c077f09b72c29df5829907623692a02df",
+      "filename": "dimcode-linux-x64-0.1.0-alpha.23.tar.gz",
+      "archiveSha256": "97bef1d9e1da328e8fdb677a93a53c7b92a2eba992688c8cb28c31d8d24933b7",
       "directory": "dimcode-linux-x64"
     },
     "win32-arm64": {
-      "filename": "dimcode-windows-arm64-0.1.0-alpha.21.zip",
-      "archiveSha256": "26e49ef4adab6290c231bd2d2a0dddeedca143546cd5e289355f59b8a9cc7b13",
+      "filename": "dimcode-windows-arm64-0.1.0-alpha.23.zip",
+      "archiveSha256": "f33b5297513f37c0dd5280c395b474d6a240850fd8e4c7501dc0995f471bb6ca",
       "directory": "dimcode-windows-arm64"
     },
     "win32-x64": {
-      "filename": "dimcode-windows-x64-0.1.0-alpha.21.zip",
-      "archiveSha256": "0b6135f0df34e5f1b4d43e5e8ae61323a4f4044d9a0d106158611bdf22aee624",
+      "filename": "dimcode-windows-x64-0.1.0-alpha.23.zip",
+      "archiveSha256": "cc962ec30d55bc2adbf05de63eb908b0091be4224a1dd05cbb1b4f9c809de834",
       "directory": "dimcode-windows-x64"
     }
   }

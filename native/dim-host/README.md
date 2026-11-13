@@ -5,7 +5,7 @@ release, with the release's native plugins and DeepChat's small Rust plugins.
 It delegates agent execution, input queues, model selection, HTTP drivers,
 credential recovery and auxiliary inference to dim. It contains no agent loop.
 
-The official alpha.21 executable remains installed and covered by the smoke
+The official alpha.23 executable remains installed and covered by the smoke
 suite. Its TS plugin bindings do not expose arbitrary `ModelConfig` adoption or
 `ProviderSecretHost`, so production integration needs this native assembly.
 `scripts/prepare-dim-source.mjs` verifies the pinned Git object and checks exact changes in the Provider assembly: enabling the existing
@@ -26,7 +26,7 @@ Use `pnpm run build:dim-host -- --dev` for local smoke tests. Downloaded dim sou
 and compiler output are ignored. `Cargo.lock` freezes transitive dependencies.
 The binary is copied outside ASAR with a checksum/provenance manifest; the
 supervisor validates its hash and the native plugin's source/version handshake.
-The source package reports alpha.18, while its official release tag is alpha.21;
+The source package reports alpha.18, while its official release tag is alpha.23;
 the manifest records these separate identities rather than weakening validation.
 
 Generation settings are adopted through `Branch.configure`. Auxiliary calls use
@@ -259,14 +259,6 @@ native Session lifecycle through preference lookup, inference and title
 publication, so idle maintenance cannot cancel accepted title work. Forced close
 cancels and joins the owner as usual.
 
-SDK module graphs are generated with `xtask graph --model-config
-crates/dim-agent-aimux/examples/offline.json`. Their original and generated hashes
-and exact patch are pinned alongside code extensions; preparation accepts only a
-complete original or complete prepared graph. Source/crate boundaries and plugin
-documents pass. The stock SDK `xtask check` service catalogue profile cannot
-initialize the embedding credential/connection hosts; the actual DeepChat
-profile is verified by native integration and packaged-runtime smoke tests.
-
 The decision plugin admits `decision.decide` through the public non-chat connection
 owner, then invokes Aimux's existing Jev model and `decide` operation. Native
 validation, retries, deadlines, networking and cancellation remain upstream.
@@ -290,8 +282,3 @@ owns cancellation. The product account owner refreshes only the rejected lease;
 a late rejection reuses its already refreshed credential. Product grants and model
 enablement are checked before and after account work. Native managed providers
 retain their original authority and bypass this static-connection port.
-
-Generated graph preparation accepts the exact previous complete graph in addition
-to the original and current graph. It validates patch paths, resets only a known
-previous graph to the pinned original, and applies the generated patch. Unknown
-changes or partially prepared graphs still fail before mutation.

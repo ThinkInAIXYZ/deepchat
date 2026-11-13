@@ -36,7 +36,6 @@ runs:
         path: |
           ~/.cargo/registry
           ~/.cargo/git
-          native/dim-source
           native/dim-host/target
         key: ${{ runner.os }}-${{ runner.arch }}-dim-release-1.98.1-${{ hashFiles('native/dim-host/Cargo.lock', 'resources/dim-native-host-lock.json') }}
         restore-keys: ${{ runner.os }}-${{ runner.arch }}-dim-release-1.98.1-
@@ -57,7 +56,6 @@ runs:
         path: |
           ~/.cargo/registry
           ~/.cargo/git
-          native/dim-source
           native/dim-host/target
         key: ${{ steps.dim-rust-cache.outputs.cache-primary-key }}
     - name: Verify native dim owners

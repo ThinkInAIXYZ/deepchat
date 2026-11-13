@@ -172,6 +172,7 @@ export class DimProfileBackups implements SyncNativeProfilePort {
           targetDirectory: directory,
           initializeTarget: true,
           ...(manifest.sourceHome ? { sourceHome: manifest.sourceHome } : {}),
+          ...(manifest.storeFormat < identity.storeFormat ? { upgradeSource: true } : {}),
           installedDirectory: directory,
           sessionIds: [...sessionIds]
         },
@@ -276,11 +277,8 @@ export class DimProfileBackups implements SyncNativeProfilePort {
     merge?: { directory: string; manifest: DimProfileManifest; sessionIds?: string[] },
     replaceSessionIds?: string[]
   ): Promise<PreparedDimProfile> {
-    const manifest: DimProfileManifest = await validateDimProfile(
-      directory,
-      value,
-      await this.identity()
-    )
+    const identity = await this.identity()
+    const manifest = await validateDimProfile(directory, value, identity)
     await mkdir(this.options.profileRoot, { recursive: true, mode: 0o700 })
     const container = await mkdtemp(path.join(this.options.profileRoot, '.dim-restore-'))
     const next = replaceSessionIds
@@ -354,6 +352,9 @@ export class DimProfileBackups implements SyncNativeProfilePort {
                 targetDirectory: next,
                 initializeTarget: true,
                 ...(merge.manifest.sourceHome ? { sourceHome: merge.manifest.sourceHome } : {}),
+                ...(merge.manifest.storeFormat < identity.storeFormat
+                  ? { upgradeSource: true }
+                  : {}),
                 installedDirectory: replaceSessionIds ? next : target,
                 ...(merge.sessionIds ? { sessionIds: merge.sessionIds } : {})
               },
