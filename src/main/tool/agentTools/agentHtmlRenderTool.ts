@@ -28,7 +28,7 @@ const htmlField = (description: string) =>
     .refine((value) => Buffer.byteLength(value, 'utf8') <= HTML_RENDER_MAX_HTML_BYTES, {
       message: 'html must be at most 512 KB'
     })
-    .describe(description)
+    .describe(`${description} Always provide the complete HTML in new calls.`)
 
 const htmlRenderSchema = z.strictObject({
   title: z
@@ -102,6 +102,15 @@ const toParameters = (schema: z.ZodType) =>
   }
 
 const assertRenderableHtml = (html: string) => {
+  if (
+    /^\[omitted from context: \d+ characters; send the full HTML again to change it\]$/.test(
+      html.trim()
+    )
+  ) {
+    throw new Error(
+      'The html value is a context omission marker. Send the complete HTML document or section instead.'
+    )
+  }
   if (usesViewportHeightUnit(html)) {
     throw new Error(
       'The page uses vh/svh/lvh/dvh units. The frame fits the page height, so viewport-relative heights grow without bound. Use fixed pixel heights instead.'
@@ -176,11 +185,9 @@ export class AgentHtmlRenderTool {
       panelId,
       ...(parsed.data.height ? { height: parsed.data.height } : {})
     }
-    return successResult(
-      HTML_RENDER_TOOL_NAME,
-      `Rendered "${parsed.data.title}" inline. panelId: ${panelId}`,
-      { htmlRender }
-    )
+    return successResult(HTML_RENDER_TOOL_NAME, `html_render succeeded. panelId: ${panelId}`, {
+      htmlRender
+    })
   }
 
   callSection(
@@ -234,7 +241,7 @@ export class AgentHtmlRenderTool {
     this.acceptedSections.set(key, accepted)
     return successResult(
       HTML_RENDER_SECTION_TOOL_NAME,
-      `Section "${sectionId}" is in panel ${panelId}.`
+      `html_render_section succeeded. panelId: ${panelId}; sectionId: ${sectionId}`
     )
   }
 

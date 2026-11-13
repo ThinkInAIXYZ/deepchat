@@ -9,13 +9,15 @@ describe('AgentHtmlRenderTool', () => {
     const result = tool.call({ title: 'Report', html: '<main data-dc-sections></main>' })
     const panelId = result.rawData.htmlRender?.panelId
     expect(panelId).toMatch(/^[A-Za-z0-9_-]{8}$/)
-    expect(result.content).toContain(`panelId: ${panelId}`)
+    expect(result.content).toBe(`html_render succeeded. panelId: ${panelId}`)
 
     const measurePanel = vi.fn((_conversationId: string, id: string) =>
       id === panelId ? { shellBytes: 100, sectionBytes: new Map() } : null
     )
     const section = { panelId, sectionId: 'kpi', html: '<div class="card">1</div>' }
-    expect(() => tool.callSection(section, 'session-1', { measurePanel })).not.toThrow()
+    expect(tool.callSection(section, 'session-1', { measurePanel }).content).toBe(
+      `html_render_section succeeded. panelId: ${panelId}; sectionId: kpi`
+    )
     expect(measurePanel).toHaveBeenCalledWith('session-1', panelId)
     expect(() =>
       tool.callSection({ ...section, panelId: 'missing' }, 'session-1', { measurePanel })
@@ -37,6 +39,28 @@ describe('AgentHtmlRenderTool', () => {
     expect(() => call('<script src="https://unpkg.com/d3"></script>')).toThrow(/remote/)
     expect(() => call('<div>12345</div>')).toThrow(/2 MB/)
     expect(() => call('<b>')).not.toThrow()
+  })
+
+  it('rejects context omission markers for pages and sections before accepting a replacement', () => {
+    const html = '[omitted from context: 690 characters; send the full HTML again to change it]'
+    const measurePanel = vi.fn(() => ({ shellBytes: 100, sectionBytes: new Map([['s', 200]]) }))
+
+    expect(() => tool.call({ title: 'Report', html })).toThrow(/Send the complete HTML/)
+    expect(() =>
+      tool.callSection({ panelId: 'p', sectionId: 's', html: `\n${html}\n` }, 'session-1', {
+        measurePanel
+      })
+    ).toThrow(/Send the complete HTML/)
+    expect(measurePanel).not.toHaveBeenCalled()
+    expect(() =>
+      tool.callSection(
+        { panelId: 'p', sectionId: 's', html: '<p>Updated chart</p>' },
+        'session-1',
+        {
+          measurePanel
+        }
+      )
+    ).not.toThrow()
   })
 
   it('counts sections accepted earlier in the same batch before they are persisted', () => {
