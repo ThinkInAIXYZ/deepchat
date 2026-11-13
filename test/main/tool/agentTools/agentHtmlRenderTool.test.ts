@@ -41,8 +41,17 @@ describe('AgentHtmlRenderTool', () => {
     expect(() => call('<b>')).not.toThrow()
   })
 
-  it('rejects context omission markers for pages and sections before accepting a replacement', () => {
-    const html = '[omitted from context: 690 characters; send the full HTML again to change it]'
+  it.each([
+    ['plain', '%s'],
+    ['markup', '<section><p>%s</p></section>'],
+    ['quoted', '"%s"'],
+    ['code fence', '```html\n%s\n```'],
+    ['prose', 'Previous content: %s. Keep the rest.']
+  ])('rejects %s omission markers before accepting a valid replacement', (_label, wrapper) => {
+    const marker = '[omitted from context: 690 characters; send the full HTML again to change it]'
+    const html = wrapper.replace('%s', marker)
+    const validHtml = '<p>Some details were omitted from context.</p>'
+    const tool = new AgentHtmlRenderTool()
     const measurePanel = vi.fn(() => ({ shellBytes: 100, sectionBytes: new Map([['s', 200]]) }))
 
     expect(() => tool.call({ title: 'Report', html })).toThrow(/Send the complete HTML/)
@@ -52,14 +61,11 @@ describe('AgentHtmlRenderTool', () => {
       })
     ).toThrow(/Send the complete HTML/)
     expect(measurePanel).not.toHaveBeenCalled()
+    expect(() => tool.call({ title: 'Report', html: validHtml })).not.toThrow()
     expect(() =>
-      tool.callSection(
-        { panelId: 'p', sectionId: 's', html: '<p>Updated chart</p>' },
-        'session-1',
-        {
-          measurePanel
-        }
-      )
+      tool.callSection({ panelId: 'p', sectionId: 's', html: validHtml }, 'session-1', {
+        measurePanel
+      })
     ).not.toThrow()
   })
 

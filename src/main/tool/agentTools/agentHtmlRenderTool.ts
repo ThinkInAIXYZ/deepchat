@@ -102,10 +102,9 @@ const toParameters = (schema: z.ZodType) =>
   }
 
 const assertRenderableHtml = (html: string) => {
+  // Older saved conversations can still make models echo this legacy projection marker.
   if (
-    /^\[omitted from context: \d+ characters; send the full HTML again to change it\]$/.test(
-      html.trim()
-    )
+    /\[omitted from context: \d+ characters; send the full HTML again to change it\]/.test(html)
   ) {
     throw new Error(
       'The html value is a context omission marker. Send the complete HTML document or section instead.'

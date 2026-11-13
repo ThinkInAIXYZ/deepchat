@@ -176,8 +176,9 @@ under all of them.
 Validation in the handlers, each returning a tool error the model can act on:
 
 - empty or oversized `html` (512 KB per call);
-- an internal `[omitted from context: ...]` marker submitted as the entire `html` value; the
-  call fails and asks for the complete HTML, so it cannot replace a valid page or section;
+- the legacy `[omitted from context: <n> characters; send the full HTML again to change it]`
+  marker anywhere in `html`, including inside markup, quotes, or code fences; the call fails
+  and asks for the complete HTML, so it cannot replace a valid page or section;
 - a `vh`/`svh`/`lvh`/`dvh` unit (the frame fits the page, so a viewport-relative page grows with
   its frame until the cap). Long base64 runs are skipped before matching;
 - a `<script>` or `<link>` that loads from `http(s):` or `//`, naming `/lib/echarts.js` instead;
