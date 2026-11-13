@@ -1,4 +1,5 @@
 import { createDeepChatOutputProjection } from '@/session/outputProjection'
+import { mapMessagesToModelMessages } from '@/provider/aiSdk/messageMapper'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import fs from 'fs/promises'
 import os from 'os'
@@ -828,6 +829,73 @@ describe('processStream', () => {
       },
       { role: 'tool', tool_call_id: 'tc_1', content: 'result for read_file' }
     ])
+  })
+
+  it('projects render receipts only at the provider boundary while executing and saving full HTML', async () => {
+    const name = 'html_render_section'
+    const args = JSON.stringify({ panelId: 'p1', sectionId: 'chart', html: '<p>Chart</p>' })
+    const receipt = 'html_render_section succeeded. panelId: p1; sectionId: chart'
+    const toolService = createMockToolService({ [name]: receipt })
+    let callCount = 0
+    const coreStream = vi.fn(function () {
+      callCount += 1
+      if (callCount === 1) {
+        return (async function* (): AsyncGenerator<LLMCoreStreamEvent> {
+          yield { type: 'tool_call_start', tool_call_id: 'tc_1', tool_call_name: name }
+          yield {
+            type: 'tool_call_end',
+            tool_call_id: 'tc_1',
+            tool_call_arguments_complete: args
+          }
+          yield { type: 'stop', stop_reason: 'tool_use' }
+        })()
+      }
+      return (async function* (): AsyncGenerator<LLMCoreStreamEvent> {
+        yield { type: 'text', content: 'Done' }
+        yield { type: 'stop', stop_reason: 'complete' }
+      })()
+    })
+    const params = createParams({
+      coreStream,
+      tools: [makeTool(name)],
+      toolExecution: createToolExecutionPort(toolService)
+    })
+
+    const promise = processStream(params)
+    await vi.runAllTimersAsync()
+    await promise
+
+    expect(coreStream).toHaveBeenCalledTimes(2)
+    const nextRoundMessages = vi.mocked(params.coreStream).mock.calls[1][0]
+    expect(nextRoundMessages.findLastIndex((message) => message.role === 'user')).toBe(0)
+    expect(nextRoundMessages.at(-1)).toEqual({
+      role: 'tool',
+      tool_call_id: 'tc_1',
+      content: receipt
+    })
+    expect(nextRoundMessages[1].tool_calls?.[0].function).toEqual({
+      name,
+      arguments: JSON.stringify({ panelId: 'p1', sectionId: 'chart' })
+    })
+    const mapped = mapMessagesToModelMessages(nextRoundMessages, {
+      tools: [makeTool(name)],
+      supportsNativeTools: true
+    })
+    expect(mapped).toEqual([
+      { role: 'user', content: [{ type: 'text', text: 'Hello' }] },
+      { role: 'user', content: [{ type: 'text', text: receipt }] }
+    ])
+    expect(JSON.stringify(nextRoundMessages)).not.toContain('<p>Chart</p>')
+    expect(toolService.callTool).toHaveBeenCalledWith(
+      expect.objectContaining({ function: { name, arguments: args } }),
+      expect.any(Object)
+    )
+    expect(messageStore.updateAssistantContent).toHaveBeenCalledWith(
+      'm1',
+      expect.arrayContaining([
+        expect.objectContaining({ tool_call: expect.objectContaining({ params: args }) })
+      ])
+    )
   })
 
   describe('fixed lifecycle commits', () => {

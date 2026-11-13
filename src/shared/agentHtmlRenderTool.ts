@@ -10,17 +10,15 @@ export const HTML_RENDER_SECTION_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/
 export const HTML_RENDER_SECTIONS_METHOD = 'dc/html-render/sections'
 export const HTML_RENDER_SCRIPT_ERROR_METHOD = 'dc/html-render/script-error'
 
-// The page is already stored in the tool block and rendered, so model context keeps only the ids;
-// replaying the HTML would resend up to 2 MB per panel on every later request.
+// Full HTML stays in persisted tool blocks. Runtime keeps compact call/result pairs for turn
+// accounting; the provider mapper replaces completed render pairs with execution receipts.
 export const compactHtmlRenderToolArguments = (name: string, args: string): string => {
   if (name !== HTML_RENDER_TOOL_NAME && name !== HTML_RENDER_SECTION_TOOL_NAME) return args
   try {
     const value = JSON.parse(args) as { html?: unknown } | null
     if (typeof value?.html !== 'string') return args
-    return JSON.stringify({
-      ...value,
-      html: `[omitted from context: ${value.html.length} characters; send the full HTML again to change it]`
-    })
+    delete value.html
+    return JSON.stringify(value)
   } catch {
     return args
   }

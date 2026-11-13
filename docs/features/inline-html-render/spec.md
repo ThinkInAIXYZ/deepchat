@@ -176,6 +176,9 @@ under all of them.
 Validation in the handlers, each returning a tool error the model can act on:
 
 - empty or oversized `html` (512 KB per call);
+- the legacy `[omitted from context: <n> characters; send the full HTML again to change it]`
+  marker anywhere in `html`, including inside markup, quotes, or code fences; the call fails
+  and asks for the complete HTML, so it cannot replace a valid page or section;
 - a `vh`/`svh`/`lvh`/`dvh` unit (the frame fits the page, so a viewport-relative page grows with
   its frame until the cap). Long base64 runs are skipped before matching;
 - a `<script>` or `<link>` that loads from `http(s):` or `//`, naming `/lib/echarts.js` instead;
@@ -183,9 +186,10 @@ Validation in the handlers, each returning a tool error the model can act on:
   `html_render` shell in the same conversation; a panel whose shell plus latest sections would
   pass 2 MB.
 
-On success `html_render` returns `Rendered "<title>" inline. panelId: <id>` and an `htmlRender`
-descriptor; the section tool returns `Section "<id>" is in panel <panelId>.` Neither echoes the HTML
-back to the model.
+On success `html_render` returns `html_render succeeded. panelId: <id>` and an `htmlRender`
+descriptor; the section tool returns
+`html_render_section succeeded. panelId: <id>; sectionId: <id>`.
+Neither echoes HTML, character counts, or context-omission instructions back to the model.
 
 ### Sections
 
@@ -209,11 +213,30 @@ back to the model.
 The HTML already lives in the tool block's `tool_params` (stored in full in
 `deepchat_assistant_blocks`). No new file, table, or cleanup path is needed.
 
-Model context does not replay it. When the assistant history (`contextBuilder`) or the running
-turn's conversation (`dispatch`) carries an `html_render` or `html_render_section` call, the `html`
-argument is replaced by `[omitted from context: <n> characters; send the full HTML again to change it]`
-(`compactHtmlRenderToolArguments`). The model keeps the title, panel and section ids; without this,
+Model context does not replay it. `contextBuilder` and `dispatch` keep compact argument metadata
+and native call/result pairs in the internal conversation. `projectHtmlRenderHistory` in the
+provider message mapper replaces completed HTML call/result pairs with execution receipts
+in runtime-supplied `user` messages. Success receipts carry only the operation, success,
+panel id and section id. Failure receipts name the operation, failed status, and available
+panel/section ids or page title, followed by the original error. If no target can be recovered
+from the arguments, the receipt identifies the tool call by id. The projection adds no narration,
+omission explanations, or continuation instruction. Incomplete batches remain intact. In mixed
+batches, receipts follow all remaining tool results so native call/result pairs stay together.
+
+Projection happens only while mapping the provider request. It does not mutate the internal
+conversation, where `user` messages define task boundaries for context trimming and recovery.
+Execution, persisted tool inputs and rendered content retain the full HTML. Loop detection keeps
+the original completed batch. Every new call still requires complete HTML. Without projection,
 every later request would resend up to 2 MB per panel.
+
+Do not put omission text in the `html` value. In production, Grok, GLM and DeepSeek imitated that
+text in subsequent section calls, which rendered it literally and sometimes caused retry loops.
+Removing only the `html` field also proved misleading: GLM, DeepSeek and MiniMax interpreted
+successful historical calls as missing HTML, recreated panels and sometimes omitted HTML in new
+calls. Assistant-role summaries then caused GLM, DeepSeek and MiMo to narrate a new section's
+success without calling its tool. Execution receipts therefore stay outside assistant narration
+and never present incomplete arguments as an invocation to imitate or repair. Model behavior
+still requires real-model validation; structural tests cannot establish it.
 
 There is no tool to read a page back. Whatever it returned would enter the context and stay in
 every later request, and the model cannot see the render, so reading back would not verify
