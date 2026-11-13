@@ -20,13 +20,10 @@ export type RequestParameterPolicy<T> =
   | { mode: 'fixed'; value: T }
   | { mode: 'omit' }
 
-export type LegacyThinkingType = 'enabled' | 'disabled'
-
 export interface ModelRequestPolicy {
   temperature: RequestParameterPolicy<number>
   topP: RequestParameterPolicy<number>
   reasoning: RequestParameterPolicy<boolean>
-  legacyThinking: RequestParameterPolicy<LegacyThinkingType>
 }
 
 export interface MoonshotKimiTemperaturePolicy {
@@ -41,7 +38,6 @@ export interface MoonshotKimiTemperaturePolicy {
 export interface ResolvedMoonshotKimiTemperaturePolicy extends MoonshotKimiTemperaturePolicy {
   reasoningEnabled: boolean
   temperature: number
-  thinkingType: LegacyThinkingType
 }
 
 const passthrough = <T>(): RequestParameterPolicy<T> => ({ mode: 'passthrough' })
@@ -49,8 +45,7 @@ const passthrough = <T>(): RequestParameterPolicy<T> => ({ mode: 'passthrough' }
 export const createPassthroughModelRequestPolicy = (): ModelRequestPolicy => ({
   temperature: passthrough(),
   topP: passthrough(),
-  reasoning: passthrough(),
-  legacyThinking: passthrough()
+  reasoning: passthrough()
 })
 
 export const resolveCapabilityAwareRequestParameterPolicy = <T>(
@@ -126,8 +121,7 @@ export const resolveMoonshotKimiTemperaturePolicy = (
     reasoningEnabled: effectiveReasoningEnabled,
     temperature: effectiveReasoningEnabled
       ? policy.thinkingEnabledTemperature
-      : policy.thinkingDisabledTemperature,
-    thinkingType: effectiveReasoningEnabled ? 'enabled' : 'disabled'
+      : policy.thinkingDisabledTemperature
   }
 }
 
@@ -140,8 +134,7 @@ export const resolveModelRequestPolicy = (
     return {
       temperature: { mode: 'omit' },
       topP: { mode: 'omit' },
-      reasoning: { mode: 'fixed', value: true },
-      legacyThinking: { mode: 'omit' }
+      reasoning: { mode: 'fixed', value: true }
     }
   }
 
@@ -149,8 +142,7 @@ export const resolveModelRequestPolicy = (
     return {
       temperature: { mode: 'omit' },
       topP: passthrough(),
-      reasoning: passthrough(),
-      legacyThinking: passthrough()
+      reasoning: passthrough()
     }
   }
 
@@ -162,8 +154,7 @@ export const resolveModelRequestPolicy = (
   return {
     temperature: { mode: 'fixed', value: kimiPolicy.temperature },
     topP: passthrough(),
-    reasoning: { mode: 'fixed', value: kimiPolicy.reasoningEnabled },
-    legacyThinking: { mode: 'fixed', value: kimiPolicy.thinkingType }
+    reasoning: { mode: 'fixed', value: kimiPolicy.reasoningEnabled }
   }
 }
 

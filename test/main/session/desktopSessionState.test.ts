@@ -24,8 +24,7 @@ function fixture() {
       requestPolicy: {
         temperature: { mode: 'passthrough' },
         topP: { mode: 'passthrough' },
-        reasoning: { mode: 'passthrough' },
-        legacyThinking: { mode: 'passthrough' }
+        reasoning: { mode: 'passthrough' }
       },
       supportsReasoning: false,
       reasoningPortrait: null,

@@ -213,8 +213,7 @@ describe('Provider routes', () => {
       requestPolicy: {
         temperature: { mode: 'passthrough' },
         topP: { mode: 'passthrough' },
-        reasoning: { mode: 'passthrough' },
-        legacyThinking: { mode: 'passthrough' }
+        reasoning: { mode: 'passthrough' }
       },
       supportsAudioInput: false,
       supportsReasoning: true,

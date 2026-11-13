@@ -51,8 +51,7 @@ const createK3Capabilities = () => ({
   requestPolicy: {
     temperature: { mode: 'omit' as const },
     topP: { mode: 'omit' as const },
-    reasoning: { mode: 'fixed' as const, value: true },
-    legacyThinking: { mode: 'omit' as const }
+    reasoning: { mode: 'fixed' as const, value: true }
   },
   supportsAudioInput: false,
   supportsReasoning: true,

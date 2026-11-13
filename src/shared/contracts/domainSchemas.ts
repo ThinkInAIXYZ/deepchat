@@ -491,12 +491,6 @@ const BooleanRequestParameterPolicySchema = z.discriminatedUnion('mode', [
   z.object({ mode: z.literal('omit') })
 ])
 
-const LegacyThinkingRequestParameterPolicySchema = z.discriminatedUnion('mode', [
-  z.object({ mode: z.literal('passthrough') }),
-  z.object({ mode: z.literal('fixed'), value: z.enum(['enabled', 'disabled']) }),
-  z.object({ mode: z.literal('omit') })
-])
-
 export const ModelCapabilitiesSchema = z.object({
   identity: z.discriminatedUnion('catalogMatched', [
     z.object({
@@ -517,8 +511,7 @@ export const ModelCapabilitiesSchema = z.object({
   requestPolicy: z.object({
     temperature: NumberRequestParameterPolicySchema,
     topP: NumberRequestParameterPolicySchema,
-    reasoning: BooleanRequestParameterPolicySchema,
-    legacyThinking: LegacyThinkingRequestParameterPolicySchema
+    reasoning: BooleanRequestParameterPolicySchema
   }),
   supportsAudioInput: z.boolean(),
   supportsReasoning: z.boolean(),

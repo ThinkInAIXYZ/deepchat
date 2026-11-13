@@ -424,14 +424,6 @@ export class ProviderRuntime
     return this.providerInstanceManager.getExistingProviderInstance(providerId)
   }
 
-  public async getRuntimeContextLimitTokens(
-    providerId: string,
-    modelId: string,
-    signal?: AbortSignal
-  ): Promise<number | undefined> {
-    return await this.getProviderInstance(providerId).getRuntimeContextLimitTokens(modelId, signal)
-  }
-
   public streamChat(
     providerId: string,
     messages: ChatMessage[],

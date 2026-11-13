@@ -15,7 +15,6 @@ import type { ProviderLocalePort } from '../ports'
 import { normalizeOllamaSdkHost } from '../providerEndpoints'
 
 const OLLAMA_LIST_TIMEOUT_MS = 5000
-const OLLAMA_RUNTIME_CONTEXT_TIMEOUT_MS = 400
 
 export class OllamaProvider extends BaseLLMProvider {
   private static readonly CONFIG_DRAIN_TIMEOUT_MS = 1500
@@ -564,53 +563,6 @@ export class OllamaProvider extends BaseLLMProvider {
       return await Promise.all(runningModels.map(async (model) => this.attachModelInfo(model)))
     } catch {
       return []
-    }
-  }
-
-  public override async getRuntimeContextLimitTokens(
-    modelId: string,
-    signal?: AbortSignal
-  ): Promise<number | undefined> {
-    signal?.throwIfAborted()
-    const timeoutController = new AbortController()
-    let timeoutId: ReturnType<typeof setTimeout> | undefined
-    try {
-      timeoutId = setTimeout(() => {
-        timeoutController.abort(
-          new Error(
-            `Timed out after ${OLLAMA_RUNTIME_CONTEXT_TIMEOUT_MS}ms while reading Ollama runtime models`
-          )
-        )
-      }, OLLAMA_RUNTIME_CONTEXT_TIMEOUT_MS)
-      const requestSignal = signal
-        ? AbortSignal.any([signal, timeoutController.signal])
-        : timeoutController.signal
-      const runningModels = await this.listRuntimeModels(this.createOllamaClient(requestSignal))
-      const matchingModels = runningModels.filter((model) =>
-        this.matchesRequestedModelName(model.name, modelId)
-      )
-      if (matchingModels.length === 0) return undefined
-
-      const matchingLimits = matchingModels
-        .map((model) => model.runtimeContextLength)
-        .filter((value): value is number => value !== undefined)
-      if (matchingLimits.length === 0) {
-        throw new Error(
-          'Ollama did not expose runtime context_length for the running model. Upgrade Ollama to v0.9.7 or newer.'
-        )
-      }
-      return Math.min(...matchingLimits)
-    } catch (error) {
-      signal?.throwIfAborted()
-      const cause = timeoutController.signal.aborted ? timeoutController.signal.reason : error
-      throw new Error(
-        `Failed to read the Ollama runtime context for ${modelId}: ${
-          cause instanceof Error ? cause.message : String(cause)
-        }`,
-        { cause }
-      )
-    } finally {
-      if (timeoutId !== undefined) clearTimeout(timeoutId)
     }
   }
 

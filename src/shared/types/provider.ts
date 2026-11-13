@@ -250,11 +250,6 @@ export interface ProviderStreamOptions {
 export interface ProviderRuntimePort {
   getProviders(): LLM_PROVIDER[]
   getProviderById(id: string): LLM_PROVIDER
-  getRuntimeContextLimitTokens(
-    providerId: string,
-    modelId: string,
-    signal?: AbortSignal
-  ): Promise<number | undefined>
   streamChat(
     providerId: string,
     messages: ChatMessage[],
@@ -405,7 +400,6 @@ export interface ProviderRuntimePort {
 
 export type ProviderExecutionPort = Pick<
   ProviderRuntimePort,
-  | 'getRuntimeContextLimitTokens'
   | 'streamChat'
   | 'executeWithRateLimit'
   | 'generateCompletionStandalone'

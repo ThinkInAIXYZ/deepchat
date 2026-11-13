@@ -703,8 +703,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
               requestPolicy: {
                 temperature: { mode: 'passthrough' },
                 topP: { mode: 'passthrough' },
-                reasoning: { mode: 'passthrough' },
-                legacyThinking: { mode: 'passthrough' }
+                reasoning: { mode: 'passthrough' }
               },
               thinkingBudgetRange: {},
               supportsReasoningEffort: false,

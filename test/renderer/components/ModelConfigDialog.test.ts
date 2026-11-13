@@ -79,8 +79,7 @@ const createCapabilityResult = (options: SetupOptions, modelId = options.modelId
         temperatureCapability === false
           ? ({ mode: 'omit' } as const)
           : ({ mode: 'passthrough' } as const),
-      reasoning: { mode: 'passthrough' as const },
-      legacyThinking: { mode: 'passthrough' as const }
+      reasoning: { mode: 'passthrough' as const }
     },
     supportsAudioInput: false,
     supportsReasoning: options.reasoningPortrait?.supported ?? true,
@@ -291,8 +290,7 @@ describe('ModelConfigDialog reasoning portraits', () => {
       requestPolicy: {
         temperature: { mode: 'fixed', value: 1 },
         topP: { mode: 'omit' },
-        reasoning: { mode: 'passthrough' },
-        legacyThinking: { mode: 'passthrough' }
+        reasoning: { mode: 'passthrough' }
       }
     })
     const vm = wrapper.vm as any
@@ -1004,8 +1002,7 @@ describe('ModelConfigDialog reasoning portraits', () => {
       requestPolicy: {
         temperature: { mode: 'fixed', value: 1 },
         topP: { mode: 'passthrough' },
-        reasoning: { mode: 'fixed', value: true },
-        legacyThinking: { mode: 'fixed', value: 'enabled' }
+        reasoning: { mode: 'fixed', value: true }
       },
       reasoningPortrait: {
         supported: true,
@@ -1039,8 +1036,7 @@ describe('ModelConfigDialog reasoning portraits', () => {
       requestPolicy: {
         temperature: { mode: 'fixed', value: 1 },
         topP: { mode: 'passthrough' },
-        reasoning: { mode: 'fixed', value: true },
-        legacyThinking: { mode: 'fixed', value: 'enabled' }
+        reasoning: { mode: 'fixed', value: true }
       },
       reasoningPortrait: {
         supported: true,
@@ -1066,8 +1062,7 @@ describe('ModelConfigDialog reasoning portraits', () => {
       requestPolicy: {
         temperature: { mode: 'passthrough' },
         topP: { mode: 'fixed', value: 0.8 },
-        reasoning: { mode: 'passthrough' },
-        legacyThinking: { mode: 'passthrough' }
+        reasoning: { mode: 'passthrough' }
       }
     })
 
@@ -1096,8 +1091,7 @@ describe('ModelConfigDialog reasoning portraits', () => {
       requestPolicy: {
         temperature: { mode: 'omit' },
         topP: { mode: 'omit' },
-        reasoning: { mode: 'fixed', value: true },
-        legacyThinking: { mode: 'omit' }
+        reasoning: { mode: 'fixed', value: true }
       },
       reasoningPortrait: {
         supported: true,
@@ -1148,8 +1142,7 @@ describe('ModelConfigDialog reasoning portraits', () => {
       requestPolicy: {
         temperature: { mode: 'omit' },
         topP: { mode: 'omit' },
-        reasoning: { mode: 'fixed', value: true },
-        legacyThinking: { mode: 'omit' }
+        reasoning: { mode: 'fixed', value: true }
       },
       temperatureCapability: undefined
     })
@@ -1203,8 +1196,7 @@ describe('ModelConfigDialog reasoning portraits', () => {
         requestPolicy: {
           temperature: { mode: 'omit' },
           topP: { mode: 'omit' },
-          reasoning: { mode: 'fixed', value: true },
-          legacyThinking: { mode: 'omit' }
+          reasoning: { mode: 'fixed', value: true }
         }
       })
     )
@@ -1229,8 +1221,7 @@ describe('ModelConfigDialog reasoning portraits', () => {
       requestPolicy: {
         temperature: { mode: 'omit' },
         topP: { mode: 'omit' },
-        reasoning: { mode: 'fixed', value: true },
-        legacyThinking: { mode: 'omit' }
+        reasoning: { mode: 'fixed', value: true }
       },
       getCapabilities: () => Promise.reject(new Error('ipc unavailable'))
     }

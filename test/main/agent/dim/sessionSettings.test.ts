@@ -48,8 +48,7 @@ function createFixture(providerId: string, apiType: 'anthropic' | 'gemini', mode
         requestPolicy: {
           temperature: { mode: 'passthrough' },
           topP: { mode: 'passthrough' },
-          reasoning: { mode: 'passthrough' },
-          legacyThinking: { mode: 'passthrough' }
+          reasoning: { mode: 'passthrough' }
         },
         thinkingBudgetRange: {},
         reasoningEffortDefault: 'medium',

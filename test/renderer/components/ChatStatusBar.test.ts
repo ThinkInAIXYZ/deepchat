@@ -540,8 +540,7 @@ const setup = async (options: SetupOptions = {}) => {
               options.temperatureCapability === false
                 ? { mode: 'omit' }
                 : { mode: 'passthrough' },
-            reasoning: { mode: 'passthrough' },
-            legacyThinking: { mode: 'passthrough' }
+            reasoning: { mode: 'passthrough' }
           },
           supportsAudioInput: false,
           supportsReasoning: reasoningPortrait?.supported ?? true,
@@ -2223,8 +2222,7 @@ describe('ChatStatusBar model and session panels', () => {
       requestPolicy: {
         temperature: { mode: 'fixed', value: 1 },
         topP: { mode: 'fixed', value: 0.8 },
-        reasoning: { mode: 'fixed', value: true },
-        legacyThinking: { mode: 'fixed', value: 'enabled' }
+        reasoning: { mode: 'fixed', value: true }
       },
       reasoningPortrait: {
         supported: true,
@@ -2261,8 +2259,7 @@ describe('ChatStatusBar model and session panels', () => {
       requestPolicy: {
         temperature: { mode: 'omit' },
         topP: { mode: 'omit' },
-        reasoning: { mode: 'fixed', value: true },
-        legacyThinking: { mode: 'omit' }
+        reasoning: { mode: 'fixed', value: true }
       },
       extraModelGroups: [
         {
@@ -2318,8 +2315,7 @@ describe('ChatStatusBar model and session panels', () => {
       requestPolicy: {
         temperature: { mode: 'omit' },
         topP: { mode: 'omit' },
-        reasoning: { mode: 'fixed', value: true },
-        legacyThinking: { mode: 'omit' }
+        reasoning: { mode: 'fixed', value: true }
       },
       extraModelGroups: [
         {
