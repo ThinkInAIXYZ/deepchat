@@ -48,7 +48,8 @@ const windowsPackagePaths = new Set([
   'build/icon.ico',
   'build/nsis-installer.nsh',
   'resources/icon.ico',
-  'resources/win_tray.ico'
+  'resources/win_tray.ico',
+  'scripts/install-uv.mjs'
 ])
 
 const linuxPackagePaths = new Set([
