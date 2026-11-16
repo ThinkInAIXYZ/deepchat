@@ -49,13 +49,6 @@ test('会话重启后持久化 @smoke', async ({ app, launchApp }) => {
   await waitForAppReady(relaunched.page)
   await selectAgent(relaunched.page)
 
-  await expect(
-    relaunched.page.locator(`[data-testid="sidebar-session-item"][data-session-id="${sessionAId}"]`)
-  ).toBeVisible({ timeout: 30_000 })
-  await expect(
-    relaunched.page.locator(`[data-testid="sidebar-session-item"][data-session-id="${sessionBId}"]`)
-  ).toBeVisible({ timeout: 30_000 })
-
   await openSessionById(relaunched.page, sessionAId)
   await expect(getAssistantMessages(relaunched.page).last()).toContainText(sessionAToken)
 

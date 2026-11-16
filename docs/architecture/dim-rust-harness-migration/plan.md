@@ -16,7 +16,7 @@
 - [x] 完整 main 8037 项、renderer 2758 项、release Native smoke 34 项、格式、i18n、lint、双端类型和生产构建通过。额外通过 v3 scope 升级专项及本机 release 宿主离线检查。
 - [x] 离线 Electron E2E 64 项通过。隔离本地数据的真实旧会话验证了 6 组 native 工具配对、Code Mode 续聊和重启恢复，源数据库哈希不变。
 - [x] 合并 `dev` 的 HTML 历史修复。模型请求使用渲染回执，原生 Timeline 保留完整页面和区块；Code Mode、媒体、会话持久化和 HTML 的 5 项 Electron 回归通过。
-- [ ] 复验 4 项真实模型 Electron E2E。隔离副本使用临时工作区，Anthropic thinking 启用时剔除 Aimux 拒绝的采样字段。
+- [x] 使用隔离的本地配置和 MiniMax-M3 验证基础聊天、会话重启、服务商连接和窄窗口输入框。原生配置在 Anthropic thinking 启用时剔除不兼容的采样参数，E2E 通过侧栏控件恢复折叠状态。
 
 提交验收以 [PR #2511 Checks](https://github.com/ThinkInAIXYZ/deepchat/pull/2511/checks) 的 required CI 和六平台 verification 打包为准。macOS distribution 签名和公证由发布工作流验收。
 
