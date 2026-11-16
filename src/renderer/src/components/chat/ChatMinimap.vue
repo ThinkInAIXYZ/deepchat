@@ -185,7 +185,7 @@ const markTop = (index: number) => `${index * MARK_PITCH}px`
       :aria-valuemin="1"
       :aria-valuemax="Math.max(props.ticks.length, 1)"
       :aria-valuenow="(activeIndex ?? 0) + 1"
-      class="dc-overscroll-contain relative flex h-full w-full flex-col overflow-y-auto pr-2 focus-visible:outline-none"
+      class="dc-overscroll-contain relative flex h-full w-full flex-col overflow-y-auto pr-2 [scrollbar-width:none] focus-visible:outline-none"
       data-testid="chat-minimap-rail"
       @click="onRailClick"
       @keydown="onRailKeydown"

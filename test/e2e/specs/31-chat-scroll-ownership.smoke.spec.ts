@@ -125,6 +125,7 @@ test('ChatPage restores virtualized history and keeps exclusive scrollbar owners
   const rail = await minimap.boundingBox()
   expect(scrollbar.right).toBeCloseTo(region!.x + region!.width)
   expect(scrollbar.right - (rail!.x + rail!.width)).toBeCloseTo(scrollbar.width)
+  await expect(minimap.getByTestId('chat-minimap-rail')).toHaveCSS('scrollbar-width', 'none')
   await viewport.evaluate((element) => {
     element.scrollTop = element.scrollHeight
   })
