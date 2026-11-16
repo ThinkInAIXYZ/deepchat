@@ -39,16 +39,17 @@
           />
         </div>
       </div>
-      <!-- The message map gets a column of its own beside the scroll container, so it is never
-           clipped by the side panel and never squeezed when the window is narrow. -->
-      <div data-testid="chat-viewport-region" class="relative flex min-h-0 min-w-0 flex-row">
+      <div
+        data-testid="chat-viewport-region"
+        class="chat-viewport-region relative grid min-h-0 min-w-0"
+      >
         <div
           ref="scrollContainer"
           data-testid="chat-page"
           role="region"
           :aria-label="sessionTitle"
           tabindex="0"
-          class="message-list-container relative h-full min-h-0 min-w-0 flex-1 overflow-y-auto"
+          class="message-list-container relative col-span-full row-start-1 h-full min-h-0 min-w-0 overflow-y-auto"
           :class="{ 'dc-list-scrolling': isListScrolling }"
           @scroll.passive="onScroll"
           @scrollend.passive="listGestures.onListScrollEnd"
@@ -62,7 +63,7 @@
           @pointerup.passive="listGestures.onListPointerEnd"
           @pointercancel.passive="listGestures.onListPointerEnd"
         >
-          <div ref="messageSearchRoot" class="min-h-full">
+          <div ref="messageSearchRoot" class="min-h-full" :class="{ 'pr-16': showChatMinimap }">
             <div
               v-if="messageStore.isLoadingHistory"
               data-testid="history-loading-indicator"
@@ -137,8 +138,9 @@
             <div class="h-px w-full" aria-hidden="true" />
           </div>
         </div>
-        <!-- Sits outside the scroll container so the rail keeps its position while the list moves. -->
+        <!-- The rail stays fixed in the reserved space before the transcript's scrollbar. -->
         <ChatMinimap
+          class="col-start-2 row-start-1"
           :visible="showChatMinimap"
           :ticks="minimapTicks"
           :viewport="minimapViewport"
@@ -1743,6 +1745,15 @@ onUnmounted(() => {
 </script>
 
 <style>
+.chat-viewport-region {
+  --chat-scrollbar-width: 8px;
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr) auto var(--chat-scrollbar-width);
+}
+
+.message-list-container::-webkit-scrollbar {
+  width: var(--chat-scrollbar-width);
+}
+
 .message-list-container {
   scrollbar-gutter: stable both-edges;
   /* Avoid will-change: scroll-position — it promotes a huge layer and hurts

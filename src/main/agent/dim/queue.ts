@@ -17,6 +17,7 @@ interface NativePendingInput {
   createdAt: number
   applied: boolean
   input: {
+    submission_id?: string
     mode?: 'queue' | 'steer' | 'append'
     user?: { content: Array<{ type: string; text?: string }> }
   }
@@ -43,7 +44,10 @@ export class DimQueue {
     this.legacy = new DimLegacyQueue(options)
   }
 
-  readonly listPendingInputs = async (sessionId: string): Promise<PendingSessionInputRecord[]> => {
+  readonly listPendingInputs = async (
+    sessionId: string,
+    admittedInputId?: string
+  ): Promise<PendingSessionInputRecord[]> => {
     const binding = this.options.database.dimSessionBindingsTable.get(sessionId)
     if (!binding) return this.legacy.passive(sessionId)
     const client = await this.options.host.start()
@@ -54,8 +58,17 @@ export class DimQueue {
       sessionId: binding.dimSessionId,
       branchId: binding.branchId
     })
+    const desktopPrefix = `desktop:${JSON.stringify(sessionId)}:`
     const native = inputs
       .filter((item) => item.input.user && item.input.mode !== 'append')
+      // An ordinary send at the head is already going to the transcript. Keep waiting inputs
+      // behind it visible, including ordinary sends that genuinely landed behind a queue.
+      .filter(
+        (item, index) =>
+          item.inputId === admittedInputId ||
+          !item.input.submission_id?.startsWith(desktopPrefix) ||
+          (index > 0 && !item.applied)
+      )
       .map((item, index): PendingSessionInputRecord => {
         const representation = item.representation
         const payload: SendMessageInput = representation
@@ -105,14 +118,18 @@ export class DimQueue {
     await this.options.prepareNative(sessionId)
     options?.signal?.throwIfAborted()
     const receipt = await this.options.runtime.submit(sessionId, prepared.content, {
-      ...(options?.submissionId
-        ? { submissionId: `desktop:${JSON.stringify(sessionId)}:${options.submissionId}` }
+      ...(options?.source === 'send' || options?.submissionId
+        ? {
+            submissionId: `desktop:${JSON.stringify(sessionId)}:${options?.submissionId ?? randomUUID()}`
+          }
         : {}),
       representation: prepared.representation
     })
     // The owner may consume it before this response. Admission still succeeded.
     return (
-      (await this.listPendingInputs(sessionId)).find((item) => item.id === receipt.inputId) ?? {
+      (await this.listPendingInputs(sessionId, receipt.inputId)).find(
+        (item) => item.id === receipt.inputId
+      ) ?? {
         id: receipt.inputId,
         sessionId,
         mode: 'queue',

@@ -26,9 +26,7 @@ import {
  * route the request through the scroll controller, so every programmatic scroll still carries an
  * explicit reason.
  *
- * The rail lives in its own column beside the scroll container rather than floating over it: the
- * column reserves the space, so the marks are never clipped by the side panel and never squeezed
- * when the window is narrow, and the message list's scrollbar keeps its own gutter.
+ * The parent reserves space for the rail between the message content and its scrollbar.
  */
 const props = defineProps<{
   visible: boolean

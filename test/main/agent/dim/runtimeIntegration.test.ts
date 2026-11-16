@@ -1197,9 +1197,6 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
         holdQueue = true
         await send('hold the native queue fixture')
         await expect.poll(() => Boolean(heldQueueResponse)).toBe(true)
-        const a = await send('queue A')
-        const b = await send('queue B')
-        const c = await send('queue C')
         const queueRuntime = new DimSessionRuntime({
           database: grants.data,
           host,
@@ -1228,6 +1225,15 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
             summary: { status: 'ready', issues: [] }
           })
         })
+        const direct = await queue.queuePendingInput(
+          'product-ui',
+          { text: 'Send directly' },
+          { source: 'send', submissionId: 'direct-send' }
+        )
+        expect(direct.state).toBe('pending')
+        const a = await send('queue A')
+        const b = await send('queue B')
+        const c = await send('queue C')
         expect((await queue.listPendingInputs('product-ui')).map((item) => item.id)).toEqual([
           a.inputId,
           b.inputId,

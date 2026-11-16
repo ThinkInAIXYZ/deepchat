@@ -115,6 +115,16 @@ test('ChatPage restores virtualized history and keeps exclusive scrollbar owners
   await app.page.screenshot({ path: testInfo.outputPath('restored-virtual-history.png') })
 
   const viewport = app.page.getByTestId('chat-page')
+  const minimap = app.page.getByTestId('chat-minimap')
+  await expect(minimap).toBeVisible()
+  const scrollbar = await viewport.evaluate((element) => ({
+    right: element.getBoundingClientRect().right,
+    width: parseFloat(getComputedStyle(element, '::-webkit-scrollbar').width)
+  }))
+  const region = await app.page.getByTestId('chat-viewport-region').boundingBox()
+  const rail = await minimap.boundingBox()
+  expect(scrollbar.right).toBeCloseTo(region!.x + region!.width)
+  expect(scrollbar.right - (rail!.x + rail!.width)).toBeCloseTo(scrollbar.width)
   await viewport.evaluate((element) => {
     element.scrollTop = element.scrollHeight
   })
