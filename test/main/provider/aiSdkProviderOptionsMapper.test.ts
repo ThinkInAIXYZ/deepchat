@@ -1212,15 +1212,18 @@ describe('AI SDK provider options', () => {
     expect(result.providerOptions).toBeUndefined()
   })
 
-  it('keeps google thinking config when tools are present without adding vertex-only options', () => {
+  it('keeps the google budget on budget models without adding vertex-only options', () => {
+    mockGetReasoningPortrait.mockReturnValue({ supported: true, mode: 'budget' })
+
     const result = buildProviderOptions({
       providerId: 'google',
       capabilityProviderId: 'google',
       providerOptionsKey: 'google',
       apiType: 'google',
-      modelId: 'gemini-3.1-flash-lite-preview',
+      modelId: 'gemini-2.5-flash',
       modelConfig: {
         reasoning: true,
+        reasoningEffort: 'high',
         thinkingBudget: 1024
       },
       tools: [

@@ -192,11 +192,6 @@ export function buildProviderOptions(
       reasoningEffort: modelConfig.reasoningEffort
     }
   )
-  const hasThinkingConfig =
-    modelConfig.thinkingBudget !== undefined || Boolean(modelConfig.reasoningEffort)
-  const shouldSendThinkingConfig =
-    hasThinkingConfig && (reasoningPortrait ? reasoningEnabled : true)
-
   const promptCachePlan = resolvePromptCachePlan({
     providerId: params.providerId,
     apiType:
@@ -399,37 +394,29 @@ export function buildProviderOptions(
       break
     }
 
-    case 'google': {
-      const config: Record<string, unknown> = {}
-      if (shouldSendThinkingConfig) {
+    case 'google':
+    case 'vertex': {
+      const config: Record<string, unknown> =
+        params.apiType === 'vertex' ? { streamFunctionCallArguments: params.tools.length > 0 } : {}
+      const thinkingLevel =
+        reasoningPortrait?.mode === 'budget' ? undefined : modelConfig.reasoningEffort
+      // The Gemini API rejects requests with both a thinking level and a token budget.
+      const thinkingBudget =
+        thinkingLevel || reasoningPortrait?.mode === 'level'
+          ? undefined
+          : modelConfig.thinkingBudget
+      if (
+        (!reasoningPortrait || reasoningEnabled) &&
+        (thinkingLevel || thinkingBudget !== undefined)
+      ) {
         config.thinkingConfig = {
-          ...(reasoningPortrait?.mode !== 'level' && modelConfig.thinkingBudget !== undefined
-            ? { thinkingBudget: modelConfig.thinkingBudget }
-            : {}),
-          ...(modelConfig.reasoningEffort ? { thinkingLevel: modelConfig.reasoningEffort } : {}),
+          ...(thinkingLevel ? { thinkingLevel } : { thinkingBudget }),
           includeThoughts: true
         }
       }
       if (Object.keys(config).length > 0) {
         providerOptions[params.providerOptionsKey] = config
       }
-      break
-    }
-
-    case 'vertex': {
-      const config: Record<string, unknown> = {
-        streamFunctionCallArguments: params.tools.length > 0
-      }
-      if (shouldSendThinkingConfig) {
-        config.thinkingConfig = {
-          ...(reasoningPortrait?.mode !== 'level' && modelConfig.thinkingBudget !== undefined
-            ? { thinkingBudget: modelConfig.thinkingBudget }
-            : {}),
-          ...(modelConfig.reasoningEffort ? { thinkingLevel: modelConfig.reasoningEffort } : {}),
-          includeThoughts: true
-        }
-      }
-      providerOptions[params.providerOptionsKey] = config
       break
     }
   }

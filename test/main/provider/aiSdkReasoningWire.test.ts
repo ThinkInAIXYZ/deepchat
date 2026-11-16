@@ -217,20 +217,29 @@ describe('AI SDK reasoning wire payloads', () => {
     ['grok', 'grok-4.5', 'medium', 'responses'],
     ['grok', 'grok-4.6', 'xhigh', 'responses'],
     ['gemini', 'gemini-3-flash-preview', 'minimal', 'gemini'],
-    ['vertex', 'gemini-3-flash-preview', 'low', 'vertex']
+    ['gemini', 'gemini-4-hydrogen', 'xhigh', 'gemini'],
+    ['vertex', 'gemini-3-flash-preview', 'low', 'vertex'],
+    ['vertex', 'gemini-4-hydrogen', 'xhigh', 'vertex']
   ] as const)(
     'serializes %s %s effort %s through %s',
     async (providerId, modelId, effort, endpoint) => {
       const portrait: ReasoningPortrait =
-        endpoint === 'gemini' || endpoint === 'vertex'
+        modelId === 'gemini-4-hydrogen'
           ? {
               supported: true,
               defaultEnabled: true,
-              mode: 'level',
-              level: 'high',
-              levelOptions: ['minimal', 'low', 'medium', 'high']
+              mode: 'effort',
+              effortOptions: ['low', 'medium', 'high', 'xhigh']
             }
-          : { supported: true, defaultEnabled: true, effortOptions: [effort] }
+          : endpoint === 'gemini' || endpoint === 'vertex'
+            ? {
+                supported: true,
+                defaultEnabled: true,
+                mode: 'level',
+                level: 'high',
+                levelOptions: ['minimal', 'low', 'medium', 'high']
+              }
+            : { supported: true, defaultEnabled: true, effortOptions: [effort] }
       const body = await captureRequestBody(() =>
         runAiSdkGenerateText(
           {
