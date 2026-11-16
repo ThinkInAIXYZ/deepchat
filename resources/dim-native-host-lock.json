@@ -59,6 +59,10 @@
     {
       "path": "crates/dim-agent-capabilities/src/history.rs",
       "sha256": "47527e6a52e338fb5d1cc454be41e1addc9d6e9a51bb9da4fe0edb54aa356e99"
+    },
+    {
+      "path": "vendor/aimux/aimux-providers/src/google/language_model_options.rs",
+      "sha256": "0b2935ace7207d3ac317275240e8d464d5c1eb349f8d0abb5d5bd725eb62610f"
     }
   ]
 }

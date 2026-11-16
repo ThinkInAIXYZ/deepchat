@@ -168,6 +168,20 @@ const titleFile = 'crates/dim-session-title/src/lib.rs'
 const decisionFile = 'vendor/aimux/aimux-providers/src/jev.rs'
 const commandFile = 'crates/dim-agent-capabilities/src/host_platform.rs'
 const digest = (content) => createHash('sha256').update(content).digest('hex')
+const googleOptionsFile = 'vendor/aimux/aimux-providers/src/google/language_model_options.rs'
+const googleOptionsOriginal = git(['show', `HEAD:${googleOptionsFile}`]) + '\n'
+const googleLevels = 'Some("minimal" | "low" | "medium" | "high")'
+if (googleOptionsOriginal.split(googleLevels).length !== 2)
+  throw new Error('Native Google thinking level validation seam changed')
+const googleOptionsExpected = googleOptionsOriginal.replace(
+  googleLevels,
+  'Some("minimal" | "low" | "medium" | "high" | "xhigh")'
+)
+const googleOptionsCurrent = await readFile(path.join(directory, googleOptionsFile), 'utf8')
+if (googleOptionsCurrent !== googleOptionsOriginal && googleOptionsCurrent !== googleOptionsExpected)
+  throw new Error('Pinned native Google options have unexpected changes')
+if (googleOptionsCurrent !== googleOptionsExpected)
+  await writeFile(path.join(directory, googleOptionsFile), googleOptionsExpected)
 const historyFile = 'crates/dim-agent-capabilities/src/history.rs'
 const historyOriginal = git(['show', `HEAD:${historyFile}`]) + '\n'
 const historyBefore = '            EventKind::ModelStart(data) => {'
@@ -231,7 +245,8 @@ git([
   `:!${titleFile}`,
   `:!${decisionFile}`,
   `:!${commandFile}`,
-  `:!${historyFile}`
+  `:!${historyFile}`,
+  `:!${googleOptionsFile}`
 ])
 if (current !== expected) await writeFile(path.join(directory, filename), expected)
 // Add an explicit host-value replacement to the builder's assembly API. It changes no
@@ -534,6 +549,7 @@ export const nativeSource = {
     { path: titleFile, sha256: createHash('sha256').update(titleExpected).digest('hex') },
     { path: decisionFile, sha256: digest(decisionExpected) },
     { path: commandFile, sha256: digest(commandExpected) },
-    { path: historyFile, sha256: digest(historyExpected) }
+    { path: historyFile, sha256: digest(historyExpected) },
+    { path: googleOptionsFile, sha256: digest(googleOptionsExpected) }
   ]
 }

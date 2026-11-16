@@ -13,7 +13,7 @@ vi.unmock('fs')
 vi.unmock('node:fs')
 
 it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
-  'sends Anthropic manual/adaptive and Gemini budget/effort reasoning through native HTTP',
+  'sends Anthropic, Gemini and Vertex reasoning settings through native HTTP',
   async () => {
     const requests: Array<{ url: string; body: Record<string, unknown> }> = []
     const fixtureErrors: unknown[] = []
@@ -70,10 +70,27 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
             )
           return
         }
+        if (request.url?.match(/:(?:streamGenerateContent|generateContent)(?:\?|$)/)) {
+          const data = {
+            candidates: [
+              {
+                content: { role: 'model', parts: [{ text: 'Fixture reply' }] },
+                finishReason: 'STOP'
+              }
+            ],
+            usageMetadata: { promptTokenCount: 8, candidatesTokenCount: 1, totalTokenCount: 9 }
+          }
+          const streaming = request.url.includes(':streamGenerateContent')
+          response
+            .writeHead(200, {
+              'Content-Type': streaming ? 'text/event-stream' : 'application/json'
+            })
+            .end(streaming ? `data: ${JSON.stringify(data)}\n\n` : JSON.stringify(data))
+          return
+        }
       } catch (error) {
         fixtureErrors.push(error)
       }
-      // A non-retryable failure is sufficient: assertions inspect the real native wire body.
       response.writeHead(400, { 'Content-Type': 'application/json' }).end(
         JSON.stringify({
           error: { type: 'invalid_request_error', message: 'Local fixture only' }
@@ -107,7 +124,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
       modelId: string
       reasoningPortrait: ReasoningPortrait
       thinkingBudget?: number
-      reasoningEffort?: 'high' | 'none'
+      reasoningEffort?: 'high' | 'none' | 'xhigh'
       expected: Record<string, unknown>
     }> = [
       {
@@ -167,17 +184,26 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
         thinkingBudget: 2048,
         reasoningEffort: 'high',
         expected: { generationConfig: { thinkingConfig: { thinkingLevel: 'high' } } }
-      }
+      },
+      ...['gemini', 'vertex'].map((providerKind) => ({
+        providerKind,
+        modelId: 'gemini-4-hydrogen',
+        reasoningPortrait: { mode: 'effort' as const },
+        thinkingBudget: 2048,
+        reasoningEffort: 'xhigh' as const,
+        expected: { generationConfig: { thinkingConfig: { thinkingLevel: 'xhigh' } } }
+      }))
     ]
     try {
       for (const scenario of scenarios) {
         const { providerKind, modelId, reasoningPortrait } = scenario
+        const vertex = providerKind === 'vertex'
         const model = await bridge.configure({
-          key: `reasoning-fixture/${modelId}`,
+          key: `reasoning-fixture/${providerKind}/${modelId}`,
           displayName: 'Local reasoning fixture',
           connection: {
-            driverKind: providerKind,
-            baseUrl: `http://127.0.0.1:${(fixture.address() as { port: number }).port}/v1`,
+            driverKind: vertex ? 'gemini' : providerKind,
+            baseUrl: `http://127.0.0.1:${(fixture.address() as { port: number }).port}/v1${vertex ? '/publishers/google' : ''}`,
             auth: { type: 'anonymous' }
           },
           model: {
@@ -214,9 +240,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
           undefined,
           parameters
         )
-        if (providerKind === 'anthropic')
-          await expect(completion).resolves.toMatchObject({ text: 'Fixture reply' })
-        else await expect(completion).rejects.toThrow()
+        await expect(completion).resolves.toMatchObject({ text: 'Fixture reply' })
         expect(fixtureErrors).toEqual([])
         expect(requests).toHaveLength(before + 1)
         const captured = requests[before]
@@ -233,7 +257,8 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
         if (providerKind === 'anthropic' && reasoningPortrait.mode === 'effort') {
           expect(captured.body.thinking).not.toHaveProperty('budget_tokens')
         }
-        if (providerKind === 'gemini') {
+        if (providerKind === 'gemini' || vertex) {
+          if (vertex) expect(captured.url).toContain('/publishers/google/models/')
           const config = captured.body.generationConfig as { thinkingConfig: object }
           expect(config.thinkingConfig).not.toHaveProperty(
             scenario.reasoningEffort ? 'thinkingBudget' : 'thinkingLevel'

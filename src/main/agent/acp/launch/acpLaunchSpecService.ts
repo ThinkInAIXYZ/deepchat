@@ -3,7 +3,7 @@ import os from 'os'
 import path from 'path'
 import { execFileSync } from 'child_process'
 import { createHash } from 'crypto'
-import { unzipSync } from 'fflate'
+import { strFromU8, unzipSync } from 'fflate'
 import type { AcpAgentConfig } from '@shared/types/acp'
 import type {
   AcpAgentInstallState,
@@ -85,6 +85,58 @@ const listFilesRecursive = (root: string): string[] => {
     files.push(fullPath)
   }
   return files
+}
+
+const readZipFileModes = (archive: Buffer): Map<string, number> => {
+  const modes = new Map<string, number>()
+  const firstEndOffset = Math.max(0, archive.length - 22 - 0xffff)
+  let endOffset = archive.length - 22
+  while (
+    endOffset >= firstEndOffset &&
+    (archive.readUInt32LE(endOffset) !== 0x06054b50 ||
+      endOffset + 22 + archive.readUInt16LE(endOffset + 20) > archive.length)
+  ) {
+    endOffset--
+  }
+  if (endOffset < firstEndOffset) {
+    throw new Error('Invalid ZIP central directory')
+  }
+
+  let count = archive.readUInt16LE(endOffset + 10)
+  let offset = archive.readUInt32LE(endOffset + 16)
+  if (endOffset >= 20 && archive.readUInt32LE(endOffset - 20) === 0x07064b50) {
+    const zip64Offset = Number(archive.readBigUInt64LE(endOffset - 12))
+    if (zip64Offset > archive.length - 56 || archive.readUInt32LE(zip64Offset) !== 0x06064b50) {
+      throw new Error('Invalid ZIP central directory')
+    }
+    count = Number(archive.readBigUInt64LE(zip64Offset + 32))
+    offset = Number(archive.readBigUInt64LE(zip64Offset + 48))
+  }
+
+  for (let index = 0; index < count; index++) {
+    if (offset + 46 > archive.length || archive.readUInt32LE(offset) !== 0x02014b50) {
+      throw new Error('Invalid ZIP central directory')
+    }
+    const nameLength = archive.readUInt16LE(offset + 28)
+    const nameEnd = offset + 46 + nameLength
+    const nextOffset =
+      nameEnd + archive.readUInt16LE(offset + 30) + archive.readUInt16LE(offset + 32)
+    if (nextOffset > archive.length) {
+      throw new Error('Invalid ZIP central directory')
+    }
+
+    const host = archive[offset + 5]
+    const mode = archive.readUInt32LE(offset + 38) >>> 16
+    const kind = mode & 0o170000
+    const permissions = mode & 0o777
+    if ((host === 3 || host === 19) && permissions !== 0 && (kind === 0 || kind === 0o100000)) {
+      const flags = archive.readUInt16LE(offset + 8)
+      const name = strFromU8(archive.subarray(offset + 46, nameEnd), !(flags & 0x0800))
+      modes.set(name, permissions)
+    }
+    offset = nextOffset
+  }
+  return modes
 }
 
 export class AcpLaunchSpecService {
@@ -217,7 +269,11 @@ export class AcpLaunchSpecService {
       }
 
       if (process.platform !== 'win32') {
-        fs.chmodSync(installedCommand, 0o755)
+        try {
+          fs.accessSync(installedCommand, fs.constants.X_OK)
+        } catch {
+          fs.chmodSync(installedCommand, 0o755)
+        }
       }
 
       return {
@@ -448,7 +504,17 @@ export class AcpLaunchSpecService {
     const lowerName = archivePath.toLowerCase()
 
     if (lowerName.endsWith('.zip')) {
-      const archive = unzipSync(new Uint8Array(fs.readFileSync(archivePath)))
+      const archiveData = fs.readFileSync(archivePath)
+      const archive = unzipSync(archiveData)
+      let modes: Map<string, number> | undefined
+      if (process.platform !== 'win32') {
+        try {
+          // fflate returns file contents without the Unix modes stored in the central directory.
+          modes = readZipFileModes(archiveData)
+        } catch {
+          modes = undefined
+        }
+      }
       Object.entries(archive).forEach(([entryPath, content]) => {
         const normalized = sanitizeRelativePath(entryPath)
         const outputPath = path.join(targetDir, normalized)
@@ -457,7 +523,16 @@ export class AcpLaunchSpecService {
           return
         }
         ensureDir(path.dirname(outputPath))
+        fs.rmSync(outputPath, { force: true })
         fs.writeFileSync(outputPath, Buffer.from(content))
+        const mode = modes?.get(entryPath)
+        if (mode !== undefined) {
+          try {
+            fs.chmodSync(outputPath, mode)
+          } catch {
+            // Keep installation working on mounts that reject chmod; main command is checked later.
+          }
+        }
       })
       return
     }
