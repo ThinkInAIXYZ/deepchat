@@ -373,7 +373,7 @@ export function projectDimEvent(
         )
         if (!block?.tool_call) continue
         const toolResult = value.result
-        block.tool_call.response = JSON.stringify(toolResult)
+        let displayResponse: string | undefined
         if (toolResult && typeof toolResult === 'object' && !Array.isArray(toolResult)) {
           const structured = toolResult.structuredContent
           const display =
@@ -381,7 +381,7 @@ export function projectDimEvent(
               ? structured.deepchatDisplay
               : null
           if (display && typeof display === 'object' && !Array.isArray(display)) {
-            if (typeof display.response === 'string') block.tool_call.response = display.response
+            if (typeof display.response === 'string') displayResponse = display.response
             const html = display.htmlRender
             if (
               toolResult.isError !== true &&
@@ -412,6 +412,7 @@ export function projectDimEvent(
                 ) as unknown as ToolCallImagePreview[]
           }
         }
+        block.tool_call.response = displayResponse ?? JSON.stringify(toolResult)
         block.status =
           toolResult &&
           typeof toolResult === 'object' &&

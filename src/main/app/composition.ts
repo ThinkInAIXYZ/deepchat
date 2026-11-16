@@ -2214,6 +2214,11 @@ export async function createMainProcessControl(dependencies: {
         dependencies: agentToolDependencies
       }),
       mcp: mcpService,
+      cacheImage: agentToolDependencies.cacheImage,
+      supportsVision: async (nativeSessionId) => {
+        const { model } = await dimScopes.describe(nativeSessionId)
+        return providerSettings.getModelConfig(model.modelId, model.providerId).vision
+      },
       selection: async (id) => {
         const session = appSessionService.get(id)
         if (!session) throw new Error('Desktop session is unavailable')

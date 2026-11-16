@@ -4,10 +4,18 @@ import type { AgentToolManager } from '@/tool/agentTools/agentToolManager'
 import type { DimSessionBinding } from '@/session/data/tables/dimSessionBindings'
 import type { DimDesktopTool } from '@/agent/dim/productTools'
 import type { McpService } from '@/mcp'
+import { dimContentBlocks } from '@/agent/dim/auxiliaryModels'
+import {
+  cacheToolCallImagePreviews,
+  extractScreenshotPreview,
+  type CacheImageCallback
+} from '@/lib/toolCallImagePreviews'
 
 interface DesktopToolsOptions {
   desktop: Pick<AgentToolManager, 'getAllToolDefinitions' | 'callTool'>
   mcp: Pick<McpService, 'getAllToolDefinitions' | 'callTool'>
+  cacheImage: CacheImageCallback
+  supportsVision(sessionId: string): Promise<boolean>
   selection(sessionId: string): Promise<{
     agentId: string
     disabled: string[]
@@ -35,6 +43,36 @@ export function createDimDesktopTools(options: DesktopToolsOptions) {
           signal,
           commitDispatch: () => signal.throwIfAborted()
         })
+        if (call.name === 'cdp_send' && (typeof result === 'string' || !result.rawData?.isError)) {
+          const screenshot = extractScreenshotPreview(
+            call.name,
+            JSON.stringify(call.arguments),
+            typeof result === 'string' ? result : result.content
+          )
+          if (screenshot) {
+            const [preview] = await cacheToolCallImagePreviews({
+              imagePreviews: [{ ...screenshot, id: 'screenshot-1' }],
+              cacheImage: options.cacheImage,
+              signal
+            })
+            const supportsVision = await options.supportsVision(call.sessionId)
+            signal.throwIfAborted()
+            const response = 'Screenshot captured.'
+            return {
+              content: supportsVision
+                ? dimContentBlocks([{ type: 'image_url', image_url: { url: screenshot.data } }])
+                : `${response} The current model cannot view images.`,
+              structuredContent: {
+                deepchatDisplay: {
+                  response,
+                  imagePreviews: preview?.data?.startsWith('imgcache://')
+                    ? [{ ...preview, data: preview.data }]
+                    : []
+                }
+              }
+            }
+          }
+        }
         if (typeof result === 'string') return { content: result }
         return {
           content: result.content,

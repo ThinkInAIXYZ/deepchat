@@ -3,7 +3,72 @@ import { TOOL_EXECUTION } from '@shared/types/mcp'
 import { DimProductTools, type DimDesktopTool } from '@/agent/dim/productTools'
 import { DimScopes, type DimScopeDescription } from '@/agent/dim/scopes'
 import type { DimPluginClient } from '@/agent/dim/pluginClient'
+import { createDimDesktopTools } from '@/app/dimDesktopTools'
 import { dimDatabase } from './fixtures/database'
+
+it.each([true, false])('bridges browser screenshots as images for vision=%s', async (vision) => {
+  const data = Buffer.from('fixture screenshot bytes').toString('base64')
+  const supportsVision = vi.fn(async () => vision)
+  const catalog = createDimDesktopTools({
+    desktop: {
+      getAllToolDefinitions: async () => [
+        {
+          type: 'function',
+          execution: TOOL_EXECUTION.write,
+          function: {
+            name: 'cdp_send',
+            description: '',
+            parameters: { type: 'object', properties: {} }
+          },
+          server: { name: 'yobrowser', icons: '', description: '' }
+        }
+      ],
+      callTool: async () => ({ content: JSON.stringify({ data }) })
+    },
+    mcp: { getAllToolDefinitions: async () => [], callTool: vi.fn() },
+    cacheImage: vi.fn(async () => 'imgcache://screenshot.webp'),
+    supportsVision,
+    selection: async () => ({ agentId: 'deepchat', disabled: [], bridgeServerNames: [] })
+  })
+  const { data: database, sqlite } = dimDatabase()
+  try {
+    const binding = database.dimSessionBindingsTable.bind('desktop', 'native')
+    const [tool] = await catalog(binding)
+    const result = await tool.execute(
+      {
+        sessionId: 'native',
+        branchId: binding.branchId,
+        turnId: 'turn',
+        callId: 'capture',
+        name: 'cdp_send',
+        arguments: { method: 'Page.captureScreenshot', params: { format: 'webp' } }
+      },
+      new AbortController().signal
+    )
+    expect(supportsVision).toHaveBeenCalledWith('native')
+    expect(result.content).toEqual(
+      vision
+        ? [{ type: 'image', source: { type: 'base64', mediaType: 'image/webp', data } }]
+        : 'Screenshot captured. The current model cannot view images.'
+    )
+    expect(result.structuredContent).toEqual({
+      deepchatDisplay: {
+        response: 'Screenshot captured.',
+        imagePreviews: [
+          {
+            id: 'screenshot-1',
+            data: 'imgcache://screenshot.webp',
+            mimeType: 'image/webp',
+            title: 'Page.captureScreenshot',
+            source: 'screenshot'
+          }
+        ]
+      }
+    })
+  } finally {
+    sqlite.close()
+  }
+})
 
 describe('desktop capability scope', () => {
   it('rejects a retired scope after asynchronous authorization', async () => {

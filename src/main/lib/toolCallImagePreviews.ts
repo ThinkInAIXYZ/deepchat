@@ -156,7 +156,7 @@ function resolveScreenshotMimeType(format: unknown): string {
   return 'image/png'
 }
 
-function extractScreenshotPreview(
+export function extractScreenshotPreview(
   toolName: string | undefined,
   toolArgs: string | undefined,
   content: string | MCPContentItem[]
