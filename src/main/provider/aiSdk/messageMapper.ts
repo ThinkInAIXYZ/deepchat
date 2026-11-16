@@ -2,6 +2,7 @@ import type { ChatMessage, ChatMessageContent } from '@shared/types/core/chat-me
 import type { MCPToolDefinition } from '@shared/types/mcp'
 import { generateId, type FilePart, type ModelMessage, type TextPart } from 'ai'
 import { applyLegacyFunctionCallPrompt } from './middlewares/legacyFunctionCallMiddleware'
+import { projectHtmlRenderHistory } from './htmlRenderHistory'
 import {
   buildFunctionCallRecordContent,
   serializeChatMessageContent,
@@ -336,7 +337,8 @@ export function mapMessagesToModelMessages(
     return source.shift()
   }
 
-  const modelMessages = messages.reduce<ModelMessage[]>((acc, message) => {
+  const projectedMessages = projectHtmlRenderHistory(messages)
+  const modelMessages = projectedMessages.reduce<ModelMessage[]>((acc, message) => {
     if (message.role === 'system') {
       acc.push({
         role: 'system',

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
+import { mapMessagesToModelMessages } from '@/provider/aiSdk/messageMapper'
 import {
   buildCacheAwareContextWithMetadata,
   buildCacheAwareResumeContextWithMetadata,
@@ -641,19 +642,30 @@ describe('buildContext', () => {
     ])
   })
 
-  it('replays html_render calls without their HTML', () => {
-    const record = makeAssistantErrorWithToolRecord(2, 'Rendering', 'panelId: p1', 'stopped')
+  it.each([
+    ['html_render', { title: 'Chart', height: 360 }, 'html_render succeeded. panelId: p1'],
+    [
+      'html_render_section',
+      { panelId: 'p1', sectionId: 'chart' },
+      'html_render_section succeeded. panelId: p1; sectionId: chart'
+    ]
+  ] as const)('projects historical %s as a result receipt only at the provider boundary', (name, metadata, receipt) => {
+    const record = makeAssistantErrorWithToolRecord(2, 'Rendering', receipt, 'stopped')
     const blocks = JSON.parse(record.content)
-    blocks[1].tool_call.name = 'html_render'
-    blocks[1].tool_call.params = JSON.stringify({ title: 'Chart', html: '<p>chart</p>' })
+    blocks[1].tool_call.name = name
+    blocks[1].tool_call.params = JSON.stringify({ ...metadata, html: '<p>chart</p>' })
     record.content = JSON.stringify(blocks)
+    const storedContent = record.content
     const store = createMockMessageStore([makeUserRecord(1, 'chart it'), record])
     const result = buildContext('s1', { text: 'continue', files: [] }, '', 10000, 4096, store)
 
-    expect(JSON.parse(result[1].tool_calls![0].function.arguments)).toEqual({
-      title: 'Chart',
-      html: '[omitted from context: 12 characters; send the full HTML again to change it]'
-    })
+    expect(JSON.parse(result[1].tool_calls![0].function.arguments)).toEqual(metadata)
+    expect(result[2]).toMatchObject({ role: 'tool', content: receipt })
+    const mapped = mapMessagesToModelMessages(result, { tools: [], supportsNativeTools: true })
+    expect(mapped).toContainEqual({ role: 'user', content: [{ type: 'text', text: receipt }] })
+    expect(mapped.some((message) => message.role === 'tool')).toBe(false)
+    expect(JSON.stringify(result)).not.toContain('<p>chart</p>')
+    expect(record.content).toBe(storedContent)
   })
 
   it('replays settled tool calls before appending terminal failure context', () => {
