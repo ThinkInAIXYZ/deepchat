@@ -63,6 +63,10 @@
     {
       "path": "vendor/aimux/aimux-providers/src/google/language_model_options.rs",
       "sha256": "0b2935ace7207d3ac317275240e8d464d5c1eb349f8d0abb5d5bd725eb62610f"
+    },
+    {
+      "path": "crates/dim-agent-capabilities/src/context_usage/sources.rs",
+      "sha256": "702cf65c63776d0fae594cd4b69304b421aa6963a6f5be81eee1e83904a108e6"
     }
   ]
 }

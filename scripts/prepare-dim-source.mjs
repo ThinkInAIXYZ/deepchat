@@ -182,6 +182,26 @@ if (googleOptionsCurrent !== googleOptionsOriginal && googleOptionsCurrent !== g
   throw new Error('Pinned native Google options have unexpected changes')
 if (googleOptionsCurrent !== googleOptionsExpected)
   await writeFile(path.join(directory, googleOptionsFile), googleOptionsExpected)
+const usageFile = 'crates/dim-agent-capabilities/src/context_usage/sources.rs'
+const usageOriginal = git(['show', `HEAD:${usageFile}`]) + '\n'
+const usageRecovery = '(Some(Configuration::Unavailable { .. }), Ok(_)) => {'
+const usageChange = `                if matches!(previous, Some(Configuration::Ready { .. })) {
+                    return Err(fault("context contribution algorithm changed"));
+                }
+`
+if (usageOriginal.split(usageRecovery).length !== 2 || usageOriginal.split(usageChange).length !== 2)
+  throw new Error('Native context usage rebuild seam changed')
+// Reuse dim's timeline rebuild when an upgrade enables a counter or a model changes its rules.
+const usageExpected = usageOriginal
+  .replace(
+    usageRecovery,
+    '(Some(Configuration::Unavailable { .. } | Configuration::Unsupported { .. }), Ok(_)) => {'
+  )
+  .replace(usageChange, '')
+const usageCurrent = await readFile(path.join(directory, usageFile), 'utf8')
+if (usageCurrent !== usageOriginal && usageCurrent !== usageExpected)
+  throw new Error('Pinned native context usage has unexpected changes')
+if (usageCurrent !== usageExpected) await writeFile(path.join(directory, usageFile), usageExpected)
 const historyFile = 'crates/dim-agent-capabilities/src/history.rs'
 const historyOriginal = git(['show', `HEAD:${historyFile}`]) + '\n'
 const historyBefore = '            EventKind::ModelStart(data) => {'
@@ -246,7 +266,8 @@ git([
   `:!${decisionFile}`,
   `:!${commandFile}`,
   `:!${historyFile}`,
-  `:!${googleOptionsFile}`
+  `:!${googleOptionsFile}`,
+  `:!${usageFile}`
 ])
 if (current !== expected) await writeFile(path.join(directory, filename), expected)
 // Add an explicit host-value replacement to the builder's assembly API. It changes no
@@ -550,6 +571,7 @@ export const nativeSource = {
     { path: decisionFile, sha256: digest(decisionExpected) },
     { path: commandFile, sha256: digest(commandExpected) },
     { path: historyFile, sha256: digest(historyExpected) },
-    { path: googleOptionsFile, sha256: digest(googleOptionsExpected) }
+    { path: googleOptionsFile, sha256: digest(googleOptionsExpected) },
+    { path: usageFile, sha256: digest(usageExpected) }
   ]
 }

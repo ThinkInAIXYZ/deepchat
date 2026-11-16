@@ -609,6 +609,8 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
             mark('image: historical feedback, queue, cancellation and fork')
             const vision = await catalog.admit(provider.id, 'vision-chat')
             await controls.call('set_model', ref, { ...vision })
+            const usage = await controls.call<{ estimatedInputTokens: number }>('context', ref)
+            expect(usage.estimatedInputTokens).toBeGreaterThanOrEqual(1600)
             await client.call('deepchat.host.input', {
               ...ref,
               mode: 'queue',

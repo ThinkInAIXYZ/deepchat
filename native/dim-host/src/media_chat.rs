@@ -697,7 +697,7 @@ impl ResolveContextModel for MediaContext {
                         .as_ref()
                         .is_some_and(|snapshot| snapshot.capabilities.vision)
                     {
-                        Arc::new(crate::media_history::VisionContext { base })
+                        Arc::new(crate::media_history::VisionContext::new(base))
                             as Arc<dyn ContextModel>
                     } else {
                         base
