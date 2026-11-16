@@ -282,7 +282,7 @@ describeIfSqlite('DeepChatAssistantBlocksTable html_render panels', () => {
     return { db, table }
   }
 
-  it('measures the shell plus the latest version of each section in the same session', () => {
+  it('measures and reads the latest successful sections without applying failed replacements', () => {
     const { db, table } = createTables()
     table.replaceForMessage('message-1', [
       {
@@ -300,8 +300,19 @@ describeIfSqlite('DeepChatAssistantBlocksTable html_render panels', () => {
       },
       sectionBlock(1, 'a', 'aaaa')
     ])
-    table.replaceForMessage('message-2', [sectionBlock(2, 'b', 'bb'), sectionBlock(3, 'a', 'a')])
-    table.replaceForMessage('message-other', [sectionBlock(4, 'c', 'cccccccc')])
+    const rejected = sectionBlock(
+      4,
+      'a',
+      '<p>[omitted from context: 690 characters; send the full HTML again to change it]</p>'
+    )
+    rejected.status = 'error'
+    rejected.tool_call!.response = 'Error: Send the complete HTML document or section instead.'
+    table.replaceForMessage('message-2', [
+      sectionBlock(2, 'b', 'bb'),
+      sectionBlock(3, 'a', 'a'),
+      rejected
+    ])
+    table.replaceForMessage('message-other', [sectionBlock(5, 'c', 'cccccccc')])
 
     expect(table.measureHtmlRenderPanel('session-1', 'panel-1')).toEqual({
       shellBytes: 18,

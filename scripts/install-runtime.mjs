@@ -152,11 +152,11 @@ export function buildRuntimeInstallPlan({
   }
 
   return runtimes.map(({ type, version }) =>
-    type === 'cloudflared'
+    type === 'cloudflared' || (type === 'uv' && platform === 'win32')
       ? {
           command: process.execPath,
           args: [
-            path.join(repositoryRoot, 'scripts', 'install-cloudflared.mjs'),
+            path.join(repositoryRoot, 'scripts', `install-${type}.mjs`),
             platform,
             arch,
             path.join(rootDir, 'runtime', type)
