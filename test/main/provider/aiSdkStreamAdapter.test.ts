@@ -712,6 +712,11 @@ describe('AI SDK stream adapter', () => {
       { code: 'provider_finish_error' }
     ],
     [
+      'interrupted',
+      'Provider stream ended before completing the response.',
+      { code: 'provider_finish_interrupted' }
+    ],
+    [
       'other',
       'Provider stopped the response for an unspecified reason: provider-specific',
       { code: 'provider_finish_other' }

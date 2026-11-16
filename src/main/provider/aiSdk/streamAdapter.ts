@@ -348,7 +348,8 @@ export async function* adaptAiSdkStream(
           yield createStreamEvent.stop('tool_use')
           break
         }
-        switch (part.finishReason) {
+        // Newer provider packages can emit interrupted before the ai package types include it.
+        switch (part.finishReason as typeof part.finishReason | 'interrupted') {
           case 'stop':
             yield createStreamEvent.stop('complete')
             break
@@ -368,6 +369,12 @@ export async function* adaptAiSdkStream(
           case 'error':
             yield createStreamEvent.error('Provider stopped the response because of an error.', {
               code: 'provider_finish_error'
+            })
+            yield createStreamEvent.stop('error')
+            break
+          case 'interrupted':
+            yield createStreamEvent.error('Provider stream ended before completing the response.', {
+              code: 'provider_finish_interrupted'
             })
             yield createStreamEvent.stop('error')
             break
