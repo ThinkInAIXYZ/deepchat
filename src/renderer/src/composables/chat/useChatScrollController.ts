@@ -146,20 +146,18 @@ export function useChatScrollController(options: ChatScrollControllerOptions) {
     }
 
     updateState({ type: 'request-committed', requestId: request.id })
-    options.onCommitted?.(targetTop, request)
-    if (Math.abs(viewport.scrollTop - targetTop) < 1) {
+    const moved = Math.abs(viewport.scrollTop - targetTop) >= 1
+    if (moved) {
+      writeCommittedThisFrame = true
+      committedScroll = { request, expectedTop: targetTop }
+      viewport.scrollTop = targetTop
+    } else {
       committedScroll = null
-      scheduleVerification(request)
-      return
     }
-
-    writeCommittedThisFrame = true
-    committedScroll = { request, expectedTop: targetTop }
-    viewport.scrollTop = targetTop
+    options.onCommitted?.(targetTop, request)
     scheduleVerification(request)
-    // Expire the immediate-write guard at the next frame boundary even when
-    // there is no second request waiting to be committed.
-    scheduleCommit()
+    // Expire the write guard at the next frame boundary even without a queued request.
+    if (moved) scheduleCommit()
   }
 
   const scheduleCommit = () => {
@@ -235,6 +233,7 @@ export function useChatScrollController(options: ChatScrollControllerOptions) {
   const requestImmediate = (input: RequestInput): number | null => acceptRequest(input, true)
 
   const notifyUserGestureStart = (_kind: 'wheel' | 'touch' | 'pointer' | 'keyboard') => {
+    if (state.value.userOwned && state.value.activeGesture && !arbiter.active) return
     cancelFrames()
     queue.clear()
     arbiter.cancelAll()
@@ -280,7 +279,9 @@ export function useChatScrollController(options: ChatScrollControllerOptions) {
       })
     }
     if (state.value.mode === 'following') {
-      return request({
+      // ResizeObserver runs after animation-frame callbacks. Pin before the changed
+      // content paints, subject to the same one-write-per-frame guard as navigation.
+      return requestImmediate({
         sessionEpoch: state.value.sessionEpoch,
         reason: 'auto-follow',
         target: { kind: 'bottom' }

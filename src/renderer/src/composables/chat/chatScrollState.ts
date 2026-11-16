@@ -95,7 +95,9 @@ export function reduceChatScrollState(
     case 'user-gesture-end':
       return { ...state, activeGesture: false }
     case 'bottom-proximity-changed':
-      return { ...state, nearBottom: event.nearBottom }
+      return state.nearBottom === event.nearBottom
+        ? state
+        : { ...state, nearBottom: event.nearBottom }
     case 'return-to-bottom':
     case 'submit-started':
       return {

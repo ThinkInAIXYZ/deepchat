@@ -23,7 +23,7 @@
 
     <div
       :id="bodyId"
-      class="grid w-full overflow-hidden transition-[grid-template-rows,opacity,margin-top] duration-[var(--dc-motion-default)] ease-[var(--dc-ease-out-express)] motion-reduce:transition-none"
+      class="grid w-full overflow-clip transition-[grid-template-rows,opacity,margin-top] duration-[var(--dc-motion-default)] ease-[var(--dc-ease-out-express)] motion-reduce:transition-none"
       :class="
         isExpanded
           ? 'mt-1.5 grid-rows-[1fr] opacity-100'
@@ -35,7 +35,7 @@
     >
       <div
         v-if="shouldRenderBody"
-        class="min-h-0 min-w-0 flex flex-col w-full gap-0.5 overflow-hidden"
+        class="min-h-0 min-w-0 flex flex-col w-full gap-0.5 overflow-clip"
         data-testid="activity-group-body"
       >
         <template v-for="(block, index) in blocks" :key="blockKeys[index]">

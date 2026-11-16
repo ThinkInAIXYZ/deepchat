@@ -79,10 +79,10 @@
                 "
                 :block="item.block"
                 :usage="currentMessage.usage"
-                :initially-expanded="manuallyExpandedBlockKeys.has(item.key) || undefined"
+                :initially-expanded="standaloneActivityExpansion.get(item.key)"
                 :data-activity-key="item.key"
                 @toggle-collapse="handleCollapseToggle"
-                @manual-toggle="handleManualActivityToggle(item.key, $event)"
+                @manual-toggle="standaloneActivityExpansion.set(item.key, $event)"
               />
               <MessageBlockSearch
                 v-else-if="isProviderSearchBlock(item.block)"
@@ -96,14 +96,14 @@
                 :thread-id="currentThreadId"
                 :read-only="isReadOnly"
                 :render-mode="hasInlineView(item.block) ? 'tool-only' : 'full'"
-                :initially-expanded="manuallyExpandedBlockKeys.has(item.key)"
+                :initially-expanded="standaloneActivityExpansion.get(item.key)"
                 :permission-status="
                   item.block.tool_call?.id
                     ? permissionStatusByToolCallId[item.block.tool_call.id]
                     : undefined
                 "
                 :data-activity-key="item.key"
-                @manual-toggle="handleManualActivityToggle(item.key, $event)"
+                @manual-toggle="standaloneActivityExpansion.set(item.key, $event)"
               />
               <MessageBlockQuestionRequest
                 v-else-if="
@@ -239,7 +239,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
 import {
   type DisplayAssistantMessage,
   type DisplayAssistantMessageBlock,
@@ -493,37 +493,15 @@ const shouldGroupActivity = computed(() => {
   return currentMessage.value.status !== 'pending'
 })
 
-const manuallyExpandedBlockKeys = ref(new Set<string>())
+// Keep a manually toggled row in place when a stream finishes and when it closes.
+const standaloneActivityExpansion = ref(new Map<string, boolean>())
 // Disclosure inside an existing group must not change that group's membership.
 const groupedActivityExpansion = ref(new Map<string, boolean>())
-
-const handleManualActivityToggle = (key: string, expanded: boolean) => {
-  const focusedElement = document.activeElement as HTMLElement | null
-  const restoreFocus =
-    focusedElement?.closest<HTMLElement>('[data-activity-key]')?.dataset.activityKey === key
-  if (expanded) {
-    manuallyExpandedBlockKeys.value.add(key)
-  } else {
-    manuallyExpandedBlockKeys.value.delete(key)
-  }
-  if (restoreFocus) {
-    void nextTick(() => {
-      if (focusedElement?.isConnected || document.activeElement !== document.body) return
-      const group = currentRenderItems.value.find(
-        (item) => item.kind === 'activity-group' && item.blockKeys.includes(key)
-      )
-      const target = Array.from(
-        rootRef.value?.querySelectorAll<HTMLElement>('[data-activity-key]') ?? []
-      ).find((element) => element.dataset.activityKey === (group?.key ?? key))
-      target?.querySelector('button')?.focus({ preventScroll: true })
-    })
-  }
-}
 
 watch(
   () => currentMessage.value.id,
   () => {
-    manuallyExpandedBlockKeys.value.clear()
+    standaloneActivityExpansion.value.clear()
     groupedActivityExpansion.value.clear()
   }
 )
@@ -554,7 +532,7 @@ const currentRenderItems = computed(() =>
     messageId: currentMessage.value.id,
     messageUpdatedAt: currentMessage.value.updatedAt,
     shouldGroup: shouldGroupActivity.value,
-    expandedBlockKeys: manuallyExpandedBlockKeys.value
+    standaloneActivityExpansion: standaloneActivityExpansion.value
   })
 )
 

@@ -87,13 +87,13 @@ describe('MessageBlockThink', () => {
     })
     const content = wrapper.findComponent({ name: 'ThinkContent' })
 
-    content.vm.$emit('toggle')
+    expect(content.props('expanded')).toBe(false)
     content.vm.$emit('toggle')
     resolveSetting(true)
     await flushPromises()
 
     expect(content.props('expanded')).toBe(true)
-    expect(wrapper.emitted('manual-toggle')).toEqual([[false], [true]])
+    expect(wrapper.emitted('manual-toggle')).toEqual([[true]])
   })
 
   it('renders seconds from block.reasoning_time when present', async () => {

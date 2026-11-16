@@ -586,7 +586,7 @@ describe('MessageItemAssistant', () => {
   })
 
   it.each(['MessageBlockThink', 'MessageBlockToolCall'])(
-    'preserves a manually expanded %s when the reply finishes',
+    'keeps a manually toggled %s in place after the reply finishes and on collapse',
     async (componentName) => {
       const blocks = [createThinkingBlock({ id: 'think-1' }), createToolCallBlock()]
       const wrapper = mount(MessageItemAssistant, {
@@ -619,8 +619,8 @@ describe('MessageItemAssistant', () => {
       expandedBlock.vm.$emit('manual-toggle', false)
       await nextTick()
 
-      expect(wrapper.findComponent({ name: componentName }).exists()).toBe(false)
-      expect(wrapper.get('[data-testid="activity-group"]').attributes('data-block-count')).toBe('2')
+      expect(wrapper.findComponent({ name: componentName }).element).toBe(originalElement)
+      expect(wrapper.find('[data-testid="activity-group"]').exists()).toBe(false)
     }
   )
 

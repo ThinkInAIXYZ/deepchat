@@ -63,7 +63,12 @@
           @pointerup.passive="listGestures.onListPointerEnd"
           @pointercancel.passive="listGestures.onListPointerEnd"
         >
-          <div ref="messageSearchRoot" class="min-h-full" :class="{ 'pr-16': showChatMinimap }">
+          <div
+            ref="messageSearchRoot"
+            class="min-h-full"
+            :class="{ 'pr-16': showChatMinimap }"
+            @click.capture="onMessageDisclosureClick"
+          >
             <div
               v-if="messageStore.isLoadingHistory"
               data-testid="history-loading-indicator"
@@ -540,9 +545,8 @@ const chatScrollController = useChatScrollController({
     const originTop = getMessageWindowOriginTop(container)
     return originTop === null ? null : originTop + entry.top
   },
-  onCommitted() {
-    const container = scrollContainer.value
-    if (container) syncMessageViewportMetrics(container)
+  onCommitted(_, request) {
+    if (request.reason !== 'auto-follow') syncMessageViewportMetrics()
   }
 })
 const TOP_HISTORY_THRESHOLD = 80
@@ -739,10 +743,8 @@ function connectChatGeometryObserver(): void {
   if (!viewport || !messageRoot) return
 
   viewportResizeObserver = new ResizeObserver(() => {
-    const currentViewport = scrollContainer.value
-    if (!currentViewport) return
-    syncMessageViewportMetrics(currentViewport)
     chatScrollController.notifyViewportResize()
+    scheduleScrollMetricsRead()
   })
   viewportResizeObserver.observe(viewport)
   viewportResizeObserver.observe(messageRoot)
@@ -779,9 +781,17 @@ function scheduleScrollMetricsRead() {
 
 function onWheel(event: WheelEvent) {
   if (event.deltaY === 0) return
-  userGestureSeq += 1
-  chatScrollController.notifyUserGestureStart('wheel')
   listGestures.markWheelScrollIntent(event.deltaY < 0)
+}
+
+function onMessageDisclosureClick(event: MouseEvent) {
+  const button =
+    event.target instanceof Element &&
+    event.target.closest('button[aria-expanded]:not([aria-haspopup])')
+  if (!button || !button.closest('[data-message-id]')) return
+  userGestureSeq += 1
+  chatScrollController.notifyUserGestureStart('pointer')
+  chatScrollController.notifyUserGestureEnd()
 }
 
 function onScroll() {
@@ -1299,7 +1309,7 @@ watch(
   [
     () => messageStore.messageIds.length,
     () => messageStore.currentStreamMessageId,
-    () => messageStore.streamRevision,
+    () => (typeof ResizeObserver === 'undefined' ? messageStore.streamRevision : 0),
     () => messageStore.lastPersistedRevision,
     () => ephemeralRateLimitMessageId.value
   ],

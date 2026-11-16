@@ -16,6 +16,9 @@ test('ChatPage restores virtualized history and keeps exclusive scrollbar owners
   await waitForAppReady(initial.page)
   const ids = await initial.page.evaluate(async () => {
     await window.deepchat.invoke('config.setLanguage', { language: 'en-US' })
+    await window.deepchat.invoke('config.updateEntries', {
+      changes: [{ key: 'think_collapse', value: true }]
+    })
     const ids: string[] = []
     for (let index = 0; index < 2; index += 1) {
       const { session } = await window.deepchat.invoke('sessions.create', {
@@ -52,9 +55,42 @@ test('ChatPage restores virtualized history and keeps exclusive scrollbar owners
           const content =
             role === 'user'
               ? JSON.stringify({ text, files: [], links: [], search: false, think: false })
-              : JSON.stringify([
-                  { type: 'content', content: text, status: 'success', timestamp: now + index }
-                ])
+              : JSON.stringify(
+                  sessionIndex === 0
+                    ? [
+                        {
+                          type: 'content',
+                          content: text,
+                          status: 'success',
+                          timestamp: now + index
+                        }
+                      ]
+                    : [
+                        {
+                          type: 'reasoning_content',
+                          content: 'Reasoning to disclose.\n\n'.repeat(12),
+                          status: 'success',
+                          timestamp: now
+                        },
+                        { type: 'content', content: text, status: 'success', timestamp: now },
+                        {
+                          type: 'tool_call',
+                          tool_call: {
+                            id: 'scroll-tool',
+                            name: 'fixture',
+                            response: 'Output\n'.repeat(80)
+                          },
+                          status: 'success',
+                          timestamp: now
+                        },
+                        {
+                          type: 'content',
+                          content: 'After the tool.\n\n'.repeat(48),
+                          status: 'success',
+                          timestamp: now
+                        }
+                      ]
+                )
           insert.run(
             `scroll-${sessionIndex}-${index}`,
             sessionId,
@@ -110,6 +146,30 @@ test('ChatPage restores virtualized history and keeps exclusive scrollbar owners
   await expect(app.page.getByTestId('chat-message-assistant')).toContainText(
     'Second conversation evidence.'
   )
+  await historyViewport.evaluate((element) => (element.scrollTop = 0))
+  const thinking = historyViewport.getByRole('button', { name: /Thought for/ })
+  await expect(thinking).toHaveAttribute('aria-expanded', 'false')
+  const initialThinkingTop = (await thinking.boundingBox())!.y
+  await thinking.click()
+  await expect(thinking).toHaveAttribute('aria-expanded', 'true')
+  await expect(historyViewport.getByText('Reasoning to disclose.').first()).toBeVisible()
+  expect((await thinking.boundingBox())!.y).toBeCloseTo(initialThinkingTop)
+  await thinking.click()
+  await expect(historyViewport.getByText('Reasoning to disclose.')).toHaveCount(0)
+  expect((await thinking.boundingBox())!.y).toBeCloseTo(initialThinkingTop)
+
+  await historyViewport.getByTestId('tool-call-trigger').click()
+  const toolOutput = historyViewport.getByTestId('tool-call-details').locator('pre')
+  await toolOutput.hover()
+  await app.page.mouse.wheel(0, 150)
+  await expect.poll(() => toolOutput.evaluate((element) => element.scrollTop)).toBeGreaterThan(0)
+  await toolOutput.evaluate((element) => (element.scrollTop = element.scrollHeight))
+  const outerTop = await historyViewport.evaluate((element) => element.scrollTop)
+  await app.page.mouse.wheel(0, 300)
+  await expect
+    .poll(() => historyViewport.evaluate((element) => element.scrollTop))
+    .toBeGreaterThan(outerTop)
+
   await activate(ids[0])
   await expect(app.page.getByText('history-row-239:', { exact: false }).first()).toBeVisible()
   await app.page.screenshot({ path: testInfo.outputPath('restored-virtual-history.png') })

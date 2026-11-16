@@ -24,6 +24,7 @@ test('local streaming preserves an editable composer and completes the response 
     releaseBackground = resolve
   })
   let streamCount = 0
+  let appendFirstResponse = (_content: string) => {}
   const streamedInputs: string[] = []
   const firstPrompt = 'Render the local streaming fixture.'
   const followupPrompt = 'Keep one instance of this message while the reply streams.'
@@ -92,6 +93,7 @@ test('local streaming preserves an editable composer and completes the response 
         })}\n\n`
       )
     emit(markdown)
+    if (streamCount === 0) appendFirstResponse = emit
     streamedInputs.push(JSON.stringify(input.messages))
     streamCount += 1
     await (streamCount === 1 ? released : streamCount === 2 ? followupReleased : backgroundReleased)
@@ -156,6 +158,32 @@ test('local streaming preserves an editable composer and completes the response 
     await editor.fill(draft)
     await expect(editor).toHaveText(draft)
     await expect(shell).toHaveAttribute('data-generating', 'true')
+
+    const viewport = shell.getByTestId('chat-page')
+    const bottomGap = () =>
+      viewport.evaluate(
+        (element) => element.scrollHeight - element.clientHeight - element.scrollTop
+      )
+    await expect(shell.getByRole('heading', { name: 'Section 31', exact: true })).toBeVisible()
+    await expect.poll(bottomGap).toBeLessThanOrEqual(1)
+    // The pinned host flushes an open text block once it buffers at least 4 KiB.
+    const streamedBatch = '\n\n' + 'Continue the streaming fixture. '.repeat(160) + '\n\n'
+    appendFirstResponse(streamedBatch + '## Follow while streaming\n\n')
+    await expect(shell.getByRole('heading', { name: 'Follow while streaming' })).toBeInViewport()
+
+    const viewportBox = (await viewport.boundingBox())!
+    await app.page.mouse.move(viewportBox.x + 30, viewportBox.y + viewportBox.height / 2)
+    await app.page.mouse.wheel(0, -500)
+    await expect.poll(bottomGap).toBeGreaterThan(250)
+    const readingTop = await viewport.evaluate((element) => element.scrollTop)
+    appendFirstResponse(streamedBatch + '## Keep reading during streaming\n\n')
+    await expect(
+      shell.getByRole('heading', { name: 'Keep reading during streaming' })
+    ).toBeVisible()
+    expect(await viewport.evaluate((element) => element.scrollTop)).toBeCloseTo(readingTop)
+    await shell.getByTestId('scroll-to-latest-return').click()
+    await expect.poll(bottomGap).toBeLessThanOrEqual(1)
+
     releaseResponse()
     await completion
     await expect(app.page.getByTestId('chat-message-assistant')).toContainText('Stream complete.')

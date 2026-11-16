@@ -29,7 +29,7 @@ export type BuildAssistantRenderItemsOptions = {
   messageId: string
   messageUpdatedAt: number
   shouldGroup: boolean
-  expandedBlockKeys?: ReadonlySet<string>
+  standaloneActivityExpansion?: ReadonlyMap<string, boolean>
 }
 
 export type ActivityDurationLabels = {
@@ -144,7 +144,7 @@ export const buildAssistantRenderItems = ({
   messageId,
   messageUpdatedAt,
   shouldGroup,
-  expandedBlockKeys
+  standaloneActivityExpansion
 }: BuildAssistantRenderItemsOptions): AssistantRenderItem[] => {
   const items: AssistantRenderItem[] = []
   const keyOccurrences = new Map<string, number>()
@@ -211,7 +211,11 @@ export const buildAssistantRenderItems = ({
     }
 
     const standaloneKey = hasInlineView(block) ? `${blockKey}:tool` : blockKey
-    if (shouldGroup && isCompletedActivityBlock(block) && !expandedBlockKeys?.has(standaloneKey)) {
+    if (
+      shouldGroup &&
+      isCompletedActivityBlock(block) &&
+      !standaloneActivityExpansion?.has(standaloneKey)
+    ) {
       activityBuffer.push({ block, key: blockKey })
       return
     }
