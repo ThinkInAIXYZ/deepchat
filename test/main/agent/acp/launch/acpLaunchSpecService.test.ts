@@ -164,8 +164,8 @@ describe('AcpLaunchSpecService', () => {
     async () => {
       const service = createService()
       const platformKey = getCurrentPlatformKey()
-      const archive = zipSync(
-        {
+      const rawZip = Buffer.from(
+        zipSync({
           agent: [
             Buffer.from('#!/bin/sh\nexec "${0%/*}/helpers/辅助程序"\n'),
             { os: 3, attrs: 0o100755 << 16 }
@@ -174,10 +174,13 @@ describe('AcpLaunchSpecService', () => {
             Buffer.from('#!/bin/sh\nprintf helper-ok\n'),
             { os: 19, attrs: 0o100555 << 16 }
           ],
-          'resources/config.json': [Buffer.from('{}'), { os: 3, attrs: 0o100640 << 16 }]
-        },
-        { comment: 'ACP permissions' }
+          'resources/config.json': [Buffer.from('{}'), { os: 3, attrs: 0o100640 << 16 }],
+          'resources/untyped.txt': [Buffer.from('plain'), { os: 3, attrs: 0o100000 << 16 }]
+        })
       )
+      const archiveComment = Buffer.from('ACP permissions')
+      rawZip.writeUInt16LE(archiveComment.length, rawZip.length - 2)
+      const archive = Buffer.concat([rawZip, archiveComment, Buffer.from('trailing-bytes')])
       vi.stubGlobal(
         'fetch',
         vi.fn(async () => new Response(archive))
@@ -201,6 +204,10 @@ describe('AcpLaunchSpecService', () => {
         expect(fs.statSync(path.join(installDir, 'agent')).mode & 0o777).toBe(0o755)
         expect(fs.statSync(path.join(installDir, 'helpers/辅助程序')).mode & 0o777).toBe(0o555)
         expect(fs.statSync(path.join(installDir, 'resources/config.json')).mode & 0o777).toBe(0o640)
+        expect(fs.statSync(path.join(installDir, 'resources/untyped.txt')).mode & 0o400).toBe(0o400)
+        expect(fs.readFileSync(path.join(installDir, 'resources/untyped.txt'), 'utf-8')).toBe(
+          'plain'
+        )
         expect(execFileSync(path.join(installDir, 'agent'), { encoding: 'utf-8' })).toBe(
           'helper-ok'
         )

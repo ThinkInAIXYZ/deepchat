@@ -94,7 +94,7 @@ const readZipFileModes = (archive: Buffer): Map<string, number> => {
   while (
     endOffset >= firstEndOffset &&
     (archive.readUInt32LE(endOffset) !== 0x06054b50 ||
-      endOffset + 22 + archive.readUInt16LE(endOffset + 20) !== archive.length)
+      endOffset + 22 + archive.readUInt16LE(endOffset + 20) > archive.length)
   ) {
     endOffset--
   }
@@ -128,10 +128,11 @@ const readZipFileModes = (archive: Buffer): Map<string, number> => {
     const host = archive[offset + 5]
     const mode = archive.readUInt32LE(offset + 38) >>> 16
     const kind = mode & 0o170000
-    if ((host === 3 || host === 19) && mode !== 0 && (kind === 0 || kind === 0o100000)) {
+    const permissions = mode & 0o777
+    if ((host === 3 || host === 19) && permissions !== 0 && (kind === 0 || kind === 0o100000)) {
       const flags = archive.readUInt16LE(offset + 8)
       const name = strFromU8(archive.subarray(offset + 46, nameEnd), !(flags & 0x0800))
-      modes.set(name, mode & 0o777)
+      modes.set(name, permissions)
     }
     offset = nextOffset
   }
@@ -267,8 +268,12 @@ export class AcpLaunchSpecService {
         throw new Error(`Installed archive does not contain ${binaryConfig.cmd}`)
       }
 
-      if (process.platform !== 'win32' && !(fs.statSync(installedCommand).mode & 0o111)) {
-        fs.chmodSync(installedCommand, 0o755)
+      if (process.platform !== 'win32') {
+        try {
+          fs.accessSync(installedCommand, fs.constants.X_OK)
+        } catch {
+          fs.chmodSync(installedCommand, 0o755)
+        }
       }
 
       return {
@@ -501,8 +506,15 @@ export class AcpLaunchSpecService {
     if (lowerName.endsWith('.zip')) {
       const archiveData = fs.readFileSync(archivePath)
       const archive = unzipSync(archiveData)
-      // fflate returns file contents without the Unix modes stored in the central directory.
-      const modes = process.platform === 'win32' ? undefined : readZipFileModes(archiveData)
+      let modes: Map<string, number> | undefined
+      if (process.platform !== 'win32') {
+        try {
+          // fflate returns file contents without the Unix modes stored in the central directory.
+          modes = readZipFileModes(archiveData)
+        } catch {
+          modes = undefined
+        }
+      }
       Object.entries(archive).forEach(([entryPath, content]) => {
         const normalized = sanitizeRelativePath(entryPath)
         const outputPath = path.join(targetDir, normalized)
@@ -511,10 +523,15 @@ export class AcpLaunchSpecService {
           return
         }
         ensureDir(path.dirname(outputPath))
+        fs.rmSync(outputPath, { force: true })
         fs.writeFileSync(outputPath, Buffer.from(content))
         const mode = modes?.get(entryPath)
         if (mode !== undefined) {
-          fs.chmodSync(outputPath, mode)
+          try {
+            fs.chmodSync(outputPath, mode)
+          } catch {
+            // Keep installation working on mounts that reject chmod; main command is checked later.
+          }
         }
       })
       return
