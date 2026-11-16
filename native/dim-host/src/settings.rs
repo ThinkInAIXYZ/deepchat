@@ -7,7 +7,7 @@ use dim_agent_capabilities::{
     timeline_tree::TreeCommands,
 };
 use dim_agent_runtime::{AgentBuilder, ConfigureOutcome, ConfigureUpdate, Names, SessionConfig};
-use dim_agent_types::{ModelConfig, ModelId, ModelSelection};
+use dim_agent_types::{AnthropicThinkingType, ModelConfig, ModelId, ModelSelection};
 use rutis::Ctx;
 use rutis::host::{BoxFuture, CtxHost, DynPlugin, Effect, Key, TypeKey};
 use serde::Deserialize;
@@ -274,9 +274,23 @@ pub fn merge(base: ModelConfig, patch: ModelConfig) -> Result<ModelConfig, RpcEr
             .expect("ModelConfig")
             .insert(name, field);
     }
-    let merged = serde_json::from_value(value)
+    let mut merged: ModelConfig = serde_json::from_value(value)
         .map_err(|_| RpcError::invalid("Invalid model configuration"))?;
     validate(&merged)?;
+    if matches!(
+        merged
+            .provider_options
+            .as_ref()
+            .and_then(|options| options.anthropic.as_ref())
+            .and_then(|options| options.thinking.as_ref())
+            .and_then(|thinking| thinking.thinking_type),
+        Some(AnthropicThinkingType::Enabled | AnthropicThinkingType::Adaptive)
+    ) {
+        // Aimux rejects these sampling parameters when Anthropic thinking is enabled.
+        merged.temperature = None;
+        merged.top_p = None;
+        merged.top_k = None;
+    }
     Ok(merged)
 }
 

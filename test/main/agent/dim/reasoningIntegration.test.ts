@@ -21,7 +21,55 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
       try {
         let body = ''
         for await (const chunk of request) body += chunk
-        requests.push({ url: request.url!, body: JSON.parse(body) })
+        const payload = JSON.parse(body)
+        requests.push({ url: request.url!, body: payload })
+        if (request.url?.endsWith('/messages')) {
+          const usage = { input_tokens: 8, output_tokens: 1 }
+          const message = {
+            id: 'msg_fixture',
+            type: 'message',
+            role: 'assistant',
+            model: payload.model,
+            content: [],
+            stop_reason: null,
+            stop_sequence: null,
+            usage
+          }
+          if (!payload.stream) {
+            response.writeHead(200, { 'Content-Type': 'application/json' }).end(
+              JSON.stringify({
+                ...message,
+                content: [{ type: 'text', text: 'Fixture reply' }],
+                stop_reason: 'end_turn'
+              })
+            )
+            return
+          }
+          const events = [
+            { type: 'message_start', message },
+            { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } },
+            {
+              type: 'content_block_delta',
+              index: 0,
+              delta: { type: 'text_delta', text: 'Fixture reply' }
+            },
+            { type: 'content_block_stop', index: 0 },
+            {
+              type: 'message_delta',
+              delta: { stop_reason: 'end_turn', stop_sequence: null },
+              usage
+            },
+            { type: 'message_stop' }
+          ]
+          response
+            .writeHead(200, { 'Content-Type': 'text/event-stream' })
+            .end(
+              events
+                .map((event) => `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`)
+                .join('')
+            )
+          return
+        }
       } catch (error) {
         fixtureErrors.push(error)
       }
@@ -99,6 +147,12 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
         expected: { thinking: { type: 'adaptive' }, output_config: { effort: 'high' } }
       },
       {
+        providerKind: 'anthropic',
+        modelId: 'MiniMax-M3',
+        reasoningPortrait: { mode: 'effort', defaultEnabled: true },
+        expected: { thinking: { type: 'adaptive' } }
+      },
+      {
         providerKind: 'gemini',
         modelId: 'gemini-2.5-flash',
         reasoningPortrait: { mode: 'budget', budget: { min: 0 } },
@@ -146,6 +200,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
         const parameters = dimModelParameters(
           {
             temperature: 1,
+            topP: 0.9,
             maxTokens: 8192,
             thinkingBudget: scenario.thinkingBudget,
             reasoningEffort: scenario.reasoningEffort
@@ -153,14 +208,15 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
           { providerKind, modelId, reasoningPortrait }
         )
         const before = requests.length
-        await expect(
-          bridge.complete(
-            model,
-            { messages: [{ role: 'user', content: 'Local reasoning fixture' }] },
-            undefined,
-            parameters
-          )
-        ).rejects.toThrow()
+        const completion = bridge.complete(
+          model,
+          { messages: [{ role: 'user', content: 'Local reasoning fixture' }] },
+          undefined,
+          parameters
+        )
+        if (providerKind === 'anthropic')
+          await expect(completion).resolves.toMatchObject({ text: 'Fixture reply' })
+        else await expect(completion).rejects.toThrow()
         expect(fixtureErrors).toEqual([])
         expect(requests).toHaveLength(before + 1)
         const captured = requests[before]
@@ -170,6 +226,10 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
             : /:(?:streamGenerateContent|generateContent)(?:\?|$)/
         )
         expect(captured.body).toMatchObject(scenario.expected)
+        if (providerKind === 'anthropic') {
+          expect(captured.body).not.toHaveProperty('temperature')
+          expect(captured.body).not.toHaveProperty('top_p')
+        }
         if (providerKind === 'anthropic' && reasoningPortrait.mode === 'effort') {
           expect(captured.body.thinking).not.toHaveProperty('budget_tokens')
         }
