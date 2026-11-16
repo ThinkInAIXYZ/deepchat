@@ -13,6 +13,7 @@ mod decisions;
 mod embeddings;
 mod facts;
 mod gateway;
+mod html_history;
 mod inputs;
 mod legacy_queue;
 mod media;

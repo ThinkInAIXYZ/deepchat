@@ -50,7 +50,7 @@ const toolCall = (id: string, name: string, args: object) => ({
 type FixtureReply = { delta: object; finishReason: string }
 type FixtureInput = { origin: string; toolResults: string[] }
 
-// Each streamed reply is picked by how many tool results the request already carries.
+// Each streamed reply is picked by how many render receipts the request carries.
 const startFixture = async (replies: Array<(input: FixtureInput) => FixtureReply>) => {
   const leaks: string[] = []
   let origin = ''
@@ -86,7 +86,11 @@ const startFixture = async (replies: Array<(input: FixtureInput) => FixtureReply
       return
     }
     const toolResults = (input.messages as Array<{ role: string; content: unknown }>)
-      .filter((message) => message.role === 'tool')
+      .filter(
+        (message) =>
+          message.role === 'user' &&
+          /html_render(?:_section)? (?:succeeded|failed)\./.test(JSON.stringify(message.content))
+      )
       .map((message) => JSON.stringify(message.content))
     const reply = replies[toolResults.length]?.({ origin, toolResults }) ?? {
       delta: { content: 'Done.' },

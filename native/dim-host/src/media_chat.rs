@@ -523,6 +523,7 @@ async fn rewrite(
     request: Arc<ModelRequest>,
     cancel: &CancellationToken,
 ) -> Result<Arc<ModelRequest>, HostError> {
+    let request = crate::html_history::prepare(&request).map_or(request, Arc::new);
     let vision = request
         .capability_snapshot
         .as_ref()
@@ -690,18 +691,13 @@ impl ResolveContextModel for MediaContext {
                 },
             )?;
             if media.is_none() {
-                return Ok(
-                    if request
+                return Ok(Arc::new(crate::media_history::HistoryContext {
+                    base,
+                    vision: request
                         .capability_snapshot
                         .as_ref()
-                        .is_some_and(|snapshot| snapshot.capabilities.vision)
-                    {
-                        Arc::new(crate::media_history::VisionContext { base })
-                            as Arc<dyn ContextModel>
-                    } else {
-                        base
-                    },
-                );
+                        .is_some_and(|snapshot| snapshot.capabilities.vision),
+                }) as Arc<dyn ContextModel>);
             }
             if !request.metadata.as_ref().is_some_and(|meta| {
                 meta.session_id.is_some()

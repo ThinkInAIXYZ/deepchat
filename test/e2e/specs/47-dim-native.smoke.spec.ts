@@ -292,10 +292,12 @@ test('desktop chat uses persistent native dim sessions @smoke', async ({
     ) {
       const phase = htmlPhase
       if (phase === 'section') {
-        const result = body.messages
-          .filter((message: { role: string }) => message.role === 'tool')
-          .at(-1)
-        const match = JSON.stringify(result).match(/panelId: ([A-Za-z0-9_-]+)/)
+        const result = body.messages.findLast(
+          (message: { role: string; content: unknown }) =>
+            message.role === 'user' &&
+            JSON.stringify(message.content).includes('html_render succeeded.')
+        )
+        const match = JSON.stringify(result ?? '').match(/panelId: ([A-Za-z0-9_-]+)/)
         if (!match) throw new Error('Native HTML result lost its panel identity')
         panelId = match[1]
       }
@@ -527,6 +529,13 @@ test('desktop chat uses persistent native dim sessions @smoke', async ({
         .frameLocator('iframe')
         .locator('body')
     ).toContainText('NATIVE_HTML_SECTION')
+    const receipts = requests.filter((request) =>
+      JSON.stringify(request.messages).includes('html_render_section succeeded.')
+    )
+    expect(receipts.length).toBeGreaterThan(0)
+    expect(JSON.stringify(receipts.map((request) => request.messages))).not.toMatch(
+      /NATIVE_HTML_SHELL|NATIVE_HTML_SECTION|"name":"html_render(?:_section)?"/
+    )
     const firstPage = await app.page.evaluate(
       (id) => window.deepchat.invoke('sessions.listMessagesPage', { sessionId: id }),
       sessionId

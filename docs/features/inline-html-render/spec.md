@@ -174,6 +174,9 @@ under all of them.
 Validation in the handlers, each returning a tool error the model can act on:
 
 - empty or oversized `html` (512 KB per call);
+- the legacy `[omitted from context: <n> characters; send the full HTML again to change it]`
+  marker anywhere in `html`, including inside markup, quotes, or code fences; the call fails
+  and asks for the complete HTML, so it cannot replace a valid page or section;
 - a `vh`/`svh`/`lvh`/`dvh` unit (the frame fits the page, so a viewport-relative page grows with
   its frame until the cap). Long base64 runs are skipped before matching;
 - a `<script>` or `<link>` that loads from `http(s):` or `//`, naming `/lib/echarts.js` instead;
@@ -181,9 +184,10 @@ Validation in the handlers, each returning a tool error the model can act on:
   `html_render` shell in the same conversation; a panel whose shell plus latest sections would
   pass 2 MB.
 
-On success `html_render` returns `Rendered "<title>" inline. panelId: <id>` and an `htmlRender`
-descriptor; the section tool returns `Section "<id>" is in panel <panelId>.` Neither echoes the HTML
-back to the model.
+On success `html_render` returns `html_render succeeded. panelId: <id>` and an `htmlRender`
+descriptor; the section tool returns
+`html_render_section succeeded. panelId: <id>; sectionId: <id>`.
+Neither echoes HTML, character counts, or context-omission instructions back to the model.
 
 ### Sections
 
@@ -210,9 +214,23 @@ versions and measures their UTF-8 size. Product SQL retains a rebuildable projec
 source identity for an existing frame; it is not the Native content source. Legacy sessions keep
 the original `deepchat_assistant_blocks` reader until their on-demand conversion.
 
-Context assembly, budgeting and compaction belong to dim. The former `contextBuilder` / `dispatch`
-argument rewriting is not reintroduced with the deleted TypeScript harness. Native canonical
-arguments remain complete for panel reconstruction and backup.
+The native host projects settled `html_render` and `html_render_section` calls as receipts in
+provider-bound `user` messages. Success receipts carry the operation, panel ID and section ID.
+Failure receipts name the operation, target and error. Incomplete batches stay intact. In mixed
+batches, receipts follow the remaining tool results so their call/result pairs stay together.
+
+Native context budgeting counts the projected request. Execution, timeline storage, compaction
+history, panel reconstruction and backups retain the complete arguments. New calls require complete
+HTML.
+
+Do not put omission text in the `html` value. In production, Grok, GLM and DeepSeek imitated that
+text in subsequent section calls, which rendered it literally and sometimes caused retry loops.
+Removing only the `html` field also proved misleading: GLM, DeepSeek and MiniMax interpreted
+successful historical calls as missing HTML, recreated panels and sometimes omitted HTML in new
+calls. Assistant-role summaries then caused GLM, DeepSeek and MiMo to narrate a new section's
+success without calling its tool. Execution receipts therefore stay outside assistant narration
+and never present incomplete arguments as an invocation to imitate or repair. Model behavior
+still requires real-model validation; structural tests cannot establish it.
 
 There is no tool to read a page back. Whatever it returned would enter the context and stay in
 every later request, and the model cannot see the render, so reading back would not verify
