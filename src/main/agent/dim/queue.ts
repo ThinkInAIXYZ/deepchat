@@ -105,6 +105,9 @@ export class DimQueue {
     await this.options.prepareNative(sessionId)
     options?.signal?.throwIfAborted()
     const receipt = await this.options.runtime.submit(sessionId, prepared.content, {
+      ...(options?.submissionId
+        ? { submissionId: `desktop:${JSON.stringify(sessionId)}:${options.submissionId}` }
+        : {}),
       representation: prepared.representation
     })
     // The owner may consume it before this response. Admission still succeeded.

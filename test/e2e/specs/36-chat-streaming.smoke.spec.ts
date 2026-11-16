@@ -15,12 +15,18 @@ test('local streaming preserves an editable composer and completes the response 
   const released = new Promise<void>((resolve) => {
     releaseResponse = resolve
   })
+  let releaseFollowup = () => {}
+  const followupReleased = new Promise<void>((resolve) => {
+    releaseFollowup = resolve
+  })
   let releaseBackground = () => {}
   const backgroundReleased = new Promise<void>((resolve) => {
     releaseBackground = resolve
   })
   let streamCount = 0
+  const streamedInputs: string[] = []
   const firstPrompt = 'Render the local streaming fixture.'
+  const followupPrompt = 'Keep one instance of this message while the reply streams.'
   const backgroundPrompt = 'Complete after the chat window is destroyed.'
   const table = '| File | Result |\n| --- | --- |\n| First cell | Last cell |\n\n'
   const markdown =
@@ -86,8 +92,9 @@ test('local streaming preserves an editable composer and completes the response 
         })}\n\n`
       )
     emit(markdown)
+    streamedInputs.push(JSON.stringify(input.messages))
     streamCount += 1
-    await (streamCount === 1 ? released : backgroundReleased)
+    await (streamCount === 1 ? released : streamCount === 2 ? followupReleased : backgroundReleased)
     if (!response.destroyed) {
       emit('\n\nStream complete.', 'stop')
       response.end('data: [DONE]\n\n')
@@ -181,6 +188,19 @@ test('local streaming preserves an editable composer and completes the response 
       await expect(editor).toHaveText(draft)
       await expect(app.page.getByTestId('chat-message-user')).toHaveCount(1)
     }
+    await sendMessage(app.page, followupPrompt)
+    await expect.poll(() => streamCount).toBe(2)
+    expect(streamedInputs[1].split(followupPrompt)).toHaveLength(2)
+    const followup = app.page.getByTestId('chat-message-user').filter({ hasText: followupPrompt })
+    await expect(followup.and(app.page.locator('[data-message-id^="dim:"]'))).toBeVisible()
+    await expect(followup).toHaveCount(1, { timeout: 5_000 })
+    await expect(shell).toHaveAttribute('data-generating', 'true')
+    releaseFollowup()
+    await expect(shell).toHaveAttribute('data-generating', 'false')
+    await expect(followup).toHaveCount(1)
+    expect(streamCount).toBe(2)
+    await editor.fill(draft)
+
     await openSettings(app)
     const previousPages = new Set(app.electronApp.windows())
     await app.electronApp.evaluate(({ Menu }) => {
@@ -226,13 +246,13 @@ test('local streaming preserves an editable composer and completes the response 
       ).stdout
     )
     expect(started.ok).toBe(true)
-    await expect.poll(() => streamCount).toBe(2)
+    await expect.poll(() => streamCount).toBe(3)
     await second.evaluate(
       (sessionId) => window.deepchat.invoke('sessions.activate', { sessionId }),
       started.result.runId
     )
     await expect(second.getByTestId('chat-page-shell')).toHaveAttribute('data-generating', 'true')
-    await expect(app.page.getByTestId('chat-message-user')).toContainText(firstPrompt)
+    await expect(app.page.getByTestId('chat-message-user').first()).toContainText(firstPrompt)
     await expect(editor).toHaveText(draft)
     const watch = cli(['run', 'watch', '--run', started.result.runId, '--jsonl'])
     void watch.catch(() => {})
@@ -273,6 +293,7 @@ test('local streaming preserves an editable composer and completes the response 
     expect(app.pageErrors).toEqual([])
   } finally {
     releaseResponse()
+    releaseFollowup()
     releaseBackground()
     server.closeAllConnections()
     await new Promise<void>((resolve) => server.close(() => resolve()))

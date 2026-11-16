@@ -216,6 +216,7 @@ export interface QueuePendingInputOptions {
   source?: PendingInputEnqueueSource
   projectDir?: string | null
   signal?: AbortSignal
+  submissionId?: string
 }
 
 export interface SessionAgentContextUpdate {
@@ -431,6 +432,7 @@ export interface MessageMetadata {
     branchId: string
     eventId: string
     sequence: string
+    submissionId?: string
     revision?: number
     turnId?: string
     imported?: boolean

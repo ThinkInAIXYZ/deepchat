@@ -233,11 +233,14 @@ export function projectDimEvent(
       record.orderSeq = identity.orderSeq
       next.nextOrderSeq = Math.max(next.nextOrderSeq, identity.orderSeq + 1)
     }
+    const submission = input.data.submission_id
+    const desktopPrefix = `desktop:${JSON.stringify(binding.sessionId)}:`
+    const metadata = JSON.parse(record.metadata) as MessageMetadata
+    if (typeof submission === 'string' && submission.startsWith(desktopPrefix))
+      metadata.dim!.submissionId = submission.slice(desktopPrefix.length)
     if (input.data.mode === 'steer')
-      record.metadata = JSON.stringify({
-        ...JSON.parse(record.metadata),
-        inputReceipt: { mode: 'steer', readAt: null, delivery: 'applied' }
-      })
+      metadata.inputReceipt = { mode: 'steer', readAt: null, delivery: 'applied' }
+    record.metadata = JSON.stringify(metadata)
     messages.push(record)
     return result
   }

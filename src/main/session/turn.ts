@@ -127,7 +127,7 @@ export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
   async sendMessage(
     sessionId: string,
     content: string | SendMessageInput,
-    options?: { maxProviderRounds?: number; signal?: AbortSignal }
+    options?: { maxProviderRounds?: number; signal?: AbortSignal; submissionId?: string }
   ): Promise<MessageStartResult> {
     return await this.dependencies.workdir.runWithSessionOperationGate(
       sessionId,
@@ -138,7 +138,7 @@ export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
   private async sendMessageUnderSessionGate(
     sessionId: string,
     content: string | SendMessageInput,
-    options?: { maxProviderRounds?: number; signal?: AbortSignal }
+    options?: { maxProviderRounds?: number; signal?: AbortSignal; submissionId?: string }
   ): Promise<MessageStartResult> {
     let session = this.requireSession(sessionId)
     const wasDraft = session.isDraft
@@ -165,7 +165,8 @@ export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
       },
       queue: {
         source: 'send',
-        projectDir: session.projectDir ?? null
+        projectDir: session.projectDir ?? null,
+        ...(options?.submissionId ? { submissionId: options.submissionId } : {})
       }
     })
     if (result.attachmentPreparation?.status === 'needs_user_action') {

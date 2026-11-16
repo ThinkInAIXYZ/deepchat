@@ -14,5 +14,6 @@ export interface AgentSessionSendInput {
   queue?: {
     source: PendingInputEnqueueSource
     projectDir?: string | null
+    submissionId?: string
   }
 }

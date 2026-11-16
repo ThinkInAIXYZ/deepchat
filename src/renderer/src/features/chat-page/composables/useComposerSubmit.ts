@@ -787,8 +787,14 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
     }
   }
 
-  function beginOutgoingTurnFeedback(sessionId: string, payload: SendMessageInput) {
-    const optimisticUserMessageId = messageStore.addOptimisticUserMessage(sessionId, payload)
+  function beginOutgoingTurnFeedback(
+    sessionId: string,
+    payload: SendMessageInput,
+    submissionId?: string
+  ) {
+    const optimisticUserMessageId = submissionId
+      ? messageStore.addOptimisticUserMessage(sessionId, payload, submissionId)
+      : messageStore.addOptimisticUserMessage(sessionId, payload)
     if (!optimisticUserMessageId) return null
 
     const pendingAssistantPlaceholderId = options.createPendingAssistantPlaceholder(sessionId)
@@ -846,8 +852,16 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
       preparesAttachments: preparation.preparesAttachments && hasAttachmentPreparationCandidate
     })
 
+    const nativeSend =
+      currentAttempt.mode === 'send' && sessionStore.activeSession?.providerId !== 'acp'
     const feedback =
-      currentAttempt.mode === 'send' ? beginOutgoingTurnFeedback(sessionId, payload) : null
+      currentAttempt.mode === 'send'
+        ? beginOutgoingTurnFeedback(
+            sessionId,
+            payload,
+            nativeSend ? preparation.submissionId : undefined
+          )
+        : null
     if (currentAttempt.mode === 'send' && !feedback) {
       activeDispatches.delete(sessionId)
       if (ownsPreparation) {
@@ -857,10 +871,11 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
     }
 
     try {
-      const submissionOptions = preparation.preparesAttachments
-        ? { submissionId: preparation.submissionId }
-        : undefined
-      preparation.mainDispatched = Boolean(submissionOptions)
+      const submissionOptions =
+        nativeSend || preparation.preparesAttachments
+          ? { submissionId: preparation.submissionId }
+          : undefined
+      preparation.mainDispatched = preparation.preparesAttachments
       let acceptedSteerMessage: ChatMessageRecord | null = null
       const result = await (async () => {
         if (currentAttempt.mode === 'send') {

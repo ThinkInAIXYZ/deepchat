@@ -29,7 +29,7 @@ export interface ChatServiceTurnPort {
   sendMessage(
     sessionId: string,
     content: string | SendMessageInput,
-    options?: { signal?: AbortSignal }
+    options?: { signal?: AbortSignal; submissionId?: string }
   ): Promise<MessageStartResult>
   steerActiveTurn(
     sessionId: string,
@@ -78,7 +78,7 @@ export class ChatService {
   async sendMessage(
     sessionId: string,
     content: string | SendMessageInput,
-    options?: { signal?: AbortSignal }
+    options?: { signal?: AbortSignal; submissionId?: string }
   ): Promise<{
     accepted: boolean
     requestId: string | null
@@ -104,7 +104,10 @@ export class ChatService {
       }
 
       const result = await this.deps.scheduler.timeout({
-        task: this.deps.turn.sendMessage(sessionId, content, { signal: controller.signal }),
+        task: this.deps.turn.sendMessage(sessionId, content, {
+          signal: controller.signal,
+          ...(options?.submissionId ? { submissionId: options.submissionId } : {})
+        }),
         ms: CHAT_SEND_TIMEOUT_MS,
         reason: `chat.sendMessage:${sessionId}`,
         signal: controller.signal

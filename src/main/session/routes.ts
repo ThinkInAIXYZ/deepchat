@@ -849,7 +849,10 @@ export function createSessionRoutes(deps: {
             input.submissionId,
             async (signal) =>
               signal
-                ? await chatService.sendMessage(input.sessionId, input.content, { signal })
+                ? await chatService.sendMessage(input.sessionId, input.content, {
+                    signal,
+                    submissionId: input.submissionId
+                  })
                 : await chatService.sendMessage(input.sessionId, input.content)
           )
         )

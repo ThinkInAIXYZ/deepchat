@@ -1346,6 +1346,36 @@ describe('messageStore', () => {
     expect(store.messageIds.value).toEqual(['m1', 'm2', optimisticId])
   })
 
+  it('replaces only the optimistic message matching a live native submission', async () => {
+    const { store, sessionClient } = await setupStore()
+    sessionClient.restore.mockResolvedValueOnce({
+      session: { id: 's1' },
+      nextCursor: null,
+      hasMore: false,
+      messages: [buildUserMessage('m1', 's1', 1, 'same text')]
+    })
+    await store.loadMessages('s1')
+    store.addOptimisticUserMessage('s1', 'same text', 'first')
+    const second = store.addOptimisticUserMessage('s1', 'same text', 'second')
+
+    store.applyPersistedMessageRecords([
+      {
+        ...buildUserMessage('native-first', 's1', 2, 'same text'),
+        metadata: JSON.stringify({
+          dim: {
+            sessionId: 'native-session',
+            branchId: 'main',
+            eventId: 'native-input',
+            sequence: '3',
+            submissionId: 'first'
+          }
+        })
+      }
+    ])
+
+    expect(store.messageIds.value).toEqual(['m1', 'native-first', second])
+  })
+
   it('appends local messages after a high-order paginated window', async () => {
     const { store, sessionClient, streamListeners } = await setupStore()
     sessionClient.restore.mockResolvedValueOnce({

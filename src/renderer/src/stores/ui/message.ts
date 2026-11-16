@@ -17,7 +17,6 @@ import type {
 import type {
   AssistantMessageBlock,
   ChatMessageRecord,
-  MessageFile,
   MessagePageCursor,
   MessageMetadata,
   SendMessageInput,
@@ -29,6 +28,7 @@ import { RecentMessageViewCache, type RecentMessageView } from './recentMessageV
 
 const EPHEMERAL_STREAM_MESSAGE_PREFIXES = ['__rate_limit__:']
 const PARSED_MESSAGE_CACHE_MAX_SIZE = 1024
+const OPTIMISTIC_SUBMISSION_PREFIX = '__optimistic_user_submission_'
 
 function toStoreStateRef<T extends object, K extends keyof T>(store: T, key: K): Ref<any> {
   const value = store[key]
@@ -814,20 +814,21 @@ export const useMessageStore = defineStore('message', () => {
   /**
    * Add an optimistic user message to the local store so it appears immediately
    * in the UI without waiting for a backend round-trip or stream completion.
-   * The optimistic record is replaced with the real DB record when loadMessages
-   * is called at stream end.
+   * The native transcript replaces it as soon as that submission is applied.
    */
   function addOptimisticUserMessage(
     sessionId: string,
     input: string | SendMessageInput,
-    files: MessageFile[] = []
+    submissionId?: string
   ): string | null {
     if (currentSessionId.value !== sessionId || committedSessionId.value !== sessionId) {
       return null
     }
 
-    const normalizedInput = typeof input === 'string' ? { text: input, files } : input
-    const id = `__optimistic_user_${Date.now()}_${messageIds.value.length + 1}`
+    const normalizedInput = typeof input === 'string' ? { text: input } : input
+    const id = submissionId
+      ? `${OPTIMISTIC_SUBMISSION_PREFIX}${submissionId}`
+      : `__optimistic_user_${Date.now()}_${messageIds.value.length + 1}`
     const record: ChatMessageRecord = {
       id,
       sessionId,
@@ -937,7 +938,10 @@ export const useMessageStore = defineStore('message', () => {
       )
     if (replacesOptimisticUser) {
       for (const messageId of messageIds.value) {
-        if (messageId.startsWith('__optimistic_user_')) {
+        if (
+          messageId.startsWith('__optimistic_user_') &&
+          !messageId.startsWith(OPTIMISTIC_SUBMISSION_PREFIX)
+        ) {
           removeOptimisticMessage(messageId, sessionId)
         }
       }
@@ -945,6 +949,10 @@ export const useMessageStore = defineStore('message', () => {
 
     markLiveMessageViewMutation(sessionId)
     for (const record of changedRecords) {
+      const submissionId =
+        record.role === 'user' ? getMessageMetadata(record).dim?.submissionId : null
+      if (submissionId)
+        removeOptimisticMessage(`${OPTIMISTIC_SUBMISSION_PREFIX}${submissionId}`, sessionId)
       parsedMessageCache.delete(record.id)
       // Persisted data replaces the live-folded record; drop the applied
       // revision so a later snapshot re-evaluates content from scratch.
