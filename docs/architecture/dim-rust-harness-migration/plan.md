@@ -2,32 +2,23 @@
 
 本文件是唯一执行跟踪表。目标与职责见 [spec.md](./spec.md)。
 
-状态：核心架构已切换，迁移验收尚未全部完成。内置 harness、loop、queue、模型和上下文已切换为 dim Rust，旧 TypeScript 执行器已物理删除；最新 dev 的 OpenLLM 与 HTML 产品工具已合入。此前报告完整 main 8090 项和 renderer 2760 项通过，HTML/媒体桌面与恢复验收通过；2026-11-12 对 PR HEAD `73a2e8a6` 的复核发现下列缺口，不能以此前测试结果代替本轮验收。持续加解密已移除，保留旧数据一次性解密与按需会话转换。
+状态：内置 harness、loop、queue、模型、上下文和工具执行由 dim Rust 持有。锁定 alpha.23 官方发行包及相同源码，桥版本 0.45.0、存储 v44、协议 v4；持续加解密已移除，保留旧数据一次性解密与按需会话转换。
 
-## alpha.23 验收
+## 结构化历史与原生 Code Mode 验收
 
-- [x] 锁定六平台官方发行包、同一 Rust 源码和 v44 存储；删除不参与运行的 SDK 生成图补丁。
-- [x] 使用真实 alpha.21/v36 归档验证选取、增量合并和覆盖恢复；源归档哈希不变。
-- [x] 用隔离的真实桌面数据验证旧会话浏览、首次 Rust 续聊、导出、备份恢复和重启。样本包含附件与历史工具块；wire 级结构化配对仍以 §7.3.5 为准。
-- [x] 删除未接线的旧 Programmatic Tool 执行入口、灰度策略、视觉模型选择器，以及多余的 Ollama 上下文查询和推理字段。保留活跃的 ACP/MCP 工具目录及旧历史读取。
-- [ ] 复验完整 Electron E2E 与当前 HEAD 六平台打包。
+- [x] 旧工具历史转换为原生 assistant/tool-result 消息；完整配对、重复 ID 隔离、未完成调用和畸形参数有明确处理。
+- [x] 历史以 context extension 导入，校验后才落库；保持同源原子配对、幂等续传与原生计数/压缩，不执行历史工具。
+- [x] Native HTTP 回归覆盖历史重启、首次与再次续聊、retain/edit/retry/fork，附件文本保留与跳过原始载荷。
+- [x] 客户端统一升级协议 v4，启用原生 CodeMode Session/Branch；Code 模式只向模型声明 `codemode`，子工具仍使用原生完整绑定。
+- [x] Native Code Mode 回归覆盖文件/MCP 子调用、独立权限拒绝、MCP 撤销、隔离宿主、无限程序取消与重启续聊。
+- [x] 旧 v3 scope 在执行前使用现有 staging/recovery 流程替换，重新采用完整可见历史和产品配置。
+- [x] 删除旧 Programmatic Dispatcher/Parent Registry/Controller、旧能力投影和 ToolSearch 执行模块，清除 ToolService、CLI composition 与资源 resolver 的接线。
+- [x] 完整 main 8032 项、renderer 2758 项、release Native smoke 34 项、格式、i18n、lint、双端类型和生产构建通过。额外通过 v3 scope 升级专项及本机 release 宿主离线检查。
+- [x] 离线 Electron E2E 64 项通过。隔离本地数据的真实旧会话验证了 6 组 native 工具配对、Code Mode 续聊和重启恢复，源数据库哈希不变。
+- [ ] 复验 4 项真实模型 Electron E2E。复制配置中的 Agent 默认工作区已不存在，模型连接测试还需单独诊断。
+- [ ] PR required CI 和六平台 verification 打包全绿。
 
-## 2026-11-12 验收复核（本地已提交，远端 CI 待重跑）
-
-- [x] 定位并修复 required CI 原始失败点：动态架构矩阵契约测试、transcript mock 缺 `pluginHookState`；定向测试和 memory 类型门通过。
-- [x] `pnpm dev` 增加启动前 runtime 准备：Node/dim/plugins、Rust 宿主构建及本地缓存；覆盖缺工具链、源码变化、损坏恢复与构建失败回归。
-- [ ] 在应用完全退出后实测新的 `pnpm dev` 首次准备与再次启动；此前启动窗口被取消，未完成完整应用级验收。
-- [x] PR HEAD 六平台 verification 打包与 dim offline smoke 全部通过（run `42923291616`）。这不包含 macOS distribution 签名/公证，也不代表完整 Electron 首次启动已验证。
-- [ ] 本轮补齐 release 漏检：dim smoke 报告纳入 manifest、model 插件检查、跨 lock API 一致性、Windows ARM64 E2E runtime 准备；合同测试已通过，但本轮修复尚未重跑六平台打包。
-- [x] 完成协议感知的 reasoning 参数兼容修复，并以 native loopback fixture 验证 Anthropic manual/adaptive、effort-only、Gemini budget/effort 五种 wire body；MiniMax-M3 不再发送 Rust 不支持的 `interleavedThinking`，真实 M3 请求已验证不再因该字段失败。
-- [x] 补齐旧会话附件闭包迁移：生产 composition 已注入 `DimLegacySource.images`；`contextText` sidecar 保留可读文本及跳过原因/元数据，排除重复 base64、被跳过附件的原始载荷和原始音频。Native smoke 覆盖宿主重启续传、首次与再次续聊，以及 retain/edit/retry/fork 后的可读文本保留、编辑重算与 ID 重映射；历史工具不执行。
-- [ ] 对照 spec §7.3.5 完成结构化工具调用/结果配对验收：目前仅验证旧工具块以不可执行文本进入模型上下文，未恢复 native tool-call/tool-result 结构。旧 interleaved 开关已从配置/UI/推理入口删除，仅保留旧数据库列与迁移/修复兼容。
-- [ ] 跑包含本轮修复的 Linux required CI、六平台 verification，以及有授权凭据环境下的 macOS distribution 签名/公证验收。
-- [ ] 完成 packaged Electron 离线首次启动验收；当前 offline smoke 直接启动 native host，不能替代应用级 E2E。
-
-本轮专项复验：主进程数据库/供应商 26 项、renderer 串行 183 项、打包/Native 合同 54 项通过；隔离 runtime 的附件迁移与 reasoning 两项 Native HTTP 回归通过，附件测试补强后再次通过。两项已接入 `smoke:dim`，但未将定向运行等同于完整 smoke 或远端 CI。format、i18n、lint（0 errors / 0 warnings）、双端 typecheck 和 `git diff --check` 均通过。环境为 Node 24.22.1 / pnpm 10.34.5；正常构建产生的 provider/ACP registry 刷新保留。
-
-本机 Windows 的完整 main/memory 测试存在路径、执行位、symlink 权限等平台失败；记录实际结果，不跳过或弱化测试，不宣称本机全量通过。
+此前 HEAD `12991d4576e511e62cca7fdcfb2f0e139cfaa195` 的 required CI 与六平台 verification 已通过；该结果不能替代上述改动的验收。macOS distribution 签名/公证只在发布凭据工作流执行，本 PR 的 verification 不包含该步骤。
 
 ## P0. 基线与已确认决策
 
@@ -93,7 +84,7 @@
 
 负责边界：dim 原生 owner + host 插件配置映射；不预设 provider 或 OAuth 重写。
 
-- [x] 暂时停用 Code Mode，移除旧 Code Mode/ToolSearch/programmatic dispatch 接线；等待 dim 原生能力后再启用。dim 已提供同等功能的文件、命令、分支等工具使用原生实现，删除 DeepChat 重复执行器，产品桥不重新注册它们。
+- [x] 接入协议 v4 与 dim 原生 Code Mode，移除旧 Code Mode/ToolSearch/programmatic dispatch 接线。dim 已提供同等功能的文件、命令、分支等工具使用原生实现，删除 DeepChat 重复执行器，产品桥不重新注册它们。
 - [x] MCP/Skills：现有 UI、安装、来源和启用状态通过插件映射到 dim 原生 owner；通用连接、工具发现和执行只保留一个 owner。
 - [x] 既有 MCP/插件兼容：in-memory server、MCP Apps、企业身份、知识库和 CUA 经插件注入；保留 consent、撤销、更新与参数/结果语义。作为正常接入实现，不列为 dim 缺失能力。
 - [x] 模型：将现有设置及连接参数通过插件交给 dim；会话和辅助模型请求都在 Rust 执行，不回调旧 TypeScript Provider。
@@ -384,7 +375,7 @@
 - 模块 11：产品输入的展示信息写入 dim 的非上下文扩展事实，输入本身仍走 Branch.input 并保持 submission 幂等；拒绝 malformed representation 与外部 handover。storage 插件接入完整 committed Timeline 读取（公共 history 会过滤扩展事件），保留 u64 游标与固定 through。桌面消息/附件名称/原文本/引用可从 native 事实重建，输入消费/撤回清理暂存缓存。真实 Runtime.submit、重复提交、Rust HTTP 请求不含展示元数据、重启后清空缓存再重建均已验证。
 - 模块 10：引入产品模型目录适配和持久非密钥 provider grant，现有 provider/model 设置转换为 native provider 与 capability snapshot；密钥仅采用引用。回调按 provider/model 的当前启用状态、连接身份及引用重新授权，支持凭据轮换并在禁用或换地址后拒绝旧授权。真实 Rust HTTP fixture 已改走此目录，SQLite 重开与撤销回归通过。生成参数映射只生成 dim ModelConfig；OAuth 特殊连接、媒体/向量及主 backend 仍在后续接入。
 - 模块 9：新增锁定 alpha.21 source commit 的 Rust 插件装配，设置走 Branch.configure、扩展辅助调用走 native auxiliary_model owner；启用原有 ProviderSecretHost 注入依赖。凭据通过私有网关按引用读取，值不落 native 配置。构建清单核对源码、锁文件、二进制 hash 和桥版本，明确区分官方 release alpha.21 与源码 package alpha.18。Linux x64 的 8 项集成检查通过，含真实 HTTP 参数/取消、凭据引用、重启和 profile 全文件无明文密钥检查。产品 settings/backend 接线与其余平台构建仍待完成。
-- 模块 8：实际停用 Code Mode 的选择入口；遗留 agent/session/model-catalog 的 code 值不再进入执行模式，回退为可用 Agent/Minimal 选项。删除 Code 专属工具分组与权限提示；旧 Code executor 文件随 P8 一并清理，不接到 dim。相关 renderer 与配置兼容回归覆盖该行为。
+- 模块 8：Agent/Code/Minimal 通过原生模式选择，旧 Code executor、ToolSearch 和 programmatic dispatcher 已删除；Code 调用原生 QuickJS 与 ToolExecutor，保留模型默认值及会话覆盖，权限由每个子工具独立检查。
 - 模块 7：固定 Session 控制命令接入 native owners（队列/原子 withdraw+steer、权限 CAS、模型/上下文、问题/审批、fork），区分 v3 safe-integer 命令与 u64 内容游标。消息只在 dim input/applied 后进入桌面读模型，缓存尚未应用的输入事实；fork/branch 复用事件 ID 时使用作用域消息身份，工具 call ID 按 request 区分。原生队列/权限/fork 与消息顺序回归已加入，完整 backend/队列编辑 UI 仍待接线。
 - 模块 6：将无执行职责的 generation settings/模型事实/数值边界移到 shared；引入 DesktopSessionState，让 Direct ACP 的设置和 identity 不再依赖 built-in harness，ACP 的协议、进程与事件仍使用原 client。新增无 Tape/无 dim 会话的 ACP 状态持久化与并发模型切换校验。内置 backend 继续在 P2 实施。
 - 模块 5：host 插件新增独立模型 row，通过 dim 原生 provider management 接纳配置，通过 auxiliaryModel service 执行辅助调用；隔离的调用连接取消时仅终止对应辅助请求。真实 Rust provider + 本地 HTTP fixture 验证 agent/auxiliary 两条路径、凭据不进历史、配置重启幂等与流请求取消。现有 Provider 设置、媒体及辅助调用者仍待接线。

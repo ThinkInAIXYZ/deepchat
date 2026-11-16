@@ -545,7 +545,9 @@ const toolModeLocked = computed(
 )
 const toolModeDisabled = computed(() => toolModeSaving.value || toolModeLocked.value)
 const toolModeOptions = TOOL_MODE_OPTIONS
-const toolModeDescription = computed(() => t('chat.input.toolMode.descriptions.agent'))
+const toolModeDescription = computed(() =>
+  t(`chat.input.toolMode.descriptions.${resolvedToolMode.value}`)
+)
 
 const triggerTitle = computed(() =>
   isDeepchatContext.value ? t('chat.advancedSettings.title') : t('chat.input.mcp.title')

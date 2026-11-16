@@ -1,6 +1,7 @@
 import { DimMediaFiles } from '@/agent/dim/mediaFiles'
 import { DimHtmlRender } from '@/agent/dim/htmlRender'
 import { ModelType } from '@shared/model'
+import { resolveToolMode } from '@shared/toolMode'
 import { registerNativeMediaCache } from '@/platform/nativeMediaCache'
 import { createDimSessionReferenceSource } from '@/agent/dim/sessionReferences'
 import { createAcpCompatibilityDependencies } from '@/agent/acp/compatibility/dependencies'
@@ -307,8 +308,6 @@ import {
   CliLauncherService,
   CliMutationGuard,
   CliOcrService,
-  ProgrammaticToolDispatcher,
-  ProgrammaticToolParentRegistry,
   CliRequestPolicy,
   CliRunService,
   CliServer,
@@ -320,7 +319,6 @@ import {
   createCliRoutes,
   resolveBundledCliDirectory
 } from '@/cli'
-import { CliRequestError } from '@/cli/errors'
 import { AcpRegistryMigrationService } from '@/agent/acp/catalog/acpRegistryMigrationService'
 import { AcpAuthService } from '@/agent/acp/auth/acpAuthService'
 import { backgroundExecSessionManager } from '@/agent/shared/process/backgroundExecSessionManager'
@@ -578,7 +576,6 @@ export async function createMainProcessControl(dependencies: {
     getBoundRendererIds: (sessionId) => resolveBoundRendererIds(sessionId)
   })
   const agentCliTokenAuthority = new AgentCliTokenAuthority()
-  let programmaticToolDispatcher: ProgrammaticToolDispatcher
   const artifactSpool = new ArtifactSpool({
     directory: path.join(app.getPath('userData'), 'local-control', 'artifacts'),
     consumeAgentBytes: (tokenId, bytes) => agentCliTokenAuthority.consumeBytes(tokenId, bytes),
@@ -604,27 +601,6 @@ export async function createMainProcessControl(dependencies: {
       const output = await dispatchDeepchatRoute(routeDispatcher, method, input, { caller })
       signal.throwIfAborted()
       return output
-    },
-    dispatchProgrammaticTool: async (
-      method,
-      input,
-      caller,
-      operation,
-      signal,
-      takeSettlementOwnership
-    ) => {
-      assertRouteAllowedDuringDatabaseMaintenance(method)
-      return await programmaticToolDispatcher.dispatch(
-        method,
-        input,
-        caller,
-        operation,
-        signal,
-        takeSettlementOwnership
-      )
-    },
-    completeProgrammaticToolPreDispatchFailure: (method, operation, error) => {
-      programmaticToolDispatcher.completePreDispatchFailure(method, operation, error)
     },
     dispatchStream: async (method, input, caller, requestId, signal, emit) => {
       if (cliRunService?.handlesStream(method)) {
@@ -773,61 +749,6 @@ export async function createMainProcessControl(dependencies: {
         sessionId,
         error
       })
-    }
-  })
-  const programmaticToolParents = new ProgrammaticToolParentRegistry({
-    tokenAuthority: agentCliTokenAuthority,
-    executionJournal: sessionData.programmaticExecutionJournal
-  })
-  programmaticToolDispatcher = new ProgrammaticToolDispatcher({
-    parents: programmaticToolParents,
-    executeChild: async (input) => await toolService.callProgrammaticToolChild(input),
-    authorizeChild: async ({
-      caller,
-      grant,
-      childOrdinal,
-      entry,
-      arguments: childArguments,
-      permission,
-      signal
-    }) => {
-      const requestId = permission.requestId?.trim()
-      if (!requestId) {
-        throw new CliRequestError(
-          'unavailable',
-          'Programmatic Tool permission request is unavailable',
-          { httpStatus: 503 }
-        )
-      }
-      await cliMutationGuard.authorize({
-        operation: 'tool.call',
-        effect: permission.permissionType === 'read' ? 'read' : 'destructive',
-        principal: caller.principal,
-        connectionId: caller.connectionId,
-        clientRequestId: `${grant.operation.providerToolCallId}:${childOrdinal}`,
-        arguments: {
-          target: entry.target.providerVisibleName,
-          arguments: childArguments
-        },
-        displayData: {
-          target: entry.target.providerVisibleName,
-          ...(typeof permission.argumentsPreview === 'string'
-            ? { argumentsPreview: permission.argumentsPreview }
-            : {})
-        },
-        signal,
-        timeoutMs: grant.quotas.maxDurationMs
-      })
-      if (!toolPermissionBroker.approve(requestId, grant.operation.sessionId)) {
-        throw new CliRequestError(
-          'unavailable',
-          'Programmatic Tool permission request is no longer active',
-          { httpStatus: 503 }
-        )
-      }
-    },
-    cancelChildPermission: (requestId, sessionId) => {
-      toolPermissionBroker.cancel(requestId, sessionId)
     }
   })
   const taskContractService = new TaskContractService(
@@ -2357,10 +2278,20 @@ export async function createMainProcessControl(dependencies: {
       const session = appSessionService.get(id)
       if (!session) throw new Error('Desktop session is unavailable')
       const agent = agentRepository.getAgent(session.agentId)
+      const generation = sessionData.settings.get(id)
       return {
         name: agent?.name ?? session.agentId,
         description: agent?.description ?? '',
-        cwd: session.projectDir ?? app.getPath('home')
+        cwd: session.projectDir ?? app.getPath('home'),
+        toolMode: resolveToolMode(
+          session.toolModeOverride ?? null,
+          generation
+            ? providerSettings.getCapabilitySnapshot({
+                providerId: generation.provider_id,
+                modelId: generation.model_id
+              }).defaultToolMode
+            : undefined
+        ).mode
       }
     },
     prepareInput: new DimInputPreparation({

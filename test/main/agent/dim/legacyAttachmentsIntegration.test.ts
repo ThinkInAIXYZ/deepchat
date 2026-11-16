@@ -20,7 +20,12 @@ import { DimScopeTransitions } from '@/agent/dim/scopeTransitions'
 import type { ChatMessageRecord, UserMessageContent } from '@shared/types/agent-interface'
 
 type WirePart = { type: string; text?: string; image_url?: { url: string } }
-type WireMessage = { role: string; content?: string | WirePart[]; tool_calls?: unknown[] }
+type WireMessage = {
+  role: string
+  content?: string | WirePart[]
+  tool_calls?: Array<{ id: string; function: { name: string; arguments: string } }>
+  tool_call_id?: string
+}
 
 vi.unmock('fs')
 vi.unmock('node:fs')
@@ -34,7 +39,8 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
     const server = createServer(async (request, response) => {
       let body = ''
       for await (const chunk of request) body += chunk
-      requests.push(JSON.parse(body))
+      const parsed = JSON.parse(body)
+      if (parsed.tools?.length) requests.push(parsed)
       response.writeHead(200, { 'Content-Type': 'text/event-stream' })
       response.end(
         `data: ${JSON.stringify({ id: 'legacy-attachments', object: 'chat.completion.chunk', model: 'fixture', created: 0, choices: [{ index: 0, delta: { role: 'assistant', content: 'Continuation complete' }, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`
@@ -178,8 +184,8 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
       tape: { getEffectiveViewInputRows: () => [] },
       summary: {
         getSummaryState: () => ({
-          summaryText: null,
-          summaryCursorOrderSeq: 0,
+          summaryText: 'PRIOR_NATIVE_HISTORY_SUMMARY',
+          summaryCursorOrderSeq: 1,
           summaryUpdatedAt: null
         })
       },
@@ -314,24 +320,29 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
           .map((part) => part.text ?? '')
           .join('\n')
         const count = (value: string) => modelText.split(value).length - 1
+        const summaryIndex = wire.messages.findIndex((item) =>
+          JSON.stringify(item.content).includes('PRIOR_NATIVE_HISTORY_SUMMARY')
+        )
+        const userIndex = wire.messages.findIndex((item) =>
+          JSON.stringify(item.content).includes('LEGACY_USER_ATTACHMENTS')
+        )
+        expect(summaryIndex).toBeGreaterThanOrEqual(0)
+        expect(summaryIndex).toBeLessThan(userIndex)
         for (const value of [
           'LEGACY_USER_ATTACHMENTS',
           'PDF_EMBEDDED_TEXT_SENTINEL',
           'OCR_SELECTED_TEXT_SENTINEL',
-          'legacy-write-call-id',
-          toolParams,
           'HISTORICAL_TOOL_RESULT'
         ]) {
           expect(count(value), value).toBe(1)
         }
-        const historical = parts.filter((part) => part.text?.includes('legacy-write-call-id'))
-        expect(historical).toHaveLength(1)
-        expect(historical[0].text).toContain('name: write')
-        expect(historical[0].text).toContain(toolParams)
-        expect(historical[0].text).toContain('HISTORICAL_TOOL_RESULT')
-        expect(wire.messages.some((item) => item.role === 'tool' || item.tool_calls?.length)).toBe(
-          false
-        )
+        const calls = wire.messages.flatMap((item) => item.tool_calls ?? [])
+        expect(calls).toHaveLength(1)
+        expect(calls[0].function.name).toBe('write')
+        expect(JSON.parse(calls[0].function.arguments)).toEqual(JSON.parse(toolParams))
+        expect(wire.messages.filter((item) => item.role === 'tool')).toEqual([
+          expect.objectContaining({ tool_call_id: calls[0].id, content: 'HISTORICAL_TOOL_RESULT' })
+        ])
         expect(parts.filter((part) => part.type === 'image_url' || part.type === 'image')).toEqual([
           expect.objectContaining({
             type: 'image_url',
@@ -437,13 +448,20 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
             image_url: expect.objectContaining({ url: imageUrl })
           })
         ])
-        expect(wire.messages.some((item) => item.role === 'tool' || item.tool_calls?.length)).toBe(
-          false
-        )
         const historicalTool = transcript.messages.find((item) => item.id === 'legacy-assistant')
-        for (const value of ['legacy-write-call-id', toolParams, 'HISTORICAL_TOOL_RESULT']) {
-          expect(count(value), value).toBe(historicalTool ? 1 : 0)
-          if (historicalTool) expect(transcript.contextText[historicalTool.id]).toContain(value)
+        const calls = wire.messages.flatMap((item) => item.tool_calls ?? [])
+        expect(calls).toHaveLength(historicalTool ? 1 : 0)
+        if (historicalTool) {
+          expect(calls[0].function.name).toBe('write')
+          expect(JSON.parse(calls[0].function.arguments)).toEqual(JSON.parse(toolParams))
+          expect(wire.messages.filter((item) => item.role === 'tool')).toEqual([
+            expect.objectContaining({
+              tool_call_id: calls[0].id,
+              content: 'HISTORICAL_TOOL_RESULT'
+            })
+          ])
+          for (const value of ['legacy-write-call-id', toolParams, 'HISTORICAL_TOOL_RESULT'])
+            expect(transcript.contextText[historicalTool.id]).toContain(value)
         }
         if (session !== productSessionId) {
           expect(transcript.messages).toEqual([restored])

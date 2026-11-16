@@ -15,12 +15,12 @@ use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 
 pub(crate) fn install(builder: &mut AgentBuilder) {
+    builder.replace_session_host(|identity| {
+        Arc::new(PrepareContextHost(Arc::new(DesktopContext {
+            session_id: identity.session_id.clone(),
+        })))
+    });
     if super::CONTEXT_ENABLED.get().copied().unwrap_or(false) {
-        builder.replace_session_host(|identity| {
-            Arc::new(PrepareContextHost(Arc::new(DesktopContext {
-                session_id: identity.session_id.clone(),
-            })))
-        });
         builder.require_feature(Feature::new("DeepChatContextGuide").session(
             "DeepChatContextGuide",
             |names| {
@@ -70,6 +70,27 @@ impl PrepareContext for DesktopContext {
     ) -> HostFuture<'_, Arc<ModelRequest>> {
         Box::pin(async move {
             let request = crate::media_chat::stamp(&self.session_id, &source, request);
+            let mut request = (*request).clone();
+            let code = request
+                .metadata
+                .as_ref()
+                .and_then(|metadata| metadata.extensions.get("deepchatToolMode"))
+                .and_then(Value::as_str)
+                == Some("code");
+            if let Some(tools) = &request.tools {
+                // The native binding stays complete: Code Mode's children use its pinned tools.
+                request.tools = Some(Arc::new(
+                    tools
+                        .iter()
+                        .filter(|tool| (tool.name == dim_codemode::CODEMODE_TOOL) == code)
+                        .cloned()
+                        .collect(),
+                ));
+            }
+            let request = Arc::new(request);
+            if !super::CONTEXT_ENABLED.get().copied().unwrap_or(false) {
+                return Ok(request);
+            }
             let prompt = request
                 .messages
                 .iter()

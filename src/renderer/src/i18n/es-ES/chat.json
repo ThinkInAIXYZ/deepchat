@@ -84,16 +84,13 @@
       },
       "descriptions": {
         "agent": "Usa el conjunto de herramientas estándar del agente.",
-        "code": "Combina las herramientas activadas mediante código. Requiere el modo de permisos Acceso completo.",
+        "code": "Combina las herramientas activadas mediante código.",
         "minimal": "Simplifica las operaciones de archivos y conserva las demás herramientas habilitadas."
       },
       "useModelDefault": "Usar predeterminado del modelo",
       "saving": "Guardando modo...",
       "locked": "Puedes cambiar de modo cuando termine esta respuesta.",
-      "updateFailed": "No se pudo actualizar el modo de herramientas.",
-      "codeEntry": "Entrada de código",
-      "codeCallable": "Invocable desde código",
-      "minimalTools": "Herramientas de programación"
+      "updateFailed": "No se pudo actualizar el modo de herramientas."
     },
     "fileUploadFailed": "No se ha podido adjuntar",
     "fileUploadFailedDesc": "No se han podido procesar {count} archivos: {names}",

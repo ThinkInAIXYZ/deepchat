@@ -28,7 +28,7 @@ export function loadDimLock(filename = dimLockPath) {
       lock.schemaVersion !== 1 ||
       !/^\d+\.\d+\.\d+-alpha\.\d+$/.test(lock.version) ||
       !/^[a-f0-9]{40}$/.test(lock.sourceCommit) ||
-      lock.protocolVersion !== 3
+      lock.protocolVersion !== 4
     ) {
       throw new Error('Invalid dim runtime lock')
     }

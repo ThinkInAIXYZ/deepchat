@@ -312,7 +312,10 @@ export function projectDimEvent(
       blocks.push({
         id: `${event.data.request_id}:${value.id}`,
         type: 'tool_call',
-        extra: { dimRequestId: String(event.data.request_id) },
+        extra: {
+          dimRequestId: String(event.data.request_id),
+          ...(event.parent_call_id ? { dimParentCallId: event.parent_call_id } : {})
+        },
         status: 'loading',
         timestamp: now,
         tool_call: {

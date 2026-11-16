@@ -84,16 +84,13 @@
       },
       "descriptions": {
         "agent": "使用标准 Agent 工具集。",
-        "code": "通过代码编排当前启用的工具，需要完全访问权限模式。",
+        "code": "通过 JavaScript 编排已启用的工具，每个工具仍需独立权限检查。",
         "minimal": "精简文件操作，同时保留其他已启用工具。"
       },
       "useModelDefault": "使用模型默认",
       "saving": "正在保存模式...",
       "locked": "本次回复结束后可切换模式。",
-      "updateFailed": "无法更新工具模式。",
-      "codeEntry": "代码入口",
-      "codeCallable": "Code 可调用",
-      "minimalTools": "编码工具"
+      "updateFailed": "无法更新工具模式。"
     },
     "fileUploadFailed": "附件处理失败",
     "fileUploadFailedDesc": "无法处理 {count} 个文件：{names}",

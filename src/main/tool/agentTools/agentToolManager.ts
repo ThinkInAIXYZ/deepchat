@@ -24,9 +24,6 @@ import type {
   ToolDefinitionContext
 } from '@shared/types/tool'
 import type { FffSearchMetadata } from '@/platform/fileSearch/fffSearchService'
-import type { ToolSurfaceExecutionContext } from '@/tool/catalog/toolSurface'
-import type { ProgrammaticToolCapabilityV1 } from '@/tool/catalog/programmaticToolSurface'
-import type { ProgrammaticToolParentRegistration } from '@/cli/programmaticToolParentRegistry'
 import type { ResolvedCommandShell } from '@shared/commandShell'
 import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
 import {
@@ -97,9 +94,6 @@ interface AgentToolExecutionOptions {
   signal?: AbortSignal
   allowExternalFileAccess?: boolean
   activeSkillNames?: string[]
-  toolSurfaceContext?: ToolSurfaceExecutionContext
-  programmaticToolCapability?: ProgrammaticToolCapabilityV1
-  programmaticToolParent?: ProgrammaticToolParentRegistration
   registerOutcomeProjection?: ToolOutcomeProjectionRegistrar
   liveDelegationAuthorization?: LiveDelegationStartAuthorization
   commitDispatch?: ToolDispatchCommit

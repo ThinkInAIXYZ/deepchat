@@ -84,16 +84,13 @@
       },
       "descriptions": {
         "agent": "Use the standard Agent tool set.",
-        "code": "Compose enabled tools through code. Requires Full Access permission mode.",
+        "code": "Compose enabled tools through JavaScript. Each tool keeps its own permission checks.",
         "minimal": "Simplify file operations while keeping other enabled tools."
       },
       "useModelDefault": "Use model default",
       "saving": "Saving mode...",
       "locked": "You can switch modes after this response finishes.",
-      "updateFailed": "The tool mode could not be updated.",
-      "codeEntry": "Code entry",
-      "codeCallable": "Code-callable",
-      "minimalTools": "Coding tools"
+      "updateFailed": "The tool mode could not be updated."
     },
     "fileUploadFailed": "Attachment failed",
     "fileUploadFailedDesc": "Could not process {count} files: {names}",

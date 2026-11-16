@@ -1,4 +1,5 @@
 import { dimDisabledTools } from '@shared/lib/nativeToolPreferences'
+import type { ToolMode } from '@shared/toolMode'
 import type { JsonValue } from '@shared/contracts/json'
 import type {
   PermissionMode,
@@ -18,6 +19,7 @@ interface SessionIdentity {
   description: string
   cwd: string
   tools?: string[]
+  toolMode?: ToolMode
 }
 interface SettingsOptions {
   state: DesktopSessionState
@@ -127,6 +129,7 @@ export class DimSessionSettings {
       config: parameters as unknown as JsonValue,
       limits: { contextWindow: generation.contextLength, maxOutputTokens: generation.maxTokens },
       productPermissionMode: row.permission_mode,
+      toolMode: identity.toolMode ?? 'agent',
       mediaOptions
     })
     await this.adoptPermission(binding)

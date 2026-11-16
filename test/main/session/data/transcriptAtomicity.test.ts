@@ -100,10 +100,10 @@ describeIfSqlite('SessionTranscript keeps transcript and Tape writes atomic', ()
     const { close, connection, database, transcript, setTapeFailing } = createTranscript()
     try {
       database.deepchatSessionsTable.create('s1', 'openai', 'fixture', 'default')
-      const { pendingInputs, tape } = createSessionDataFromDatabase(database, {
+      const { pendingInputs, tapeStore: tape } = createSessionDataFromDatabase(database, {
         publishPendingInputsChanged: () => {},
         publishMessagesChanged: () => {}
-      }).runtime
+      })
       tape.ensureSessionTapeReady('s1', transcript)
       transcript.createUserMessage('s1', 1, userContent)
       const assistantId = transcript.createAssistantMessage('s1', 2)

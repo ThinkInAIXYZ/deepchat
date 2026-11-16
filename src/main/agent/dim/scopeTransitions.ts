@@ -101,15 +101,17 @@ export class DimScopeTransitions {
       const pending = table.get(sessionId)
       if (pending) await this.complete(pending)
       const source = this.binding(sessionId)
-      const identity = await this.controls.call<{ cwd: string; tools: string[] | null }>(
-        'native_identity',
-        { sessionId: source.dimSessionId, branchId: source.branchId }
-      )
+      const identity = await this.controls.call<{
+        cwd: string
+        tools: string[] | null
+        excludedTools?: string[]
+      }>('native_identity', { sessionId: source.dimSessionId, branchId: source.branchId })
       const tools = (value: string[] | null | undefined) =>
         value ? JSON.stringify([...new Set(value)].sort()) : 'null'
       if (
         toNamespacedPath(await realpath(creation.cwd)) === toNamespacedPath(identity.cwd) &&
-        tools(creation.tools) === tools(identity.tools)
+        tools(creation.tools) === tools(identity.tools) &&
+        !identity.excludedTools?.includes('codemode')
       )
         return source
       const record: DimScopeChange = {

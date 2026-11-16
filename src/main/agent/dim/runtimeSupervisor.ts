@@ -168,10 +168,10 @@ export class DimRuntimeSupervisor {
         serverVersion: string
         protocolVersion: number
         daemonProfile: { kind: string }
-      }>('hello', { protocolVersion: 3, clientKind: 'other', clientName: 'DeepChat auxiliary' })
+      }>('hello', { protocolVersion: 4, clientKind: 'other', clientName: 'DeepChat auxiliary' })
       if (
         hello.serverVersion !== this.identity?.version ||
-        hello.protocolVersion !== 3 ||
+        hello.protocolVersion !== 4 ||
         hello.daemonProfile.kind !== (this.options.profile ?? 'product')
       )
         throw new Error('dim auxiliary host identity mismatch')
@@ -192,7 +192,7 @@ export class DimRuntimeSupervisor {
     const { runtimeRoot, profileRoot, nodeExecutable } = this.options
     const plugins = path.resolve(runtimeRoot, 'plugins')
     const lock = JSON.parse(await readFile(path.join(plugins, 'runtime-lock.json'), 'utf8'))
-    if (lock.schemaVersion !== 1 || lock.protocolVersion !== 3 || lock.pluginApiVersion !== 1) {
+    if (lock.schemaVersion !== 1 || lock.protocolVersion !== 4 || lock.pluginApiVersion !== 1) {
       throw new Error('Unsupported dim runtime/plugin lock')
     }
     const target = `${process.platform}-${process.arch}`
@@ -384,7 +384,7 @@ export class DimRuntimeSupervisor {
       }>(
         'hello',
         {
-          protocolVersion: 3,
+          protocolVersion: 4,
           clientKind: 'other',
           clientName: 'DeepChat'
         },

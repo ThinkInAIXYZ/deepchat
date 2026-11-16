@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "version": "0.1.0-alpha.23",
   "sourceCommit": "092aaa7ff9c536474b0b2ed396eb98cdbc904b75",
-  "protocolVersion": 3,
+  "protocolVersion": 4,
   "pluginApiVersion": 1,
   "rutisVersion": "0.19.3",
   "artifacts": {

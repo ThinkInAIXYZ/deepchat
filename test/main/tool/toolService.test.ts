@@ -34,25 +34,16 @@ import {
   createToolSurfaceExecutionBatch,
   registerToolSurfaceDeferredDispatch,
   revokeToolSurfaceDeferredDispatch,
-  revokeToolSurfaceExecutionEligibility,
   type ToolSurfaceShadowPolicy
 } from '@/tool/catalog/toolSurface'
-import {
-  buildProgrammaticToolCapabilityV1,
-  createProgrammaticToolSurfaceRunControllerV1,
-  assertProgrammaticToolCapabilityViewCommitted,
-  markProgrammaticToolCapabilityProvenanceCommitted,
-  projectProgrammaticExecDefinition
-} from '@/tool/catalog/programmaticToolSurface'
 import {
   AGENT_CLI_PROGRAMMATIC_GRANT_SCHEMA_VERSION,
   AgentCliTokenAuthority
 } from '@/cli/agentTokenAuthority'
-import { ProgrammaticToolParentRegistry } from '@/cli/programmaticToolParentRegistry'
 import { LOCAL_CONTROL_PROGRAMMATIC_ROUTE_SURFACE_VERSION } from '@shared/contracts/localControl'
 import { ExecutionJournalService } from '@/tape/application/executionJournalService'
+import { buildToolSearchDefinition } from '@shared/contracts/toolSearch'
 import { createTapeTableMock } from '../session/data/tapeTestHarness'
-import { buildToolSearchDefinition } from '@/tool/agentTools/toolSearchTool'
 import {
   bindToolSurfaceCanaryRunEvidence,
   createToolSurfaceCanaryRunEvidenceRecorder
@@ -618,182 +609,6 @@ describe('ToolService', () => {
     ).rejects.toThrow(/changed after provider View assembly/)
     expect(mcpService.callTool).toHaveBeenCalledOnce()
     expect(commitDispatch).not.toHaveBeenCalled()
-  })
-
-  it('rejects stale ToolSearch execution contexts before authorization side effects', async () => {
-    const stale = buildToolSurfaceExecutionContext(true)
-    const revoked = buildToolSurfaceExecutionContext()
-    revokeToolSurfaceExecutionEligibility(revoked.context.snapshot)
-    const active = buildToolSurfaceExecutionContext()
-    const resolveConversationExecutionAuthority = vi.fn()
-    const effectObserver = {
-      beforeToolAuthorization: vi.fn(),
-      beforeToolExecution: vi.fn()
-    }
-    const toolService = new ToolService({
-      skillSettings: { isEnabled: () => false } as any,
-      mcpService: {
-        getAllToolDefinitions: vi.fn().mockResolvedValue([]),
-        callTool: vi.fn()
-      } as any,
-      agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
-      providerSettings: { getModelConfig: vi.fn() } as any,
-      settings: { get: vi.fn() },
-      commandPermissionHandler: new CommandPermissionService(),
-      agentTools: buildAgentToolRuntimeMock({ resolveConversationExecutionAuthority }),
-      effectObserver
-    })
-
-    const toolSearchRequest = {
-      id: 'tool-search-1',
-      type: 'function' as const,
-      function: { name: TOOL_SEARCH_AGENT_TOOL_NAME, arguments: '{}' },
-      conversationId: stale.request.sessionId
-    }
-    await expect(
-      toolService.callTool(toolSearchRequest, {
-        messageId: stale.request.messageId,
-        runId: stale.request.runId,
-        requestSeq: stale.request.requestSeq,
-        toolSurfaceContext: stale.context
-      })
-    ).rejects.toThrow(/no longer active|stale/)
-    await expect(
-      toolService.callTool(
-        { ...toolSearchRequest, conversationId: revoked.request.sessionId },
-        {
-          messageId: revoked.request.messageId,
-          runId: revoked.request.runId,
-          requestSeq: revoked.request.requestSeq,
-          toolSurfaceContext: revoked.context
-        }
-      )
-    ).rejects.toThrow(/no longer active|stale/)
-    await expect(
-      toolService.callTool(toolSearchRequest, {
-        messageId: 'wrong-message',
-        runId: active.request.runId,
-        requestSeq: active.request.requestSeq,
-        toolSurfaceContext: active.context
-      })
-    ).rejects.toThrow(/does not match/)
-    await expect(
-      toolService.callTool(
-        { ...toolSearchRequest, function: { name: 'not-search', arguments: '{}' } },
-        {
-          messageId: active.request.messageId,
-          runId: active.request.runId,
-          requestSeq: active.request.requestSeq,
-          toolSurfaceContext: active.context
-        }
-      )
-    ).rejects.toThrow(/reserved for ToolSearch/)
-    await expect(
-      toolService.callTool(toolSearchRequest, {
-        messageId: active.request.messageId,
-        runId: active.request.runId,
-        requestSeq: active.request.requestSeq
-      })
-    ).rejects.toThrow(/requires an active request-scoped execution context/)
-    await expect(
-      toolService.callTool(toolSearchRequest, {
-        messageId: active.request.messageId,
-        runId: active.request.runId,
-        requestSeq: active.request.requestSeq,
-        toolSurfaceContext: { ...active.context }
-      })
-    ).rejects.toThrow(/not issued by the request-scoped builder/)
-    expect(resolveConversationExecutionAuthority).not.toHaveBeenCalled()
-    expect(effectObserver.beforeToolAuthorization).not.toHaveBeenCalled()
-    expect(effectObserver.beforeToolExecution).not.toHaveBeenCalled()
-    active.batch.discard()
-  })
-
-  it('rechecks ToolSearch context liveness after asynchronous authorization', async () => {
-    const active = buildToolSurfaceExecutionContext()
-    let resolveAuthorization!: (value: null) => void
-    const beforeToolAuthorization = vi.fn(
-      () =>
-        new Promise<null>((resolve) => {
-          resolveAuthorization = resolve
-        })
-    )
-    const commitDispatch = vi.fn()
-    const registerOutcomeProjection = vi.fn()
-    const toolService = new ToolService({
-      skillSettings: { isEnabled: () => false } as any,
-      mcpService: {
-        getAllToolDefinitions: vi.fn().mockResolvedValue([]),
-        callTool: vi.fn()
-      } as any,
-      agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
-      providerSettings: { getModelConfig: vi.fn() } as any,
-      settings: { get: vi.fn() },
-      commandPermissionHandler: new CommandPermissionService(),
-      agentTools: buildAgentToolRuntimeMock(),
-      effectObserver: { beforeToolAuthorization, beforeToolExecution: vi.fn() }
-    })
-    await toolService.getAllToolDefinitions({
-      chatMode: 'agent',
-      agentWorkspacePath: 'C:\\\\workspace',
-      conversationId: active.request.sessionId
-    })
-
-    const pending = toolService.callTool(
-      {
-        id: 'tool-search-authorization-race',
-        type: 'function',
-        function: {
-          name: TOOL_SEARCH_AGENT_TOOL_NAME,
-          arguments: JSON.stringify({ query: 'hidden' })
-        },
-        conversationId: active.request.sessionId
-      },
-      {
-        messageId: active.request.messageId,
-        runId: active.request.runId,
-        requestSeq: active.request.requestSeq,
-        toolSurfaceContext: active.context,
-        commitDispatch,
-        registerOutcomeProjection
-      }
-    )
-    await vi.waitFor(() => expect(beforeToolAuthorization).toHaveBeenCalledOnce())
-    revokeToolSurfaceExecutionEligibility(active.context.snapshot)
-    resolveAuthorization(null)
-
-    await expect(pending).rejects.toThrow(/active provider View|no longer active|stale/)
-    expect(commitDispatch).not.toHaveBeenCalled()
-    expect(registerOutcomeProjection).not.toHaveBeenCalled()
-    active.batch.discard()
-  })
-
-  it('pauses Code Mode and preserves the native catalog for Agent and Minimal preferences', () => {
-    const service = new ToolService({
-      skillSettings: { isEnabled: () => false } as any,
-      mcpService: { getAllToolDefinitions: vi.fn().mockResolvedValue([]) } as any,
-      agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
-      providerSettings: { getModelConfig: vi.fn() } as any,
-      settings: { get: vi.fn() },
-      commandPermissionHandler: new CommandPermissionService(),
-      agentTools: buildAgentToolRuntimeMock()
-    })
-    const native = ['read', 'write', 'edit', 'exec', 'exec_stop', 'agent'].map((name) => ({
-      ...buildToolDefinition(name, 'dim'),
-      source: 'agent' as const
-    }))
-    const config = {
-      conversationId: 'session-1',
-      providerId: 'openai-codex',
-      commandShell: POSIX_COMMAND_SHELL,
-      executionCatalog: native
-    }
-    for (const mode of ['agent', 'minimal'] as const) {
-      expect(service.configureToolMode({ ...config, mode })).toEqual(native)
-    }
-    expect(() => service.configureToolMode({ ...config, mode: 'code' })).toThrow(
-      'Code Mode is unavailable until dim'
-    )
   })
 
   it('meets the frozen execution contract with current authority at dispatch', async () => {

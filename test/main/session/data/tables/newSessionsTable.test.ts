@@ -268,11 +268,11 @@ describeIfSqlite('NewSessionsTable', () => {
     })
   })
 
-  it('drops retired Code Mode and persists available overrides', () => {
+  it('persists native Code Mode and available overrides', () => {
     table.create('session-1', 'deepchat', 'Session', null, { toolModeOverride: 'code' })
     const createdRevision = table.get('session-1')?.revision ?? 0
 
-    expect(table.get('session-1')?.tool_mode_override).toBeNull()
+    expect(table.get('session-1')?.tool_mode_override).toBe('code')
 
     table.updateToolModeOverride('session-1', 'minimal')
     expect(table.get('session-1')).toMatchObject({

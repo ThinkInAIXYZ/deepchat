@@ -1,6 +1,6 @@
 [package]
 name = "deepchat-dim-host"
-version = "0.44.0"
+version = "0.45.0"
 edition = "2024"
 rust-version = "1.98"
 license = "Apache-2.0"
@@ -20,6 +20,7 @@ dim-agent-capabilities = { path = "../dim-source/crates/dim-agent-capabilities" 
 dim-session-title = { path = "../dim-source/crates/dim-session-title" }
 dim-agent-scheduler = { path = "../dim-source/crates/dim-agent-scheduler" }
 dim-goal = { path = "../dim-source/crates/dim-goal" }
+dim-codemode = { path = "../dim-source/crates/dim-codemode" }
 dim-modality = { path = "../dim-source/crates/dim-modality" }
 dim-modality-aimux = { path = "../dim-source/crates/dim-modality-aimux" }
 dim-ocr = { path = "../dim-source/crates/dim-ocr" }

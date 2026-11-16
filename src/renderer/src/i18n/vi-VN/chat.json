@@ -84,16 +84,13 @@
       },
       "descriptions": {
         "agent": "Sử dụng bộ công cụ Agent tiêu chuẩn.",
-        "code": "Kết hợp các công cụ đã bật bằng mã. Yêu cầu chế độ quyền Toàn quyền truy cập.",
+        "code": "Kết hợp các công cụ đã bật bằng mã.",
         "minimal": "Đơn giản hóa thao tác tệp và giữ các công cụ đã bật khác."
       },
       "useModelDefault": "Dùng mặc định của mô hình",
       "saving": "Đang lưu chế độ...",
       "locked": "Bạn có thể đổi chế độ sau khi phản hồi này hoàn tất.",
-      "updateFailed": "Không thể cập nhật chế độ công cụ.",
-      "codeEntry": "Điểm vào mã",
-      "codeCallable": "Có thể gọi từ mã",
-      "minimalTools": "Công cụ lập trình"
+      "updateFailed": "Không thể cập nhật chế độ công cụ."
     },
     "fileUploadFailed": "Tệp đính kèm không thành công",
     "fileUploadFailedDesc": "Không thể xử lý tệp {count}: {names}",

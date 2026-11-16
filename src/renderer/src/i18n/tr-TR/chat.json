@@ -84,16 +84,13 @@
       },
       "descriptions": {
         "agent": "Standart Agent araç setini kullanır.",
-        "code": "Etkin araçları kod aracılığıyla birleştirir. Tam Erişim izin modu gerekir.",
+        "code": "Etkin araçları kod aracılığıyla birleştirir.",
         "minimal": "Dosya işlemlerini sadeleştirir ve diğer etkin araçları korur."
       },
       "useModelDefault": "Model varsayılanını kullan",
       "saving": "Mod kaydediliyor...",
       "locked": "Bu yanıt bittikten sonra mod değiştirebilirsiniz.",
-      "updateFailed": "Araç modu güncellenemedi.",
-      "codeEntry": "Kod girişi",
-      "codeCallable": "Koddan çağrılabilir",
-      "minimalTools": "Kodlama araçları"
+      "updateFailed": "Araç modu güncellenemedi."
     },
     "fileUploadFailed": "Ek başarısız oldu",
     "fileUploadFailedDesc": "{count} dosyaları işlenemedi: {names}",

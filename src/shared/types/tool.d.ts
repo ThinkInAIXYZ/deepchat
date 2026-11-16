@@ -14,7 +14,6 @@ import type {
 import type { DeepChatSubagentCapability, PermissionMode, SessionKind } from '../agent-interface'
 import type { DeepChatExecutionContract } from './execution-contract'
 import type { CommandShellProfile, ResolvedCommandShell } from '../commandShell'
-import type { ToolMode } from '../toolMode'
 
 export type AgentToolProgressUpdate = {
   kind: 'subagent_orchestrator'
@@ -36,14 +35,6 @@ export interface ToolDefinitionContext {
   sessionKind?: SessionKind
   activeSkillNames?: string[]
   subagentCapability?: DeepChatSubagentCapability
-}
-
-export interface ToolModeConfiguration {
-  conversationId: string
-  mode: ToolMode
-  providerId: string
-  commandShell: ResolvedCommandShell
-  executionCatalog: readonly MCPToolDefinition[]
 }
 
 export interface ToolCallOptions {
@@ -164,8 +155,6 @@ export interface ToolServicePort {
    * Release any cached tool mapping for a conversation.
    */
   clearConversationToolMapping(conversationId: string): void
-
-  configureToolMode(input: ToolModeConfiguration): MCPToolDefinition[]
 
   /**
    * Build system prompt section for tool-related behavior.

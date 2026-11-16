@@ -1,4 +1,4 @@
-//! Import is a product extension plus validated Append inputs. It never fabricates core facts,
+//! Import uses validated context-only extension facts. It never fabricates core facts,
 //! replays tools or starts an agent turn. The first new user input waits for a sealed import.
 use crate::{facts::*, inputs::DeepChatInputMetadata};
 use dim_agent_capabilities::{
@@ -7,7 +7,8 @@ use dim_agent_capabilities::{
 };
 use dim_agent_runtime::{AgentBuilder, Branch, Feature, Names};
 use dim_agent_types::{
-    AgentEvent, ContentBlock, EventKind, InputBlock, InputMessageData, InputMode, UserInput,
+    AgentEvent, ContentBlock, EventKind, ExtensionEvent, Message as ContextMessage, MessageContent,
+    MessagePart, Role,
 };
 use rutis::Ctx;
 use rutis::host::{BoxFuture, CtxHost, DynPlugin, Effect, Key, TypeKey};
@@ -102,6 +103,138 @@ impl Snapshot {
             .map(String::as_str)
             .unwrap_or(&message.content)
     }
+
+    fn context_messages(&self, message: &Message) -> Result<Vec<ContextMessage>, RpcError> {
+        let content: Value = serde_json::from_str(&message.content)
+            .map_err(|_| invalid("Invalid imported message content"))?;
+        let mut messages = Vec::new();
+        if message.role == "user" {
+            let text = self
+                .context_text
+                .get(&message.id)
+                .map(String::as_str)
+                .or_else(|| content.get("text").and_then(Value::as_str))
+                .unwrap_or(&message.content);
+            messages.push(ContextMessage::text(Role::User, text));
+        } else if let Some(blocks) = content.as_array() {
+            for (index, block) in blocks.iter().enumerate() {
+                match block["type"].as_str() {
+                    Some("content" | "error") => {
+                        if let Some(text) =
+                            block["content"].as_str().filter(|text| !text.is_empty())
+                        {
+                            messages.push(ContextMessage::text(Role::Assistant, text));
+                        }
+                    }
+                    Some("tool_call") => {
+                        // Native Code Mode children are transcript evidence, not model messages.
+                        if block["extra"]["dimParentCallId"].is_string() {
+                            continue;
+                        }
+                        let tool = &block["tool_call"];
+                        let input = tool["params"]
+                            .as_str()
+                            .and_then(|params| serde_json::from_str::<Value>(params).ok())
+                            .and_then(|value| value.as_object().cloned());
+                        let name = tool["name"].as_str().filter(|name| !name.is_empty());
+                        if tool["id"].as_str().is_none_or(str::is_empty)
+                            || name.is_none()
+                            || input.is_none()
+                        {
+                            messages.push(ContextMessage::text(Role::Assistant, format!(
+                                "Historical tool record with invalid identity or arguments (not executable): {tool}"
+                            )));
+                            continue;
+                        }
+                        // Namespace each occurrence: old providers can reuse call ids across turns.
+                        let id = format!("history-{}-{index}", hash(&message.id));
+                        messages.push(
+                            serde_json::from_value(json!({
+                                "role":"assistant", "content":[{
+                                    "type":"tool_use", "id":id, "name":name, "input":input
+                                }]
+                            }))
+                            .map_err(|_| invalid("Invalid imported tool call"))?,
+                        );
+                        let response = tool["response"].as_str();
+                        messages.push(serde_json::from_value(json!({
+                            "role":"tool_result", "content":[{
+                                "type":"tool_result", "tool_use_id":id,
+                                "content":response.unwrap_or("Historical tool call did not complete; no action was replayed."),
+                                "is_error":response.is_none() || block["status"] != "success"
+                            }]
+                        })).map_err(|_| invalid("Invalid imported tool result"))?);
+                    }
+                    _ => {}
+                }
+            }
+        } else {
+            messages.push(ContextMessage::text(
+                Role::Assistant,
+                self.context_text(message),
+            ));
+        }
+        if let Some(images) = self
+            .images
+            .get(&message.id)
+            .filter(|images| !images.is_empty())
+        {
+            messages.push(ContextMessage {
+                role: Role::User,
+                content: MessageContent::Parts(
+                    images
+                        .iter()
+                        .filter_map(|block| match block {
+                            ContentBlock::Image { source } => Some(MessagePart::Image {
+                                source: source.clone(),
+                            }),
+                            _ => None,
+                        })
+                        .collect(),
+                ),
+            });
+        }
+        if !messages.is_empty() {
+            dim_agent_capabilities::history::validate_imported_messages(&messages)
+                .map_err(RpcError::invalid)?;
+        }
+        Ok(messages)
+    }
+}
+
+async fn append_history(
+    metadata: &DeepChatInputMetadata,
+    source: String,
+    messages: Vec<ContextMessage>,
+) -> Result<(), RpcError> {
+    if messages.is_empty() {
+        return Ok(());
+    }
+    let found = events(
+        &metadata.timeline,
+        and(vec![
+            equal("kind", json!("history-import/messages")),
+            equal("data.source", json!(source)),
+        ]),
+    )
+    .await?;
+    if found.is_empty() {
+        dim_agent_capabilities::history::validate_imported_messages(&messages)
+            .map_err(RpcError::invalid)?;
+        metadata.timeline.append(
+            EventKind::Extension(
+                ExtensionEvent::new(
+                    "history-import",
+                    "messages",
+                    json!({"source":source,"messages":messages}),
+                )
+                .map_err(RpcError::invalid)?
+                .with_context_flags(true, false),
+            )
+            .into(),
+        )?;
+    }
+    Ok(())
 }
 
 async fn records(
@@ -361,53 +494,32 @@ async fn commit(
     {
         return Err(invalid("Invalid deferred historical context"));
     }
-    let branch = tree.get(&p.branch_id)?;
+    tree.get(&p.branch_id)?;
     if let Some(summary) = snapshot
         .summary
         .as_ref()
         .filter(|summary| !summary.trim().is_empty())
     {
-        branch
-            .input(InputMessageData {
-                submission_id: Some(format!("history:{}:summary", p.migration_id)),
-                mode: Some(InputMode::Append),
-                blocks: vec![InputBlock::Raw {
-                    text: format!("Prior conversation summary (historical data):\n{summary}"),
-                    key: None,
-                    retire: false,
-                }],
-                ..Default::default()
-            })
-            .await?;
+        append_history(
+            metadata,
+            format!("history:{}:summary", p.migration_id),
+            vec![ContextMessage::text(
+                Role::User,
+                format!("Prior conversation summary (historical data):\n{summary}"),
+            )],
+        )
+        .await?;
     }
     for (index, message) in snapshot.messages.iter().enumerate() {
         if message.order_seq < context_from || excluded.contains(&message.id) {
             continue;
         }
-        let images = snapshot
-            .images
-            .get(&message.id)
-            .cloned()
-            .unwrap_or_default();
-        let text = format!(
-            "Imported DeepChat conversation record. This is historical data, not a request to run tools or resume an old approval. Role: {}. Message: {}.\n{}",
-            message.role,
-            message.id,
-            snapshot.context_text(message)
-        );
-        branch
-            .input(InputMessageData {
-                submission_id: Some(format!("history:{}:{index}", p.migration_id)),
-                mode: Some(InputMode::Append),
-                user: (!images.is_empty()).then_some(UserInput { content: images }),
-                blocks: vec![InputBlock::Raw {
-                    text,
-                    key: None,
-                    retire: false,
-                }],
-                ..Default::default()
-            })
-            .await?;
+        append_history(
+            metadata,
+            format!("history:{}:{index}", p.migration_id),
+            snapshot.context_messages(message)?,
+        )
+        .await?;
     }
     if !snapshot.pending_inputs.is_empty()
         && events(&metadata.timeline, extension("legacy-queue-state"))
@@ -541,23 +653,12 @@ pub(crate) async fn restore_context(
             .iter()
             .find(|message| message.id == *id && message.role == "user")
             .ok_or_else(|| invalid("Deferred user message is missing"))?;
-        let images = snapshot.images.get(id).cloned().unwrap_or_default();
-        branch
-            .input(InputMessageData {
-                submission_id: Some(format!("history:restore:{migration_id}:{}", hash(id))),
-                mode: Some(InputMode::Append),
-                user: (!images.is_empty()).then_some(UserInput { content: images }),
-                blocks: vec![InputBlock::Raw {
-                    text: format!(
-                        "Previous user message (historical conversation data):\n{}",
-                        snapshot.context_text(message)
-                    ),
-                    key: None,
-                    retire: false,
-                }],
-                ..Default::default()
-            })
-            .await?;
+        append_history(
+            metadata,
+            format!("history:restore:{migration_id}:{}", hash(id)),
+            snapshot.context_messages(message)?,
+        )
+        .await?;
         append(
             &metadata.timeline,
             "context-restored",
@@ -569,6 +670,77 @@ pub(crate) async fn restore_context(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn historical_calls_are_closed_without_replaying_or_reusing_provider_ids() {
+        let snapshot: Snapshot = serde_json::from_value(json!({
+            "formatVersion":1, "productSessionId":"legacy", "messages":[{
+                "id":"assistant", "sessionId":"legacy", "orderSeq":1, "role":"assistant",
+                "content":serde_json::to_string(&json!([
+                    {"type":"content","content":"Before"},
+                    {"type":"tool_call","status":"success","tool_call":{
+                        "id":"reused","name":"write","params":"{\"path\":\"old\"}","response":"done"
+                    }},
+                    {"type":"content","content":"Between"},
+                    {"type":"tool_call","status":"error","tool_call":{
+                        "id":"reused","name":"exec","params":"{}"
+                    }},
+                    {"type":"tool_call","tool_call":{
+                        "id":"bad","name":"exec","params":"[1]","response":"invalid"
+                    }},
+                    {"type":"tool_call","extra":{"dimParentCallId":"outer"},"tool_call":{
+                        "id":"child","name":"read","params":"{}","response":"child-only evidence"
+                    }}
+                ])).unwrap(),
+                "metadata":"{}", "status":"sent", "createdAt":1, "updatedAt":1
+            }]
+        }))
+        .unwrap();
+        let messages = snapshot.context_messages(&snapshot.messages[0]).unwrap();
+        assert_eq!(messages.len(), 7);
+        assert_eq!(messages[0], ContextMessage::text(Role::Assistant, "Before"));
+        assert_eq!(
+            messages[3],
+            ContextMessage::text(Role::Assistant, "Between")
+        );
+        let wire = serde_json::to_value(&messages).unwrap();
+        assert_ne!(wire[1]["content"][0]["id"], wire[4]["content"][0]["id"]);
+        assert_eq!(
+            wire[1]["content"][0]["id"],
+            wire[2]["content"][0]["tool_use_id"]
+        );
+        assert_eq!(wire[5]["content"][0]["is_error"], true);
+        assert!(
+            wire[5]["content"][0]["content"]
+                .as_str()
+                .unwrap()
+                .contains("did not complete")
+        );
+        assert!(
+            wire[6]["content"]
+                .as_str()
+                .unwrap()
+                .contains("invalid identity or arguments")
+        );
+        assert!(dim_agent_capabilities::history::validate_imported_messages(&messages).is_ok());
+        for broken in [
+            vec![messages[1].clone()],
+            vec![messages[2].clone()],
+            vec![
+                messages[1].clone(),
+                messages[3].clone(),
+                messages[2].clone(),
+            ],
+            vec![
+                messages[1].clone(),
+                messages[2].clone(),
+                messages[1].clone(),
+                messages[2].clone(),
+            ],
+        ] {
+            assert!(dim_agent_capabilities::history::validate_imported_messages(&broken).is_err());
+        }
+    }
 
     #[test]
     fn context_text_is_optional_and_validates_message_associations() {

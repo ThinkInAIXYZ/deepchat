@@ -4,7 +4,7 @@ import {
   type SkillServicePort
 } from '@shared/types/skill'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
-import type { ToolModeConfiguration, ToolServicePort } from '@shared/types/tool'
+import type { ToolServicePort } from '@shared/types/tool'
 import { types as nodeTypes } from 'node:util'
 import type {
   AgentType,
@@ -270,19 +270,6 @@ export class DeepChatToolResolver {
       this.dependencies.sessions.getToolModeOverride(sessionId),
       catalogDefault
     )
-  }
-
-  configureToolMode(input: ToolModeConfiguration): MCPToolDefinition[] {
-    const configureToolMode = this.dependencies.toolService.configureToolMode
-    if (typeof configureToolMode === 'function') {
-      return configureToolMode.call(this.dependencies.toolService, input)
-    }
-
-    if (input.mode === 'agent') {
-      return [...input.executionCatalog]
-    }
-
-    throw new Error(`Tool service does not support ${input.mode} mode.`)
   }
 
   async loadToolDefinitionsForSession(

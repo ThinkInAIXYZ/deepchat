@@ -11,14 +11,3 @@ export {
 } from './chatSettingsTools'
 export { AGENT_TAPE_TOOL_SERVER_NAME } from '@shared/agentTools'
 export { TAPE_TOOL_NAMES } from '@shared/agentTools'
-export {
-  TOOL_SEARCH_DEFAULT_RESULT_LIMIT,
-  TOOL_SEARCH_MAX_QUERY_LENGTH,
-  TOOL_SEARCH_MAX_RESULT_LIMIT,
-  TOOL_SEARCH_TOOL_SERVER_NAME,
-  buildToolSearchDefinition,
-  parseToolSearchInput,
-  toolSearchInputSchema,
-  type ToolSearchInput,
-  type ToolSearchInputParseResult
-} from './toolSearchTool'

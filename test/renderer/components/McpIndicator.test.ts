@@ -502,7 +502,7 @@ describe('McpIndicator', () => {
     })
   })
 
-  it('falls back from legacy Code mode without offering the retired entrypoint', async () => {
+  it('offers native Code Mode from the model default', async () => {
     const { wrapper, agentSessionPresenter } = await setup({
       providerId: 'deepseek',
       defaultToolMode: 'code',
@@ -512,11 +512,11 @@ describe('McpIndicator', () => {
     expect(wrapper.text()).toContain('Model default')
     expect(
       wrapper.findAll('[role="radio"]').map((radio) => radio.element.parentElement?.textContent)
-    ).toEqual(['Agent', 'Minimal'])
+    ).toEqual(['Agent', 'Code', 'Minimal'])
     expect(wrapper.text()).not.toContain('run_code')
     expect(wrapper.text()).not.toContain('Code callable · Agent Filesystem')
     expect(wrapper.text()).toContain('ask_user')
-    expect(wrapper.text()).toContain('Direct tool calls')
+    expect(wrapper.text()).toContain('Compose calls with code')
     expect(agentSessionPresenter.updateSessionDisabledAgentTools).not.toHaveBeenCalled()
     expect(wrapper.text()).toContain('demo-server')
   })
@@ -527,7 +527,7 @@ describe('McpIndicator', () => {
       nativeCatalog: true,
       subagentsAvailable: true
     })
-    await wrapper.findAll('[role="radio"]')[1].trigger('click')
+    await wrapper.findAll('[role="radio"]')[2].trigger('click')
     await flushPromises()
     expect(sessionStore.setSessionToolMode).toHaveBeenCalledWith('minimal')
     for (const name of ['read', 'exec', 'ask_user'])
@@ -553,7 +553,7 @@ describe('McpIndicator', () => {
     const { wrapper, sessionStore } = await setup({ sessionStatus: 'working' })
     const radios = wrapper.findAll('[role="radio"]')
 
-    expect(radios).toHaveLength(2)
+    expect(radios).toHaveLength(3)
     expect(radios.every((radio) => radio.attributes('disabled') !== undefined)).toBe(true)
     await radios[1].trigger('click')
     await flushPromises()

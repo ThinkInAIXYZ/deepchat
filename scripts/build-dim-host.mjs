@@ -90,6 +90,7 @@ await writeFile(
     'Adds per-connection fetch injection to the native Jev configuration.\n' +
     'Adds an optional native provider connection preparation and recovery host.\n' +
     'Preserves cmd.exe command-string quoting in native process spawning.\n' +
+    'Adds validated historical message groups to native context projection; no historical tools run.\n' +
     'DeepChat adds configuration, auxiliary-model, context and credential-reference plugins.\n' +
     'Execution implementations are supplied by dim. DeepChat additions: Apache-2.0.\n'
 )

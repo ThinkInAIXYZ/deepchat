@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/core/mcp'
 import { buildCanonicalToolCatalog } from '@/tool/catalog/toolSurface'
-import { buildToolSearchDefinition } from '@/tool/agentTools/toolSearchTool'
+import { buildToolSearchDefinition } from '@shared/contracts/toolSearch'
 import { buildExecutionContract } from '@/tape/domain/executionContract'
 import {
   buildTapeSkillMaterializationRef,

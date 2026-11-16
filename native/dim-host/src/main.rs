@@ -16,10 +16,10 @@ mod gateway;
 mod inputs;
 mod legacy_queue;
 mod media;
+mod media_chat;
 mod media_compat;
 mod media_files;
 mod media_history;
-mod media_chat;
 mod media_inputs;
 mod media_tasks;
 mod memory;
@@ -29,8 +29,8 @@ mod models;
 mod payload;
 mod permissions;
 mod plugin_hooks;
-mod profile;
 mod product_tools;
+mod profile;
 mod provider_connections;
 mod queue;
 mod scopes;
@@ -50,6 +50,9 @@ fn install(builder: &mut dim_agent_runtime::AgentBuilder) {
     title_preferences::install(builder);
     dim_agent_scheduler::install(builder);
     dim_goal::install(builder);
+    builder
+        .require_part("CodeModeSession")
+        .require_part("CodeModeBranch");
     media::install(builder);
     media::install_tasks(
         builder,

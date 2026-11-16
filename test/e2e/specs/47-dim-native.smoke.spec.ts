@@ -20,6 +20,136 @@ import {
 } from '../helpers/chat'
 import { waitForAppReady } from '../helpers/wait'
 
+test('desktop Code Mode projects native child calls @smoke', async ({ app }) => {
+  let code: string | null = null
+  const requests: Array<{ tools?: Array<{ function: { name: string } }>; messages: unknown[] }> = []
+  const server = createServer(async (request, response) => {
+    if (request.url === '/v1/models') {
+      response
+        .writeHead(200, { 'Content-Type': 'application/json' })
+        .end(JSON.stringify({ data: [{ id: 'code-ui' }] }))
+      return
+    }
+    if (request.url !== '/v1/chat/completions' || request.method !== 'POST') {
+      response.writeHead(404).end()
+      return
+    }
+    let raw = ''
+    for await (const chunk of request) raw += chunk
+    const body = JSON.parse(raw)
+    if (body.tools?.length) requests.push(body)
+    const program = body.tools?.some(
+      (tool: { function: { name: string } }) => tool.function.name === 'codemode'
+    )
+      ? code
+      : null
+    if (program) code = null
+    response.writeHead(200, { 'Content-Type': 'text/event-stream' }).end(
+      `data: ${JSON.stringify({
+        id: 'code-ui',
+        object: 'chat.completion.chunk',
+        created: 0,
+        model: 'code-ui',
+        choices: [
+          {
+            index: 0,
+            delta: program
+              ? {
+                  role: 'assistant',
+                  tool_calls: [
+                    {
+                      index: 0,
+                      id: 'code-ui-call',
+                      type: 'function',
+                      function: { name: 'codemode', arguments: JSON.stringify({ code: program }) }
+                    }
+                  ]
+                }
+              : { role: 'assistant', content: 'NATIVE_CODE_UI_RESULT' },
+            finish_reason: program ? 'tool_calls' : 'stop'
+          }
+        ]
+      })}\n\ndata: [DONE]\n\n`
+    )
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  try {
+    await waitForAppReady(app.page)
+    const providerId = await app.page.evaluate(
+      async (baseUrl) => {
+        const id = `custom-${crypto.randomUUID()}`
+        await window.deepchat.invoke('providers.add', {
+          provider: {
+            id,
+            name: 'Native Code fixture',
+            apiType: 'openai-completions',
+            baseUrl,
+            apiKey: 'fixture',
+            enable: true,
+            custom: true
+          }
+        })
+        await window.deepchat.invoke('models.addCustom', {
+          providerId: id,
+          model: {
+            id: 'code-ui',
+            name: 'Code UI',
+            enabled: true,
+            type: 'chat',
+            functionCall: true,
+            vision: false,
+            reasoning: false,
+            contextLength: 64000,
+            maxTokens: 1000
+          }
+        })
+        await window.deepchat.invoke('models.setStatus', {
+          providerId: id,
+          modelId: 'code-ui',
+          enabled: true
+        })
+        return id
+      },
+      `http://127.0.0.1:${(server.address() as { port: number }).port}/v1`
+    )
+    await selectAgent(app.page)
+    await selectModel(app.page, 'code-ui', providerId)
+    await sendMessage(app.page, 'NATIVE_CODE_UI_FIRST')
+    await expect(getAssistantMessages(app.page).last()).toContainText('NATIVE_CODE_UI_RESULT')
+    await expect(app.page.getByTestId('chat-page-shell')).toHaveAttribute(
+      'data-generating',
+      'false'
+    )
+    const sessionId = await getActiveSessionId(app.page)
+    await app.page.getByRole('button', { name: 'Advanced Settings', exact: true }).click()
+    const modes = app.page.getByTestId('tool-mode-section')
+    await modes.getByText('Code', { exact: true }).click()
+    await expect(modes.getByRole('radio', { name: 'Code', exact: true })).toBeChecked()
+    await app.page.keyboard.press('Escape')
+    code = `const result = await tools.call('read_session', {
+      sessionId:${JSON.stringify(sessionId)}, action:'messages'
+    }); return result.content;`
+    await sendMessage(app.page, 'NATIVE_CODE_UI_SECOND')
+    await expect(getAssistantMessages(app.page)).toHaveCount(2)
+    await expect(getAssistantMessages(app.page).last()).toContainText('NATIVE_CODE_UI_RESULT')
+    await expect(app.page.getByTestId('chat-page-shell')).toHaveAttribute(
+      'data-generating',
+      'false'
+    )
+    expect(requests.at(-1)!.tools!.map((tool) => tool.function.name)).toEqual(['codemode'])
+    await getAssistantMessages(app.page)
+      .last()
+      .getByRole('button', { name: /^Expand Worked for/ })
+      .click()
+    await expect(getAssistantMessages(app.page).last()).toContainText('read_session')
+    await expect(getAssistantMessages(app.page).last()).toContainText('codemode')
+    expect(JSON.stringify(requests.at(-1)!.messages)).toContain('NATIVE_CODE_UI_FIRST')
+  } finally {
+    server.closeAllConnections()
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+  }
+})
+
 test('desktop media chat displays a native file through the owner cache @smoke', async ({
   app
 }) => {

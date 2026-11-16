@@ -59,11 +59,11 @@ export async function withNativeClient(address, { profile, methods, timeoutMs = 
   socket.on('close', close)
   try {
     const hello = await call('hello', {
-      protocolVersion: 3,
+      protocolVersion: 4,
       clientKind: 'other',
       clientName: 'DeepChat native plugin'
     })
-    if (hello.protocolVersion !== 3 || hello.daemonProfile.kind !== profile)
+    if (hello.protocolVersion !== 4 || hello.daemonProfile.kind !== profile)
       throw new Error('Invalid native provider host')
     return await work(call)
   } finally {

@@ -84,16 +84,13 @@
       },
       "descriptions": {
         "agent": "Den Standardwerkzeugsatz des Agenten verwenden.",
-        "code": "Aktivierte Werkzeuge über Code zusammenstellen. Erfordert den Berechtigungsmodus Vollzugriff.",
+        "code": "Aktivierte Werkzeuge über Code zusammenstellen.",
         "minimal": "Vereinfacht Dateioperationen und behält andere aktivierte Werkzeuge bei."
       },
       "useModelDefault": "Modellstandard verwenden",
       "saving": "Modus wird gespeichert...",
       "locked": "Der Modus kann nach Abschluss dieser Antwort gewechselt werden.",
-      "updateFailed": "Der Werkzeugmodus konnte nicht aktualisiert werden.",
-      "codeEntry": "Code-Einstieg",
-      "codeCallable": "Per Code aufrufbar",
-      "minimalTools": "Programmierwerkzeuge"
+      "updateFailed": "Der Werkzeugmodus konnte nicht aktualisiert werden."
     },
     "fileUploadFailed": "Anhang konnte nicht verarbeitet werden",
     "fileUploadFailedDesc": "{count} Dateien konnten nicht verarbeitet werden: {names}",

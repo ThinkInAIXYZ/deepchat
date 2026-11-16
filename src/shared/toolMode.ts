@@ -4,8 +4,7 @@ export const ToolModeSchema = z.enum(['agent', 'code', 'minimal'])
 
 export type ToolMode = z.infer<typeof ToolModeSchema>
 export type ToolModeOverride = ToolMode | null
-// Preserve the legacy value for import/read compatibility. Execution waits for dim's native mode.
-export const AVAILABLE_TOOL_MODES: readonly ToolMode[] = ['agent', 'minimal']
+export const AVAILABLE_TOOL_MODES: readonly ToolMode[] = ['agent', 'code', 'minimal']
 export type ToolModeResolutionSource = 'session' | 'model-catalog' | 'fallback'
 
 export interface ResolvedToolMode {
@@ -19,17 +18,17 @@ export function normalizeToolModeOverride(value: unknown): ToolModeOverride {
   }
 
   const parsed = ToolModeSchema.safeParse(value)
-  return parsed.success && parsed.data !== 'code' ? parsed.data : null
+  return parsed.success ? parsed.data : null
 }
 
 export function resolveToolMode(
   override: ToolModeOverride,
   catalogDefault: ToolMode | undefined
 ): ResolvedToolMode {
-  if (override !== null && override !== 'code') {
+  if (override !== null) {
     return { mode: override, source: 'session' }
   }
-  if (catalogDefault && catalogDefault !== 'code') {
+  if (catalogDefault) {
     return { mode: catalogDefault, source: 'model-catalog' }
   }
   return { mode: 'agent', source: 'fallback' }

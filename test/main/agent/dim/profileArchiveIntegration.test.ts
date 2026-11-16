@@ -176,7 +176,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
         expect(page.sessions).toHaveLength(1)
         const session = page.sessions[0]
         expect(session.agentId).toBe(agentId)
-        expect(session.protocolVersion).toBe(3)
+        expect(session.protocolVersion).toBe(4)
         expect(await realpath(session.config.cwd)).toBe(await realpath(root))
         expect(session.title).toMatchObject({ source: 'manual' })
         expect(session.title?.text).toMatch(/^归档会话 [0-2]$/)

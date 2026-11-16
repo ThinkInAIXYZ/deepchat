@@ -113,12 +113,14 @@ impl DynPlugin for Settings {
                             #[serde(default)]
                             product_permission_mode: Option<String>,
                             #[serde(default)]
+                            tool_mode: Option<String>,
+                            #[serde(default)]
                             media_options: Option<Value>,
                         }
                         let p: Params = crate::payload::decode(value, &files, &cancel).await?;
                         let branch = tree.get(&p.branch_id)?;
                         if method.ends_with(".identity") {
-                            return reply(json!({"cwd":creation.cwd,"tools":creation.tools}));
+                            return reply(json!({"cwd":creation.cwd,"tools":creation.tools,"excludedTools":creation.excluded_tools}));
                         }
                         let current = branch
                             .get::<PromptSnapshot>()
@@ -189,6 +191,13 @@ impl DynPlugin for Settings {
                         };
                         let config = merge(base, patch)?;
                         let mut metadata = current.metadata;
+                        if let Some(mode) = p.tool_mode {
+                            if !["agent", "code", "minimal"].contains(&mode.as_str()) {
+                                return Err(RpcError::invalid("Invalid native tool mode"));
+                            }
+                            metadata.get_or_insert_with(Default::default).extensions
+                                .insert("deepchatToolMode".into(), json!(mode));
+                        }
                         if let Some(options) = p.media_options {
                             if !options.is_object() {
                                 return Err(RpcError::invalid(

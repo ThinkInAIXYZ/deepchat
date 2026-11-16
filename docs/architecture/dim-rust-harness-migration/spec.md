@@ -19,7 +19,7 @@
 
 聊天 UI、队列、模型与产品辅助入口、旧会话按需转换和一次性解密已接入。设备同步采用原生选择性导出与冷暂存安装。接入范围如下：
 
-- Code Mode 暂停。dim alpha.23 已发布原生 `codemode`，官方 App Server 仅向协议 v4 客户端开放；DeepChat 的私有宿主未装配该插件，客户端继续使用 v3。接入前须验证按会话启用、MCP 绑定、权限与结果展示；不恢复旧 Code Mode、ToolSearch 或 programmatic dispatch。dim 有同等功能的内置工具直接替换 DeepChat 对应工具，插件只注入剩余产品能力。
+- Code Mode 使用 dim alpha.23 原生 `codemode`，所有 desktop/辅助连接与内部管理客户端使用协议 v4。Agent/Minimal 的模型声明排除 `codemode`；Code 仅声明 `codemode`，原生 ToolBinding 仍保留完整启用工具，供 QuickJS 中的 `tools.list`、`tools.describe` 和 `tools.call` 使用。子调用独立通过原生 Permission/Approval，保留 `parent_call_id`，不再经过旧 Code Mode、ToolSearch 或 programmatic dispatch。旧 v3 Session 在下次执行准入前经现有有日志的 scope replacement 转换为 v4；只读历史不变。dim 有同等功能的内置工具直接替换 DeepChat 对应工具，插件只注入剩余产品能力。
 - 队列直接复用 dim 的完整实现，DeepChat 只接 UI 和命令，不另建队列或预设上游缺口。
 - ACP 完全由 DeepChat 现有 client 负责；不新增 dim ACP gateway、ExternalAgent 或跨 ACP 委托任务，也不经 ACP 与 dim 通信。
 - 旧会话在首次续聊前 migration，转换为 dim 的会话内容；历史浏览不触发 agent 执行或全量迁移。
@@ -60,7 +60,7 @@ alpha.23 的条件 Steer 可原子撤回并替换一条待处理输入。桌面�
 
 [Release 资源](https://github.com/arcships/dim/releases/tag/v0.1.0-alpha.23) 包含 macOS/Linux/Windows 的 x64/arm64 原生包、manifest 和 SHA256SUMS。实际二进制报告 `0.1.0-alpha.23`；该 tag 的 Cargo/npm 源模板仍含 `alpha.18`，因此**必须联合校验二进制版本、manifest、源码 commit、插件 SDK 和能力，不只读 package.json**。
 
-alpha.23 的 Rust API 支持完整 `ModelConfig` 和 `ProviderSecretHost`，但当前 TS 插件绑定没有导出这两个入口。因此保留官方 release 安装与回归，同时通过同一 release 的锁定源码装配 `native/dim-host`：增加设置和辅助模型插件；显式启用 stock Provider 的现有凭据引用依赖，并让自定义 Header 的不透明引用通过同一 ProviderSecretHost 在请求时解析；匿名连接如声明产品准入引用，也通过此公开 owner 在每次请求检查当前启停/模型/连接身份，认证模式仍是 Anonymous，不向供应商发送确认值（源码准备脚本精确核对 Provider 装配、Header 引用与匿名引用检查的变更，并拒绝其余 tracked 文件变更）。另在 builder 装配 API 增加显式 per-Session host factory，使用原生 SessionIdentity 替换默认 IdentityContext，让产品插件实现公开 PrepareContext；其独立源码 hash 记入 extensionPatches。原生 context 仍校验固定历史前缀并负责预算/压缩，profile 空闲检查另外复用公开 AgentIndex/Session.in_use、ModalityTasks 与 ProviderService；仅重新导出已有公开 AgentIndex 类型并增加只读 provider 活动计数，不引入第二份任务状态。不修改 loop、队列、context 或模型驱动实现。当前桥版本 0.44.0，包含 Session 产品 ToolProvider、媒体 provider 名称适配和向量插件；媒体任务/连接/驱动复用 dim，向量经过公开非聊天连接 owner 后由同一锁定源码内的 Aimux 执行。二进制 manifest 记录 release、真实 server version、source commit、Cargo.lock/hash 和装配变更 hash，启动再核对插件 provenance。待官方 release 直接暴露这些扩展口后，可移除这个装配例外。
+alpha.23 的 Rust API 支持完整 `ModelConfig` 和 `ProviderSecretHost`，但当前 TS 插件绑定没有导出这两个入口。因此保留官方 release 安装与回归，同时通过同一 release 的锁定源码装配 `native/dim-host`：增加设置和辅助模型插件；显式启用 stock Provider 的现有凭据引用依赖，并让自定义 Header 的不透明引用通过同一 ProviderSecretHost 在请求时解析；匿名连接如声明产品准入引用，也通过此公开 owner 在每次请求检查当前启停/模型/连接身份，认证模式仍是 Anonymous，不向供应商发送确认值（源码准备脚本精确核对 Provider 装配、Header 引用与匿名引用检查的变更，并拒绝其余 tracked 文件变更）。另在 builder 装配 API 增加显式 per-Session host factory，使用原生 SessionIdentity 替换默认 IdentityContext，让产品插件实现公开 PrepareContext；其独立源码 hash 记入 extensionPatches。原生 context 仍校验固定历史前缀并负责预算/压缩，profile 空闲检查另外复用公开 AgentIndex/Session.in_use、ModalityTasks 与 ProviderService；仅重新导出已有公开 AgentIndex 类型并增加只读 provider 活动计数，不引入第二份任务状态。不修改 loop、队列或模型驱动实现。历史导入通过显式 `history-import/messages` context extension 进入原生投影；该唯一投影补充先校验完整工具配对，为整组消息保留同一 source event，使用独立 checkpoint interpreter，后续计数、压缩与分支边界仍由 dim 持有。其源码与摘要纳入 extensionPatches。当前桥版本 0.45.0，包含 Session 产品 ToolProvider、媒体 provider 名称适配和向量插件；媒体任务/连接/驱动复用 dim，向量经过公开非聊天连接 owner 后由同一锁定源码内的 Aimux 执行。二进制 manifest 记录 release、真实 server version、source commit、Cargo.lock/hash 和装配变更 hash，启动再核对插件 provenance。待官方 release 直接暴露这些扩展口后，可移除这个装配例外。
 
 在临时独立目录执行 alpha.21 release 的基线探针 `dimcode app-server --mock-model --home … --unix … --no-ws`：
 
@@ -313,7 +313,7 @@ timeline query 与公开 `session.history` 用途不同：history 用聊天；In
 2. 需要续聊时创建 migration record 和新 dim session，按稳定 ID 映射输入、assistant 内容、tool call/result、附件、分支 lineage、设置、有效摘要和来源。
 3. `deepchat-storage` 的 migration adapter 将 DeepChat 历史转换为 dim 接受的会话表示，通过 dim 内容/导入能力落库。插件负责格式转换与映射，dim 负责采用内容；不得再次执行历史工具或把旧事实伪造成新运行结果。
 4. 不能保留 provider 私有 replay 格式的内容明确标记；原文/原始证据仍由 legacy reader 可读。必须证明导入后上下文、有效压缩边界、消息变体及附件引用可继续使用。
-5. 校验计数、hash、工具配对、来源与附件闭包，原子切换 session engine mapping；失败保留旧 reader，不留下半迁移可执行会话。
+5. 校验计数、hash、工具配对、来源与附件闭包，原子切换 session engine mapping；失败保留旧 reader，不留下半迁移可执行会话。工具块转换为原生 assistant `tool_use` 与 `tool_result` 消息，调用 ID 按消息和出现位置隔离，避免旧供应商重复 ID。未完成工具以明确失败结果闭合，畸形参数保留为不可执行文本；不伪造一次成功执行。文本、调用、结果保持原顺序，同一历史 assistant 的整组消息共享一个 extension source event，压缩不能从配对中间切断。源消息与 sidecar 仍支持重启、摘要边界、deferred retry、retain/edit/fork 与归档；导入步骤绝不提交 ToolExecutor 调用。
 6. migration key 由旧 session identity、revision、格式版本组成；重复执行无重复 session/内容。支持 dry run、单会话中断续跑、失败隔离和磁盘空间预检。
 
 首次续聊流程固定为：加锁 → 解密前置检查 → 转换历史 → 校验 → 切换映射 → 将本次新输入交给 dim。转换未完成时不发送本次输入；失败允许重试，旧历史保持可读。浏览历史和首次启动都不触发全量 dim 会话迁移。
@@ -335,7 +335,7 @@ timeline query 与公开 `session.history` 用途不同：history 用聊天；In
 | 备份、同步、删除、窗口、CLI/Remote | DeepChat desktop 及现有入口 | 内容读取改走插件，既有产品工作流继续可用 |
 | 数据库持续加解密 | 按用户决定移除 | 旧加密库及备份可一次性解密迁入，无原件损坏或密码泄露 |
 
-Code Mode 在完成原生协议与产品权限接入前保持暂停。旧库和备份可一次性解密，新数据库使用明文存储。插件集成、UI/配置绑定、内容转换和桌面读写适配已通过本地验收。迁移代码在 `73a2e8a67` 通过 Windows、Linux、macOS 各 x64 和 ARM64 的 Native 回归、打包及离线验证，具体任务与当前候选提交的检查入口见 [验收记录](./plan.md#方案验证记录与-pr-状态)。设备同步接收端在 Native 空闲时安装胜出会话，忙碌时延后且保留当前游标。§9 的 p95 指标仍需可比的旧版基线。
+Code Mode 使用协议 v4 与原生逐工具权限；普通与 Code 回合使用同一 Rust 执行器。旧库和备份可一次性解密，新数据库使用明文存储。插件集成、UI/配置绑定、内容转换和桌面读写适配已通过本地验收。迁移代码在 `73a2e8a67` 通过 Windows、Linux、macOS 各 x64 和 ARM64 的 Native 回归、打包及离线验证，具体任务与当前候选提交的检查入口见 [验收记录](./plan.md#方案验证记录与-pr-状态)。设备同步接收端在 Native 空闲时安装胜出会话，忙碌时延后且保留当前游标。§9 的 p95 指标仍需可比的旧版基线。
 
 ## 9. 安全、性能与故障不变量
 

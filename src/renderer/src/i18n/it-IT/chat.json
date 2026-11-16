@@ -84,16 +84,13 @@
       },
       "descriptions": {
         "agent": "Usa il set di strumenti standard dell’agente.",
-        "code": "Combina gli strumenti abilitati tramite codice. Richiede la modalità di autorizzazione Accesso completo.",
+        "code": "Combina gli strumenti abilitati tramite codice.",
         "minimal": "Semplifica le operazioni sui file mantenendo gli altri strumenti abilitati."
       },
       "useModelDefault": "Usa predefinita del modello",
       "saving": "Salvataggio modalità...",
       "locked": "Puoi cambiare modalità al termine di questa risposta.",
-      "updateFailed": "Impossibile aggiornare la modalità degli strumenti.",
-      "codeEntry": "Ingresso codice",
-      "codeCallable": "Richiamabile dal codice",
-      "minimalTools": "Strumenti di programmazione"
+      "updateFailed": "Impossibile aggiornare la modalità degli strumenti."
     },
     "fileUploadFailed": "Elaborazione allegati non riuscita",
     "fileUploadFailedDesc": "Impossibile elaborare {count} file: {names}",

@@ -168,6 +168,34 @@ const titleFile = 'crates/dim-session-title/src/lib.rs'
 const decisionFile = 'vendor/aimux/aimux-providers/src/jev.rs'
 const commandFile = 'crates/dim-agent-capabilities/src/host_platform.rs'
 const digest = (content) => createHash('sha256').update(content).digest('hex')
+const historyFile = 'crates/dim-agent-capabilities/src/history.rs'
+const historyOriginal = git(['show', `HEAD:${historyFile}`]) + '\n'
+const historyBefore = '            EventKind::ModelStart(data) => {'
+if (historyOriginal.split(historyBefore).length !== 2)
+  throw new Error('Native historical context extension seam changed')
+const historyExpected =
+  historyOriginal.replace('"dim/context-projection/v4"', '"deepchat/context-projection/v1"').replace(
+    historyBefore,
+    `            EventKind::Extension(extension)
+                if extension.key() == "history-import/messages" && extension.context_render() => {
+                if output_open || !open_tools.is_empty() {
+                    return Err("Historical context cannot interrupt a model/tool group".into());
+                }
+                for (index, message) in imported_messages(extension)?.into_iter().enumerate() {
+                    history.push(entry(
+                        format!("{}:{index}", event.id), Arc::new(message), false, baseline.clone(),
+                    ));
+                }
+            }
+${historyBefore}`
+  ) +
+  '\n' +
+  (await readFile(path.join(root, 'resources/dim-sdk/imported-history.rs'), 'utf8'))
+const historyCurrent = await readFile(path.join(directory, historyFile), 'utf8')
+if (historyCurrent !== historyOriginal && historyCurrent !== historyExpected)
+  throw new Error('Pinned native historical context has unexpected changes')
+if (historyCurrent !== historyExpected)
+  await writeFile(path.join(directory, historyFile), historyExpected)
 const commandOriginal = git(['show', `HEAD:${commandFile}`]) + '\n'
 const commandBefore =
   '        command\n            .args(&spec.args)\n            .current_dir(&spec.cwd)'
@@ -202,7 +230,8 @@ git([
   `:!${temporaryMcpFile}`,
   `:!${titleFile}`,
   `:!${decisionFile}`,
-  `:!${commandFile}`
+  `:!${commandFile}`,
+  `:!${historyFile}`
 ])
 if (current !== expected) await writeFile(path.join(directory, filename), expected)
 // Add an explicit host-value replacement to the builder's assembly API. It changes no
@@ -504,6 +533,7 @@ export const nativeSource = {
     ...mcpPatches,
     { path: titleFile, sha256: createHash('sha256').update(titleExpected).digest('hex') },
     { path: decisionFile, sha256: digest(decisionExpected) },
-    { path: commandFile, sha256: digest(commandExpected) }
+    { path: commandFile, sha256: digest(commandExpected) },
+    { path: historyFile, sha256: digest(historyExpected) }
   ]
 }
