@@ -34,6 +34,7 @@ it('reads an owned closed generation at its immutable cutoff and rejects another
   const transcript = vi.fn<DimContent['transcript']>(async () => ({
     messages: [record],
     through: source.through,
+    activeTurnId: null,
     summary: null,
     contextFromOrderSeq: 1,
     pendingInputs: [],

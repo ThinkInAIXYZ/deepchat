@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import type { JsonValue } from '@shared/contracts/json'
 import type {
   SendMessageInput,
@@ -84,6 +85,9 @@ export function createDimSessionBackend(options: DimBackendOptions): DeepChatAge
     signal?.throwIfAborted()
     await runtime.submit(sessionId, prepared.content, {
       mode,
+      ...(mode === 'queue'
+        ? { submissionId: `desktop:${JSON.stringify(sessionId)}:${randomUUID()}` }
+        : {}),
       representation: prepared.representation,
       reuseUserMessage: context?.reuseUserMessage
     })

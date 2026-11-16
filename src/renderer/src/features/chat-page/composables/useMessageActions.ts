@@ -41,6 +41,7 @@ type ChatClientLike = {
 type UseMessageActionsOptions = {
   sessionId: () => string
   isReadOnlySession: ComputedRef<boolean>
+  isGenerating: ComputedRef<boolean>
   hasBlockingInteraction: () => boolean
   messageStore: MessageStore
   selectSession(sessionId: string): Promise<void>
@@ -149,6 +150,7 @@ export function useMessageActions(options: UseMessageActionsOptions) {
   }
 
   async function onMessageRetry(messageId: string, sessionId = options.sessionId()) {
+    if (sessionId === options.sessionId() && options.isGenerating.value) return
     await retryMessage(messageId, '[ChatPage] retry message failed:', true, sessionId)
   }
 
@@ -254,7 +256,7 @@ export function useMessageActions(options: UseMessageActionsOptions) {
       } else {
         await options.sessionClient.editUserMessage(sessionId, messageId, text)
       }
-      await onMessageRetry(messageId, sessionId)
+      await retryMessage(messageId, '[ChatPage] retry message failed:', true, sessionId)
       return true
     } catch (error) {
       console.error('[ChatPage] edit message failed:', error)

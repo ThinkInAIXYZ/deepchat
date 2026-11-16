@@ -125,7 +125,7 @@
               :conversation-id="props.sessionId"
               :ephemeral-rate-limit-block="ephemeralRateLimitBlock"
               :ephemeral-rate-limit-message-id="ephemeralRateLimitMessageId"
-              :is-generating="isGenerating"
+              :is-generating="isGenerating || isRetryingAttachments"
               :streaming-message-id="streamingMessageId"
               :trace-message-ids="traceMessageIds"
               :is-read-only="isReadOnlySession"
@@ -1599,6 +1599,7 @@ const {
 } = useMessageActions({
   sessionId: () => props.sessionId,
   isReadOnlySession,
+  isGenerating,
   hasBlockingInteraction: () =>
     Boolean(activePendingInteraction.value) || isHandlingInteraction.value,
   messageStore,

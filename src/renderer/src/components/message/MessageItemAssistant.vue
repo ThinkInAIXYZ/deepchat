@@ -199,7 +199,11 @@
         <ContextMenuItem @select="handleAction('copy')">
           {{ t('thread.toolbar.copy') }}
         </ContextMenuItem>
-        <ContextMenuItem v-if="!isReadOnly" @select="handleAction('retry')">
+        <ContextMenuItem
+          v-if="!isReadOnly"
+          :disabled="resolvedIsInGeneratingThread"
+          @select="handleAction('retry')"
+        >
           {{ t('thread.toolbar.retry') }}
         </ContextMenuItem>
         <ContextMenuItem
@@ -735,6 +739,7 @@ const handleAction = (action: HandleActionType) => {
   }
 
   if (action === 'retry') {
+    if (resolvedIsInGeneratingThread.value) return
     emit('retry', currentMessage.value.id)
   } else if (action === 'delete') {
     emit('delete', currentMessage.value.id)

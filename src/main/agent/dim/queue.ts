@@ -61,8 +61,8 @@ export class DimQueue {
     const desktopPrefix = `desktop:${JSON.stringify(sessionId)}:`
     const native = inputs
       .filter((item) => item.input.user && item.input.mode !== 'append')
-      // An ordinary send at the head is already going to the transcript. Keep waiting inputs
-      // behind it visible, including ordinary sends that genuinely landed behind a queue.
+      // A direct turn at the head is already going to the transcript. Keep inputs waiting
+      // behind other entries visible.
       .filter(
         (item, index) =>
           item.inputId === admittedInputId ||

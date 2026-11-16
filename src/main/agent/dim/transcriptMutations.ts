@@ -70,7 +70,6 @@ export class DimTranscriptMutations implements SessionTranscriptMutationPort {
 
   async prepareRetryMessage(sessionId: string, messageId: string) {
     await this.options.prepareHistory(sessionId)
-    this.requireMessage(await this.messages(sessionId), messageId)
     const binding = this.options.database.dimSessionBindingsTable.get(sessionId)!
     const client = await this.options.host.start()
     const ref = { sessionId: binding.dimSessionId, branchId: binding.branchId }
@@ -86,8 +85,10 @@ export class DimTranscriptMutations implements SessionTranscriptMutationPort {
       )
     )
       throw new Error('Finish or remove queued input before retrying this message')
-    await client.call('deepchat.host.stop', ref)
-    const messages = await this.messages(sessionId)
+    // A consumed input already has a turn. Read the queue first so a retry
+    // admitted just before this check is visible in at least one read.
+    const { messages, activeTurnId } = await this.content.transcript(ref, sessionId)
+    if (activeTurnId) throw new Error('Wait for the current generation before regenerating.')
     const target = this.requireMessage(messages, messageId)
     const source =
       target.role === 'user'

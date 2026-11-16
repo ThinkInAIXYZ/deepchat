@@ -20,6 +20,7 @@ export class DimContent {
   ): Promise<{
     messages: ChatMessageRecord[]
     through: string
+    activeTurnId: string | null
     summary: string | null
     contextFromOrderSeq: number
     pendingInputs: PendingSessionInputRecord[]
@@ -146,6 +147,7 @@ export class DimContent {
     return {
       messages: ordered,
       through: fixed!,
+      activeTurnId: binding.activeTurnId,
       summary,
       contextFromOrderSeq,
       pendingInputs,

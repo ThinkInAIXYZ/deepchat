@@ -2272,6 +2272,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
         const facadeRows = grants.data.deepchatMessagesTable.getBySession(facadeId)
         expect(facadeRows).toHaveLength(4)
         expect(facadeRows[2].id).toBe(facadeUser.id)
+        expect(JSON.parse(facadeRows[2].metadata).dim.submissionId).toMatch(/^[a-f0-9-]{36}$/)
         expect(
           JSON.stringify(conversationRequests().at(-1)!.body).match(/facade after directory/g)
         ).toHaveLength(1)

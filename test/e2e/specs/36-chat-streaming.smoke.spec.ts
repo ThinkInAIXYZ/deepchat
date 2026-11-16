@@ -19,6 +19,10 @@ test('local streaming preserves an editable composer and completes the response 
   const followupReleased = new Promise<void>((resolve) => {
     releaseFollowup = resolve
   })
+  let releaseRegeneration = () => {}
+  const regenerationReleased = new Promise<void>((resolve) => {
+    releaseRegeneration = resolve
+  })
   let releaseBackground = () => {}
   const backgroundReleased = new Promise<void>((resolve) => {
     releaseBackground = resolve
@@ -96,7 +100,10 @@ test('local streaming preserves an editable composer and completes the response 
     if (streamCount === 0) appendFirstResponse = emit
     streamedInputs.push(JSON.stringify(input.messages))
     streamCount += 1
-    await (streamCount === 1 ? released : streamCount === 2 ? followupReleased : backgroundReleased)
+    if (streamCount === 1) await released
+    else if (streamCount === 2) await followupReleased
+    else if (streamCount === 3) await regenerationReleased
+    else if (streamedInputs.at(-1)?.includes(backgroundPrompt)) await backgroundReleased
     if (!response.destroyed) {
       emit('\n\nStream complete.', 'stop')
       response.end('data: [DONE]\n\n')
@@ -227,6 +234,63 @@ test('local streaming preserves an editable composer and completes the response 
     await expect(shell).toHaveAttribute('data-generating', 'false')
     await expect(followup).toHaveCount(1)
     expect(streamCount).toBe(2)
+    const queueFlashed = await shell.evaluateHandle((element) => {
+      const selector = '[data-testid="pending-rail"]'
+      let flashed = Boolean(element.querySelector(selector))
+      const check = (records: MutationRecord[]) => {
+        flashed ||= records.some((record) =>
+          Array.from(record.addedNodes).some(
+            (node) =>
+              node instanceof Element && (node.matches(selector) || node.querySelector(selector))
+          )
+        )
+      }
+      const observer = new MutationObserver(check)
+      observer.observe(element, { childList: true, subtree: true })
+      return () => {
+        check(observer.takeRecords())
+        observer.disconnect()
+        return flashed
+      }
+    })
+    const reply = shell.getByTestId('chat-message-assistant').last()
+    for (const [index, message] of [followup, reply].entries()) {
+      const previousReplyId = (await reply.getAttribute('data-message-id'))!
+      await message.getByRole('button', { name: 'Regenerate', exact: true }).click()
+      await expect.poll(() => streamCount).toBe(index + 3)
+      expect(streamedInputs[index + 2].split(followupPrompt)).toHaveLength(2)
+      if (index === 0) {
+        await expect(shell).toHaveAttribute('data-generating', 'true')
+        await expect(
+          followup.getByRole('button', { name: 'Regenerate', exact: true })
+        ).toBeDisabled()
+        const attempts = await app.page.evaluate(
+          async (messageId) => {
+            const { session } = await window.deepchat.invoke('sessions.getActive', {})
+            const retry = () =>
+              window.deepchat.invoke('sessions.retryMessage', { sessionId: session!.id, messageId })
+            return (await Promise.allSettled([retry(), retry()])).map((result) =>
+              result.status === 'rejected' ? String(result.reason) : 'accepted'
+            )
+          },
+          (await followup.getAttribute('data-message-id'))!
+        )
+        expect(attempts).toEqual([
+          expect.stringContaining('Wait for the current generation before regenerating.'),
+          expect.stringContaining('Wait for the current generation before regenerating.')
+        ])
+        expect(streamCount).toBe(3)
+        await expect(shell.getByTestId('chat-message-assistant')).toHaveCount(2)
+        releaseRegeneration()
+      }
+      await expect(reply).not.toHaveAttribute('data-message-id', previousReplyId)
+      await expect(reply).toContainText('Stream complete.')
+      await expect(shell).toHaveAttribute('data-generating', 'false')
+      await expect(followup).toHaveCount(1)
+      await expect(shell.getByTestId('chat-message-assistant')).toHaveCount(2)
+    }
+    expect(await queueFlashed.evaluate((stopObserving) => stopObserving())).toBe(false)
+    await queueFlashed.dispose()
     await editor.fill(draft)
 
     await openSettings(app)
@@ -274,7 +338,7 @@ test('local streaming preserves an editable composer and completes the response 
       ).stdout
     )
     expect(started.ok).toBe(true)
-    await expect.poll(() => streamCount).toBe(3)
+    await expect.poll(() => streamCount).toBe(5)
     await second.evaluate(
       (sessionId) => window.deepchat.invoke('sessions.activate', { sessionId }),
       started.result.runId
@@ -322,6 +386,7 @@ test('local streaming preserves an editable composer and completes the response 
   } finally {
     releaseResponse()
     releaseFollowup()
+    releaseRegeneration()
     releaseBackground()
     server.closeAllConnections()
     await new Promise<void>((resolve) => server.close(() => resolve()))

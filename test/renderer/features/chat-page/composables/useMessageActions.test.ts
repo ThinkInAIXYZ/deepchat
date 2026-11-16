@@ -6,6 +6,7 @@ import { createDeferred } from '../../../utils/deferred'
 function createHarness() {
   const sessionId = ref('s1')
   const isReadOnly = ref(false)
+  const isGenerating = ref(false)
   const isBlocking = ref(false)
   const messageCache = new Map<string, any>()
   const messages: any[] = []
@@ -43,6 +44,7 @@ function createHarness() {
     actions = useMessageActions({
       sessionId: () => sessionId.value,
       isReadOnlySession: computed(() => isReadOnly.value),
+      isGenerating: computed(() => isGenerating.value),
       hasBlockingInteraction: () => isBlocking.value,
       messageStore: messageStore as any,
       sessionStore: sessionStore as any,
@@ -63,6 +65,7 @@ function createHarness() {
     actions,
     sessionId,
     isReadOnly,
+    isGenerating,
     isBlocking,
     messageStore,
     sessionStore,
@@ -144,6 +147,10 @@ describe('useMessageActions', () => {
     // Truncate from the next order sequence so the retried user prompt stays
     // mounted and is not re-created as a fresh row.
     expect(harness.messageStore.truncateMessagesFromOrderSeq).toHaveBeenCalledWith('s1', 11)
+    harness.isGenerating.value = true
+    await harness.actions.onMessageRetry('user-1')
+    expect(harness.sessionClient.retryMessage).toHaveBeenCalledOnce()
+    expect(harness.messageStore.truncateMessagesFromOrderSeq).toHaveBeenCalledOnce()
     harness.stop()
   })
 

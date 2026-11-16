@@ -75,6 +75,7 @@
       v-else-if="item.role === 'user'"
       :message="item as DisplayUserMessage"
       :is-read-only="isReadOnly"
+      :is-in-generating-thread="isGenerating"
       :save-edit="saveEdit"
       @retry="onRetry"
       @delete="onDelete"
