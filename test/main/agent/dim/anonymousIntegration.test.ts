@@ -15,6 +15,8 @@ import { DimProviderCredentials } from '@/agent/dim/providerCredentials'
 import { GITHUB_COPILOT_CHAT_HEADERS } from '@/provider/auth/githubCopilotProtocol'
 import { dimDatabase } from './fixtures/database'
 
+vi.unmock('fs')
+
 it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
   { apiType: 'ollama', apiKey: '' },
   { apiType: 'openai-completions', apiKey: '' },

@@ -1,4 +1,4 @@
-import { expect, it } from 'vitest'
+import { expect, it, vi } from 'vitest'
 import { randomUUID } from 'node:crypto'
 import { createServer } from 'node:http'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
@@ -15,6 +15,8 @@ import { DimMemorySource } from '@/agent/dim/memorySource'
 import { DimMemoryViews } from '@/agent/dim/memoryViews'
 import { DimTitles } from '@/agent/dim/titles'
 import { dimDatabase } from './fixtures/database'
+
+vi.unmock('fs')
 
 it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([true, false])(
   'loads assigned private skills with native tools (explicit selection: %s)',
