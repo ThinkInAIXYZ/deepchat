@@ -108,7 +108,7 @@
     "@ai-sdk/amazon-bedrock": "^5.0.78",
     "@ai-sdk/anthropic": "^4.0.50",
     "@ai-sdk/azure": "^4.0.65",
-    "@ai-sdk/google": "^4.0.65",
+    "@ai-sdk/google": "^4.0.120",
     "@ai-sdk/google-vertex": "^5.0.77",
     "@ai-sdk/open-responses": "^2.0.40",
     "@ai-sdk/openai": "^4.0.62",

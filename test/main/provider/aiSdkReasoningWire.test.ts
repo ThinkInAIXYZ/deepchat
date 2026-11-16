@@ -217,6 +217,7 @@ describe('AI SDK reasoning wire payloads', () => {
     ['grok', 'grok-4.5', 'medium', 'responses'],
     ['grok', 'grok-4.6', 'xhigh', 'responses'],
     ['gemini', 'gemini-3-flash-preview', 'minimal', 'gemini'],
+    ['gemini', 'gemini-4-hydrogen', 'xhigh', 'gemini'],
     ['vertex', 'gemini-3-flash-preview', 'low', 'vertex']
   ] as const)(
     'serializes %s %s effort %s through %s',
