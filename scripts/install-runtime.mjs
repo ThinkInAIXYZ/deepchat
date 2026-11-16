@@ -159,7 +159,7 @@ export function buildRuntimeInstallPlan({
   }
 
   return runtimes.map(({ type, version }) =>
-    type === 'cloudflared' || type === 'dim'
+    type === 'cloudflared' || type === 'dim' || (type === 'uv' && platform === 'win32')
       ? {
           command: process.execPath,
           args: [
