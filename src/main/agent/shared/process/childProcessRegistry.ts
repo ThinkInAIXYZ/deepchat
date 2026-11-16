@@ -8,7 +8,12 @@ import { terminateProcessTreeByPid } from './processTree'
 const RECORD_VERSION = 1
 const DEFAULT_MAX_RECORD_AGE_MS = 7 * 24 * 60 * 60 * 1000
 
-export type ChildProcessSubsystem = 'background-exec' | 'mcp-stdio' | 'acp-agent' | 'sync-tunnel'
+export type ChildProcessSubsystem =
+  | 'background-exec'
+  | 'mcp-stdio'
+  | 'acp-agent'
+  | 'sync-tunnel'
+  | 'dim-host'
 
 export interface ChildProcessLaunchRecord {
   version: number
@@ -51,7 +56,7 @@ export interface ChildProcessRegistryOptions {
   now?: () => number
   isAlive?: (pid: number) => boolean
   observe?: (pid: number) => Promise<ObservedProcessIdentity>
-  terminate?: (pid: number) => Promise<boolean>
+  terminate?: (pid: number, record: ChildProcessLaunchRecord) => Promise<boolean>
   log?: (message: string, ...args: unknown[]) => void
 }
 
@@ -213,7 +218,7 @@ export class ChildProcessRegistry {
   private readonly now: () => number
   private readonly isAlive: (pid: number) => boolean
   private readonly observe: (pid: number) => Promise<ObservedProcessIdentity>
-  private readonly terminate: (pid: number) => Promise<boolean>
+  private readonly terminate: NonNullable<ChildProcessRegistryOptions['terminate']>
   private readonly log: (message: string, ...args: unknown[]) => void
   private readonly reapedSubsystems = new Set<string>()
   private readonly inflightReaps = new Map<string, Promise<ReapStaleChildProcessesResult>>()
@@ -416,7 +421,7 @@ export class ChildProcessRegistry {
         continue
       }
 
-      const terminated = await this.terminate(record.pid).catch((error) => {
+      const terminated = await this.terminate(record.pid, record).catch((error) => {
         this.log(`[ChildProcessRegistry] Failed to terminate pid ${record.pid}:`, error)
         return false
       })

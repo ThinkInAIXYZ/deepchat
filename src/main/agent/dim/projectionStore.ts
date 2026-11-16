@@ -17,8 +17,8 @@ export class DimProjectionStore {
     previous: DimSessionBinding,
     next: DimSessionBinding,
     messages: ChatMessageRecord[]
-  ): void {
-    this.database.getDatabase().transaction(() => {
+  ): string[] {
+    return this.database.getDatabase().transaction(() => {
       const retained = new Set(messages.map((message) => message.id))
       for (const message of messages) {
         const row = this.database.deepchatMessagesTable.get(message.id)
@@ -28,13 +28,13 @@ export class DimProjectionStore {
       this.database.dimSessionBindingsTable.replace(previous, next)
       if (messages.length === 0) this.database.sessionReferenceEpochsTable.rotate(next.sessionId)
       this.database.dimTimelineInspectorTable.deleteBySession(next.sessionId)
-      this.applier.applyRetractions(
-        this.database.deepchatMessagesTable
-          .getIdsBySession(next.sessionId)
-          .filter((id) => !retained.has(id))
-      )
+      const removedIds = this.database.deepchatMessagesTable
+        .getIdsBySession(next.sessionId)
+        .filter((id) => !retained.has(id))
+      this.applier.applyRetractions(removedIds)
       for (const message of messages) this.applier.applyRecord(message)
       this.database.dimInputProjectionTable.deleteBySession(next.sessionId)
+      return removedIds
     })()
   }
   apply(

@@ -120,8 +120,12 @@ export function createDimAgent(options: DimAgentOptions) {
     projected: (_id, projection) => views.apply(projection),
     failed: options.failed
   })
-  const installed = (binding: DimSessionBinding, messages: ChatMessageRecord[]) => {
-    views.apply({ binding, messages, resetTranscript: true })
+  const installed = (
+    binding: DimSessionBinding,
+    messages: ChatMessageRecord[],
+    removedMessageIds: string[]
+  ) => {
+    views.apply({ binding, messages, resetTranscript: true }, removedMessageIds)
     options.publishEvent('sessions.updated', { sessionIds: [binding.sessionId], reason: 'updated' })
   }
   const transitions = new DimScopeTransitions({

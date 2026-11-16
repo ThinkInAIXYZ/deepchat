@@ -26,7 +26,11 @@ interface TransitionOptions {
   database: SessionDatabase
   host: DimRuntimeSupervisor
   runtime: DimSessionRuntime
-  installed(binding: DimSessionBinding, messages: ChatMessageRecord[]): void
+  installed(
+    binding: DimSessionBinding,
+    messages: ChatMessageRecord[],
+    removedMessageIds: string[]
+  ): void
   preserveTitle?(
     source: Pick<DimSessionBinding, 'dimSessionId'>,
     target: DimSessionBinding,
@@ -217,10 +221,10 @@ export class DimScopeTransitions {
       cursor: view.through,
       nextOrderSeq: view.messages.reduce((last, message) => Math.max(last, message.orderSeq), 0) + 1
     }
-    this.projection.installGeneration(active, installed, view.messages)
+    const removedMessageIds = this.projection.installGeneration(active, installed, view.messages)
     // The native import is sealed before this atomic read-model/binding switch. If this callback
     // fails or the process exits, recovery sees the installed target and never imports twice.
-    this.options.installed(installed, view.messages)
+    this.options.installed(installed, view.messages, removedMessageIds)
     table.finish(record)
     return installed
   }

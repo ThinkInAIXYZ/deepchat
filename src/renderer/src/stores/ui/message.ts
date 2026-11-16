@@ -880,13 +880,18 @@ export const useMessageStore = defineStore('message', () => {
    * old message lingering below the new one).
    */
   function truncateMessagesFromOrderSeq(sessionId: string, fromOrderSeq: number): void {
-    if (committedSessionId.value !== sessionId) return
-    const removedIds = new Set(
+    removeMessages(
+      sessionId,
       messageIds.value.filter((id) => {
         const record = messageCache.value.get(id)
         return Boolean(record && record.orderSeq >= fromOrderSeq)
       })
     )
+  }
+
+  function removeMessages(sessionId: string, ids: string[]): void {
+    if (committedSessionId.value !== sessionId) return
+    const removedIds = new Set(ids.filter((id) => messageCache.value.has(id)))
     if (removedIds.size === 0) return
 
     markLiveMessageViewMutation(sessionId)
@@ -1124,6 +1129,7 @@ export const useMessageStore = defineStore('message', () => {
     loadMessages,
     invalidateRecentSessionView,
     applyPersistedMessageRecords,
+    removeMessages,
     applyStreamingBlocksToMessage,
     isEphemeralStreamMessageId
   })

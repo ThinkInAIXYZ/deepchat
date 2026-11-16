@@ -21,6 +21,7 @@ interface BindMessageStoreIpcOptions {
   loadMessages: (sessionId: string) => void | Promise<unknown>
   invalidateRecentSessionView: (sessionId: string) => void
   applyPersistedMessageRecords: (records: ChatMessageRecord[]) => void
+  removeMessages: (sessionId: string, messageIds: string[]) => void
   applyStreamingBlocksToMessage?: (
     messageId: string,
     sessionId: string,
@@ -241,6 +242,8 @@ export function createMessageIpcBinding(
           options.invalidateRecentSessionView(payload.sessionId)
           return
         }
+        if (payload.removedMessageIds?.length)
+          options.removeMessages(payload.sessionId, payload.removedMessageIds)
         options.applyPersistedMessageRecords(payload.messages)
       })
     ]

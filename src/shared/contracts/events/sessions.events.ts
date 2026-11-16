@@ -80,6 +80,7 @@ export const sessionsMessagesChangedEvent = defineEventContract({
   payload: z.object({
     sessionId: EntityIdSchema,
     messages: z.array(ChatMessageRecordSchema),
+    removedMessageIds: z.array(EntityIdSchema).optional(),
     version: z.number().int()
   })
 })

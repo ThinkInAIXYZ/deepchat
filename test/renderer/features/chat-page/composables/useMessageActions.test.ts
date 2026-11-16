@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useMessageActions } from '@/features/chat-page/composables/useMessageActions'
 import { createDeferred } from '../../../utils/deferred'
 
-function createHarness() {
+function createHarness(providerId = 'acp') {
   const sessionId = ref('s1')
   const isReadOnly = ref(false)
   const isGenerating = ref(false)
@@ -17,7 +17,11 @@ function createHarness() {
     messageIds: [] as string[],
     truncateMessagesFromOrderSeq: vi.fn()
   }
-  const sessionStore = { fetchSessions: vi.fn(), selectSession: vi.fn() }
+  const sessionStore = {
+    activeSession: { providerId },
+    fetchSessions: vi.fn(),
+    selectSession: vi.fn()
+  }
   const sessionClient = {
     retryMessage: vi.fn().mockResolvedValue(undefined),
     deleteMessage: vi.fn().mockResolvedValue(undefined),
@@ -106,10 +110,35 @@ describe('useMessageActions', () => {
     await harness.actions.onMessageRetry('message-2')
 
     expect(consoleError).toHaveBeenCalledWith('[ChatPage] retry message failed:', error)
-    expect(harness.loadMessagesForSession).toHaveBeenLastCalledWith('s1')
+    expect(harness.loadMessagesForSession).toHaveBeenLastCalledWith('s1', 0)
     expect(harness.applyRestoredSessionSummary).toHaveBeenLastCalledWith({ id: 'loaded' })
     consoleError.mockRestore()
     harness.stop()
+  })
+
+  it('reports a failed native retry without touching the visible transcript', async () => {
+    const harness = createHarness('openai')
+    const error = new Error('dim exited during startup (1)')
+    harness.messageStore.messageCache.set('assistant-1', {
+      id: 'assistant-1',
+      sessionId: 's1',
+      role: 'assistant',
+      orderSeq: 2
+    })
+    harness.messageStore.messageIds.push('assistant-1')
+    harness.sessionClient.retryMessage.mockRejectedValueOnce(error)
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    try {
+      await harness.actions.onMessageRetry('assistant-1')
+      expect(harness.messageStore.truncateMessagesFromOrderSeq).not.toHaveBeenCalled()
+      expect(harness.loadMessagesForSession).not.toHaveBeenCalled()
+      expect(harness.notify).toHaveBeenCalledWith(
+        expect.objectContaining({ kind: 'error', description: error.message })
+      )
+    } finally {
+      consoleError.mockRestore()
+      harness.stop()
+    }
   })
 
   it('truncates the display from the retried message when a retry is accepted', async () => {
@@ -258,7 +287,7 @@ describe('useMessageActions', () => {
 
     const retryAction = harness.actions.onMessageRetry('message-1')
     retry.reject?.(new Error('retry failed'))
-    await vi.waitFor(() => expect(harness.loadMessagesForSession).toHaveBeenCalledWith('s1'))
+    await vi.waitFor(() => expect(harness.loadMessagesForSession).toHaveBeenCalledWith('s1', 0))
     harness.sessionId.value = 's2'
     harness.restoreRequestId.value += 1
     restore.resolve({ id: 'stale' })

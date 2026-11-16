@@ -146,7 +146,7 @@ function isProcessAlive(pid: number): boolean {
   }
 }
 
-async function waitForPidExit(pid: number, timeoutMs: number): Promise<boolean> {
+export async function waitForPidExit(pid: number, timeoutMs: number): Promise<boolean> {
   const deadline = Date.now() + timeoutMs
   while (isProcessAlive(pid)) {
     const remaining = deadline - Date.now()

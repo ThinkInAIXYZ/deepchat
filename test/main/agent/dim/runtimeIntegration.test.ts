@@ -4,8 +4,8 @@ import { DimProjectionStore } from '@/agent/dim/projectionStore'
 import type { DimEvent } from '@/agent/dim/sessionConnection'
 import type { DimSessionBinding } from '@/session/data/tables/dimSessionBindings'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
-import { expect, it } from 'vitest'
-import { mkdtemp, readdir, readFile, realpath, rm } from 'node:fs/promises'
+import { expect, it, vi } from 'vitest'
+import { mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
@@ -58,9 +58,47 @@ import {
 } from '@/agent/dim/historyImport'
 import { TranscriptProjectionApplier } from '@/session/data/transcriptProjection'
 import type { AssistantMessageBlock } from '@shared/types/agent-interface'
-import type { ServerResponse } from 'node:http'
-import { createServer } from 'node:http'
+import { createServer, type ServerResponse } from 'node:http'
 
+vi.unmock('fs')
+
+it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
+  'recovers the native profile from an idle host after its desktop owner exits',
+  async () => {
+    const profile = await mkdtemp(path.join(os.tmpdir(), 'dc-dim-orphan-'))
+    const options = {
+      runtimeRoot: path.resolve(process.env.DEEPCHAT_DIM_TEST_RUNTIME_ROOT ?? 'runtime/dim'),
+      profileRoot: profile,
+      nodeExecutable: path.resolve(
+        'runtime/node',
+        ...(process.platform === 'win32' ? ['node.exe'] : ['bin', 'node'])
+      ),
+      nativePlugins: true
+    }
+    const original = new DimRuntimeSupervisor(options)
+    const replacement = new DimRuntimeSupervisor(options)
+    try {
+      const client = await original.start()
+      await expect(replacement.start()).rejects.toThrow('profile is in use by another host')
+      const records = path.join(profile, 'child-processes', 'dim-host')
+      const [recordFile] = await readdir(records)
+      const file = path.join(records, recordFile)
+      await expect
+        .poll(async () => JSON.parse(await readFile(file, 'utf8')).startedAtMs)
+        .toBeTypeOf('number')
+      const record = JSON.parse(await readFile(file, 'utf8'))
+      // Simulate a dead desktop owner while keeping the separately spawned host alive.
+      await writeFile(file, JSON.stringify({ ...record, ownerPid: 2 ** 31 - 1 }))
+      client.close()
+      const newClient = await replacement.start()
+      expect(await newClient.call('deepchat.storage.readiness')).toMatchObject({ idle: true })
+    } finally {
+      await Promise.all([original.stop(), replacement.stop()])
+      await rm(profile, { recursive: true, force: true })
+    }
+  },
+  60_000
+)
 // Explicit smoke target: no network requests or runtime downloads during tests.
 it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
   'runs through the injected plugins and restores committed content',

@@ -4,7 +4,8 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
-import { terminateProcessTree } from '../shared/process/processTree'
+import { ChildProcessRegistry } from '../shared/process/childProcessRegistry'
+import { terminateProcessTree, waitForPidExit } from '../shared/process/processTree'
 import { DimPluginClient, DimMethodError, DimConnectionError } from './pluginClient'
 
 export interface DimRuntimeDiagnostic {
@@ -71,8 +72,23 @@ export class DimRuntimeSupervisor {
   private address: string | null = null
   private identity: { version: string; protocolVersion: number; pluginApiVersion: number } | null =
     null
+  private readonly childRegistry: ChildProcessRegistry | null
 
-  constructor(private readonly options: DimRuntimeOptions) {}
+  constructor(private readonly options: DimRuntimeOptions) {
+    this.childRegistry =
+      options.nativePlugins && options.profile !== 'mock'
+        ? new ChildProcessRegistry({
+            rootDir: path.join(options.profileRoot, 'child-processes'),
+            terminate: (pid, record) => {
+              const socketFlag = process.platform === 'win32' ? '--pipe' : '--unix'
+              const address = record.commandLine[record.commandLine.indexOf(socketFlag) + 1]
+              return address === record.recordId
+                ? this.shutdownOrphan(pid, address)
+                : Promise.resolve(false)
+            }
+          })
+        : null
+  }
   /** A storage coordinator gets a fresh product home and no desktop capabilities. */
   createIsolatedProfile(profileRoot: string): DimRuntimeSupervisor {
     if (!this.options.nativePlugins) throw new Error('Native profile operations are unavailable')
@@ -185,6 +201,20 @@ export class DimRuntimeSupervisor {
   }
 
   private async launch(): Promise<DimPluginClient> {
+    if (this.childRegistry) {
+      const excludeRecordIds = new Set(
+        this.childRegistry
+          .list('dim-host')
+          .filter((record) => record.ownerPid === process.pid)
+          .map((record) => record.recordId)
+      )
+      await this.childRegistry.reapStale('dim-host', {
+        excludeRecordIds,
+        maxRecordAgeMs: Number.POSITIVE_INFINITY
+      })
+      if (this.childRegistry.list('dim-host').length)
+        throw new DimConnectionError('The dim profile is in use by another host.', 'not-sent')
+    }
     if (this.options.nativePlugins && this.options.profile === 'mock')
       throw new Error('Native product plugins require the product execution profile')
     if (this.options.contextBridge && (!this.options.nativePlugins || !this.options.gatewayAddress))
@@ -338,16 +368,25 @@ export class DimRuntimeSupervisor {
     this.diagnose('spawned')
     this.exited = new Promise((resolve) => {
       child.once('error', () => {
+        this.childRegistry?.clear('dim-host', address)
         this.exitCode = -1
         resolve()
       })
       child.once('exit', (code) => {
+        this.childRegistry?.clear('dim-host', address)
         this.exitCode = code ?? -1
         this.diagnose('exited')
         this.connection?.close()
         resolve()
       })
     })
+    if (child.pid)
+      void this.childRegistry?.record({
+        subsystem: 'dim-host',
+        recordId: address,
+        pid: child.pid,
+        commandLine: [executable, ...args]
+      })
     try {
       return await this.attach(address, identity)
     } catch (error) {
@@ -454,15 +493,30 @@ export class DimRuntimeSupervisor {
     }
   }
 
-  private async shutdownIfIdle(): Promise<void> {
-    if (this.starting) await this.starting.catch(() => {})
-    if (!this.process || this.exitCode !== null) {
-      await this.terminate()
-      return
+  private async shutdownOrphan(pid: number, address: string): Promise<boolean> {
+    const client = await DimPluginClient.connect(address, 1000)
+    const deadline = Date.now() + SHUTDOWN_BUDGET_MS
+    try {
+      const hello = await client.call<{ daemonProfile: { kind: string } }>(
+        'hello',
+        { protocolVersion: 4, clientKind: 'other', clientName: 'DeepChat' },
+        Math.max(1, deadline - Date.now())
+      )
+      if (hello.daemonProfile.kind !== 'product') return false
+      await this.requestIdleShutdown(client, deadline)
+      return await waitForPidExit(pid, Math.max(0, deadline - Date.now()))
+    } finally {
+      client.close()
     }
-    const client = this.connection ?? (await this.attach(this.address!, this.identity!))
+  }
+
+  private async requestIdleShutdown(client: DimPluginClient, deadline: number): Promise<void> {
     if (this.options.nativePlugins) {
-      const readiness = await client.call<{ idle: boolean }>('deepchat.storage.readiness')
+      const readiness = await client.call<{ idle: boolean }>(
+        'deepchat.storage.readiness',
+        {},
+        Math.max(1, deadline - Date.now())
+      )
       if (typeof readiness.idle !== 'boolean') throw new Error('Invalid native profile readiness')
       if (!readiness.idle)
         throw new DimMethodError(-32000, 'Native profile has active work', {
@@ -471,8 +525,18 @@ export class DimRuntimeSupervisor {
     }
     // Preserve scoped callers. The native decision is atomic with connection/attach admission
     // and checks running Sessions; daemon_busy leaves this host and its work untouched.
+    await client.call('daemon.shutdown', { ifIdle: true }, Math.max(1, deadline - Date.now()))
+  }
+
+  private async shutdownIfIdle(): Promise<void> {
+    if (this.starting) await this.starting.catch(() => {})
+    if (!this.process || this.exitCode !== null) {
+      await this.terminate()
+      return
+    }
+    const client = this.connection ?? (await this.attach(this.address!, this.identity!))
     const deadline = Date.now() + SHUTDOWN_BUDGET_MS
-    await client.call('daemon.shutdown', { ifIdle: true }, SHUTDOWN_BUDGET_MS)
+    await this.requestIdleShutdown(client, deadline)
     const graceful = await Promise.race([
       this.exited!.then(() => this.exitCode === 0),
       delay(Math.max(0, deadline - Date.now()), undefined, { ref: false }).then(() => false)

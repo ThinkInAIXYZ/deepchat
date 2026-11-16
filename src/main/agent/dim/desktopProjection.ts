@@ -29,7 +29,7 @@ export class DimDesktopProjection {
   private readonly startedAt = Date.now()
   constructor(private readonly options: ProjectionOptions) {}
 
-  apply(projection: DimProjection): void {
+  apply(projection: DimProjection, removedMessageIds?: string[]): void {
     const { binding, messages, completed } = projection
     const sessionId = binding.sessionId
     if (projection.event) this.options.committed?.(sessionId, projection.event)
@@ -49,10 +49,11 @@ export class DimDesktopProjection {
         message.status !== 'pending' ||
         (JSON.parse(message.metadata) as MessageMetadata).dim?.revision === 0
     )
-    if (changedRecords.length)
+    if (changedRecords.length || removedMessageIds?.length)
       this.options.publishEvent('sessions.messages.changed', {
         sessionId,
         messages: changedRecords,
+        ...(removedMessageIds?.length ? { removedMessageIds } : {}),
         version: Date.now()
       })
     if (
