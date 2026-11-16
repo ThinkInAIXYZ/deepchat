@@ -219,9 +219,9 @@ provider-bound `user` messages. Success receipts carry the operation, panel ID a
 Failure receipts name the operation, target and error. Incomplete batches stay intact. In mixed
 batches, receipts follow the remaining tool results so their call/result pairs stay together.
 
-Native context budgeting counts the projected request. Execution, timeline storage, compaction
-history, panel reconstruction and backups retain the complete arguments. New calls require complete
-HTML.
+Execution, timeline storage, context budgeting, compaction history, panel reconstruction and
+backups use the canonical arguments. The provider receives the shorter receipt representation.
+New calls require complete HTML.
 
 Do not put omission text in the `html` value. In production, Grok, GLM and DeepSeek imitated that
 text in subsequent section calls, which rendered it literally and sometimes caused retry loops.

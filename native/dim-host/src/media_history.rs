@@ -111,11 +111,10 @@ pub(crate) fn prepare(request: &ModelRequest) -> Option<ModelRequest> {
     })
 }
 
-pub(crate) struct HistoryContext {
+pub(crate) struct VisionContext {
     pub base: Arc<dyn ContextModel>,
-    pub vision: bool,
 }
-impl ContextModel for HistoryContext {
+impl ContextModel for VisionContext {
     fn context_window(&self) -> f64 {
         self.base.context_window()
     }
@@ -126,14 +125,10 @@ impl ContextModel for HistoryContext {
         self.base.threshold_tokens()
     }
     fn count_tokens(&self, request: &ModelRequest) -> f64 {
-        let html = crate::html_history::prepare(request);
-        let request = html.as_ref().unwrap_or(request);
-        if self.vision
-            && let Some(prepared) = prepare(request)
-        {
-            return self.base.count_tokens(&prepared);
+        match prepare(request) {
+            Some(prepared) => self.base.count_tokens(&prepared),
+            None => self.base.count_tokens(request),
         }
-        self.base.count_tokens(request)
     }
 }
 
@@ -153,10 +148,7 @@ mod tests {
         );
         let base = dim_agent_capabilities::context_model::window_facts(32000, 8000., &request);
         let native_text = base.count_tokens(&request);
-        let vision = HistoryContext {
-            base: base.clone(),
-            vision: true,
-        };
+        let vision = VisionContext { base: base.clone() };
         assert!(vision.count_tokens(&request) >= native_text + 1500.);
         assert_eq!(vision.context_window(), 32000.);
         assert_eq!(vision.output_tokens(), 8000.);

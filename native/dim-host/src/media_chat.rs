@@ -691,13 +691,18 @@ impl ResolveContextModel for MediaContext {
                 },
             )?;
             if media.is_none() {
-                return Ok(Arc::new(crate::media_history::HistoryContext {
-                    base,
-                    vision: request
+                return Ok(
+                    if request
                         .capability_snapshot
                         .as_ref()
-                        .is_some_and(|snapshot| snapshot.capabilities.vision),
-                }) as Arc<dyn ContextModel>);
+                        .is_some_and(|snapshot| snapshot.capabilities.vision)
+                    {
+                        Arc::new(crate::media_history::VisionContext { base })
+                            as Arc<dyn ContextModel>
+                    } else {
+                        base
+                    },
+                );
             }
             if !request.metadata.as_ref().is_some_and(|meta| {
                 meta.session_id.is_some()
