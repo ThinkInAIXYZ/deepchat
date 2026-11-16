@@ -1,7 +1,7 @@
 import { createServer } from 'node:http'
 import { test, expect } from '../fixtures/electronApp'
 import { selectAgent, selectModel, sendMessage } from '../helpers/chat'
-import { waitForAppReady, waitForGenerationDone } from '../helpers/wait'
+import { waitForAppReady } from '../helpers/wait'
 
 // The icon is an inline SVG resource that AntV parses and inserts without sanitizing; its error
 // handler marks whichever document it runs in.
@@ -109,10 +109,13 @@ test('infographic blocks render AntV output outside the app origin @smoke', asyn
     await selectAgent(app.page)
     await selectModel(app.page, 'fixture-model', providerId)
     await sendMessage(app.page, 'Render the infographic fixture.')
-    await waitForGenerationDone(app.page)
 
     await expect(app.page.locator('pre', { hasText: invalidSource })).toBeVisible()
     await expect(app.page.locator('iframe[src^="mcp-app://"]')).toHaveCount(1)
+    await expect(app.page.getByTestId('chat-page-shell')).toHaveAttribute(
+      'data-generating',
+      'false'
+    )
     const sandboxMarker = async () => {
       for (const frame of app.page.frames()) {
         if (!frame.url().startsWith('mcp-app://') && frame.url() !== 'about:blank') continue
