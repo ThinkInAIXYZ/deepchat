@@ -256,6 +256,7 @@ test('local streaming preserves an editable composer and completes the response 
     const reply = shell.getByTestId('chat-message-assistant').last()
     for (const [index, message] of [followup, reply].entries()) {
       const previousReplyId = (await reply.getAttribute('data-message-id'))!
+      const replyRow = await reply.evaluateHandle((element) => element)
       await message.getByRole('button', { name: 'Regenerate', exact: true }).click()
       await expect.poll(() => streamCount).toBe(index + 3)
       expect(streamedInputs[index + 2].split(followupPrompt)).toHaveLength(2)
@@ -285,6 +286,8 @@ test('local streaming preserves an editable composer and completes the response 
       }
       await expect(reply).not.toHaveAttribute('data-message-id', previousReplyId)
       await expect(reply).toContainText('Stream complete.')
+      expect(await reply.evaluate((element, previous) => element === previous, replyRow)).toBe(true)
+      await replyRow.dispose()
       await expect(shell).toHaveAttribute('data-generating', 'false')
       await expect(followup).toHaveCount(1)
       await expect(shell.getByTestId('chat-message-assistant')).toHaveCount(2)

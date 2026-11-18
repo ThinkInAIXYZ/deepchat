@@ -293,4 +293,45 @@ describe('useDisplayMessages', () => {
     ])
     expect(display.displayMessages.value[1]?.renderKey).toBe(placeholderId)
   })
+
+  it('retains the old reply until regenerated content is ready and reuses its row', async () => {
+    const user = { ...assistantRecord('user', 1, 'Prompt'), role: 'user' as const }
+    const oldReply = assistantRecord('old', 2, 'Previous answer')
+    const { display, messageStore, records, streaming } = createHarness(
+      ['user', 'old'],
+      [user, oldReply]
+    )
+    streaming.active = false
+    messageStore.currentStreamMessageId = null
+    messageStore.streamingBlocks = []
+
+    display.createPendingAssistantPlaceholder('s1', oldReply.id)
+    expect(display.regeneratingMessageId.value).toBe(oldReply.id)
+    expect(display.displayMessages.value.map(({ id }) => id)).toEqual([user.id, oldReply.id])
+
+    records.delete(oldReply.id)
+    messageStore.messageIds = [user.id]
+    await nextTick()
+    expect(display.displayMessages.value.at(-1)).toMatchObject({
+      id: oldReply.id,
+      status: 'sent',
+      content: [{ content: 'Previous answer' }]
+    })
+
+    records.set('new', { ...assistantRecord('new', 2, '', 'pending'), content: '[]' })
+    messageStore.messageIds = ['user', 'new']
+    await nextTick()
+    expect(display.displayMessages.value.map(({ id }) => id)).toEqual([user.id, oldReply.id])
+
+    records.set('new', assistantRecord('new', 2, 'New answer', 'pending'))
+    messageStore.messageIds = ['new']
+    messageStore.currentStreamMessageId = 'new'
+    streaming.active = true
+    await nextTick()
+    expect(display.displayMessages.value.at(-1)).toMatchObject({
+      id: 'new',
+      renderKey: oldReply.id,
+      status: 'pending'
+    })
+  })
 })

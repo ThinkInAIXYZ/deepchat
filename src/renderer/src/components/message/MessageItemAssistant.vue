@@ -28,7 +28,16 @@
         </div>
 
         <div class="flex min-w-0 flex-col w-full space-y-1.5">
-          <MessageInfo :name="currentMessage.model_name" :timestamp="currentMessage.timestamp" />
+          <div class="flex items-center gap-2">
+            <MessageInfo :name="currentMessage.model_name" :timestamp="currentMessage.timestamp" />
+            <Spinner
+              v-if="isRegenerating"
+              data-testid="regeneration-pending"
+              class="size-3 text-muted-foreground"
+              role="status"
+              :aria-label="t('thread.toolbar.retry')"
+            />
+          </div>
           <div class="flex flex-col w-full gap-1.5" data-message-content="true">
             <Spinner
               v-if="
@@ -150,7 +159,7 @@
             />
           </div>
           <MessageToolbar
-            :loading="message.status === 'pending'"
+            :loading="message.status === 'pending' || isRegenerating"
             :usage="message.usage"
             :is-assistant="true"
             :current-variant-index="currentVariantIndex"
@@ -302,6 +311,7 @@ const props = defineProps<{
   useLegacyActions?: boolean
   isInGeneratingThread?: boolean
   isStreamingMessage?: boolean
+  isRegenerating?: boolean
   showTrace?: boolean
   isReadOnly?: boolean
   disableMarkdownVirtualization?: boolean

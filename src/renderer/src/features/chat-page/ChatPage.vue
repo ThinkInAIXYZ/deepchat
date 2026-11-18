@@ -126,6 +126,7 @@
               :ephemeral-rate-limit-block="ephemeralRateLimitBlock"
               :ephemeral-rate-limit-message-id="ephemeralRateLimitMessageId"
               :is-generating="isGenerating || isRetryingAttachments"
+              :regenerating-message-id="regeneratingMessageId"
               :streaming-message-id="streamingMessageId"
               :trace-message-ids="traceMessageIds"
               :is-read-only="isReadOnlySession"
@@ -743,7 +744,7 @@ function connectChatGeometryObserver(): void {
   if (!viewport || !messageRoot) return
 
   viewportResizeObserver = new ResizeObserver(() => {
-    chatScrollController.notifyViewportResize()
+    if (!regeneratingMessageId.value) chatScrollController.notifyViewportResize()
     scheduleScrollMetricsRead()
   })
   viewportResizeObserver.observe(viewport)
@@ -755,6 +756,7 @@ function scrollDomToBottom(reason: ChatScrollReason): void {
 }
 
 function scrollToBottom(force = false, reason: ChatScrollReason = 'auto-follow') {
+  if (reason === 'auto-follow' && regeneratingMessageId.value) return
   if (!force && !isBottomFollowingMode()) {
     return
   }
@@ -1050,6 +1052,7 @@ const {
   ephemeralRateLimitMessageId,
   createPendingAssistantPlaceholder,
   clearPendingAssistantPlaceholder,
+  regeneratingMessageId,
   resetForSessionChange: resetDisplayMessagesForSessionChange
 } = useDisplayMessages({
   sessionId: () => props.sessionId,
@@ -1311,7 +1314,8 @@ watch(
     () => messageStore.currentStreamMessageId,
     () => (typeof ResizeObserver === 'undefined' ? messageStore.streamRevision : 0),
     () => messageStore.lastPersistedRevision,
-    () => ephemeralRateLimitMessageId.value
+    () => ephemeralRateLimitMessageId.value,
+    () => regeneratingMessageId.value
   ],
   () => {
     if (spotlightStore.pendingMessageJump?.sessionId === props.sessionId) {
@@ -1612,6 +1616,8 @@ const {
   currentRestoreRequestId,
   canWriteSessionView,
   openModelPicker: openAttachmentModelPicker,
+  createPendingAssistantPlaceholder,
+  clearPendingAssistantPlaceholder,
   notify: notifyRenderer,
   t
 })

@@ -53,6 +53,8 @@ type UseMessageActionsOptions = {
   currentRestoreRequestId: () => number
   canWriteSessionView: (sessionId: string, requestId: number) => boolean
   openModelPicker: () => void
+  createPendingAssistantPlaceholder?: (sessionId: string, retryTargetMessageId: string) => string
+  clearPendingAssistantPlaceholder?: (id: string) => void
   notify: RendererNotificationNotifier
   t: (key: string) => string
 }
@@ -100,6 +102,11 @@ export function useMessageActions(options: UseMessageActionsOptions) {
     const optimisticTruncation =
       options.canWriteSessionView(sessionId, requestId) &&
       options.sessionStore.activeSession?.providerId === 'acp'
+    const placeholder =
+      !optimisticTruncation && options.canWriteSessionView(sessionId, requestId)
+        ? options.createPendingAssistantPlaceholder?.(sessionId, messageId)
+        : undefined
+    let accepted = false
     try {
       activeRetrySessionIds.add(sessionId)
       // Native retry publishes its committed truncation before the next turn starts.
@@ -127,6 +134,7 @@ export function useMessageActions(options: UseMessageActionsOptions) {
         }
         return
       }
+      accepted = true
       if (blockedRetryAttempt.value?.sessionId === sessionId) {
         blockedRetryAttempt.value = null
         retryAttachmentPreparationSummary.value = null
@@ -144,6 +152,7 @@ export function useMessageActions(options: UseMessageActionsOptions) {
       if (optimisticTruncation)
         await refreshAfterRetryFailure(sessionId, requestId, priorMessageCount)
     } finally {
+      if (!accepted && placeholder) options.clearPendingAssistantPlaceholder?.(placeholder)
       activeRetrySessionIds.delete(sessionId)
     }
   }

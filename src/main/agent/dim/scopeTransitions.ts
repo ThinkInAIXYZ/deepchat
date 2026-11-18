@@ -191,12 +191,16 @@ export class DimScopeTransitions {
       branchId: record.source.branchId
     })
     if (record.through === null) {
-      const frozen = await this.content.transcript(
-        { sessionId: record.source.dimSessionId, branchId: record.source.branchId },
-        record.sessionId
-      )
-      table.freeze(record, frozen.through)
-      record.through = frozen.through
+      // Capture the committed head. The import reads the frozen history below.
+      const client = await this.options.host.start()
+      const frozen = await client.call<{ through: string | number }>('deepchat.storage.history', {
+        sessionId: record.source.dimSessionId,
+        branchId: record.source.branchId,
+        after: '0',
+        limit: 1
+      })
+      record.through = String(frozen.through)
+      table.freeze(record, record.through)
     }
 
     const staging: DimSessionBinding = {

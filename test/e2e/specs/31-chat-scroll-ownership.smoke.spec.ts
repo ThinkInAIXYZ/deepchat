@@ -146,9 +146,12 @@ test('ChatPage restores virtualized history and keeps exclusive scrollbar owners
   await expect(app.page.getByTestId('chat-message-assistant')).toContainText(
     'Second conversation evidence.'
   )
-  await historyViewport.evaluate((element) => (element.scrollTop = 0))
+  await historyViewport.hover()
+  await app.page.mouse.wheel(0, -10000)
+  await expect.poll(() => historyViewport.evaluate((element) => element.scrollTop)).toBe(0)
   const thinking = historyViewport.getByRole('button', { name: /Thought for/ })
   await expect(thinking).toHaveAttribute('aria-expanded', 'false')
+  await thinking.scrollIntoViewIfNeeded()
   const initialThinkingTop = (await thinking.boundingBox())!.y
   await thinking.click()
   await expect(thinking).toHaveAttribute('aria-expanded', 'true')

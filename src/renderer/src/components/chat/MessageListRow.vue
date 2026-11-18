@@ -86,6 +86,7 @@
       :use-legacy-actions="false"
       :is-in-generating-thread="isGenerating"
       :is-streaming-message="isStreamingMessage"
+      :is-regenerating="isRegenerating"
       :show-trace="showTrace"
       :is-capturing-image="isCapturing"
       :is-read-only="isReadOnly"
@@ -122,6 +123,7 @@ const props = withDefaults(
     item: MessageListItem
     isGenerating?: boolean
     isStreamingMessage?: boolean
+    isRegenerating?: boolean
     showTrace?: boolean
     isCapturing?: boolean
     isReadOnly?: boolean

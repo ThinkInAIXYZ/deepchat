@@ -337,7 +337,22 @@ export class AgentToolManager {
           )
         }
       } catch (error) {
-        if (!isYoBrowserUnavailableError(error)) throw error
+        options.signal?.throwIfAborted()
+        if (!isYoBrowserUnavailableError(error)) {
+          if (name !== 'load_url') throw error
+          const message = error instanceof Error ? error.message : ''
+          const detail = /\b(?:net::)?ERR_[A-Z_]+\b/.exec(message)?.[0]
+          const reason = detail
+            ? `Browser navigation failed (${detail}).`
+            : message.startsWith('Timed out waiting for dom-ready:')
+              ? 'The browser started navigating, but the page did not become ready in time.'
+              : 'The browser could not complete navigation.'
+          const result = createAgentToolErrorResult(name, reason, {
+            code: 'yobrowser_navigation_failed'
+          })
+          const content = JSON.stringify(result)
+          return { content, rawData: { content, isError: true, toolResult: result } }
+        }
         const content = JSON.stringify(error.payload)
         return {
           content,
