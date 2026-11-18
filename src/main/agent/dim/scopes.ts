@@ -30,6 +30,7 @@ export interface DimAuthorizedOwner extends DimBoundOwner {
 export interface DimAuthorizedScope extends DimAuthorizedOwner {
   ref: DimSessionRef
   acceptedInput?: Pick<DimProductContextRequest, 'query' | 'hookPrompt' | 'hookPromptTooLarge'>
+  maxProviderRoundsReached?: number
 }
 
 /** Native parent links establish delegation. User text and desktop status never establish it. */
@@ -132,6 +133,7 @@ export class DimScopes {
       inputQuery: string
       hookPrompt: string | null
       hookPromptTooLarge: boolean
+      maxProviderRoundsReached?: number | null
     }>('session.deepchat_scope.frame', {
       sessionId: request.sessionId,
       requestId: request.requestId,
@@ -150,6 +152,7 @@ export class DimScopes {
     return {
       ...owner,
       ref: { sessionId: request.sessionId, branchId: frame.branchId },
+      maxProviderRoundsReached: frame.maxProviderRoundsReached ?? undefined,
       acceptedInput: {
         query: frame.inputQuery,
         hookPrompt: frame.hookPrompt ?? undefined,

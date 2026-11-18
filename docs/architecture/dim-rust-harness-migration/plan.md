@@ -2,7 +2,7 @@
 
 本文件是唯一执行跟踪表。目标与职责见 [spec.md](./spec.md)。
 
-状态：内置 harness、loop、queue、模型、上下文和工具执行由 dim Rust 持有。锁定 alpha.23 官方发行包及相同源码，桥版本 0.45.0、存储 v44、协议 v4；持续加解密已移除，保留旧数据一次性解密与按需会话转换。
+状态：内置 harness、loop、queue、模型、上下文和工具执行由 dim Rust 持有。锁定 alpha.23 官方发行包及相同源码，桥版本 0.46.0、存储 v44、协议 v4；持续加解密已移除，保留旧数据一次性解密与按需会话转换。
 
 ## 结构化历史与原生 Code Mode 验收
 
@@ -93,6 +93,7 @@
 - [x] 图片/视频/TTS 的独立入口与会话已接入 dim Modality；会话通过独立媒体 alias 选择原生 Agent 模型宿主，实际媒体模型保留非聊天声明。原生 loop/队列管理回合，桌面复用消息身份和媒体展示。媒体文件闭包已通过大文件、fork/删除和冷增量归档验收，历史图片反馈与原生预算计数已通过联合验收，大配置和参考媒体载荷按完整请求进入原生文件传输，超帧、重启和归档恢复已验收。
 - [x] OAuth：dim 自身登录、账号和 refresh 不做适配或迁移，不新增统一认证层；其他凭据/配置按能力所有者，通过插件正常交互，不能进入 timeline 或普通 row config。
 - [x] Context/Skills/Hooks：dim 负责提示词、上下文、压缩、预算和撤销，产品 context/hook 通过插件接入；不由 TS 拼 provider 请求。
+- [x] Verify live desktop notification commands, per-input cron round limits, normal follow-up turns, and native one-shot wakeups. Validate manual and scheduled desktop cron execution with Step on an isolated local-data snapshot. PR Check and Package Check gate review.
 - [x] 原生 subagent/branch/collaboration 直接用 dim；ACP 完全由 DeepChat 原有实现处理，不规划 ExternalAgent、dim ACP gateway 或 ACP-as-provider 的 dim 迁移。
 - [x] CLI/Remote/计划任务保持 desktop 入口和调度职责，通过相同插件控制内置 agent；通知、关闭窗口和后台结果沿用现有产品流程。
 

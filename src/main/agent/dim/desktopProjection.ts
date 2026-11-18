@@ -36,13 +36,11 @@ export class DimDesktopProjection {
     if (projection.resetTranscript) this.options.reset?.(sessionId)
     const previous = this.observedStatus.get(sessionId)
     this.observedStatus.set(sessionId, binding.status)
-    if (previous !== binding.status)
-      this.options.publishStatus({
-        sessionId,
-        status: binding.status,
-        changed: true,
-        updatedAt: Date.now()
-      })
+    const statusChange =
+      previous !== binding.status
+        ? { sessionId, status: binding.status, changed: true, updatedAt: Date.now() }
+        : null
+    if (statusChange && !completed) this.options.publishStatus(statusChange)
     const changedRecords = messages.filter(
       (message) =>
         message.role === 'user' ||
@@ -106,6 +104,8 @@ export class DimDesktopProjection {
         })
     }
     if (completed) {
+      // Status consumers settle the turn using its final delivery segments.
+      if (statusChange) this.options.publishStatus(statusChange)
       const terminal = messages.find((message) => message.id === completed.messageId)
       if (completed.error)
         this.options.output.streamFailed({

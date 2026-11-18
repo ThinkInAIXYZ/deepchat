@@ -81,6 +81,7 @@ struct Submit {
     branch_id: String,
     input: InputMessageData,
     representation: Option<Value>,
+    max_provider_rounds: Option<std::num::NonZeroU64>,
     reuse_user_message: Option<ReuseUserMessage>,
     legacy_draft: Option<crate::legacy_queue::DraftRef>,
 }
@@ -183,6 +184,9 @@ impl DynPlugin for Inputs {
                     let submission = value.input.submission_id.as_deref().filter(|id| !id.is_empty())
                         .ok_or_else(|| RpcError::invalid("Submission identity is required"))?.to_owned();
                     if let Some(representation)=&value.representation {validate_representation(representation)?;}
+                    if value.max_provider_rounds.is_some() && (value.input.effective_mode() != InputMode::Queue || value.representation.is_none()) {
+                        return Err(RpcError::invalid("A provider round limit requires a queued product message"));
+                    }
                     if let Some(reuse)=&value.reuse_user_message {
                         if reuse.message_id.is_empty() || reuse.message_id.len()>2048 || reuse.order_seq==0
                             || reuse.order_seq>=9_007_199_254_740_991 || reuse.created_at>9_007_199_254_740_991
@@ -206,6 +210,9 @@ impl DynPlugin for Inputs {
                     if let Some(representation)=value.representation {metadata.timeline.append(EventKind::Extension(ExtensionEvent::new(
                         "deepchat", "input-representation", json!({"submissionId": submission, "content": representation, "reuseUserMessage": value.reuse_user_message, "legacyDraft":value.legacy_draft})
                     ).map_err(RpcError::invalid)?).into())?;}
+                    if let Some(limit)=value.max_provider_rounds {
+                        crate::facts::append(&metadata.timeline, "provider-round-limit", json!({"submissionId":submission,"limit":limit}))?;
+                    }
                     let event = match branch.input(value.input).await {
                         Ok(event) => event,
                         Err(error) => {

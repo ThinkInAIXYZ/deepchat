@@ -217,6 +217,7 @@ export interface QueuePendingInputOptions {
   projectDir?: string | null
   signal?: AbortSignal
   submissionId?: string
+  maxProviderRounds?: number
 }
 
 export interface SessionAgentContextUpdate {

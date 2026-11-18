@@ -479,6 +479,8 @@ export function projectDimEvent(
       blocks.push({ id: event.id, type: 'error', content: error, status: 'error', timestamp: now })
     metadata.runOutcome = error ? 'error' : cancelled ? 'aborted' : 'completed'
     if (typeof event.data.reason === 'string') metadata.runStopReason = event.data.reason
+    if (error && /^Maximum agent turns exceeded \(\d+\)\.$/.test(error))
+      metadata.runStopReason = 'max_turns'
     message.status = error || cancelled ? 'error' : 'sent'
     next.status = error ? 'error' : 'idle'
     next.activeTurnId = null

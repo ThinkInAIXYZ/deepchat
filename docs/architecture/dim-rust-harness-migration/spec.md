@@ -43,7 +43,7 @@
 | 自动设备同步 | 产品 SQL 批次附独立原生文件清单；稳定闭包导出、有界分块与续传、会话 LWW 冷暂存替换、独立提交回执恢复。 |
 | 旧 Tape 和旧加密库 | 保留只读历史与首次续聊转换；旧库/备份一次性解密，不再持续加密新数据。 |
 
-私有桥与插件版本由锁文件校验。当前桥版本为 `0.45.0`，原生存储为 v44。原生 profile 的唯一写入者仍是 dim；DeepChat 管理目录、生命周期与产品事务。
+私有桥与插件版本由锁文件校验。当前桥版本为 `0.46.0`，原生存储为 v44。原生 profile 的唯一写入者仍是 dim；DeepChat 管理目录、生命周期与产品事务。
 
 alpha.23 的条件 Steer 可原子撤回并替换一条待处理输入。桌面排序、批量编辑与重启恢复仍依赖队列操作日志与输入展示数据，保留现有适配。内置 Agent 的 `schedule` 已由 dim 负责；桌面 cron 的时区、漏跑策略、ACP 调用和通知交付仍由 DeepChat 管理。
 
@@ -60,7 +60,7 @@ alpha.23 的条件 Steer 可原子撤回并替换一条待处理输入。桌面�
 
 [Release 资源](https://github.com/arcships/dim/releases/tag/v0.1.0-alpha.23) 包含 macOS/Linux/Windows 的 x64/arm64 原生包、manifest 和 SHA256SUMS。实际二进制报告 `0.1.0-alpha.23`；该 tag 的 Cargo/npm 源模板仍含 `alpha.18`，因此**必须联合校验二进制版本、manifest、源码 commit、插件 SDK 和能力，不只读 package.json**。
 
-alpha.23 的 Rust API 支持完整 `ModelConfig` 和 `ProviderSecretHost`，但当前 TS 插件绑定没有导出这两个入口。因此保留官方 release 安装与回归，同时通过同一 release 的锁定源码装配 `native/dim-host`：增加设置和辅助模型插件；显式启用 stock Provider 的现有凭据引用依赖，并让自定义 Header 的不透明引用通过同一 ProviderSecretHost 在请求时解析；匿名连接如声明产品准入引用，也通过此公开 owner 在每次请求检查当前启停/模型/连接身份，认证模式仍是 Anonymous，不向供应商发送确认值（源码准备脚本精确核对 Provider 装配、Header 引用与匿名引用检查的变更，并拒绝其余 tracked 文件变更）。另在 builder 装配 API 增加显式 per-Session host factory，使用原生 SessionIdentity 替换默认 IdentityContext，让产品插件实现公开 PrepareContext；其独立源码 hash 记入 extensionPatches。原生 context 仍校验固定历史前缀并负责预算/压缩，profile 空闲检查另外复用公开 AgentIndex/Session.in_use、ModalityTasks 与 ProviderService；仅重新导出已有公开 AgentIndex 类型并增加只读 provider 活动计数，不引入第二份任务状态。不修改 loop、队列或模型驱动实现。历史导入通过显式 `history-import/messages` context extension 进入原生投影；该唯一投影补充先校验完整工具配对，为整组消息保留同一 source event，使用独立 checkpoint interpreter，后续计数、压缩与分支边界仍由 dim 持有。其源码与摘要纳入 extensionPatches。当前桥版本 0.45.0，包含 Session 产品 ToolProvider、媒体 provider 名称适配和向量插件；媒体任务/连接/驱动复用 dim，向量经过公开非聊天连接 owner 后由同一锁定源码内的 Aimux 执行。二进制 manifest 记录 release、真实 server version、source commit、Cargo.lock/hash 和装配变更 hash，启动再核对插件 provenance。待官方 release 直接暴露这些扩展口后，可移除这个装配例外。
+alpha.23 的 Rust API 支持完整 `ModelConfig` 和 `ProviderSecretHost`，但当前 TS 插件绑定没有导出这两个入口。因此保留官方 release 安装与回归，同时通过同一 release 的锁定源码装配 `native/dim-host`：增加设置和辅助模型插件；显式启用 stock Provider 的现有凭据引用依赖，并让自定义 Header 的不透明引用通过同一 ProviderSecretHost 在请求时解析；匿名连接如声明产品准入引用，也通过此公开 owner 在每次请求检查当前启停/模型/连接身份，认证模式仍是 Anonymous，不向供应商发送确认值（源码准备脚本精确核对 Provider 装配、Header 引用与匿名引用检查的变更，并拒绝其余 tracked 文件变更）。另在 builder 装配 API 增加显式 per-Session host factory，使用原生 SessionIdentity 替换默认 IdentityContext，让产品插件实现公开 PrepareContext；其独立源码 hash 记入 extensionPatches。原生 context 仍校验固定历史前缀并负责预算/压缩，profile 空闲检查另外复用公开 AgentIndex/Session.in_use、ModalityTasks 与 ProviderService；仅重新导出已有公开 AgentIndex 类型并增加只读 provider 活动计数，不引入第二份任务状态。不修改 loop、队列或模型驱动实现。历史导入通过显式 `history-import/messages` context extension 进入原生投影；该唯一投影补充先校验完整工具配对，为整组消息保留同一 source event，使用独立 checkpoint interpreter，后续计数、压缩与分支边界仍由 dim 持有。其源码与摘要纳入 extensionPatches。当前桥版本 0.46.0，包含 Session 产品 ToolProvider、媒体 provider 名称适配和向量插件；媒体任务/连接/驱动复用 dim，向量经过公开非聊天连接 owner 后由同一锁定源码内的 Aimux 执行。二进制 manifest 记录 release、真实 server version、source commit、Cargo.lock/hash 和装配变更 hash，启动再核对插件 provenance。待官方 release 直接暴露这些扩展口后，可移除这个装配例外。
 
 在临时独立目录执行 alpha.21 release 的基线探针 `dimcode app-server --mock-model --home … --unix … --no-ws`：
 
@@ -183,6 +183,10 @@ dim 已有 `mcp.catalog/configuration/save/update/remove/inspect`、OAuth 和 Se
 3. 通用 stdio/HTTP/SSE server 的连接、重连、认证、工具发现、取消归 dim。每个 server identity 只有一个运行 owner。
 4. DeepChat in-memory MCP、企业身份和尚不兼容的 MCP Apps 等作为明确的桥接能力保留。能迁入 dim 原生 MCP 后移除 adapter；不通过两个 manager 同时连同一 server。
 5. 原有插件的 Skills/Hooks 接入 dim 的对应 owner；保持撤销、更新期间冻结、context 来源、调用次数与预算语义。禁用插件必须撤销新调用和过期授权。
+
+Desktop notification commands subscribe to committed live turn, input, tool and approval events. The existing notification service handles delivery asynchronously. Reading or importing historical events does not execute configured commands.
+
+Desktop cron jobs retain their scheduler, detached-session lifecycle and delivery policy. An idle session before task generation begins leaves the run pending. The live terminal status is published after the final delivery segments. Each scheduled input carries its configured provider-round limit with its native receipt. The request boundary checks the live turn's consumed inputs and native model steps before calling the provider. The limit applies only to the turn that consumes the input.
 
 当前已实现 `DimMcp`：通过 `session.mcp_temporary.attach/renew/detach` 将所选配置挂到原生 Session，目录和调用由 dim MCP 持有。DeepChat 只续期桌面授权，更新/撤销先卸载旧绑定；30 秒原生租约在桌面失联时到期。配置与凭据不写入 dim 设置或 Timeline。配置导出保留 DeepChat 的 OAuth/企业身份 owner，通过临时 token 交给原生 transport；in-memory 与产品管理的进程列为兼容桥候选。主 composition 已接入 Native 临时配置、stdio 工具链/环境映射和产品服务目录。显式 CWD/隔离环境及产品管理进程通过产品插件桥接；Direct ACP 和桌面 MCP 管理继续保留其产品 owner，旧执行器清理另行验收。
 

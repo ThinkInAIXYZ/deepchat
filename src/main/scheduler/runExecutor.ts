@@ -51,7 +51,7 @@ export class CronJobRunExecutor {
   private readonly claimOwner = `cron-job-runner:${process.pid}:${randomUUID()}`
   private readonly activeSessions = new Map<
     string,
-    { runId: string; job: CronJob; timeout: ReturnType<typeof setTimeout> | null }
+    { runId: string; job: CronJob; started: boolean; timeout: ReturnType<typeof setTimeout> | null }
   >()
   private readonly unsubscribeSessionUpdates: () => void
 
@@ -129,6 +129,7 @@ export class CronJobRunExecutor {
       this.activeSessions.set(result.sessionId, {
         runId: run.id,
         job: input.job,
+        started: false,
         timeout: this.createRunTimeout(run.id, input.job, result.sessionId)
       })
       if (result.outputMessageId || result.outputPreview) {
@@ -197,6 +198,14 @@ export class CronJobRunExecutor {
     if (update.kind !== 'status') {
       return
     }
+
+    if (update.status === 'generating') {
+      activeSession.started = true
+      return
+    }
+
+    // Hydrating the detached session can publish idle before its task starts.
+    if (!activeSession.started && update.status === 'idle') return
 
     if (update.status === 'idle') {
       this.completeRun(activeSession.runId, activeSession.job, update.sessionId)

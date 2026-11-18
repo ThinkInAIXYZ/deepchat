@@ -66,6 +66,8 @@ export class DimProductContext {
       dimSequence(current.through) < dimSequence(request.through)
     )
       throw new Error('Native context request is no longer current')
+    if (resolved?.maxProviderRoundsReached !== undefined)
+      return { messages: [], maxProviderRoundsReached: resolved.maxProviderRoundsReached }
     const prepared = await this.options.prepare(scope, request, signal)
     check()
     await this.options.authorize(scope, signal)

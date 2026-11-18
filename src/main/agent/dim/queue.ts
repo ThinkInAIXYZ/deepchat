@@ -123,7 +123,8 @@ export class DimQueue {
             submissionId: `desktop:${JSON.stringify(sessionId)}:${options?.submissionId ?? randomUUID()}`
           }
         : {}),
-      representation: prepared.representation
+      representation: prepared.representation,
+      maxProviderRounds: options?.maxProviderRounds
     })
     // The owner may consume it before this response. Admission still succeeded.
     return (

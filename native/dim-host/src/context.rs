@@ -2,7 +2,7 @@
 //! request boundary. The native context owner validates the pinned prefix and
 //! performs budgeting/compaction; this plugin neither schedules nor invokes a model.
 use dim_agent_capabilities::host::{
-    ContextSource, HostError, HostFuture, PrepareContext, PrepareContextHost,
+    ContextSource, HostError, HostErrorKind, HostFuture, PrepareContext, PrepareContextHost,
 };
 use dim_agent_capabilities::prompt_guide::{GuideEntries, GuideEntry, GuideScope};
 use dim_agent_runtime::{AgentBuilder, Feature};
@@ -60,6 +60,7 @@ struct ContextReply {
     messages: Vec<Message>,
     #[serde(default)]
     receipts: Vec<Value>,
+    max_provider_rounds_reached: Option<std::num::NonZeroU64>,
 }
 impl PrepareContext for DesktopContext {
     fn prepare(
@@ -124,6 +125,12 @@ impl PrepareContext for DesktopContext {
             .await?;
             let reply: ContextReply = serde_json::from_value(result)
                 .map_err(|_| HostError::failed("Invalid product context reply"))?;
+            if let Some(limit) = reply.max_provider_rounds_reached {
+                return Err(HostError::classified(
+                    HostErrorKind::InvalidRequest,
+                    format!("Maximum agent turns exceeded ({limit})."),
+                ));
+            }
             if reply.messages.len() > 32
                 || reply.receipts.len() > 128
                 || reply.messages.iter().any(|message| {

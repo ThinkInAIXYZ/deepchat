@@ -56,6 +56,7 @@ export interface DimProductContextRequest {
 export interface DimProductContextReply {
   messages: Array<{ role: 'user'; content: string }>
   receipts?: JsonValue[]
+  maxProviderRoundsReached?: number
 }
 export interface DimPluginHooksRequest {
   sessionId: string
@@ -394,6 +395,9 @@ export class DimProductGateway {
         result.messages.some(
           (message) => message.role !== 'user' || typeof message.content !== 'string'
         ) ||
+        (result.maxProviderRoundsReached !== undefined &&
+          (!Number.isSafeInteger(result.maxProviderRoundsReached) ||
+            result.maxProviderRoundsReached < 1)) ||
         (result.receipts && (!Array.isArray(result.receipts) || result.receipts.length > 128))
       )
         throw new Error('Invalid product context contribution')

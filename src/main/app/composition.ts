@@ -2271,6 +2271,7 @@ export async function createMainProcessControl(dependencies: {
     database: sessionData.database,
     host: dimHost,
     state: desktopSessionState,
+    hooks: hookService,
     models: dimModels,
     legacy: new DimLegacySource({
       database: sessionData.database,

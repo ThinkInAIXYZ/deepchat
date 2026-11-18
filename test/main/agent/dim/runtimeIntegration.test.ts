@@ -2,6 +2,8 @@ import { DimSessionConnection } from '@/agent/dim/sessionConnection'
 import { projectDimEvent } from '@/agent/dim/messageProjection'
 import { DimProjectionStore } from '@/agent/dim/projectionStore'
 import type { DimEvent } from '@/agent/dim/sessionConnection'
+import type { HookEvent } from '@/hook/events'
+import { observeDimNotificationHooks } from '@/agent/dim/notificationHooks'
 import type { DimSessionBinding } from '@/session/data/tables/dimSessionBindings'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
 import { expect, it, vi } from 'vitest'
@@ -1320,13 +1322,18 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
           'native product context version 1'
         )
         await queueRuntime.close('product-ui')
+        const interactionHooks: HookEvent[] = []
+        const observeHooks = observeDimNotificationHooks(grants.data, {
+          isObserved: (event) => event === 'PermissionRequest' || event === 'Stop',
+          notify: (event) => interactionHooks.push(event)
+        })
         const desktop = new DimSessionRuntime({
           database: grants.data,
           host,
           launch: async () => {
             throw new Error('Existing native session')
           },
-          projected: () => {},
+          projected: (_sessionId, projection) => observeHooks(projection),
           failed: () => {}
         })
         const interactions = new DimInteractions(grants.data, new DimSessionControls(host))
@@ -1346,7 +1353,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
             // Model preparation and response delivery precede the question projection.
             // Keep both assertions bounded separately so a slow fixture request cannot
             // consume the desktop's entire projection assertion window.
-            await expect.poll(() => answeredQuestions.has(callId)).toBe(true)
+            await expect.poll(() => answeredQuestions.has(callId), { timeout: 20_000 }).toBe(true)
             await expect.poll(() => pendingAction()?.block.action_type).toBe('question_request')
           } catch (cause) {
             const binding = grants.data.dimSessionBindingsTable.get('product-ui')!
@@ -1494,6 +1501,12 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
           )
         }
         const approval = pendingAction()!
+        expect(interactionHooks.filter(({ event }) => event === 'PermissionRequest')).toEqual([
+          expect.objectContaining({
+            tool: expect.objectContaining({ callId: 'native-write', name: 'write' }),
+            permission: expect.objectContaining({ approvalId: approval.block.id })
+          })
+        ])
         await interactions.respondToolInteraction(
           'product-ui',
           approval.messageId,
@@ -1521,6 +1534,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
         await desktop.cancel('product-ui')
         await desktop.waitIdle('product-ui')
         expect(pendingAction()).toBeUndefined()
+        expect(interactionHooks.at(-1)).toMatchObject({ event: 'Stop', stop: { userStop: true } })
         const context = new DimContext({
           database: grants.data,
           controls: new DimSessionControls(host),
@@ -2055,12 +2069,14 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
 
         // Exercise the composed desktop backend, including its asynchronous retry boundary.
         const facadeId = toAppSessionId('facade-product')
+        const notifications: HookEvent[] = []
         grants.data.newSessionsTable.create(facadeId, 'deepchat', 'Facade session', profile)
         stage('desktop facade')
         const facade = createDimAgent({
           database: grants.data,
           host,
           state: nativeState!,
+          hooks: { isObserved: () => true, notify: (event) => notifications.push(event) },
           models: catalog!,
           legacy: new DimLegacySource({
             database: grants.data,
@@ -2166,6 +2182,31 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
           }
         })
         await facade.runtime.waitIdle(facadeId)
+        expect(notifications.map(({ event }) => event)).toEqual([
+          'UserPromptSubmit',
+          'SessionStart',
+          'PreToolUse',
+          'PostToolUse',
+          'Stop',
+          'SessionEnd'
+        ])
+        expect(notifications[0]).toMatchObject({
+          promptPreview: 'facade original',
+          session: {
+            sessionId: facadeId,
+            agentId: 'deepchat',
+            projectDir: profile,
+            providerId: 'desktop-fixture',
+            modelId: 'fixture'
+          }
+        })
+        expect(notifications[3]).toMatchObject({
+          tool: {
+            callId: 'facade-capability',
+            name: 'deepchat_facade_echo',
+            response: expect.stringContaining('product capability: scope-only')
+          }
+        })
         expect(JSON.stringify(conversationRequests().at(-1)?.body.messages)).toContain(
           'Audio evidence from native model'
         )
@@ -2503,6 +2544,9 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
         expect(denied.find((block) => block.tool_call?.id === 'native-denied-exec')).toMatchObject({
           status: 'error'
         })
+        expect(
+          notifications.filter((hook) => hook.tool?.callId === 'native-denied-exec').at(-1)
+        ).toMatchObject({ event: 'PostToolUseFailure', tool: { error: expect.any(String) } })
         grants.data.newSessionsTable.updateDisabledAgentTools(facadeId, [])
         await facade.settings.refreshToolPreferences(facadeId)
         nextTools = [
@@ -2526,6 +2570,50 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
           status: 'success',
           tool_call: { response: expect.stringContaining('DIM_NATIVE_EXEC_OK') }
         })
+        const cappedPrompt = 'verify scheduled provider round limit'
+        nextTools = [
+          {
+            id: 'capped-tool-call',
+            name: 'deepchat_facade_echo',
+            arguments: { text: 'capped' }
+          }
+        ]
+        const providerCallsBeforeCap = conversationRequests().length
+        await facade.backend.send(facadeId, {
+          content: { text: cappedPrompt },
+          context: { maxProviderRounds: 1 },
+          queue: { source: 'send' }
+        })
+        await facade.runtime.waitIdle(facadeId)
+        expect(conversationRequests().slice(providerCallsBeforeCap)).toHaveLength(1)
+        const cappedMessage = grants.data.deepchatMessagesTable.getBySession(facadeId).at(-1)
+        expect(cappedMessage?.status).toBe('error')
+        expect(cappedMessage?.content).toContain('Maximum agent turns exceeded (1).')
+        expect(JSON.parse(cappedMessage!.metadata)).toMatchObject({ runStopReason: 'max_turns' })
+        await facade.backend.send(facadeId, { content: { text: 'follow up after capped turn' } })
+        await facade.runtime.waitIdle(facadeId)
+        expect(grants.data.deepchatMessagesTable.getBySession(facadeId).at(-1)?.status).toBe('sent')
+        const wakeupPrompt = 'native one-shot wakeup fixture'
+        const wakeupBinding = grants.data.dimSessionBindingsTable.get(facadeId)!
+        await (
+          await host.start()
+        ).call('session.wakeup.create', {
+          sessionId: wakeupBinding.dimSessionId,
+          branchId: wakeupBinding.branchId,
+          at: new Date(Date.now() + 2_000).toISOString(),
+          prompt: wakeupPrompt
+        })
+        await expect
+          .poll(
+            () =>
+              conversationRequests().filter((request) =>
+                JSON.stringify(request.body.messages).includes(wakeupPrompt)
+              ).length,
+            { timeout: 20_000 }
+          )
+          .toBe(1)
+        await facade.runtime.waitIdle(facadeId)
+        expect(grants.data.deepchatMessagesTable.getBySession(facadeId).at(-1)?.status).toBe('sent')
         const facadeScopes = grants.data.dimSessionScopesTable.list(facadeId)
         expect(facadeScopes).toHaveLength(4)
         await facade.backend.destroySession(facadeId)

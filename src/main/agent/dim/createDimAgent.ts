@@ -3,6 +3,7 @@ import type { SessionDatabase } from '@/session/data/database'
 import type { DesktopSessionState } from '@/session/desktopSessionState'
 import type { DeepChatOutputPort, SessionStatusPublisherPorts } from '@/agent/shared/output'
 import type { SessionEventPublisher } from '@/events/sessionEventRouter'
+import type { HookObserver } from '@/hook/observer'
 import type { DimSessionBinding } from '@/session/data/tables/dimSessionBindings'
 import { TranscriptProjectionApplier } from '@/session/data/transcriptProjection'
 import type { DimRuntimeSupervisor } from './runtimeSupervisor'
@@ -16,6 +17,7 @@ import { DimSessionControls } from './sessionControls'
 import { DimSessionSettings } from './sessionSettings'
 import { DimSessionRuntime } from './sessionRuntime'
 import { DimDesktopProjection } from './desktopProjection'
+import { observeDimNotificationHooks } from './notificationHooks'
 import { DimLegacyMigration } from './legacyMigration'
 import { DimScopeTransitions } from './scopeTransitions'
 import { DimInteractions } from './interactions'
@@ -34,6 +36,7 @@ interface DimAgentOptions {
   identity: ConstructorParameters<typeof DimSessionSettings>[0]['identity']
   prepareInput: DimBackendOptions['prepareInput']
   output: DeepChatOutputPort
+  hooks?: HookObserver
   publishStatus: SessionStatusPublisherPorts['publishStatus']
   publishEvent: SessionEventPublisher
   completed(sessionId: string): void
@@ -98,6 +101,7 @@ export function createDimAgent(options: DimAgentOptions) {
       return snapshot
     }
   })
+  const notifyHooks = options.hooks && observeDimNotificationHooks(database, options.hooks)
   const views = new DimDesktopProjection({
     output: options.output,
     publishEvent: options.publishEvent,
@@ -117,7 +121,14 @@ export function createDimAgent(options: DimAgentOptions) {
     prepare: (binding) => migration.prepare(binding),
     opened: (binding) => titles.open(binding),
     closed: (id) => titles.close(id),
-    projected: (_id, projection) => views.apply(projection),
+    projected: (_id, projection) => {
+      views.apply(projection)
+      try {
+        notifyHooks?.(projection)
+      } catch (error) {
+        console.warn('[dim] Failed to project notification hooks:', error)
+      }
+    },
     failed: options.failed
   })
   const installed = (

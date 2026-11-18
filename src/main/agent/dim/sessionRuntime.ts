@@ -73,6 +73,7 @@ export class DimSessionRuntime {
       submissionId?: string
       rawBlocks?: JsonValue[]
       representation?: JsonValue
+      maxProviderRounds?: number
       reuseUserMessage?: DimUserMessageReuse
     } = {}
   ): Promise<DimInputReceipt> {
@@ -115,6 +116,9 @@ export class DimSessionRuntime {
           },
           ...(options.representation !== undefined
             ? { representation: options.representation }
+            : {}),
+          ...(options.maxProviderRounds !== undefined
+            ? { maxProviderRounds: options.maxProviderRounds }
             : {}),
           ...(options.reuseUserMessage ? { reuseUserMessage: { ...options.reuseUserMessage } } : {})
         }

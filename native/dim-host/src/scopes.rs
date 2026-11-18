@@ -178,15 +178,15 @@ impl DynPlugin for FrameScope {
                             let value=serde_json::to_value(&event.event).map_err(|_|RpcError::invalid("Invalid native frame"))?;
                             if event.position.branch_id==branch.id && value["data"]["request_id"]==frame.request_id&&value["data"]["turn_id"]==frame.turn_id {
                                 if found.is_some(){return Err(RpcError::service("ambiguous_scope","Native request belongs to several branches"));}
-                                let content=accepted_content(&tree,&branch.id,&frame.turn_id,event.event.sequence,false).await?;
+                                let (content, round_limit)=accepted_content(&tree,&branch.id,&frame.turn_id,event.event.sequence,frame.include_input).await?;
                                 let prompt=content.iter().filter_map(|block|match block {ContentBlock::Text{text}=>Some(text.as_str()), _=>None}).collect::<Vec<_>>().join("\n");
                                 let media_input=if frame.include_input {
-                                    let content=accepted_content(&tree,&branch.id,&frame.turn_id,event.event.sequence,true).await?;
                                     Some(super::payload::encode(&json!({
                                     "sessionId":frame.session_id,"branchId":branch.id,"requestId":frame.request_id,
                                     "turnId":frame.turn_id,"through":event.event.sequence.to_string(),"content":content
                                 })).await?) } else {None};
                                 found=Some(json!({"mediaInput":media_input,"branchId":branch.id,"through":page.through.to_string(),"sequence":event.event.sequence.to_string(),
+                                    "maxProviderRoundsReached":round_limit,
                                     "inputQuery":prompt.chars().take(16_384).collect::<String>(),
                                     "hookPromptTooLarge":prompt.len()>1024*1024,
                                     "hookPrompt":if prompt.len()<=1024*1024{Some(prompt)}else{None}}));
@@ -209,7 +209,7 @@ async fn accepted_content(
     turn: &str,
     through: u64,
     all: bool,
-) -> Result<Vec<ContentBlock>, RpcError> {
+) -> Result<(Vec<ContentBlock>, Option<u64>), RpcError> {
     let latest = |filter| {
         serde_json::from_value::<TimelineQuery>(json!({
         "scope":"branch","through":through,"include_publishing":true,
@@ -271,8 +271,47 @@ async fn accepted_content(
             .after = Some(next);
     }
     if consumed_ids.is_empty() {
-        return Ok(Vec::new());
+        return Ok((Vec::new(), None));
     }
+    let capped: TimelineQuery = serde_json::from_value(json!({
+        "scope":"branch", "through":through, "include_publishing":true,
+        "query":{"filter":super::facts::and(vec![
+            super::facts::extension("provider-round-limit"),
+            json!({"op":"exists","condition":super::facts::and(vec![
+                super::facts::equal("kind", json!("input/message")),
+                super::facts::one_of("id", json!(consumed_ids)),
+                json!({"op":"compare","left":super::facts::field("data.submission_id"),"comparison":"eq","right":{"kind":"outer","path":"data.submissionId"}}),
+            ])}),
+        ]),"order_by":[{"key":{"kind":"field","path":"data.limit"},"direction":"ascending"}],"select":{"kind":"events"}},
+        "page":{"limit":1}
+    })).map_err(|_| RpcError::invalid("Invalid provider round limit query"))?;
+    let QueryOutput::Events { events: caps } = tree.query(branch.to_owned(), capped).await?.result
+    else {
+        return Err(RpcError::invalid("Missing provider round limit source"));
+    };
+    let limit_reached = if let Some(cap) = caps.first() {
+        let EventKind::Extension(cap) = &cap.event.kind else {
+            unreachable!()
+        };
+        let limit = cap.data()["limit"]
+            .as_u64()
+            .ok_or_else(|| RpcError::invalid("Invalid provider round limit"))?;
+        let query: TimelineQuery = serde_json::from_value(json!({
+            "scope":"branch", "through":through, "include_publishing":true,
+            "query":{"filter": super::facts::and(vec![
+                super::facts::equal("kind", json!("step/model-start")),
+                super::facts::equal("data.turn_id", json!(turn)),
+            ]), "select":{"kind":"count"}}
+        }))
+        .map_err(|_| RpcError::invalid("Invalid provider round query"))?;
+        let QueryOutput::Count { count } = tree.query(branch.to_owned(), query).await?.result
+        else {
+            return Err(RpcError::invalid("Missing provider round count"));
+        };
+        (count > limit).then_some(limit)
+    } else {
+        None
+    };
     let mut query = latest(super::facts::and(vec![
         super::facts::equal("kind", json!("input/message")),
         json!({"op":"or","conditions":[
@@ -327,5 +366,5 @@ async fn accepted_content(
         query.page.as_mut().expect("paged input query").after = Some(next);
     }
     found.reverse();
-    Ok(found.into_iter().flatten().collect())
+    Ok((found.into_iter().flatten().collect(), limit_reached))
 }

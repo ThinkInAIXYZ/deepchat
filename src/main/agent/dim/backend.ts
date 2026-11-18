@@ -89,6 +89,7 @@ export function createDimSessionBackend(options: DimBackendOptions): DeepChatAge
         ? { submissionId: `desktop:${JSON.stringify(sessionId)}:${randomUUID()}` }
         : {}),
       representation: prepared.representation,
+      maxProviderRounds: context?.maxProviderRounds,
       reuseUserMessage: context?.reuseUserMessage
     })
     // The native receipt acknowledges admission, not execution. Live projection publishes the
@@ -139,6 +140,7 @@ export function createDimSessionBackend(options: DimBackendOptions): DeepChatAge
       if (input.queue) {
         await controllers.queuePendingInput(sessionId, input.content, {
           ...input.queue,
+          maxProviderRounds: input.context?.maxProviderRounds,
           signal: input.context?.signal
         })
         return { requestId: null, messageId: null }
