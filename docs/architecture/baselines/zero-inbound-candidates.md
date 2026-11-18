@@ -1,18 +1,16 @@
 # Zero Inbound Candidates
 
-Generated on 2026-11-10.
+Generated on 2026-11-18.
 
 These files have no in-repo importers inside their scope and need manual classification before deletion.
 
 ## main
 
-- Candidate count: 17
+- Candidate count: 15
 
 - `agent/shared/agentCatalogEventSink.ts`
 - `agent/shared/process/commandShellPath.ts`
-- `agent/vision/sessionVisionResolver.ts`
 - `backgroundExecUtilityHostEntry.ts`
-- `cli/deepChatToolPort.ts`
 - `config/aes.ts`
 - `env.d.ts`
 - `fileWatcherUtilityHostEntry.ts`
@@ -20,11 +18,11 @@ These files have no in-repo importers inside their scope and need manual classif
 - `lib/terminalHelper.ts`
 - `lightOcrHelperEntry.ts`
 - `memory/data/ingestionProjectionPort.ts`
-- `plugin/context.ts`
+- `provider/promptCacheStrategy.ts`
 - `schedulerUtilityHostEntry.ts`
 - `session/data/tables/attachments.ts`
 - `skill/sync/scanWorkerEntry.ts`
-- `tool/catalog/toolSurfaceRollout.ts`
+- `tool/catalog/toolSurfaceCanaryDiagnostics.ts`
 
 ## renderer-main
 
