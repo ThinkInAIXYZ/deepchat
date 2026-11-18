@@ -29,7 +29,7 @@ export async function openSettings(app: ElectronAppInstance): Promise<Page> {
   if ((await sidebarToggle.getAttribute('aria-expanded')) === 'false') {
     await sidebarToggle.click()
   }
-  await app.page.getByTestId('app-settings-button').click()
+  await app.page.getByTestId('app-settings-button').press('Enter')
 
   await expect
     .poll(

@@ -430,7 +430,10 @@ test('session references survive drafts and retrieve evidence without injecting 
     )
     await app.page.reload()
     await waitForAppReady(app.page)
-    await expect(sentAttachment.getByTestId('chat-attachment-item')).toHaveCount(0)
+    await expect(sentAttachment.getByTestId('attachment-shelf')).toHaveCount(0)
+    await expect(
+      sentAttachment.locator('[data-user-message-content-body]').getByTestId('chat-attachment-item')
+    ).toContainText('composer-attachment.png')
     await sentAttachment.hover()
     await sentAttachment.getByRole('button', { name: /Edit|编辑/ }).click()
     const attachmentEditor = sentAttachment.getByRole('textbox')

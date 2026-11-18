@@ -38,16 +38,25 @@ export async function waitForChatSurface(page: Page): Promise<void> {
     .not.toBe('loading')
 }
 
-export async function waitForGenerationDone(page: Page): Promise<void> {
+export async function waitForGenerationDone(page: Page, expectedReply?: string): Promise<void> {
   const chatPage = page.getByTestId('chat-page-shell')
   await expect(chatPage).toBeVisible({ timeout: 60_000 })
 
-  await expect
-    .poll(async () => (await chatPage.getAttribute('data-generating')) ?? 'false', {
-      timeout: 15_000,
-      intervals: [250, 500, 1_000]
-    })
-    .toBe('true')
+  if (expectedReply) {
+    await expect(chatPage.getByTestId('chat-message-assistant').last()).toContainText(
+      expectedReply,
+      {
+        timeout: 240_000
+      }
+    )
+  } else {
+    await expect
+      .poll(async () => (await chatPage.getAttribute('data-generating')) ?? 'false', {
+        timeout: 15_000,
+        intervals: [250, 500, 1_000]
+      })
+      .toBe('true')
+  }
 
   await expect
     .poll(async () => (await chatPage.getAttribute('data-generating')) ?? 'false', {

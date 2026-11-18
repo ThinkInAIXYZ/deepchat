@@ -347,6 +347,7 @@ export const test = base.extend<ElectronFixtures>({
           }
           for (const contents of webContents.getAllWebContents()) closeDevTools(contents)
           app.on('web-contents-created', (_event, contents) => closeDevTools(contents))
+          return true
         })
         app.page = page
         return app

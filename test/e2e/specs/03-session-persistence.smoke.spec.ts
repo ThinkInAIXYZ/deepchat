@@ -31,13 +31,13 @@ test('会话重启后持久化 @smoke', async ({ app, launchApp }) => {
   await createNewChat(app.page)
   await selectModel(app.page, E2E_TARGET_MODEL_ID, E2E_TARGET_PROVIDER_ID)
   await sendMessage(app.page, createExactReplyPrompt(sessionAToken))
-  await waitForGenerationDone(app.page)
+  await waitForGenerationDone(app.page, sessionAToken)
   const sessionAId = await getActiveSessionId(app.page)
 
   await createNewChat(app.page)
   await selectModel(app.page, E2E_TARGET_MODEL_ID, E2E_TARGET_PROVIDER_ID)
   await sendMessage(app.page, createExactReplyPrompt(sessionBToken))
-  await waitForGenerationDone(app.page)
+  await waitForGenerationDone(app.page, sessionBToken)
   const sessionBId = await getActiveSessionId(app.page)
 
   await openSessionById(app.page, sessionAId)
