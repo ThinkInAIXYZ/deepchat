@@ -161,6 +161,9 @@ describe('session boundary composition', () => {
     expect(destroyStepIndex('windowPresenter.destroyWindows')).toBeLessThan(
       destroyStepIndex('mainDatabase.close')
     )
+    expect(destroyStepIndex('dimMcp.stop')).toBeLessThan(destroyStepIndex('dimRuntime.stop'))
+    expect(destroyStepIndex('dimRuntime.stop')).toBeLessThan(destroyStepIndex('dimGateway.stop'))
+    expect(destroyStepIndex('dimGateway.stop')).toBeLessThan(destroyStepIndex('mainDatabase.close'))
   })
 
   it('finishes migrations and Skill initialization before the initial window', async () => {

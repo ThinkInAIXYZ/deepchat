@@ -456,7 +456,8 @@ async fn commit(
         if message.id.is_empty()
             || message.session_id != snapshot.product_session_id
             || !ids.insert(message.id.clone())
-            || message.order_seq <= last
+            || !(1..=9_007_199_254_740_991).contains(&message.order_seq)
+            || message.order_seq < last
             || !["user", "assistant"].contains(&message.role.as_str())
             || !["sent", "error"].contains(&message.status.as_str())
             || message.created_at > 9_007_199_254_740_991

@@ -3394,11 +3394,9 @@ export async function createMainProcessControl(dependencies: {
     }
     await runDestroyStep('knowledgeService.destroy', () => knowledgeService.destroy())
     await runDestroyStep('ocrRuntimeService.close', () => ocrRuntimeService.close())
-    await runDestroyStep('dim.stop', async () => {
-      await dimAgent.mcp.stop()
-      await dimAgent.runtime.stop()
-      await dimGateway.stop()
-    })
+    await runDestroyStep('dimMcp.stop', () => dimAgent.mcp.stop())
+    await runDestroyStep('dimRuntime.stop', () => dimAgent.runtime.stop())
+    await runDestroyStep('dimGateway.stop', () => dimGateway.stop())
     await runDestroyStep('providerRuntime.shutdown', () => providerRuntime.shutdown())
     await runDestroyStep('acpRuntime.shutdown', () => acpRuntimeOwner.shutdown())
     await runDestroyStep('mainDatabase.close', () => mainDatabase.close())
@@ -3701,18 +3699,6 @@ export async function createMainProcessControl(dependencies: {
       desktopSession: desktopSessionBinding,
       startup: startupWorkloadCoordinator,
       ensureDefaultWorkspace: () => projectService.ensureDefaultWorkspace(),
-      enableDatabaseEncryption: (password) =>
-        databaseSecurityService.enableEncryption({ password }),
-      changeDatabasePassword: (currentPassword, newPassword) =>
-        databaseSecurityService.changePassword({ currentPassword, newPassword }),
-      disableDatabaseEncryption: (currentPassword) =>
-        runDatabaseMaintenance((database) =>
-          databaseSecurityService.disableEncryption({
-            currentPassword,
-            database,
-            providerSettings
-          })
-        ),
       recordActivity: (input) => {
         void settingsDatabase.recordSettingsActivity(input).catch((error) => {
           console.warn('[SettingsActivity] Failed to record settings activity:', error)

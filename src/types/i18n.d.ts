@@ -129,9 +129,6 @@ declare module 'vue-i18n' {
         saving: string
         locked: string
         updateFailed: string
-        codeEntry: string
-        codeCallable: string
-        minimalTools: string
       }
       fileUploadFailed: string
       fileUploadFailedDesc: string
@@ -905,11 +902,6 @@ declare module 'vue-i18n' {
       chats: string
       emptyTitle: string
       emptyDescription: string
-      searchPlaceholder: string
-      searchAriaLabel: string
-      searchEmptyTitle: string
-      searchEmptyDescription: string
-      searchLoadedRangeDescription: string
     }
     spotlight: {
       placeholder: string
@@ -2446,6 +2438,9 @@ declare module 'vue-i18n' {
       subagentsTitle: string
       subagentsDescription: string
       subagentsEnabled: string
+      defaultProactiveCollaboration: string
+      defaultProactiveCollaborationDescription: string
+      defaultProactiveCollaborationScope: string
       subagentTargetType: string
       subagentTargetSelf: string
       subagentTargetAgent: string
@@ -2856,46 +2851,6 @@ declare module 'vue-i18n' {
           'type-mismatch': string
         }
       }
-      databaseEncryption: {
-        title: string
-        description: string
-        enabled: string
-        disabled: string
-        cipher: string
-        systemUnlock: string
-        startupUnlock: string
-        lastMigration: string
-        loading: string
-        never: string
-        notRequired: string
-        systemUnlockAvailable: string
-        systemUnlockUnavailable: string
-        systemUnlockMode: string
-        manualUnlock: string
-        currentPassword: string
-        newPassword: string
-        confirmPassword: string
-        passwordMismatch: string
-        systemCredentialStore: string
-        safeStorageUnavailable: string
-        enableButton: string
-        changeButton: string
-        disableButton: string
-        enabledTitle: string
-        changedTitle: string
-        disabledTitle: string
-        failedTitle: string
-        failedDescription: string
-        setPasswordButton: string
-        enableDialogTitle: string
-        changeDialogTitle: string
-        disableDialogTitle: string
-        enableDialogDescription: string
-        changeDialogDescription: string
-        disableDialogDescription: string
-        cancelButton: string
-        unknown: string
-      }
       modelConfigUpdate: {
         title: string
         descriptionPrefix: string
@@ -3046,6 +3001,7 @@ declare module 'vue-i18n' {
         }
         applyFailed: string
       }
+      legacyBackupPassword: string
     }
     dashboard: {
       badge: string

@@ -199,6 +199,14 @@ jobs:
             --resources-path "${APP_DIRECTORY}/Contents/Resources" \
             --report-path "dist/dim-runtime-smoke-darwin-${TARGET_ARCH}.json"
 
+      - name: Verify native desktop chat
+        if: inputs.artifact-purpose == 'verification' && inputs.arch == 'arm64'
+        env:
+          DEEPCHAT_E2E_APP_MODE: packaged
+        run: |
+          export DEEPCHAT_E2E_EXECUTABLE_PATH="$PWD/${APP_DIRECTORY}/Contents/MacOS/DeepChat"
+          pnpm exec playwright test -c test/e2e/playwright.config.ts test/e2e/specs/47-dim-native.smoke.spec.ts
+
       - name: Verify packaged Light OCR offline
         run: |
           sandbox-exec -p '(version 1) (allow default) (deny network*)' \

@@ -61,6 +61,8 @@ import {
 import { TranscriptProjectionApplier } from '@/session/data/transcriptProjection'
 import type { AssistantMessageBlock } from '@shared/types/agent-interface'
 import { createServer, type ServerResponse } from 'node:http'
+import { spawn } from 'node:child_process'
+import { once } from 'node:events'
 
 vi.unmock('fs')
 
@@ -1518,6 +1520,23 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
           'Written by dim'
         )
         expect(pendingAction()).toBeUndefined()
+        await nativeSettings!.setPermissionMode('product-ui', 'auto_approve')
+        nextTools = [
+          {
+            id: 'native-auto-write',
+            name: 'write',
+            arguments: { path: 'native-auto-consent.txt', content: 'Auto-approved by dim' }
+          }
+        ]
+        await desktop.submit('product-ui', [{ type: 'text', text: 'native auto approval fixture' }])
+        await desktop.waitIdle('product-ui')
+        expect(await readFile(path.join(profile, 'native-auto-consent.txt'), 'utf8')).toBe(
+          'Auto-approved by dim'
+        )
+        expect(interactionHooks.filter(({ event }) => event === 'PermissionRequest')).toHaveLength(
+          1
+        )
+        await nativeSettings!.setPermissionMode('product-ui', 'default')
         nextTools = [
           {
             id: 'native-declined',
@@ -1631,7 +1650,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
           {
             id: 'legacy-pending',
             sessionId: legacyProduct,
-            orderSeq: 3,
+            orderSeq: 2,
             role: 'assistant',
             content: JSON.stringify([
               {
@@ -1662,7 +1681,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
           legacyProduct,
           legacyCreated.sessionId,
           'main',
-          4
+          3
         )
         const legacyRef = { sessionId: legacyCreated.sessionId, branchId: 'main' }
         const legacySource = new DimLegacySource({
@@ -1762,6 +1781,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
         })
         const importedRows = grants.data.deepchatMessagesTable.getBySession(legacyProduct)
         expect(importedRows.map((row) => row.id)).toEqual(oldMessages.map((message) => message.id))
+        expect(importedRows.map((row) => row.order_seq)).toEqual([1, 2, 2])
         expect(JSON.parse(importedRows[0].content)).toMatchObject({
           text: 'Legacy original message',
           files: [{ name: 'legacy.pdf' }]
@@ -2913,22 +2933,30 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
     })
     let db = dimDatabase(path.join(profile, 'desktop.sqlite'))
     const errors: unknown[] = []
-    const open = () =>
+    const open = (closed?: () => void) =>
       new DimSessionRuntime({
         database: db.data,
         host,
         launch: async () => ({ cwd: profile }),
         projected: () => {},
+        closed,
         failed: (_, error) => errors.push(error)
       })
-    let runtime = open()
+    const closeError = new Error('Injected reader cleanup failure')
+    let runtime = open(() => {
+      throw closeError
+    })
     try {
       const content = [{ type: 'text', text: 'durable once' }]
       const receipt = await runtime.submit('desktop', content, { submissionId: 'stable-input' })
       await runtime.waitIdle('desktop')
       const identity = db.data.dimSessionBindingsTable.get('desktop')!.dimSessionId
       expect(db.data.deepchatMessagesTable.getBySession('desktop')).toHaveLength(2)
-      await runtime.stop()
+      const connection = await host.start()
+      await expect(runtime.stop()).rejects.toBe(closeError)
+      await expect(connection.call('hello', { protocolVersion: 4 })).rejects.toThrow(
+        'dim is disconnected'
+      )
       db.sqlite.close()
       db = dimDatabase(path.join(profile, 'desktop.sqlite'))
       runtime = open()
@@ -2954,6 +2982,58 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
     }
   },
   60_000
+)
+
+it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
+  'shuts down the native host when the desktop lifetime pipe closes',
+  async () => {
+    const home = await mkdtemp(path.join(os.tmpdir(), 'dc-dim-lifetime-'))
+    const windows = process.platform === 'win32'
+    const socket = windows
+      ? `\\\\.\\pipe\\deepchat-lifetime-${randomUUID()}`
+      : path.join(home, 'host.sock')
+    const executable = path.resolve(
+      process.env.DEEPCHAT_DIM_TEST_RUNTIME_ROOT ?? 'runtime/dim',
+      'native',
+      `${process.platform}-${process.arch}`,
+      windows ? 'deepchat-dim-host.exe' : 'deepchat-dim-host'
+    )
+    const child = spawn(
+      executable,
+      [
+        'app-server',
+        '--home',
+        home,
+        '--mock-model',
+        '--no-ws',
+        windows ? '--pipe' : '--unix',
+        socket,
+        '--deepchat-parent-stdin'
+      ],
+      { stdio: ['pipe', 'pipe', 'inherit'], windowsHide: true }
+    )
+    const exit = once(child, 'exit')
+    try {
+      await Promise.race([
+        once(child.stdout, 'data', { signal: AbortSignal.timeout(10_000) }),
+        exit.then(([code]) => {
+          throw new Error(`Host exited before listening (${code})`)
+        })
+      ])
+      child.stdin.end()
+      await expect(once(child, 'close', { signal: AbortSignal.timeout(10_000) })).resolves.toEqual([
+        0,
+        null
+      ])
+    } finally {
+      if (child.exitCode === null && child.signalCode === null) {
+        child.kill('SIGKILL')
+        await exit.catch(() => {})
+      }
+      await rm(home, { recursive: true, force: true })
+    }
+  },
+  25_000
 )
 
 it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(

@@ -248,12 +248,14 @@ if (commandCurrent !== commandOriginal && commandCurrent !== commandExpected)
   throw new Error('Pinned native command argument handling has unexpected changes')
 if (commandCurrent !== commandExpected)
   await writeFile(path.join(directory, commandFile), commandExpected)
+const cliFile = 'crates/dim-app-server/src/cli.rs'
 git([
   'diff',
   '--exit-code',
   '--',
   '.',
   `:!${filename}`,
+  `:!${cliFile}`,
   `:!${assemblyFile}`,
   `:!${secretsFile}`,
   `:!${servicesFile}`,
@@ -552,6 +554,50 @@ if (decisionCurrent !== decisionOriginal && decisionCurrent !== decisionExpected
   throw new Error('Pinned native Jev transport has unexpected changes')
 if (decisionCurrent !== decisionExpected)
   await writeFile(path.join(directory, decisionFile), decisionExpected)
+
+// The product host owns an inherited stdin pipe for the lifetime of Electron.
+const cliOriginal = git(['show', `HEAD:${cliFile}`]) + '\n'
+let cliExpected = cliOriginal
+for (const [before, after] of [
+  [
+    '    let argv: Vec<String> = args.into_iter().collect();',
+    `    let mut parent_stdin = false;
+    let argv: Vec<String> = args.into_iter().filter(|arg| {
+        if arg == "--deepchat-parent-stdin" {
+            parent_stdin = true;
+            false
+        } else {
+            true
+        }
+    }).collect();`
+  ],
+  [
+    '        tokio::pin!(join);',
+    `        tokio::pin!(join);
+        let parent_closed = async {
+            if !parent_stdin { return std::future::pending::<()>().await; }
+            let (closed, wait) = tokio::sync::oneshot::channel();
+            // Keep blocking stdin outside the runtime so normal shutdown never waits for EOF.
+            std::thread::spawn(move || {
+                let _ = std::io::copy(&mut std::io::stdin().lock(), &mut std::io::sink());
+                let _ = closed.send(());
+            });
+            let _ = wait.await;
+        };`
+  ],
+  [
+    '            result = &mut join => result,',
+    '            result = &mut join => result,\n            _ = parent_closed => { shutdown.cancel(); join.await },'
+  ]
+]) {
+  if (cliExpected.split(before).length !== 2) throw new Error('Native parent lifetime seam changed')
+  cliExpected = cliExpected.replace(before, after)
+}
+const cliCurrent = await readFile(path.join(directory, cliFile), 'utf8')
+if (cliCurrent !== cliOriginal && cliCurrent !== cliExpected)
+  throw new Error('Pinned native CLI has unexpected changes')
+if (cliCurrent !== cliExpected) await writeFile(path.join(directory, cliFile), cliExpected)
+
 export const nativeSource = {
   sourceRevision: lock.sourceCommit,
   storeFormat: Number(
@@ -572,6 +618,7 @@ export const nativeSource = {
     { path: commandFile, sha256: digest(commandExpected) },
     { path: historyFile, sha256: digest(historyExpected) },
     { path: googleOptionsFile, sha256: digest(googleOptionsExpected) },
-    { path: usageFile, sha256: digest(usageExpected) }
+    { path: usageFile, sha256: digest(usageExpected) },
+    { path: cliFile, sha256: digest(cliExpected) }
   ]
 }

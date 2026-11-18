@@ -117,7 +117,8 @@ export function projectDimHistory(
       ids.has(message.id) ||
       message.sessionId !== binding.sessionId ||
       !Number.isSafeInteger(message.orderSeq) ||
-      message.orderSeq <= previous
+      message.orderSeq <= 0 ||
+      message.orderSeq < previous
     )
       throw new Error('Invalid native imported message identity')
     ids.add(message.id)

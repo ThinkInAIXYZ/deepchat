@@ -58,8 +58,12 @@ function encryptedFixture() {
 
 it('decrypts once, preserves an encrypted recovery copy and resumes without a password', async () => {
   const fixture = encryptedFixture()
+  const notify = vi.fn(async () => {
+    expect(fixture.port.getDatabasePassword()).toBe('legacy-test-password')
+    expect(readFileSync(fixture.file).subarray(0, 16).toString()).not.toBe('SQLite format 3\0')
+  })
   try {
-    await fixture.security.migrateLegacyEncryption(fixture.port)
+    await fixture.security.migrateLegacyEncryption(fixture.port, notify)
     expect(fixture.port.getDatabasePassword()).toBeUndefined()
     expect(fixture.database().prepare('SELECT id FROM new_sessions').get()).toEqual({
       id: 'preserved'
@@ -82,7 +86,8 @@ it('decrypts once, preserves an encrypted recovery copy and resumes without a pa
     } finally {
       original.close()
     }
-    await fixture.security.migrateLegacyEncryption(fixture.port)
+    await fixture.security.migrateLegacyEncryption(fixture.port, notify)
+    expect(notify).toHaveBeenCalledTimes(1)
     expect(
       readdirSync(fixture.directory).filter((name) => name.includes('.legacy-encrypted.'))
     ).toHaveLength(1)
@@ -92,8 +97,6 @@ it('decrypts once, preserves an encrypted recovery copy and resumes without a pa
     await expect(fixture.security.resolveStartupPassword(unlock)).resolves.toBeUndefined()
     expect(unlock).not.toHaveBeenCalled()
     expect(fixture.security.getStatus().enabled).toBe(false)
-    await expect(fixture.security.enableEncryption({} as never)).rejects.toThrow('retired')
-    await expect(fixture.security.changePassword({} as never)).rejects.toThrow('retired')
   } finally {
     fixture.port.close()
   }

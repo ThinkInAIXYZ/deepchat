@@ -3,9 +3,6 @@ import type { DatabaseRepairReport } from '@shared/types/databaseSchema'
 import type { AgentSettingsPort } from '@/agent/settings'
 import {
   configOpenLoggingFolderRoute,
-  databaseSecurityChangePasswordRoute,
-  databaseSecurityDisableRoute,
-  databaseSecurityEnableRoute,
   databaseSecurityGetStatusRoute,
   databaseSecurityRepairSchemaRoute,
   debugCloseSplashScenarioRoute,
@@ -13,7 +10,6 @@ import {
   debugShowSplashScenarioRoute,
   performanceRecordRendererRoute,
   startupGetBootstrapRoute,
-  type DatabaseSecurityStatus,
   type SettingsActivityInput
 } from '@shared/contracts/routes'
 import type { DatabaseSecurityService } from './databaseSecurity'
@@ -49,29 +45,10 @@ export function createAppRoutes(deps: {
   desktopSession: { getActiveId(webContentsId: number): string | null }
   startup: Pick<StartupWorkloadCoordinator, 'scheduleTask' | 'getRunId' | 'replayTarget'>
   ensureDefaultWorkspace(): Promise<string | null>
-  enableDatabaseEncryption(password: string): Promise<DatabaseSecurityStatus>
-  changeDatabasePassword(
-    currentPassword: string,
-    newPassword: string
-  ): Promise<DatabaseSecurityStatus>
-  disableDatabaseEncryption(currentPassword: string): Promise<DatabaseSecurityStatus>
   recordActivity(input: SettingsActivityInput): void
   publishSessionsUpdated(sessionIds: string[]): void
   splash: Pick<SplashWindow, 'showDebugScenario' | 'closeDebugScenario'>
 }): DeepchatRouteMap {
-  const recordEncryptionActivity = (action: 'enabled' | 'updated' | 'disabled', key: string) => {
-    deps.recordActivity({
-      category: 'privacy',
-      action,
-      targetType: 'database-encryption',
-      targetId: 'agent.db',
-      targetLabel: 'SQLite database encryption',
-      routeName: 'settings-database',
-      summaryKey: 'settings.controlCenter.activity.settingUpdated',
-      summaryParams: { key }
-    })
-  }
-
   return createRouteMap([
     [
       configOpenLoggingFolderRoute.name,
@@ -88,33 +65,6 @@ export function createAppRoutes(deps: {
         return databaseSecurityGetStatusRoute.output.parse({
           status: deps.databaseSecurity.getStatus()
         })
-      }
-    ],
-    [
-      databaseSecurityEnableRoute.name,
-      async (rawInput) => {
-        const input = databaseSecurityEnableRoute.input.parse(rawInput)
-        const status = await deps.enableDatabaseEncryption(input.password)
-        recordEncryptionActivity('enabled', 'databaseEncryption')
-        return databaseSecurityEnableRoute.output.parse({ status })
-      }
-    ],
-    [
-      databaseSecurityChangePasswordRoute.name,
-      async (rawInput) => {
-        const input = databaseSecurityChangePasswordRoute.input.parse(rawInput)
-        const status = await deps.changeDatabasePassword(input.currentPassword, input.newPassword)
-        recordEncryptionActivity('updated', 'databaseEncryptionPassword')
-        return databaseSecurityChangePasswordRoute.output.parse({ status })
-      }
-    ],
-    [
-      databaseSecurityDisableRoute.name,
-      async (rawInput) => {
-        const input = databaseSecurityDisableRoute.input.parse(rawInput)
-        const status = await deps.disableDatabaseEncryption(input.currentPassword)
-        recordEncryptionActivity('disabled', 'databaseEncryption')
-        return databaseSecurityDisableRoute.output.parse({ status })
       }
     ],
     [

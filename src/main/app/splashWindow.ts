@@ -3,7 +3,7 @@
  */
 
 import path from 'path'
-import { BrowserWindow, ipcMain, nativeImage } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, nativeImage, type MessageBoxOptions } from 'electron'
 import { is } from '@electron-toolkit/utils'
 import icon from '../../../resources/icon.png?asset' // 应用图标 (macOS/Linux)
 import iconWin from '../../../resources/icon.ico?asset' // 应用图标 (Windows)
@@ -24,6 +24,7 @@ import {
 } from '@shared/contracts/databaseSecurity'
 import { activateAppOnMac } from '@/lib/activateApp'
 import { SPLASH_DEBUG_MODE_CHANNEL, type SplashDebugMode } from '@shared/contracts/splash'
+import { resolveSupportedLocale } from '@shared/locales'
 
 const SPLASH_SHOW_DELAY_MS = 200
 
@@ -199,6 +200,35 @@ export class SplashWindow {
       this.forceShowSplash({ skipDelay: true })
       this.emitDatabaseUnlockState()
     })
+  }
+
+  async showDatabaseMigrationNotice(): Promise<void> {
+    this.forceShowSplash({ skipDelay: true })
+    if (!this.isVisible()) await this.splashLoadPromise
+    const locale = resolveSupportedLocale(app.getLocale())
+    const options: MessageBoxOptions = {
+      type: 'warning',
+      title: app.getName(),
+      message: 'Local database encryption is being retired',
+      detail:
+        'DeepChat will keep an encrypted recovery copy. After migration, the local database, including chat history, will be stored without database encryption.',
+      buttons: ['Continue']
+    }
+    if (locale === 'zh-CN') {
+      options.message = '本地数据库加密即将停用'
+      options.detail =
+        'DeepChat 会保留一份加密的恢复副本。迁移后，本机数据库（包括聊天记录）将以未加密的方式存储。'
+      options.buttons = ['继续']
+    } else if (locale.startsWith('zh-')) {
+      options.message = '本機資料庫加密即將停用'
+      options.detail =
+        'DeepChat 會保留一份加密的復原副本。移轉後，本機資料庫（包括聊天記錄）將以未加密的方式儲存。'
+      options.buttons = ['繼續']
+    }
+    const parent = this.splashWindow
+    await (parent && !parent.isDestroyed()
+      ? dialog.showMessageBox(parent, options)
+      : dialog.showMessageBox(options))
   }
 
   async showDebugScenario(mode: SplashDebugMode): Promise<void> {

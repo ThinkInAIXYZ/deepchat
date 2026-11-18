@@ -21,6 +21,12 @@
 
 提交验收以 [PR #2511 Checks](https://github.com/ThinkInAIXYZ/deepchat/pull/2511/checks) 的 required CI 和六平台 verification 打包为准。macOS distribution 签名和公证由发布工作流验收。
 
+## 合并前迁移回归
+
+- [x] 加密库迁移提示、废弃写入路由清理、同序号历史续传与分步关闭。
+- [x] Native 通过 Electron 持有的 stdin 管道绑定进程生命周期。回归覆盖管道断开后的正常退出、默认确认及自动批准。
+- [x] 将 Native 桌面烟测接入 macOS arm64 verification，覆盖 Code Mode 子调用、媒体及会话恢复。
+
 ## P0. 基线与已确认决策
 
 - [x] fetch `origin/dev`，从 `42569d6a8f2128ac9c60daf7c4f15706894ccb04` 创建 `docs/dim-rust-harness-migration`。

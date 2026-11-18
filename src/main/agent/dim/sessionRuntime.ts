@@ -287,8 +287,11 @@ export class DimSessionRuntime {
     }
   }
   async stop(): Promise<void> {
-    for (const id of this.readers.keys()) await this.close(id)
-    await this.options.host.stop()
+    try {
+      for (const id of this.readers.keys()) await this.close(id)
+    } finally {
+      await this.options.host.stop()
+    }
   }
 
   private async openReader(sessionId: string, scope: object): Promise<OpenSession> {

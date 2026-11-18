@@ -221,35 +221,21 @@ export class DatabaseSecurityService {
     }
   }
 
-  async enableEncryption(_input: unknown): Promise<DatabaseSecurityStatus> {
-    throw new Error('Database encryption has been retired; only legacy decryption is supported.')
-  }
-
-  async changePassword(_input: unknown): Promise<DatabaseSecurityStatus> {
-    throw new Error('Database encryption has been retired; only legacy decryption is supported.')
-  }
-
   /** Called before desktop services are constructed. No new session uses an encrypted database. */
   async migrateLegacyEncryption(
-    database: DatabaseSecurityMigrationDatabasePort & { getDatabasePassword(): string | undefined }
+    database: DatabaseSecurityMigrationDatabasePort & { getDatabasePassword(): string | undefined },
+    notify?: () => Promise<void>
   ): Promise<void> {
     const password = database.getDatabasePassword()
     if (!password) return
-    await this.disableEncryption({ currentPassword: password, database })
-  }
-
-  async disableEncryption(input: {
-    currentPassword: string
-    database: DatabaseSecurityMigrationDatabasePort
-    providerSettings?: unknown
-  }): Promise<DatabaseSecurityStatus> {
+    await notify?.()
     this.assertEnabled()
-    this.assertPassword(input.currentPassword)
-    this.validatePassword(input.currentPassword)
+    this.assertPassword(password)
+    this.validatePassword(password)
 
     await this.migrateDatabase({
-      database: input.database,
-      sourcePassword: input.currentPassword,
+      database,
+      sourcePassword: password,
       direction: 'disable'
     })
     this.persistMetadata({
@@ -257,7 +243,6 @@ export class DatabaseSecurityService {
       lastMigrationAt: Date.now(),
       lastMigrationDirection: 'disable'
     })
-    return this.getStatus()
   }
 
   /** Decrypt an extracted legacy backup before it can replace the active plaintext database. */

@@ -354,10 +354,12 @@ export class DimRuntimeSupervisor {
     if (native && this.options.gatewayAddress)
       args.push('--deepchat-gateway', this.options.gatewayAddress)
     if (this.options.contextBridge) args.push('--deepchat-context')
+    if (native) args.push('--deepchat-parent-stdin')
     const child = spawn(executable, args, {
-      stdio: ['ignore', 'ignore', this.options.diagnostic ? 'pipe' : 'ignore'],
+      stdio: [native ? 'pipe' : 'ignore', 'ignore', this.options.diagnostic ? 'pipe' : 'ignore'],
       windowsHide: true
     })
+    child.stdin?.on('error', () => {})
     this.process = child
     this.exitCode = null
     this.startedAt = Date.now()

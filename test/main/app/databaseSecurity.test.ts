@@ -271,14 +271,6 @@ describe('DatabaseSecurityService', () => {
     expect(mocks.app.quit).toHaveBeenCalled()
   })
 
-  it('rejects retired encryption writes without touching the database', async () => {
-    const { DatabaseSecurityService } = await import('@/app/databaseSecurity')
-    const service = new DatabaseSecurityService({ dbPath: '/tmp/deepchat-test/agent.db' })
-    await expect(service.enableEncryption({} as never)).rejects.toThrow('retired')
-    await expect(service.changePassword({} as never)).rejects.toThrow('retired')
-    expect(mocks.openSQLiteDatabase).not.toHaveBeenCalled()
-  })
-
   it('qualifies CREATE TABLE IF NOT EXISTS for the migration target schema', async () => {
     const { DatabaseSecurityService } = await import('@/app/databaseSecurity')
     const presenter = new DatabaseSecurityService({ dbPath: '/tmp/deepchat-test/agent.db' })
