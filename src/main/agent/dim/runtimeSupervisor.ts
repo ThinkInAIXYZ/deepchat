@@ -1,6 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { createHash, randomUUID } from 'node:crypto'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { createConnection } from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
@@ -36,6 +37,26 @@ export interface DimRuntimeOptions {
 // shutdown therefore cannot share the former 10 s individual-RPC deadline.
 // Keep one bounded budget across acknowledgement and confirmed process exit.
 const SHUTDOWN_BUDGET_MS = 30_000
+
+/**
+ * True only when no server listens at a host's unique per-launch address. A timeout or any other
+ * failure may be a busy live host, so it keeps the profile lock.
+ */
+function hostAddressIsAbsent(address: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = createConnection(address)
+    const settle = (absent: boolean) => {
+      clearTimeout(timer)
+      socket.destroy()
+      resolve(absent)
+    }
+    const timer = setTimeout(() => settle(false), 1_000)
+    socket.once('connect', () => settle(false))
+    socket.once('error', (error: NodeJS.ErrnoException) =>
+      settle(error.code === 'ENOENT' || error.code === 'ECONNREFUSED')
+    )
+  })
+}
 
 export interface DimStopOptions {
   ifIdle?: boolean
@@ -208,10 +229,14 @@ export class DimRuntimeSupervisor {
           .filter((record) => record.ownerPid === process.pid)
           .map((record) => record.recordId)
       )
-      await this.childRegistry.reapStale('dim-host', {
+      const reaped = await this.childRegistry.reapStale('dim-host', {
         excludeRecordIds,
         maxRecordAgeMs: Number.POSITIVE_INFINITY
       })
+      // A refused record only means its pid could not be attested. Each host listens on a
+      // unique per-launch address; when nothing answers there, the record is not a live host.
+      for (const recordId of reaped.refused)
+        if (await hostAddressIsAbsent(recordId)) this.childRegistry.clear('dim-host', recordId)
       if (this.childRegistry.list('dim-host').length)
         throw new DimConnectionError('The dim profile is in use by another host.', 'not-sent')
     }
@@ -374,10 +399,14 @@ export class DimRuntimeSupervisor {
         this.exitCode = -1
         resolve()
       })
-      child.once('exit', (code) => {
+      child.once('exit', (code, signal) => {
         this.childRegistry?.clear('dim-host', address)
         this.exitCode = code ?? -1
-        this.diagnose('exited')
+        // An unrequested non-zero exit is a crash; its stderr tail is the only native evidence.
+        this.diagnose(
+          'exited',
+          code === 0 || this.stopping ? undefined : `dim host exited with ${signal ?? code}`
+        )
         this.connection?.close()
         resolve()
       })
