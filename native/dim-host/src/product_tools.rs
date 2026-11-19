@@ -366,11 +366,9 @@ async fn request(value: Value, cancel: CancellationToken) -> Result<Value, HostE
     }
     frame.push(b'\n');
     let connect = async {
-        #[cfg(unix)]
-        let socket = tokio::net::UnixStream::connect(address).await;
-        #[cfg(windows)]
-        let socket = tokio::net::windows::named_pipe::ClientOptions::new().open(address);
-        socket.map_err(|_| unavailable())
+        super::gateway::connect(address)
+            .await
+            .map_err(|_| unavailable())
     };
     let mut socket = tokio::select! {
         _ = cancel.cancelled() => return Err(HostError::Cancelled("Product capability cancelled".into())),

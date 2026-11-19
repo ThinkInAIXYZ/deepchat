@@ -44,11 +44,9 @@ impl ResolveProviderSecret for DesktopSecrets {
                 .and_then(Option::as_ref)
                 .ok_or_else(|| HostError::failed("Desktop credential owner is unavailable"))?;
             let operation = async {
-                #[cfg(unix)]
-                let socket = tokio::net::UnixStream::connect(address).await;
-                #[cfg(windows)]
-                let socket = tokio::net::windows::named_pipe::ClientOptions::new().open(address);
-                let mut socket = socket.map_err(|_| unavailable())?;
+                let mut socket = super::gateway::connect(address)
+                    .await
+                    .map_err(|_| unavailable())?;
                 let mut frame = serde_json::to_vec(&json!({
                     "kind": "credential", "providerId": provider_id, "reference": reference
                 }))

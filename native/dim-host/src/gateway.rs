@@ -16,11 +16,7 @@ pub(crate) async fn request(
         .and_then(Option::as_ref)
         .ok_or_else(unavailable)?;
     let operation = async {
-        #[cfg(unix)]
-        let socket = tokio::net::UnixStream::connect(address).await;
-        #[cfg(windows)]
-        let socket = tokio::net::windows::named_pipe::ClientOptions::new().open(address);
-        let mut socket = socket.map_err(|_| unavailable())?;
+        let mut socket = connect(address).await.map_err(|_| unavailable())?;
         let mut frame = serde_json::to_vec(&value).map_err(|_| unavailable())?;
         if frame.len() > max_bytes {
             return Err(unavailable());
@@ -59,4 +55,30 @@ pub(crate) async fn request(
 }
 fn unavailable() -> HostError {
     HostError::failed("Desktop product context is unavailable")
+}
+
+#[cfg(unix)]
+pub(crate) async fn connect(address: &str) -> std::io::Result<tokio::net::UnixStream> {
+    tokio::net::UnixStream::connect(address).await
+}
+
+/// Opens the desktop pipe. Every server instance can be busy while other
+/// callbacks are connected; wait briefly for a free one instead of failing.
+#[cfg(windows)]
+pub(crate) async fn connect(
+    address: &str,
+) -> std::io::Result<tokio::net::windows::named_pipe::NamedPipeClient> {
+    const ERROR_PIPE_BUSY: i32 = 231;
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(2);
+    loop {
+        match tokio::net::windows::named_pipe::ClientOptions::new().open(address) {
+            Err(error)
+                if error.raw_os_error() == Some(ERROR_PIPE_BUSY)
+                    && tokio::time::Instant::now() < deadline =>
+            {
+                tokio::time::sleep(Duration::from_millis(50)).await
+            }
+            result => return result,
+        }
+    }
 }
