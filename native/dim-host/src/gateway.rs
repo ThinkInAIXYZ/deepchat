@@ -6,27 +6,6 @@ use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio_util::sync::CancellationToken;
 
-/// Opens the desktop pipe. Every server instance can be busy while other
-/// callbacks are connected; wait briefly for a free one instead of failing.
-#[cfg(windows)]
-pub(crate) async fn connect(
-    address: &str,
-) -> std::io::Result<tokio::net::windows::named_pipe::NamedPipeClient> {
-    const ERROR_PIPE_BUSY: i32 = 231;
-    let deadline = tokio::time::Instant::now() + Duration::from_secs(2);
-    loop {
-        match tokio::net::windows::named_pipe::ClientOptions::new().open(address) {
-            Err(error)
-                if error.raw_os_error() == Some(ERROR_PIPE_BUSY)
-                    && tokio::time::Instant::now() < deadline =>
-            {
-                tokio::time::sleep(Duration::from_millis(50)).await
-            }
-            result => return result,
-        }
-    }
-}
-
 pub(crate) fn frame(mut value: Value, max_bytes: usize) -> Option<Vec<u8>> {
     value.as_object_mut()?.insert(
         "auth".into(),
