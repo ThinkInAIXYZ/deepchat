@@ -21,7 +21,9 @@ import { TOOL_EXECUTION } from '@shared/types/mcp'
 import {
   DimProductGateway,
   type DimProductToolCall,
-  type DimProductGatewayOptions
+  type DimProductGatewayOptions,
+  type DimToolReviewDecision,
+  type DimToolReviewRequest
 } from '@/agent/dim/productGateway'
 import { DimModelBridge } from '@/agent/dim/modelBridge'
 import { DimInputPreparation } from '@/agent/dim/inputPreparation'
@@ -338,6 +340,8 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
     let holdQueue = false
     let heldQueueResponse: ServerResponse | null = null
     let nextTools: Array<{ id: string; name: string; arguments: object }> | null = null
+    const toolReviews: DimToolReviewRequest[] = []
+    let toolReviewDecision: DimToolReviewDecision = 'auto_allow'
     const answeredQuestions = new Set<string>()
     const toolFlushWaiters = new Map<string, () => void>()
     let mcpEnabled = false
@@ -616,6 +620,10 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
       ]
     })
     const gateway = new DimProductGateway({
+      toolReview: async (request) => {
+        toolReviews.push(request)
+        return toolReviewDecision
+      },
       mcp: async (id, signal) => {
         const scope = await new DimScopes({ database: grants.data, host }).owner(id, signal)
         scope.assertCurrent()
@@ -1533,9 +1541,45 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
         expect(await readFile(path.join(profile, 'native-auto-consent.txt'), 'utf8')).toBe(
           'Auto-approved by dim'
         )
+        // The reviewer saw the exact call, with dim's resolved path, and its verdict replaced
+        // the user prompt.
+        expect(toolReviews).toEqual([
+          expect.objectContaining({
+            callId: 'native-auto-write',
+            toolName: 'write',
+            risk: 'write_filesystem',
+            arguments: {
+              path: path.join(await realpath(profile), 'native-auto-consent.txt'),
+              content: 'Auto-approved by dim'
+            }
+          })
+        ])
         expect(interactionHooks.filter(({ event }) => event === 'PermissionRequest')).toHaveLength(
           1
         )
+        // A verdict other than auto_allow falls back to asking the user.
+        toolReviewDecision = 'ask_user'
+        nextTools = [
+          {
+            id: 'native-reviewed-ask',
+            name: 'write',
+            arguments: { path: 'native-reviewed-ask.txt', content: 'Granted after review' }
+          }
+        ]
+        await desktop.submit('product-ui', [{ type: 'text', text: 'native review ask fixture' }])
+        await expect.poll(() => pendingAction()?.block.action_type).toBe('tool_call_permission')
+        const reviewedApproval = pendingAction()!
+        await interactions.respondToolInteraction(
+          'product-ui',
+          reviewedApproval.messageId,
+          reviewedApproval.block.tool_call!.id!,
+          { kind: 'permission', granted: true }
+        )
+        await desktop.waitIdle('product-ui')
+        expect(await readFile(path.join(profile, 'native-reviewed-ask.txt'), 'utf8')).toBe(
+          'Granted after review'
+        )
+        expect(toolReviews).toHaveLength(2)
         await nativeSettings!.setPermissionMode('product-ui', 'default')
         nextTools = [
           {

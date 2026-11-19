@@ -214,6 +214,7 @@ import { DimLegacySource } from '@/agent/dim/legacySource'
 import { DimInputPreparation } from '@/agent/dim/inputPreparation'
 import { createDimMemoryRuntime } from '@/agent/dim/memoryRuntime'
 import { createDimDesktopTools } from './dimDesktopTools'
+import { createDimToolReview } from '@/agent/dim/review/toolReview'
 import { AgentToolManager } from '@/tool/agentTools/agentToolManager'
 import { DimToolCatalog } from '@/agent/dim/toolCatalog'
 import { nativeMcpStdio } from '@/mcp/nativeStdio'
@@ -1019,6 +1020,34 @@ export async function createMainProcessControl(dependencies: {
       scope.assertCurrent()
       return configuration.servers
     },
+    toolReview: createDimToolReview({
+      reviewer: {
+        providerSettings,
+        agentSettings,
+        providerRuntime: {
+          executeWithRateLimit: (...args) => providerRuntime.executeWithRateLimit(...args),
+          generateCompletionStandalone: (...args) =>
+            providerRuntime.generateCompletionStandalone(...args),
+          runJudgment: (...args) => providerRuntime.runJudgment(...args)
+        },
+        getSessionAgentId: (sessionId) => appSessionService.get(sessionId)?.agentId
+      },
+      owner: async (id, signal) => {
+        const scope = await dimScopes.owner(id, signal)
+        authorizeDimScope(scope.binding)
+        scope.assertCurrent()
+        return {
+          sessionId: scope.binding.sessionId,
+          providerId: scope.description.model.providerId,
+          modelId: scope.description.model.modelId,
+          assertCurrent: () => {
+            scope.assertCurrent()
+            authorizeDimScope(scope.binding)
+          }
+        }
+      },
+      messages: (sessionId) => sessionData.transcript.getMessages(sessionId)
+    }),
     credential: (id, reference, signal) => dimModels.credential(id, reference, signal),
     connectionAuth: (id, modelId, rejectedLease, signal) =>
       dimModels.connectionAuth(id, modelId, rejectedLease, signal)

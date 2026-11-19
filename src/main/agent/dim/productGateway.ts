@@ -79,6 +79,7 @@ export interface DimProductGatewayOptions {
   mediaInput?(request: DimMediaFrameRequest, signal: AbortSignal): Promise<JsonValue>
   mcp?(sessionId: string, signal: AbortSignal): Promise<Record<string, DimMcpServer>>
   titleModel?(sessionId: string, signal: AbortSignal): Promise<DimModelId | null>
+  toolReview?(request: DimToolReviewRequest, signal: AbortSignal): Promise<DimToolReviewDecision>
   pluginHooks?(request: DimPluginHooksRequest, signal: AbortSignal): Promise<UserPluginHookSource[]>
   connectionAuth?(
     providerId: string,
@@ -92,6 +93,16 @@ export interface DimProductGatewayOptions {
     signal: AbortSignal
   ): Promise<string | { accessKeyId: string; secretAccessKey: string; sessionToken?: string }>
 }
+
+/** One state-changing model call dim admits under `auto_approve`. */
+export interface DimToolReviewRequest {
+  sessionId: string
+  callId: string
+  toolName: string
+  arguments: JsonObject
+  risk: string | null
+}
+export type DimToolReviewDecision = 'auto_allow' | 'ask_user' | 'block'
 
 const MAX_FRAME = 16 * 1024 * 1024
 
@@ -275,6 +286,32 @@ export class DimProductGateway {
       const model = (await this.options.titleModel?.(request.sessionId, signal)) ?? null
       signal.throwIfAborted()
       return model ? { ...model } : null
+    }
+    if (request.kind === 'tool_review') {
+      const args = request.arguments
+      if (
+        !this.options.toolReview ||
+        ['sessionId', 'callId', 'toolName'].some(
+          (key) => typeof request[key] !== 'string' || !request[key] || request[key].length > 4096
+        ) ||
+        !args ||
+        typeof args !== 'object' ||
+        Array.isArray(args) ||
+        (request.risk != null && typeof request.risk !== 'string')
+      )
+        throw new Error('Invalid native tool review request')
+      const decision = await this.options.toolReview(
+        {
+          sessionId: request.sessionId as string,
+          callId: request.callId as string,
+          toolName: request.toolName as string,
+          arguments: args as JsonObject,
+          risk: (request.risk as string | null | undefined) ?? null
+        },
+        signal
+      )
+      signal.throwIfAborted()
+      return { decision }
     }
     if (request.kind === 'mcp') {
       if (
