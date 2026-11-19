@@ -4,6 +4,9 @@ import type { AgentToolManager } from '@/tool/agentTools/agentToolManager'
 import type { DimSessionBinding } from '@/session/data/tables/dimSessionBindings'
 import type { DimDesktopTool } from '@/agent/dim/productTools'
 import type { McpService } from '@/mcp'
+import type { MCPToolDefinition } from '@shared/types/mcp'
+import { CHAT_SETTINGS_TOOL_NAMES } from '@/tool/agentTools/chatSettingsTools'
+import { resolvePluginToolPolicy } from '@/plugin/toolPolicyStore'
 import { dimContentBlocks } from '@/agent/dim/auxiliaryModels'
 import {
   cacheToolCallImagePreviews,
@@ -24,6 +27,22 @@ interface DesktopToolsOptions {
   }>
 }
 
+// dim admits `session` risk without consent under every DeepChat preset, while `network`
+// asks in `default` mode. These keep the approvals the desktop broker required before.
+function desktopToolRisk(definition: MCPToolDefinition): DimDesktopTool['risk'] {
+  return definition.function.name === CHAT_SETTINGS_TOOL_NAMES.open ? 'network' : 'session'
+}
+
+// Remote MCP annotations are not trusted to downgrade host permission checks; only an
+// explicit managed-plugin `allow` skips approval.
+function mcpToolRisk(definition: MCPToolDefinition): DimDesktopTool['risk'] {
+  const policy = resolvePluginToolPolicy(
+    definition.server.name,
+    definition.raw?.name ?? definition.function.name
+  )
+  return policy.managed && policy.decision === 'allow' ? 'session' : 'network'
+}
+
 /** Native filesystem, process, search, skills, agent and schedule tools are never collected here. */
 export function createDimDesktopTools(options: DesktopToolsOptions) {
   return async (binding: Readonly<DimSessionBinding>): Promise<DimDesktopTool[]> => {
@@ -36,7 +55,7 @@ export function createDimDesktopTools(options: DesktopToolsOptions) {
     })
     const tools: DimDesktopTool[] = definitions.map((definition) => ({
       definition,
-      risk: 'session',
+      risk: desktopToolRisk(definition),
       execute: async (call, signal) => {
         const result = await options.desktop.callTool(call.name, call.arguments, id, {
           runId: call.turnId,
@@ -108,7 +127,7 @@ export function createDimDesktopTools(options: DesktopToolsOptions) {
           .slice(0, 32)}`
         tools.push({
           definition: { ...definition, function: { ...definition.function, name } },
-          risk: 'session',
+          risk: mcpToolRisk(definition),
           execute: async (call, signal) => {
             const result = await options.mcp.callTool(
               {

@@ -5,6 +5,7 @@ import { createDimDesktopTools } from '@/app/dimDesktopTools'
 import { dimDatabase } from '../../agent/dim/fixtures/database'
 import { TOOL_EXECUTION } from '@shared/types/mcp'
 import { SessionReferenceReadError } from '@/session/data/sessionReferences'
+import * as toolPolicyStore from '@/plugin/toolPolicyStore'
 
 it('publishes desktop capabilities without replacing native tools or exposing ACP session readers', async () => {
   const session = vi
@@ -99,6 +100,53 @@ it('publishes desktop capabilities without replacing native tools or exposing AC
       expect.any(AbortSignal)
     )
   } finally {
+    sqlite.close()
+  }
+})
+
+it('keeps desktop MCP and settings navigation behind native consent', async () => {
+  const policy = vi.spyOn(toolPolicyStore, 'resolvePluginToolPolicy')
+  policy.mockImplementation((_serverId, toolName) =>
+    toolName === 'trusted'
+      ? { managed: true, decision: 'allow' }
+      : { managed: false, decision: null }
+  )
+  const mcpTool = (name: string) => ({
+    type: 'function',
+    execution: TOOL_EXECUTION.read.parallel,
+    function: { name, description: '', parameters: { type: 'object', properties: {} } },
+    server: { name: 'remote', icons: '', description: '' }
+  })
+  const desktopTool = (name: string) => ({
+    ...mcpTool(name),
+    server: { name: 'deepchat', icons: '', description: '' }
+  })
+  const { data, sqlite } = dimDatabase()
+  try {
+    const catalog = createDimDesktopTools({
+      desktop: {
+        getAllToolDefinitions: vi
+          .fn()
+          .mockResolvedValue([desktopTool('read_session'), desktopTool('deepchat_settings_open')]),
+        callTool: vi.fn()
+      } as never,
+      mcp: {
+        getAllToolDefinitions: vi
+          .fn()
+          .mockResolvedValue([mcpTool('untrusted'), mcpTool('trusted')]),
+        callTool: vi.fn()
+      } as never,
+      cacheImage: vi.fn(),
+      supportsVision: async () => false,
+      selection: async () => ({ agentId: 'deepchat', disabled: [], bridgeServerNames: ['remote'] })
+    })
+    const risks = (await catalog(data.dimSessionBindingsTable.bind('root', 'native'))).map(
+      (tool) => tool.risk
+    )
+    // `session` is admitted silently by dim; `network` asks in default mode.
+    expect(risks).toEqual(['session', 'network', 'network', 'session'])
+  } finally {
+    policy.mockRestore()
     sqlite.close()
   }
 })
