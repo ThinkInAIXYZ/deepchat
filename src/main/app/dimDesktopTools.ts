@@ -27,20 +27,9 @@ interface DesktopToolsOptions {
   }>
 }
 
-// dim admits `session` risk without consent under every DeepChat preset, while `network`
-// asks in `default` mode. These keep the approvals the desktop broker required before.
 function desktopToolRisk(definition: MCPToolDefinition): DimDesktopTool['risk'] {
-  return definition.function.name === CHAT_SETTINGS_TOOL_NAMES.open ? 'network' : 'session'
-}
-
-// Remote MCP annotations are not trusted to downgrade host permission checks; only an
-// explicit managed-plugin `allow` skips approval.
-function mcpToolRisk(definition: MCPToolDefinition): DimDesktopTool['risk'] {
-  const policy = resolvePluginToolPolicy(
-    definition.server.name,
-    definition.raw?.name ?? definition.function.name
-  )
-  return policy.managed && policy.decision === 'allow' ? 'session' : 'network'
+  if (definition.function.name === CHAT_SETTINGS_TOOL_NAMES.open) return 'product_approval'
+  return definition.execution.effect === 'read' ? 'session' : 'network'
 }
 
 /** Native filesystem, process, search, skills, agent and schedule tools are never collected here. */
@@ -119,6 +108,10 @@ export function createDimDesktopTools(options: DesktopToolsOptions) {
       })
       for (const definition of definitions) {
         if (!bridges.has(definition.server.name)) continue
+        const originalMcpName = definition.raw?.name ?? definition.function.name
+        const policy = () => resolvePluginToolPolicy(definition.server.name, originalMcpName)
+        const { managed, decision } = policy()
+        if (managed && decision !== 'allow' && decision !== 'ask') continue
         const pinnedDefinition = JSON.stringify(definition)
         // Product MCP namespaces cannot shadow either a native tool or another desktop server.
         const name = `deepchat_mcp_${createHash('sha256')
@@ -127,7 +120,8 @@ export function createDimDesktopTools(options: DesktopToolsOptions) {
           .slice(0, 32)}`
         tools.push({
           definition: { ...definition, function: { ...definition.function, name } },
-          risk: mcpToolRisk(definition),
+          originalMcpName,
+          risk: decision === 'ask' ? 'product_approval' : managed ? 'session' : 'network',
           execute: async (call, signal) => {
             const result = await options.mcp.callTool(
               {
@@ -145,7 +139,12 @@ export function createDimDesktopTools(options: DesktopToolsOptions) {
                 enabledServerIds: [...bridges],
                 assertCurrentToolDefinition: (current) => {
                   signal.throwIfAborted()
-                  if (JSON.stringify(current) !== pinnedDefinition)
+                  const currentPolicy = policy()
+                  if (
+                    JSON.stringify(current) !== pinnedDefinition ||
+                    currentPolicy.managed !== managed ||
+                    currentPolicy.decision !== decision
+                  )
                     throw new Error('Desktop MCP capability changed before native dispatch')
                 }
               }

@@ -1047,7 +1047,15 @@ export async function createMainProcessControl(dependencies: {
           }
         }
       },
-      messages: (sessionId) => sessionData.transcript.getMessages(sessionId)
+      messages: (sessionId) => sessionData.transcript.getMessages(sessionId),
+      bridgedTool: async (nativeId, name) => {
+        const catalog = await dimTools.resolve(nativeId)
+        const metadata = catalog.tools.find((tool) => tool.name === name)?.metadata
+        return typeof metadata?.deepchatMcpTool === 'string' &&
+          typeof metadata.deepchatServer === 'string'
+          ? { name: metadata.deepchatMcpTool, serverName: metadata.deepchatServer }
+          : null
+      }
     }),
     credential: (id, reference, signal) => dimModels.credential(id, reference, signal),
     connectionAuth: (id, modelId, rejectedLease, signal) =>
@@ -1066,7 +1074,7 @@ export async function createMainProcessControl(dependencies: {
     ),
     nativePlugins: true,
     contextBridge: true,
-    gatewayAddress: await dimGateway.start(),
+    gateway: dimGateway,
     diagnostic: createDimRuntimeDiagnostic(logger)
   })
   const dimModelBridge = new DimModelBridge(dimHost)
@@ -2199,7 +2207,7 @@ export async function createMainProcessControl(dependencies: {
         sessionData.settings.rewindMemoryCursorOrderSeq(id, order)
     }
   })
-  const authorizeDimScope = async (binding: { sessionId: string }) => {
+  const authorizeDimScope = (binding: { sessionId: string }) => {
     const session = appSessionService.get(binding.sessionId)
     if (!session || databaseMaintenanceState !== 'running')
       throw new Error('Desktop session is unavailable')
@@ -4258,7 +4266,10 @@ export async function createMainProcessControl(dependencies: {
         },
         resetDataByType: (type) => {
           if (!actionClaim) throw new Error('Application shutdown claim is unavailable')
-          return actionClaim.run(() => deviceService.resetDataByType(type))
+          return actionClaim.run(async () => {
+            if (type === 'chat' || type === 'all') await dimHost.stop()
+            await deviceService.resetDataByType(type)
+          })
         }
       })
     } catch (error) {

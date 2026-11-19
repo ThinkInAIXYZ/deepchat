@@ -47,11 +47,11 @@ impl ResolveProviderSecret for DesktopSecrets {
                 let mut socket = super::gateway::connect(address)
                     .await
                     .map_err(|_| unavailable())?;
-                let mut frame = serde_json::to_vec(&json!({
-                    "kind": "credential", "providerId": provider_id, "reference": reference
-                }))
-                .map_err(|_| unavailable())?;
-                frame.push(b'\n');
+                let frame = super::gateway::frame(
+                    json!({"kind":"credential","providerId":provider_id,"reference":reference}),
+                    1024 * 1024,
+                )
+                .ok_or_else(unavailable)?;
                 socket.write_all(&frame).await.map_err(|_| unavailable())?;
                 let mut reader = BufReader::new(socket);
                 let mut bytes = Vec::new();

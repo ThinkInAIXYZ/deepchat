@@ -1,6 +1,6 @@
 import { createServer, type Server, type Socket } from 'node:net'
 import { mkdtemp, rm } from 'node:fs/promises'
-import { randomUUID } from 'node:crypto'
+import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto'
 import os from 'node:os'
 import path from 'node:path'
 import type { JsonValue } from '@shared/contracts/json'
@@ -16,7 +16,13 @@ export interface DimProductToolDefinition {
   description: string
   inputSchema: JsonObject
   source: 'extension'
-  risk: 'read_filesystem' | 'write_filesystem' | 'execute_process' | 'network' | 'session'
+  risk:
+    | 'read_filesystem'
+    | 'write_filesystem'
+    | 'execute_process'
+    | 'network'
+    | 'session'
+    | 'product_approval'
   metadata?: JsonObject
 }
 export interface DimProductToolCall {
@@ -111,13 +117,22 @@ export class DimProductGateway {
   private server: Server | null = null
   private directory: string | null = null
   private address: string | null = null
+  private auth: Buffer | null = null
   private readonly sockets = new Set<Socket>()
   private starting: Promise<string> | null = null
   private stopping: Promise<void> | null = null
 
   constructor(private readonly options: DimProductGatewayOptions) {}
 
-  start(): Promise<string> {
+  async beginLaunch(): Promise<{ address: string; token: string }> {
+    const address = await this.start()
+    for (const socket of this.sockets) socket.destroy()
+    const token = randomBytes(32).toString('hex')
+    this.auth = Buffer.from(token, 'ascii')
+    return { address, token }
+  }
+
+  private start(): Promise<string> {
     if (this.stopping) return this.stopping.then(() => this.start())
     if (this.starting) return this.starting
     if (this.address) return Promise.resolve(this.address)
@@ -149,6 +164,7 @@ export class DimProductGateway {
     const server = this.server
     this.server = null
     this.address = null
+    this.auth = null
     if (server) await new Promise<void>((resolve) => server.close(() => resolve()))
     if (this.directory) await rm(this.directory, { recursive: true, force: true })
     this.directory = null
@@ -213,6 +229,7 @@ export class DimProductGateway {
     })
     socket.on('error', () => socket.destroy())
     socket.on('data', (data: Buffer) => {
+      if (ended) return
       buffer = Buffer.concat([buffer, data])
       if (buffer.length > MAX_FRAME) {
         socket.destroy()
@@ -224,8 +241,19 @@ export class DimProductGateway {
         buffer = buffer.subarray(end + 1)
         let request: Record<string, unknown>
         try {
-          request = JSON.parse(line)
-          if (!request || typeof request !== 'object' || Array.isArray(request)) throw new Error()
+          const frame = JSON.parse(line)
+          if (!frame || typeof frame !== 'object' || Array.isArray(frame)) throw new Error()
+          const { auth, ...payload } = frame
+          if (
+            typeof auth !== 'string' ||
+            !/^[0-9a-f]{64}$/.test(auth) ||
+            !this.auth ||
+            !timingSafeEqual(Buffer.from(auth, 'ascii'), this.auth)
+          ) {
+            reply({ error: 'Product capability authentication failed' })
+            return
+          }
+          request = payload
         } catch {
           socket.destroy()
           return

@@ -2798,7 +2798,6 @@
     "permissionDefault": "Standardtilladelse",
     "defaultToolMode": "Standardtilstand",
     "defaultToolModeModelDefaultDesc": "Bestemmes af den aktuelle model. De fleste modeller bruger Agent.",
-    "defaultToolModeCodePermissionHint": "Code-tilstand kræver, at standardtilladelsen er sat til \"{permission}\", ellers mislykkes kodekald.",
     "toolsTitle": "Indbyggede værktøjer",
     "outputLimitsTitle": "Avancerede outputgrænser",
     "outputLimitsDescription": "Styr, hvor meget værktøjsoutput der forbliver indlejret for denne agent.",

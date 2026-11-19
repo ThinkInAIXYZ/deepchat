@@ -12,7 +12,7 @@ vi.unmock('path')
 let profileRoot = ''
 afterEach(() => rm(profileRoot, { recursive: true, force: true }))
 
-async function writeStaleRecord(address: string): Promise<string> {
+async function writeUnattestableRecord(address: string, recordedAt: number): Promise<string> {
   const records = path.join(profileRoot, 'child-processes', 'dim-host')
   await mkdir(records, { recursive: true })
   const name = `${address.replace(/[^a-zA-Z0-9_.-]/g, '_').slice(0, 80)}_${createHash('sha1')
@@ -29,7 +29,7 @@ async function writeStaleRecord(address: string): Promise<string> {
       pid: process.ppid,
       ownerPid: 2 ** 31 - 2,
       commandLine: ['deepchat-dim-host'],
-      recordedAt: Date.now()
+      recordedAt
     })
   )
   return records
@@ -44,17 +44,19 @@ function supervisor() {
   })
 }
 
-it('releases a profile lock whose unattestable host no longer listens at its address', async () => {
+it.each([
+  { title: 'keeps an unattestable host lock during startup', ageMs: 0, blocked: true },
+  { title: 'releases an older lock with no listener', ageMs: 60_000, blocked: false }
+])('$title', async ({ ageMs, blocked }) => {
   profileRoot = await mkdtemp(path.join(tmpdir(), 'dim-lock-'))
   const address =
     process.platform === 'win32'
       ? `\\\\.\\pipe\\deepchat-dim-absent-${process.pid}-${Date.now()}`
       : path.join(profileRoot, 'absent', 'host.sock')
-  const records = await writeStaleRecord(address)
-  // Startup passes the lock and then fails only on the missing runtime fixture.
+  const records = await writeUnattestableRecord(address, Date.now() - ageMs)
   const failure = await supervisor()
     .start()
     .catch((error: Error) => error)
-  expect(String(failure)).not.toContain('in use by another host')
-  expect(await readdir(records)).toEqual([])
+  expect(String(failure).includes('in use by another host')).toBe(blocked)
+  expect(await readdir(records)).toHaveLength(blocked ? 1 : 0)
 })

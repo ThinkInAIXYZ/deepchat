@@ -24,7 +24,7 @@ import {
 } from '@shared/contracts/databaseSecurity'
 import { activateAppOnMac } from '@/lib/activateApp'
 import { SPLASH_DEBUG_MODE_CHANNEL, type SplashDebugMode } from '@shared/contracts/splash'
-import { resolveSupportedLocale } from '@shared/locales'
+import { databaseMigrationTranslations, getBestMatchTranslation } from '@shared/i18n'
 
 const SPLASH_SHOW_DELAY_MS = 200
 
@@ -202,33 +202,24 @@ export class SplashWindow {
     })
   }
 
-  async showDatabaseMigrationNotice(): Promise<void> {
+  async showDatabaseMigrationNotice(): Promise<boolean> {
     this.forceShowSplash({ skipDelay: true })
     if (!this.isVisible()) await this.splashLoadPromise
-    const locale = resolveSupportedLocale(app.getLocale())
+    const labels = getBestMatchTranslation(app.getLocale(), databaseMigrationTranslations)
     const options: MessageBoxOptions = {
       type: 'warning',
       title: app.getName(),
-      message: 'Database encryption is being taken offline',
-      detail:
-        'The new architecture does not support SQLite encryption, so database encryption is temporarily unavailable. Your database will return to an unencrypted state.',
-      buttons: ['Continue']
-    }
-    if (locale === 'zh-CN') {
-      options.message = '数据库加密功能暂时下线'
-      options.detail =
-        '由于新的架构不支持 SQLite 加密，暂时加密功能会下线，对应数据库也会回退到不加密状态。'
-      options.buttons = ['继续']
-    } else if (locale.startsWith('zh-')) {
-      options.message = '資料庫加密功能暫時下線'
-      options.detail =
-        '由於新的架構不支援 SQLite 加密，暫時加密功能會下線，對應資料庫也會回退到不加密狀態。'
-      options.buttons = ['繼續']
+      message: labels.title,
+      detail: labels.detail,
+      buttons: [labels.continue, labels.quit],
+      defaultId: 1,
+      cancelId: 1
     }
     const parent = this.splashWindow
-    await (parent && !parent.isDestroyed()
+    const result = await (parent && !parent.isDestroyed()
       ? dialog.showMessageBox(parent, options)
       : dialog.showMessageBox(options))
+    return result.response === 0
   }
 
   async showDebugScenario(mode: SplashDebugMode): Promise<void> {

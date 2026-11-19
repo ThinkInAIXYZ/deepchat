@@ -26,8 +26,14 @@ it('removes native conversations and legacy copies with chat data', async () => 
   for (const file of [
     'app_db/agent.db',
     'app_db/agent.db.legacy-encrypted.1.id.bak',
+    'app_db/chat.db',
+    'app_db/KnowledgeBase/catalog.db',
     'dim/rust/dimcode.sqlite',
     '.dim-restore-abc/dim/rust/dimcode.sqlite',
+    '.sync-import-abc/agent.db',
+    '.dim-replica-import.json',
+    'sync-import-recovery.json',
+    'database-security.json',
     'app-settings.json'
   ]) {
     mkdirSync(path.dirname(path.join(state.userData, file)), { recursive: true })
@@ -36,6 +42,6 @@ it('removes native conversations and legacy copies with chat data', async () => 
   const reset = new DeviceService().resetDataByType('chat')
   await vi.advanceTimersByTimeAsync(1000)
   await reset
-  expect(readdirSync(path.join(state.userData, 'app_db'))).toEqual([])
+  expect(readdirSync(path.join(state.userData, 'app_db'))).toEqual(['KnowledgeBase'])
   expect(readdirSync(state.userData).sort()).toEqual(['app-settings.json', 'app_db'])
 })

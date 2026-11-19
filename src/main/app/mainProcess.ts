@@ -29,7 +29,7 @@ export async function startMainProcess(
   startupWorkloadCoordinator: StartupWorkloadCoordinator,
   startupRunId: string,
   requestUpdateInstall: (installAction: () => void) => Promise<void>
-): Promise<MainProcessControl> {
+): Promise<MainProcessControl | undefined> {
   const splashWindow = new SplashWindow()
   let mainProcess: MainProcessControl | undefined
   let database: Awaited<ReturnType<typeof initializeMainDatabaseWithRecovery>> | undefined
@@ -82,20 +82,25 @@ export async function startMainProcess(
       }
     })
     const startupDatabase = database
-    await databaseSecurityService.migrateLegacyEncryption(
-      {
-        getDatabasePath: () => startupDatabase.getDatabasePath(),
-        getDatabasePassword: () => startupDatabase.getDatabasePassword(),
-        checkpointAndClose: () => {
-          startupDatabase.getDatabase().pragma('wal_checkpoint(TRUNCATE)')
-          startupDatabase.close()
-        },
-        close: () => startupDatabase.close(),
-        reopenWithPassword: (password) => startupDatabase.reopenWithPassword(password),
-        isOpen: () => startupDatabase.getDatabase().open
+    if (
+      startupDatabase.getDatabasePassword() &&
+      !(await splashWindow.showDatabaseMigrationNotice())
+    ) {
+      startupDatabase.close()
+      await splashWindow.close()
+      return
+    }
+    await databaseSecurityService.migrateLegacyEncryption({
+      getDatabasePath: () => startupDatabase.getDatabasePath(),
+      getDatabasePassword: () => startupDatabase.getDatabasePassword(),
+      checkpointAndClose: () => {
+        startupDatabase.getDatabase().pragma('wal_checkpoint(TRUNCATE)')
+        startupDatabase.close()
       },
-      () => splashWindow.showDatabaseMigrationNotice()
-    )
+      close: () => startupDatabase.close(),
+      reopenWithPassword: (password) => startupDatabase.reopenWithPassword(password),
+      isOpen: () => startupDatabase.getDatabase().open
+    })
     splashWindow.showDatabaseUnlockProgress({
       active: false,
       safeStorageAvailable: databaseSecurityService.getStatus().safeStorageAvailable

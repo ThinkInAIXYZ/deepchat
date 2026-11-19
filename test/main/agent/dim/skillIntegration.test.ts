@@ -132,7 +132,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([true, false])(
       ),
       nativePlugins: true,
       contextBridge: true,
-      gatewayAddress: await gateway.start()
+      gateway
     })
     const skills = new DimSkillContext({
       catalog: new DimSkillCatalog(host),

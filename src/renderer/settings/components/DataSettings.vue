@@ -1261,6 +1261,12 @@ const handlePullFromCloud = async () => {
   try {
     const result = await syncStore.pullFromCloud(cloudPullMode.value)
     if (!result?.success) {
+      if (result?.fileName && result.message === 'sync.error.encryptedBackupPasswordMissing') {
+        selectedBackup.value = result.fileName
+        importMode.value = cloudPullMode.value
+        isImportDialogOpen.value = true
+        return
+      }
       notifyRenderer({
         kind: 'error',
         code: 'settings.data.cloud.pullFailed',

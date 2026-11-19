@@ -184,7 +184,7 @@ export class SessionReferences {
   private hasNativeSource(sessionId: string): boolean {
     const available = this.native?.has(sessionId) === true
     if (this.database.dimSessionBindingsTable.get(sessionId) && !available)
-      throw new Error('Native session content owner is unavailable')
+      throw new SessionReferenceReadError('Native session content owner is unavailable')
     return available
   }
 

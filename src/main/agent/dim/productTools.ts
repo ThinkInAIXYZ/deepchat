@@ -14,6 +14,7 @@ import type {
 export interface DimDesktopTool {
   definition: MCPToolDefinition
   risk: DimProductToolDefinition['risk']
+  originalMcpName?: string
   execute(call: DimProductToolCall, signal: AbortSignal): Promise<DimProductToolResult>
 }
 interface ProductToolsOptions {
@@ -56,14 +57,19 @@ export class DimProductTools {
     await check()
     const entries = await this.options.catalog(scope)
     await check()
-    const tools: DimProductToolDefinition[] = entries.map(({ definition, risk }) => ({
-      name: definition.function.name,
-      description: definition.function.description,
-      inputSchema: definition.function.parameters as unknown as { [key: string]: JsonValue },
-      source: 'extension',
-      risk,
-      metadata: { deepchatServer: definition.server.name }
-    }))
+    const tools: DimProductToolDefinition[] = entries.map(
+      ({ definition, risk, originalMcpName }) => ({
+        name: definition.function.name,
+        description: definition.function.description,
+        inputSchema: definition.function.parameters as unknown as { [key: string]: JsonValue },
+        source: 'extension',
+        risk,
+        metadata: {
+          deepchatServer: definition.server.name,
+          ...(originalMcpName ? { deepchatMcpTool: originalMcpName } : {})
+        }
+      })
+    )
     if (new Set(tools.map((tool) => tool.name)).size !== tools.length)
       throw new Error('Desktop tool names must be unique')
     return {

@@ -8,13 +8,11 @@ const MAX_LOGGED_STDERR = 4096
  */
 export function redactDimStderr(value: string): string {
   return value
-    .slice(-MAX_LOGGED_STDERR)
+    .replace(/(authorization["']?\s*[:=][^\S\r\n]*)[^\r\n]+/giu, '$1***')
     .replace(/(bearer\s+)[^\s"',]+/giu, '$1***')
-    .replace(
-      /((?:api[_-]?key|authorization|token|secret|password)["']?\s*[:=]\s*["']?)[^\s"',}]+/giu,
-      '$1***'
-    )
+    .replace(/((?:api[_-]?key|token|secret|password)["']?\s*[:=]\s*["']?)[^\s"',}]+/giu, '$1***')
     .replace(/\b(?:sk|pk|rk|xai|gsk|AIza)[-_A-Za-z0-9]{12,}/gu, '***')
+    .slice(-MAX_LOGGED_STDERR)
 }
 
 /**
@@ -28,7 +26,7 @@ export function createDimRuntimeDiagnostic(log: {
     if (!event.detail) return
     log.warn('[dim] native host failure', {
       phase: event.phase,
-      detail: event.detail,
+      detail: redactDimStderr(event.detail),
       pid: event.pid,
       exitCode: event.exitCode,
       elapsedMs: event.elapsedMs,

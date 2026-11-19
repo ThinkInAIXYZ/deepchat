@@ -2798,7 +2798,6 @@
     "permissionDefault": "הרשאת ברירת מחדל",
     "defaultToolMode": "מצב ברירת מחדל",
     "defaultToolModeModelDefaultDesc": "נקבע לפי המודל הנוכחי. רוב המודלים משתמשים ב-Agent.",
-    "defaultToolModeCodePermissionHint": "מצב Code דורש שהרשאת ברירת המחדל תוגדר ל\"{permission}\", אחרת קריאות קוד ייכשלו.",
     "toolsTitle": "כלים מובנים",
     "outputLimitsTitle": "מגבלות פלט מתקדמות",
     "outputLimitsDescription": "שליטה בכמות פלט הכלים שנשארת מוטמעת עבור סוכן זה.",

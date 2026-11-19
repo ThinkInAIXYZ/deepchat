@@ -1,5 +1,5 @@
 import fs from 'node:fs'
-import { mkdir } from 'node:fs/promises'
+import { mkdir, statfs } from 'node:fs/promises'
 import path from 'node:path'
 import { Readable, Transform } from 'node:stream'
 import { finished, pipeline } from 'node:stream/promises'
@@ -11,6 +11,8 @@ export type BackupArchiveEntry = {
   name: string
   source: { data: Uint8Array } | { file: string; size: number }
 }
+
+const MAX_BACKUP_ENTRIES = 100_000
 
 function entryPath(name: string): string {
   const normalized = name.replaceAll('\\', '/')
@@ -58,6 +60,7 @@ export async function writeBackupArchive(
       const name = entryPath(entry.name)
       if (names.has(name)) throw new Error('Duplicate backup entry')
       names.add(name)
+      if (names.size > MAX_BACKUP_ENTRIES) throw new Error('Backup contains too many entries')
       const source = entry.source
       const size = 'data' in source ? source.data.byteLength : source.size
       if (!Number.isSafeInteger(size) || size < 0) throw new Error('Invalid backup entry size')
@@ -110,11 +113,19 @@ export async function extractBackupArchive(file: string, directory: string): Pro
     validateEntrySizes: true
   })
   try {
+    if (zip.entryCount > MAX_BACKUP_ENTRIES) throw new Error('sync.error.noValidBackup')
+    await mkdir(directory, { recursive: true, mode: 0o700 })
+    const disk = await statfs(directory, { bigint: true })
+    let availableBytes = disk.bsize * disk.bavail
     const names = new Set<string>()
     for await (const entry of zip.eachEntry()) {
       const name = entryPath(entry.fileName)
       if (names.has(name)) throw new Error('sync.error.noValidBackup')
       names.add(name)
+      if (!Number.isSafeInteger(entry.uncompressedSize) || entry.uncompressedSize < 0)
+        throw new Error('sync.error.noValidBackup')
+      availableBytes -= BigInt(entry.uncompressedSize)
+      if (availableBytes < 0n) throw new Error('Not enough disk space to extract this backup')
       const kind = (entry.externalFileAttributes >>> 16) & 0o170000
       if (kind && kind !== 0o100000 && kind !== 0o040000)
         throw new Error('sync.error.noValidBackup')
@@ -143,6 +154,7 @@ export async function readBackupManifest(file: string): Promise<Record<string, u
   let zip: Awaited<ReturnType<typeof openPromise>> | undefined
   try {
     zip = await openPromise(file, { lazyEntries: true, autoClose: false, validateEntrySizes: true })
+    if (zip.entryCount > MAX_BACKUP_ENTRIES) return null
     let manifest: Record<string, unknown> | null = null
     let seen = false
     for await (const entry of zip.eachEntry()) {

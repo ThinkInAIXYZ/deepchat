@@ -6,6 +6,40 @@ use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio_util::sync::CancellationToken;
 
+/// Opens the desktop pipe. Every server instance can be busy while other
+/// callbacks are connected; wait briefly for a free one instead of failing.
+#[cfg(windows)]
+pub(crate) async fn connect(
+    address: &str,
+) -> std::io::Result<tokio::net::windows::named_pipe::NamedPipeClient> {
+    const ERROR_PIPE_BUSY: i32 = 231;
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(2);
+    loop {
+        match tokio::net::windows::named_pipe::ClientOptions::new().open(address) {
+            Err(error)
+                if error.raw_os_error() == Some(ERROR_PIPE_BUSY)
+                    && tokio::time::Instant::now() < deadline =>
+            {
+                tokio::time::sleep(Duration::from_millis(50)).await
+            }
+            result => return result,
+        }
+    }
+}
+
+pub(crate) fn frame(mut value: Value, max_bytes: usize) -> Option<Vec<u8>> {
+    value.as_object_mut()?.insert(
+        "auth".into(),
+        Value::String(super::GATEWAY_TOKEN.get()?.clone()),
+    );
+    let mut bytes = serde_json::to_vec(&value).ok()?;
+    if bytes.len() >= max_bytes {
+        return None;
+    }
+    bytes.push(b'\n');
+    Some(bytes)
+}
+
 pub(crate) async fn request(
     value: Value,
     cancel: CancellationToken,
@@ -17,11 +51,7 @@ pub(crate) async fn request(
         .ok_or_else(unavailable)?;
     let operation = async {
         let mut socket = connect(address).await.map_err(|_| unavailable())?;
-        let mut frame = serde_json::to_vec(&value).map_err(|_| unavailable())?;
-        if frame.len() > max_bytes {
-            return Err(unavailable());
-        }
-        frame.push(b'\n');
+        let frame = frame(value, max_bytes).ok_or_else(unavailable)?;
         socket.write_all(&frame).await.map_err(|_| unavailable())?;
         let mut reader = BufReader::new(socket);
         let mut bytes = Vec::new();

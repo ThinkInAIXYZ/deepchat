@@ -602,7 +602,10 @@ test('session references survive drafts and retrieve evidence without injecting 
     const queueEditor = app.page.getByTestId('pending-edit-textarea').getByRole('textbox')
     await expect(queueEditor).toHaveAttribute('contenteditable', 'true')
     expect(await queueEditor.evaluate((element) => element.tagName)).toBe('DIV')
-    await queueEditor.press('End')
+    await queueEditor.evaluate((element) => {
+      element.focus()
+      element.ownerDocument.getSelection()?.collapse(element, element.childNodes.length)
+    })
     await queueEditor.pressSequentially(' Please proceed.')
     await queueEditor.press('ControlOrMeta+Enter')
     await expect.poll(readQueue).toMatchObject({

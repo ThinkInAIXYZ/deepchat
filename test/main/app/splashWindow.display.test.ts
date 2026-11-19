@@ -202,8 +202,9 @@ describe('SplashWindow display gating', () => {
       splash,
       expect.objectContaining({
         type: 'warning',
-        detail: expect.stringContaining('不加密'),
-        buttons: ['继续']
+        detail: expect.stringContaining('未加密'),
+        buttons: ['继续', '退出'],
+        cancelId: 1
       })
     )
   })

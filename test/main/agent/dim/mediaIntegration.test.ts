@@ -370,7 +370,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([
         ...(process.platform === 'win32' ? ['node.exe'] : ['bin', 'node'])
       ),
       nativePlugins: true,
-      gatewayAddress: await gateway.start()
+      gateway
     })
     scopes = new DimScopes({ database: database.data, host })
     const provider = {

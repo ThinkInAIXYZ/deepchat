@@ -211,59 +211,28 @@ export class DeviceService implements DeviceServicePort {
 
       switch (resetType) {
         case 'chat': {
-          // 删除聊天数据
           logger.info('Resetting chat data...')
           const appDbPath = path.join(userDataPath, 'app_db')
-          const mainDbFile = path.join(appDbPath, 'agent.db')
-          try {
-            removeFile(mainDbFile)
-            logger.info('Removed chat database file')
-          } catch (error) {
-            console.warn('Failed to remove chat database file:', error)
-          }
-          const auxiliaryFiles = ['agent.db-wal', 'agent.db-shm']
-          auxiliaryFiles.forEach((fileName) => {
-            const filePath = path.join(appDbPath, fileName)
-            if (fs.existsSync(filePath)) {
-              try {
-                removeFile(filePath)
-                logger.info('Cleaned up auxiliary file:', fileName)
-              } catch (error) {
-                console.warn('Failed to clean auxiliary file:', fileName, error)
-              }
-            }
-          })
-          // dim owns new conversations; the shutdown claim has already stopped its host.
-          try {
-            removeDirectory(path.join(userDataPath, 'dim'))
-            logger.info('Removed native conversation profile')
-          } catch (error) {
-            console.warn('Failed to remove native conversation profile:', error)
-          }
-          const legacyCopies = fs.existsSync(appDbPath)
-            ? fs
-                .readdirSync(appDbPath)
-                .filter((name) => /^agent\.db\.legacy-encrypted\..+\.bak$/.test(name))
-            : []
-          for (const name of legacyCopies) {
-            try {
-              removeFile(path.join(appDbPath, name))
-            } catch (error) {
-              console.warn('Failed to remove legacy encrypted copy:', name, error)
+          if (fs.existsSync(appDbPath)) {
+            for (const name of fs.readdirSync(appDbPath)) {
+              if (
+                /^(?:agent|chat)\.db(?:$|-(?:wal|shm|journal)$|\.(?:legacy-encrypted\.|migration-))/.test(
+                  name
+                )
+              )
+                fs.rmSync(path.join(appDbPath, name), { force: true })
             }
           }
-          // Staging folders still referenced by a recovery journal belong to startup recovery.
-          const journals = ['sync-import-recovery.json', '.dim-replica-import.json']
-          if (!journals.some((name) => fs.existsSync(path.join(userDataPath, name)))) {
-            for (const name of fs.readdirSync(userDataPath)) {
-              if (!/^\.(dim-restore|sync-import)-[a-zA-Z0-9]+$/.test(name)) continue
-              try {
-                removeDirectory(path.join(userDataPath, name))
-              } catch (error) {
-                console.warn('Failed to remove staging directory:', name, error)
-              }
-            }
+          for (const name of fs.readdirSync(userDataPath)) {
+            if (name === 'dim' || /^\.(?:dim-restore|sync-import)-[a-zA-Z0-9]+$/.test(name))
+              fs.rmSync(path.join(userDataPath, name), { recursive: true, force: true })
           }
+          for (const name of [
+            'database-security.json',
+            'sync-import-recovery.json',
+            '.dim-replica-import.json'
+          ])
+            fs.rmSync(path.join(userDataPath, name), { force: true })
           break
         }
 

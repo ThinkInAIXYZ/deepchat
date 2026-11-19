@@ -298,9 +298,6 @@ export class DatabaseSecurityService {
     this.migrationInProgress = true
     const tempPath = this.getTempPath(dbPath)
     const rollbackPath = this.getRollbackPath(dbPath)
-    // A copy made by this attempt is redundant while the encrypted source is intact.
-    let createdRecoveryCopy: string | undefined
-    let sourceIntact = true
 
     try {
       this.removeIfExists(tempPath)
@@ -312,39 +309,22 @@ export class DatabaseSecurityService {
       if (input.sourcePassword && input.direction === 'disable') {
         const size = fs.statSync(dbPath).size
         const disk = fs.statfsSync(path.dirname(dbPath))
-        if (disk.bavail * disk.bsize < size * 2 + 32 * 1024 * 1024)
-          throw new Error('Not enough disk space for legacy database decryption and recovery copy')
-        // Keep the checkpointed encrypted input even after the normal rollback is retired.
-        const backup = `${dbPath}.legacy-encrypted.${Date.now()}.${randomUUID()}.bak`
-        const partial = `${backup}.partial`
-        try {
-          fs.copyFileSync(dbPath, partial, fs.constants.COPYFILE_EXCL)
-          fs.chmodSync(partial, 0o600)
-          const backupFd = fs.openSync(partial, 'r')
-          try {
-            fs.fsyncSync(backupFd)
-          } finally {
-            fs.closeSync(backupFd)
-          }
-          fs.renameSync(partial, backup)
-          createdRecoveryCopy = backup
-        } finally {
-          this.removeIfExists(partial)
-        }
+        if (disk.bavail * disk.bsize < size + 32 * 1024 * 1024)
+          throw new Error('Not enough disk space for legacy database decryption')
       }
       const expectedCounts = this.collectValidationCounts(dbPath, input.sourcePassword)
       this.exportDatabaseToTemp(dbPath, tempPath, input.sourcePassword)
       this.verifyMigratedDatabase(tempPath, undefined, expectedCounts)
 
-      sourceIntact = false
       this.replaceDatabaseWithRollback(dbPath, tempPath, rollbackPath)
 
       try {
         input.database.reopenWithPassword(undefined)
+        if (input.sourcePassword && input.direction === 'disable')
+          this.keepLegacyRecoveryCopy(dbPath, rollbackPath)
       } catch (error) {
-        input.database.close()
+        if (input.database.isOpen()) input.database.close()
         this.restoreRollbackDatabase(dbPath, rollbackPath)
-        sourceIntact = true
         input.database.reopenWithPassword(input.sourcePassword)
         throw error
       }
@@ -357,8 +337,6 @@ export class DatabaseSecurityService {
       if (!fs.existsSync(dbPath) && fs.existsSync(rollbackPath)) {
         fs.renameSync(rollbackPath, dbPath)
       }
-      // The encrypted original is still the active database, so this attempt's copy is redundant.
-      if (createdRecoveryCopy && sourceIntact) this.removeIfExists(createdRecoveryCopy)
       if (!input.database.isOpen()) {
         try {
           input.database.reopenWithPassword(input.sourcePassword)
@@ -730,6 +708,11 @@ export class DatabaseSecurityService {
     }
   }
 
+  private keepLegacyRecoveryCopy(dbPath: string, rollbackPath: string): void {
+    fs.chmodSync(rollbackPath, 0o600)
+    fs.renameSync(rollbackPath, `${dbPath}.legacy-encrypted.${Date.now()}.${randomUUID()}.bak`)
+  }
+
   private recoverInterruptedMigrationFiles(): void {
     const tempPath = this.getTempPath()
     const rollbackPath = this.getRollbackPath()
@@ -739,7 +722,9 @@ export class DatabaseSecurityService {
       return
     }
     if (fs.existsSync(this.dbPath) && fs.existsSync(rollbackPath)) {
-      this.removeIfExists(rollbackPath)
+      if (this.getMetadata().enabled && this.isPlaintextDatabase())
+        this.keepLegacyRecoveryCopy(this.dbPath, rollbackPath)
+      else this.removeIfExists(rollbackPath)
     }
   }
 }

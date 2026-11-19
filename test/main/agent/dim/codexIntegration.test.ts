@@ -147,7 +147,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
       runtimeRoot: path.resolve('runtime/dim'),
       profileRoot: profile,
       nativePlugins: true,
-      gatewayAddress: await gateway.start(),
+      gateway,
       nodeExecutable: path.resolve(
         'runtime/node',
         ...(process.platform === 'win32' ? ['node.exe'] : ['bin', 'node'])

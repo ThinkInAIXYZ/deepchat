@@ -8,6 +8,7 @@ import { setTimeout as delay } from 'node:timers/promises'
 import { ChildProcessRegistry } from '../shared/process/childProcessRegistry'
 import { terminateProcessTree, waitForPidExit } from '../shared/process/processTree'
 import { DimPluginClient, DimMethodError, DimConnectionError } from './pluginClient'
+import type { DimProductGateway } from './productGateway'
 
 export interface DimRuntimeDiagnostic {
   phase: string
@@ -26,7 +27,7 @@ export interface DimRuntimeOptions {
   // Explicit testing profile; production always uses its private product home.
   profile?: 'product' | 'mock'
   startupTimeoutMs?: number
-  gatewayAddress?: string
+  gateway?: Pick<DimProductGateway, 'beginLaunch'>
   nativePlugins?: boolean
   contextBridge?: boolean
   diagnostic?(event: DimRuntimeDiagnostic): void
@@ -37,6 +38,7 @@ export interface DimRuntimeOptions {
 // shutdown therefore cannot share the former 10 s individual-RPC deadline.
 // Keep one bounded budget across acknowledgement and confirmed process exit.
 const SHUTDOWN_BUDGET_MS = 30_000
+const STARTUP_BUDGET_MS = 30_000
 
 /**
  * True only when no server listens at a host's unique per-launch address. A timeout or any other
@@ -233,16 +235,22 @@ export class DimRuntimeSupervisor {
         excludeRecordIds,
         maxRecordAgeMs: Number.POSITIVE_INFINITY
       })
-      // A refused record only means its pid could not be attested. Each host listens on a
-      // unique per-launch address; when nothing answers there, the record is not a live host.
-      for (const recordId of reaped.refused)
-        if (await hostAddressIsAbsent(recordId)) this.childRegistry.clear('dim-host', recordId)
+      // An unattestable host may still be binding its per-launch address.
+      for (const record of this.childRegistry.list('dim-host')) {
+        if (
+          !reaped.refused.includes(record.recordId) ||
+          Date.now() - record.recordedAt < STARTUP_BUDGET_MS
+        )
+          continue
+        if (await hostAddressIsAbsent(record.recordId))
+          this.childRegistry.clear('dim-host', record.recordId)
+      }
       if (this.childRegistry.list('dim-host').length)
         throw new DimConnectionError('The dim profile is in use by another host.', 'not-sent')
     }
     if (this.options.nativePlugins && this.options.profile === 'mock')
       throw new Error('Native product plugins require the product execution profile')
-    if (this.options.contextBridge && (!this.options.nativePlugins || !this.options.gatewayAddress))
+    if (this.options.contextBridge && (!this.options.nativePlugins || !this.options.gateway))
       throw new Error('Product context requires the native plugin host and desktop gateway')
     const { runtimeRoot, profileRoot, nodeExecutable } = this.options
     const plugins = path.resolve(runtimeRoot, 'plugins')
@@ -329,7 +337,6 @@ export class DimRuntimeSupervisor {
           name: path.join(plugins, 'modules/deepchat-host/index.mjs'),
           provides: {},
           config: {
-            gatewayAddress: this.options.gatewayAddress,
             hostAddress: address,
             profile: this.options.profile ?? 'product'
           }
@@ -376,8 +383,8 @@ export class DimRuntimeSupervisor {
     ]
     if (this.options.profile === 'mock') args.push('--mock-model')
     else args.push('--product-home', home)
-    if (native && this.options.gatewayAddress)
-      args.push('--deepchat-gateway', this.options.gatewayAddress)
+    const gateway = native ? await this.options.gateway?.beginLaunch() : undefined
+    if (gateway) args.push('--deepchat-gateway', gateway.address)
     if (this.options.contextBridge) args.push('--deepchat-context')
     if (native) args.push('--deepchat-parent-stdin')
     const child = spawn(executable, args, {
@@ -385,6 +392,7 @@ export class DimRuntimeSupervisor {
       windowsHide: true
     })
     child.stdin?.on('error', () => {})
+    if (gateway) child.stdin?.write(gateway.token + '\n')
     this.process = child
     this.exitCode = null
     this.startedAt = Date.now()
@@ -436,7 +444,7 @@ export class DimRuntimeSupervisor {
     }
   ): Promise<DimPluginClient> {
     let client: DimPluginClient | null = null
-    const deadline = Date.now() + (this.options.startupTimeoutMs ?? 30_000)
+    const deadline = Date.now() + (this.options.startupTimeoutMs ?? STARTUP_BUDGET_MS)
     try {
       while (!client) {
         if (this.exitCode !== null) throw new Error(`dim exited during startup (${this.exitCode})`)

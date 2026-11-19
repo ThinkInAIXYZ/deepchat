@@ -109,7 +109,9 @@ it('keeps desktop MCP and settings navigation behind native consent', async () =
   policy.mockImplementation((_serverId, toolName) =>
     toolName === 'trusted'
       ? { managed: true, decision: 'allow' }
-      : { managed: false, decision: null }
+      : toolName === 'confirm'
+        ? { managed: true, decision: 'ask' }
+        : { managed: false, decision: null }
   )
   const mcpTool = (name: string) => ({
     type: 'function',
@@ -133,7 +135,7 @@ it('keeps desktop MCP and settings navigation behind native consent', async () =
       mcp: {
         getAllToolDefinitions: vi
           .fn()
-          .mockResolvedValue([mcpTool('untrusted'), mcpTool('trusted')]),
+          .mockResolvedValue([mcpTool('untrusted'), mcpTool('trusted'), mcpTool('confirm')]),
         callTool: vi.fn()
       } as never,
       cacheImage: vi.fn(),
@@ -144,7 +146,7 @@ it('keeps desktop MCP and settings navigation behind native consent', async () =
       (tool) => tool.risk
     )
     // `session` is admitted silently by dim; `network` asks in default mode.
-    expect(risks).toEqual(['session', 'network', 'network', 'session'])
+    expect(risks).toEqual(['session', 'product_approval', 'network', 'session', 'product_approval'])
   } finally {
     policy.mockRestore()
     sqlite.close()

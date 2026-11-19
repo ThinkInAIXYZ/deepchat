@@ -5,12 +5,16 @@ it('masks provider credentials in a native crash tail', () => {
   const tail = redactDimStderr(
     [
       'ERROR request failed: Authorization: Bearer sk-live-1234567890abcdef',
+      'ERROR Proxy-Authorization: Basic dXNlcjpwYXNz',
+      'WARN {"authorization":"Digest username=a, response=0123456789abcdef"}',
       'WARN config {"api_key":"sk-proj-abcdefghijklmnop","model":"gpt"}',
       'token=ghp_secretvalue other=keep',
       'panicked at src/main.rs:12'
     ].join('\n')
   )
-  expect(tail).not.toMatch(/1234567890abcdef|abcdefghijklmnop|ghp_secretvalue/)
+  expect(tail).not.toMatch(
+    /1234567890abcdef|abcdefghijklmnop|ghp_secretvalue|dXNlcjpwYXNz|0123456789abcdef/
+  )
   expect(tail).toContain('panicked at src/main.rs:12')
   expect(tail).toContain('other=keep')
 })

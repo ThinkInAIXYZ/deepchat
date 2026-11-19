@@ -247,6 +247,7 @@ async fn refresh_source(
                             | "execute_process"
                             | "network"
                             | "session"
+                            | "product_approval"
                     )
                 )
         })
@@ -360,11 +361,7 @@ async fn request(value: Value, cancel: CancellationToken) -> Result<Value, HostE
         .get()
         .and_then(Option::as_ref)
         .ok_or_else(|| HostError::failed("Product capability owner is unavailable"))?;
-    let mut frame = serde_json::to_vec(&value).map_err(|_| unavailable())?;
-    if frame.len() >= MAX_FRAME {
-        return Err(unavailable());
-    }
-    frame.push(b'\n');
+    let frame = super::gateway::frame(value, MAX_FRAME).ok_or_else(unavailable)?;
     let connect = async {
         super::gateway::connect(address)
             .await
@@ -384,7 +381,9 @@ async fn request(value: Value, cancel: CancellationToken) -> Result<Value, HostE
         result = operation => result?,
         _ = cancel.cancelled() => {
             // One invocation, never replayed. Closing also aborts the desktop gateway's signal.
-            let _ = tokio::time::timeout(Duration::from_secs(1), write.write_all(b"{\"kind\":\"cancel\"}\n")).await;
+            if let Some(frame) = super::gateway::frame(json!({"kind":"cancel"}), 256) {
+                let _ = tokio::time::timeout(Duration::from_secs(1), write.write_all(&frame)).await;
+            }
             return Err(HostError::Cancelled("Product capability cancelled".into()));
         }
     };

@@ -30,6 +30,9 @@ const cargoTargetDirectory = process.env.CARGO_TARGET_DIR
   : path.join(source, 'target')
 if (rustTarget && rustTarget !== expectedRustTarget)
   throw new Error(`CARGO_BUILD_TARGET must match ${target}: ${expectedRustTarget}`)
+const cargoLock = await readFile(path.join(source, 'Cargo.lock'))
+if (createHash('sha256').update(cargoLock).digest('hex') !== nativeLock.cargoLockSha256)
+  throw new Error('Native Cargo.lock digest mismatch')
 const cargo = process.env.CARGO ?? 'cargo'
 await new Promise((resolve, reject) => {
   const child = spawn(
@@ -59,9 +62,6 @@ const binary = await readFile(
   )
 )
 assertDimBinary(binary, process.platform, process.arch)
-const cargoLock = await readFile(path.join(source, 'Cargo.lock'))
-if (createHash('sha256').update(cargoLock).digest('hex') !== nativeLock.cargoLockSha256)
-  throw new Error('Native Cargo.lock digest mismatch')
 await copyFile(
   path.join(
     cargoTargetDirectory,

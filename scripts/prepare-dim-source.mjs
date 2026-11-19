@@ -28,6 +28,8 @@ try {
 }
 if (git(['rev-parse', 'HEAD']) !== lock.sourceCommit)
   throw new Error('Pinned dim source revision mismatch')
+if (git(['ls-files', '--others', '--exclude-standard']))
+  throw new Error('Pinned dim source contains untracked files')
 // The stock product assembly opts out of its public ProviderSecretHost.
 // Enable that existing extension and resolve explicit header references through the same host.
 // No execution owner is replaced; only opaque references enter native storage.

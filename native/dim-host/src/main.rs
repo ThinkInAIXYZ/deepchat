@@ -43,6 +43,7 @@ mod title_preferences;
 mod video_compat;
 static CONTEXT_ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
 static GATEWAY: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+static GATEWAY_TOKEN: std::sync::OnceLock<String> = std::sync::OnceLock::new();
 static PAYLOAD_ROOT: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
 
 fn install(builder: &mut dim_agent_runtime::AgentBuilder) {
@@ -116,6 +117,20 @@ fn main() {
         }
     }
     let _ = CONTEXT_ENABLED.set(context_enabled);
+    if gateway.is_some() {
+        use std::io::Read;
+        let mut token = [0u8; 65];
+        if std::io::stdin().read_exact(&mut token).is_err()
+            || token[64] != b'\n'
+            || token[..64]
+                .iter()
+                .any(|byte| !matches!(byte, b'0'..=b'9' | b'a'..=b'f'))
+        {
+            eprintln!("Invalid desktop capability authentication");
+            std::process::exit(2);
+        }
+        let _ = GATEWAY_TOKEN.set(String::from_utf8(token[..64].to_vec()).unwrap());
+    }
     let _ = GATEWAY.set(gateway);
     if let Some(pair) = forwarded.windows(2).find(|pair| pair[0] == "--home") {
         let _ = PAYLOAD_ROOT.set(std::path::PathBuf::from(&pair[1]).join("deepchat-payloads"));

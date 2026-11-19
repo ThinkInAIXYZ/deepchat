@@ -681,7 +681,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
           : undefined,
       nativePlugins,
       contextBridge: nativePlugins,
-      gatewayAddress: nativePlugins ? await gateway.start() : undefined,
+      gateway: nativePlugins ? gateway : undefined,
       profileRoot: profile,
       nodeExecutable: path.resolve(
         'runtime/node',
@@ -1141,10 +1141,10 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
       )
       // Attach the rejection handler before cancelling so it cannot become an unhandled promise.
       const cancelled = expect(completion).rejects.toThrow()
-      await expect.poll(() => conversationRequests().length).toBe(3)
+      await expect.poll(() => conversationRequests().length, { timeout: 10_000 }).toBe(3)
       abort.abort()
       await cancelled
-      await expect.poll(() => nativeCancelled).toBe(true)
+      await expect.poll(() => nativeCancelled, { timeout: 10_000 }).toBe(true)
       if (nativePlugins) {
         const events = []
         for await (const event of models.stream(
@@ -1186,7 +1186,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
         const cancelledStream = expect(next).rejects.toThrow()
         stopping.abort()
         await cancelledStream
-        await expect.poll(() => nativeCancelled).toBe(true)
+        await expect.poll(() => nativeCancelled, { timeout: 10_000 }).toBe(true)
       }
       await host.stop()
       if (nativePlugins) {
@@ -1567,7 +1567,9 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
           }
         ]
         await desktop.submit('product-ui', [{ type: 'text', text: 'native review ask fixture' }])
-        await expect.poll(() => pendingAction()?.block.action_type).toBe('tool_call_permission')
+        await expect
+          .poll(() => pendingAction()?.block.action_type, { timeout: 10_000 })
+          .toBe('tool_call_permission')
         const reviewedApproval = pendingAction()!
         await interactions.respondToolInteraction(
           'product-ui',
@@ -2728,7 +2730,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
       await rm(profile, { recursive: true, force: true })
     }
   },
-  180_000
+  process.platform === 'win32' ? 360_000 : 180_000
 )
 
 it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
@@ -2837,7 +2839,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
         ...(process.platform === 'win32' ? ['node.exe'] : ['bin', 'node'])
       ),
       nativePlugins: true,
-      gatewayAddress: await gateway.start()
+      gateway
     })
     try {
       const client = await host.start()

@@ -62,28 +62,15 @@ pub(crate) async fn rebase(
                             )
                             .await?,
                     );
-                } else if input.source_home.is_none()
-                    && path
-                        .to_string_lossy()
-                        .replace('\\', "/")
-                        .contains("/command-output/")
-                {
+                } else {
                     return Err(RpcError::invalid(
-                        "Native output restore requires the original profile directory",
+                        "Native archive owns an output outside its profile",
                     ));
                 }
             }
             for grant in store.grants(&owner.session_id).await? {
-                if let Some(relative) = super::archive_outputs::within_home(&grant.path, source)? {
-                    let next = installed_home.join("rust").join(relative);
-                    if next != grant.path {
-                        store
-                            .add_grant(&owner.session_id, next, grant.kind, grant.mode)
-                            .await?;
-                        store.remove_grant(&owner.session_id, grant.path).await?;
-                        grants += 1;
-                    }
-                }
+                store.remove_grant(&owner.session_id, grant.path).await?;
+                grants += 1;
             }
         }
         Ok(json!({"sessions":owners.len(),"outputs":outputs,"grants":grants}))

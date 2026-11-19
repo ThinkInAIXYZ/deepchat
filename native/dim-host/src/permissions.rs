@@ -71,6 +71,13 @@ impl AdviseTool for Advice {
                     "default"
                 }
             });
+        if request.risk.as_deref() == Some("product_approval") {
+            return Box::pin(async move {
+                Ok(ToolAdviceReply::Ask {
+                    reason: format!("DeepChat requires consent to use {}", request.call.name),
+                })
+            });
+        }
         // `auto_approve` reviews every call that changes state, as the desktop reviewer did:
         // Allow answers dim's own question, Ask overrides dim's own allow, and dim's deny
         // still wins over any advice.

@@ -116,7 +116,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
         ...(process.platform === 'win32' ? ['node.exe'] : ['bin', 'node'])
       ),
       nativePlugins: true,
-      gatewayAddress: await gateway.start()
+      gateway
     })
     const bridge = new DimModelBridge(host)
     const scenarios: Array<{

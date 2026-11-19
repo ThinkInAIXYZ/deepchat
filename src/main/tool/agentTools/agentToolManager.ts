@@ -321,7 +321,11 @@ export class AgentToolManager {
         const input = readSessionToolSchema.safeParse(args)
         if (!input.success)
           throw new SessionReferenceReadError(
-            'Invalid read_session arguments. Use action=messages, search, message, or context and follow the tool schema.'
+            `Invalid read_session arguments: ${input.error.issues
+              .map(
+                (issue) => `${issue.path.length ? issue.path.join('.') + ': ' : ''}${issue.message}`
+              )
+              .join('; ')}`
           )
         const result = await awaitWithAbort(
           this.options.dependencies.readSession(sessionId, {

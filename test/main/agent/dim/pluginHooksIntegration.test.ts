@@ -141,7 +141,7 @@ let input = ''; process.stdin.on('data', x => input += x); process.stdin.on('end
       profileRoot: profile,
       nativePlugins: true,
       contextBridge: true,
-      gatewayAddress: await gateway.start(),
+      gateway,
       nodeExecutable: path.resolve(
         'runtime/node',
         ...(process.platform === 'win32' ? ['node.exe'] : ['bin', 'node'])

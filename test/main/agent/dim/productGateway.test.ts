@@ -17,19 +17,19 @@ it('admits declared hook configuration only for a valid current native owner', a
       ]
     }
   })
-  const address = await gateway.start()
+  const launch = await gateway.beginLaunch()
   try {
     for (const query of [
       { sessionId: '', event: 'SessionStart', matcher: 'startup' },
       { sessionId: 'current', event: 'PermissionRequest', matcher: '' },
       { sessionId: 'current', event: 'SubagentStart', matcher: 'x'.repeat(4097) }
     ])
-      expect(await request(address, { kind: 'plugin_hooks', ...query })).toMatchObject({
+      expect(await request(launch, { kind: 'plugin_hooks', ...query })).toMatchObject({
         error: expect.any(String)
       })
     expect(reads).toBe(0)
     expect(
-      await request(address, {
+      await request(launch, {
         kind: 'plugin_hooks',
         sessionId: 'replaced',
         event: 'SessionStart',
@@ -37,7 +37,7 @@ it('admits declared hook configuration only for a valid current native owner', a
       })
     ).toEqual({ error: 'Hook owner was replaced' })
     expect(
-      await request(address, {
+      await request(launch, {
         kind: 'plugin_hooks',
         sessionId: 'current',
         event: 'SessionStart',
@@ -63,19 +63,19 @@ it('returns an optional title model selection without executing an inference req
       return { providerId: 'native-provider', modelId: 'assistant' }
     }
   })
-  const address = await gateway.start()
+  const launch = await gateway.beginLaunch()
   try {
-    expect(await request(address, { kind: 'title_model', sessionId: '' })).toMatchObject({
+    expect(await request(launch, { kind: 'title_model', sessionId: '' })).toMatchObject({
       error: expect.any(String)
     })
     expect(reads).toBe(0)
-    expect(await request(address, { kind: 'title_model', sessionId: 'foreign' })).toMatchObject({
+    expect(await request(launch, { kind: 'title_model', sessionId: 'foreign' })).toMatchObject({
       error: expect.stringContaining('current owner')
     })
-    expect(await request(address, { kind: 'title_model', sessionId: 'default' })).toEqual({
+    expect(await request(launch, { kind: 'title_model', sessionId: 'default' })).toEqual({
       result: null
     })
-    expect(await request(address, { kind: 'title_model', sessionId: 'bound' })).toEqual({
+    expect(await request(launch, { kind: 'title_model', sessionId: 'bound' })).toEqual({
       result: { providerId: 'native-provider', modelId: 'assistant' }
     })
   } finally {
@@ -96,16 +96,16 @@ it('resolves MCP configuration only for an authorized native owner', async () =>
       return { fixture: { type: 'http', url: 'https://example.test/mcp', headers: {} } }
     }
   })
-  const address = await gateway.start()
+  const launch = await gateway.beginLaunch()
   try {
-    expect(await request(address, { kind: 'mcp', sessionId: '' })).toMatchObject({
+    expect(await request(launch, { kind: 'mcp', sessionId: '' })).toMatchObject({
       error: expect.any(String)
     })
     expect(reads).toBe(0)
-    expect(await request(address, { kind: 'mcp', sessionId: 'foreign' })).toEqual({
+    expect(await request(launch, { kind: 'mcp', sessionId: 'foreign' })).toEqual({
       error: 'Unknown native owner'
     })
-    expect(await request(address, { kind: 'mcp', sessionId: 'authorized-child' })).toEqual({
+    expect(await request(launch, { kind: 'mcp', sessionId: 'authorized-child' })).toEqual({
       result: {
         servers: { fixture: { type: 'http', url: 'https://example.test/mcp', headers: {} } }
       }
@@ -115,11 +115,13 @@ it('resolves MCP configuration only for an authorized native owner', async () =>
   }
 })
 
-function request(address: string, value: object): Promise<unknown> {
+function request(launch: { address: string; token?: string }, value: object): Promise<unknown> {
   return new Promise((resolve, reject) => {
-    const socket = createConnection(address)
+    const socket = createConnection(launch.address)
     let response = ''
-    socket.once('connect', () => socket.write(JSON.stringify(value) + '\n'))
+    socket.once('connect', () =>
+      socket.write(JSON.stringify({ ...value, auth: launch.token }) + '\n')
+    )
     socket.on('data', (data) => {
       response += data.toString()
     })
@@ -154,7 +156,7 @@ it('rejects stale catalogs, unknown tools and missing execution identity before 
       }
     }
   })
-  const address = await gateway.start()
+  const launch = await gateway.beginLaunch()
   const call = {
     kind: 'execute',
     sessionId: 'native',
@@ -166,20 +168,20 @@ it('rejects stale catalogs, unknown tools and missing execution identity before 
     arguments: {}
   }
   try {
-    expect(await request(address, { ...call, version: 'old' })).toMatchObject({
+    expect(await request(launch, { ...call, version: 'old' })).toMatchObject({
       error: expect.stringContaining('replaced')
     })
-    expect(await request(address, { ...call, name: 'removed' })).toMatchObject({
+    expect(await request(launch, { ...call, name: 'removed' })).toMatchObject({
       error: expect.stringContaining('authorized')
     })
-    expect(await request(address, { ...call, turnId: '' })).toMatchObject({
+    expect(await request(launch, { ...call, turnId: '' })).toMatchObject({
       error: expect.stringContaining('identity')
     })
-    expect(await request(address, { ...call, sessionId: 'other' })).toEqual({
+    expect(await request(launch, { ...call, sessionId: 'other' })).toEqual({
       error: 'Unknown native session'
     })
     expect(executions).toBe(0)
-    expect(await request(address, call)).toEqual({ result: { content: 'ok' } })
+    expect(await request(launch, call)).toEqual({ result: { content: 'ok' } })
     expect(executions).toBe(1)
   } finally {
     await gateway.stop()
@@ -217,8 +219,8 @@ it('aborts an in-flight product invocation on disconnect without retrying it', a
       }
     })
   })
-  const address = await gateway.start()
-  const socket = createConnection(address)
+  const launch = await gateway.beginLaunch()
+  const socket = createConnection(launch.address)
   try {
     await new Promise<void>((resolve, reject) => {
       socket.once('connect', resolve)
@@ -226,6 +228,7 @@ it('aborts an in-flight product invocation on disconnect without retrying it', a
     })
     socket.write(
       JSON.stringify({
+        auth: launch.token,
         kind: 'execute',
         sessionId: 'native',
         branchId: 'main',
@@ -257,13 +260,20 @@ it('authorizes credential references separately and redacts owner failures', asy
     }
   })
   try {
-    const address = await gateway.start()
+    const launch = await gateway.beginLaunch()
+    const credential = { kind: 'credential', providerId: 'admitted', reference: 'known' }
+    expect(await request({ address: launch.address }, credential)).toEqual({
+      error: 'Product capability authentication failed'
+    })
     expect(
-      await request(address, { kind: 'credential', providerId: 'other', reference: 'known' })
+      await request(launch, { kind: 'credential', providerId: 'other', reference: 'known' })
     ).toEqual({ error: 'Credential reference is unavailable' })
-    expect(
-      await request(address, { kind: 'credential', providerId: 'admitted', reference: 'known' })
-    ).toEqual({ result: 'fixture-credential' })
+    expect(await request(launch, credential)).toEqual({ result: 'fixture-credential' })
+    const next = await gateway.beginLaunch()
+    expect(await request(launch, credential)).toEqual({
+      error: 'Product capability authentication failed'
+    })
+    expect(await request(next, credential)).toEqual({ result: 'fixture-credential' })
   } finally {
     await gateway.stop()
   }
@@ -284,7 +294,7 @@ it('validates native context identities and full u64 positions before reading de
       }
     }
   })
-  const address = await gateway.start()
+  const launch = await gateway.beginLaunch()
   const input = {
     kind: 'context',
     sessionId: 'native',
@@ -297,17 +307,17 @@ it('validates native context identities and full u64 positions before reading de
   }
   try {
     for (const through of ['18446744073709551616', '01', 9007199254740992])
-      expect(await request(address, { ...input, through })).toEqual({
+      expect(await request(launch, { ...input, through })).toEqual({
         error: 'Invalid native context request'
       })
-    expect(await request(address, { ...input, requestId: '' })).toEqual({
+    expect(await request(launch, { ...input, requestId: '' })).toEqual({
       error: 'Invalid native context request'
     })
     expect(reads).toBe(0)
-    expect(await request(address, { ...input, sessionId: 'other' })).toEqual({
+    expect(await request(launch, { ...input, sessionId: 'other' })).toEqual({
       error: 'Unknown native session'
     })
-    expect(await request(address, input)).toEqual({
+    expect(await request(launch, input)).toEqual({
       result: {
         messages: [{ role: 'user', content: 'context at 18446744073709551615' }],
         receipts: [{ source: 'fixture' }]
@@ -335,10 +345,10 @@ it('validates OAuth recovery leases and redacts connection-owner failures', asyn
     }
   })
   try {
-    const address = await gateway.start()
+    const launch = await gateway.beginLaunch()
     for (const rejectedLease of ['', 'wrong', 1])
       expect(
-        await request(address, {
+        await request(launch, {
           kind: 'model_connection',
           providerId: 'bound',
           modelId: 'model',
@@ -347,13 +357,13 @@ it('validates OAuth recovery leases and redacts connection-owner failures', asyn
       ).toEqual({ error: 'Provider connection is unavailable' })
     expect(reads).toBe(0)
     expect(
-      await request(address, { kind: 'model_connection', providerId: 'other', modelId: 'model' })
+      await request(launch, { kind: 'model_connection', providerId: 'other', modelId: 'model' })
     ).toEqual({ error: 'Provider connection is unavailable' })
     expect(
-      await request(address, { kind: 'model_connection', providerId: 'ordinary', modelId: 'model' })
+      await request(launch, { kind: 'model_connection', providerId: 'ordinary', modelId: 'model' })
     ).toEqual({ result: null })
     expect(
-      await request(address, {
+      await request(launch, {
         kind: 'model_connection',
         providerId: 'bound',
         modelId: 'model',
