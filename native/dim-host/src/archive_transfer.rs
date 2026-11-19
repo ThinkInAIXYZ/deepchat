@@ -469,21 +469,26 @@ async fn copy_assets(
                 cancel,
             )
             .await?;
-        } else {
-            target.register(session, path).await?;
         }
+        // An owned path outside the source profile is not imported: ownership skips
+        // read approval, and an archive is not trusted to claim host paths.
     }
+    // Only grants that rebase into the installed profile are imported. Any other
+    // grant names a path of another machine or profile; the user grants it again.
+    let (Some(home), Some(installed)) = (source_home, installed_directory) else {
+        return Ok(());
+    };
     for grant in source.grants(session).await? {
-        let path = if let (Some(home), Some(installed)) = (source_home, installed_directory) {
-            super::archive_outputs::within_home(&grant.path, home)?
-                .map(|relative| installed.join("rust").join(relative))
-                .unwrap_or(grant.path)
-        } else {
-            grant.path
-        };
-        target
-            .add_grant(session, path, grant.kind, grant.mode)
-            .await?;
+        if let Some(relative) = super::archive_outputs::within_home(&grant.path, home)? {
+            target
+                .add_grant(
+                    session,
+                    installed.join("rust").join(relative),
+                    grant.kind,
+                    grant.mode,
+                )
+                .await?;
+        }
     }
     Ok(())
 }
