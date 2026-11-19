@@ -1525,23 +1525,8 @@ onBeforeUnmount(() => {
 const availableBackups = computed(() => backupsRef.value || [])
 
 watch(availableBackups, (backups) => {
-  if (!backups.length) {
+  if (!backups.some((item) => item.fileName === selectedBackup.value)) {
     selectedBackup.value = ''
-    return
-  }
-  if (!selectedBackup.value || !backups.find((item) => item.fileName === selectedBackup.value)) {
-    selectedBackup.value = backups[0].fileName
-  }
-})
-
-watch(isImportDialogOpen, async (open) => {
-  if (open) {
-    await syncStore.refreshBackups()
-    if (availableBackups.value.length > 0) {
-      selectedBackup.value = availableBackups.value[0].fileName
-    } else {
-      selectedBackup.value = ''
-    }
   }
 })
 
@@ -1656,9 +1641,13 @@ const closeImportDialog = () => {
   legacyBackupPassword.value = ''
 }
 
-const handleImportDialogOpenChange = (open: boolean) => {
+const handleImportDialogOpenChange = async (open: boolean) => {
   if (open) {
+    selectedBackup.value = ''
     isImportDialogOpen.value = true
+    await syncStore.refreshBackups()
+    if (isImportDialogOpen.value && !selectedBackup.value)
+      selectedBackup.value = availableBackups.value[0]?.fileName ?? ''
     return
   }
   closeImportDialog()

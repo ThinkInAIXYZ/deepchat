@@ -657,6 +657,42 @@ describe('DataSettings', () => {
     expect(vm.legacyBackupPassword).toBe('')
   })
 
+  it('imports the downloaded encrypted cloud backup when another backup is listed first', async () => {
+    const { wrapper, syncStore } = await setup()
+    Object.assign(syncStore.cloudConfig, {
+      enabled: true,
+      endpoint: 'https://storage.example.com',
+      bucket: 'backups',
+      accessKeyId: 'fixture-key',
+      hasSecret: true
+    })
+    syncStore.backups = [
+      { fileName: 'backup-other.zip', createdAt: 2, size: 200 },
+      { fileName: 'backup-from-cloud.zip', createdAt: 1, size: 100 }
+    ]
+    syncStore.pullFromCloud.mockResolvedValue({
+      success: false,
+      message: 'sync.error.encryptedBackupPasswordMissing',
+      fileName: 'backup-from-cloud.zip'
+    })
+    const vm = wrapper.vm as unknown as {
+      cloudPullMode: string
+      handlePullFromCloud(): Promise<void>
+      handleImport(): Promise<void>
+    }
+    await nextTick()
+    vm.cloudPullMode = 'overwrite'
+    await vm.handlePullFromCloud()
+    await flushPromises()
+    await wrapper.get('#legacy-backup-password').setValue('legacy-secret')
+    await vm.handleImport()
+    expect(syncStore.importData).toHaveBeenCalledWith(
+      'backup-from-cloud.zip',
+      'overwrite',
+      'legacy-secret'
+    )
+  })
+
   it('reports privacy update failures as an error toast without exposing transport details', async () => {
     const { wrapper, uiSettingsStore, notifyRenderer } = await setup()
 
