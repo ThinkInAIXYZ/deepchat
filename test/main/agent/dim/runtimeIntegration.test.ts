@@ -1541,19 +1541,19 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
         expect(await readFile(path.join(profile, 'native-auto-consent.txt'), 'utf8')).toBe(
           'Auto-approved by dim'
         )
-        // The reviewer saw the exact call, with dim's resolved path, and its verdict replaced
-        // the user prompt.
+        // The reviewer saw the exact call and its verdict replaced the user prompt. dim sends its
+        // canonical path, whose spelling is platform-specific (`/private/var`, `\\?\C:`).
         expect(toolReviews).toEqual([
           expect.objectContaining({
             callId: 'native-auto-write',
             toolName: 'write',
             risk: 'write_filesystem',
-            arguments: {
-              path: path.join(await realpath(profile), 'native-auto-consent.txt'),
-              content: 'Auto-approved by dim'
-            }
+            arguments: expect.objectContaining({ content: 'Auto-approved by dim' })
           })
         ])
+        expect(await realpath(String(toolReviews[0].arguments.path))).toBe(
+          await realpath(path.join(profile, 'native-auto-consent.txt'))
+        )
         expect(interactionHooks.filter(({ event }) => event === 'PermissionRequest')).toHaveLength(
           1
         )
