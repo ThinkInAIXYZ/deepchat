@@ -9,6 +9,7 @@ files:
   - '!**/.vscode/*'
   - '!src/*'
   - '!test/*'
+  - '!dist/**'
   - '!vendor/**'
   - '!native/**'
   - '!docs/*'

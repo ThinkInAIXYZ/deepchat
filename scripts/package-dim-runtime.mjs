@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { access, lstat, readFile, readdir, writeFile } from 'node:fs/promises'
+import { access, lstat, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { assertDimBinary, dimRustTarget } from './dim-native-contract.mjs'
@@ -115,6 +115,18 @@ export async function packageDimAssets(context, resourcesDir) {
     projectDir,
     originalNode: true
   })
+  const esbuild = path.join(runtime.plugins, 'node_modules', '@esbuild')
+  const esbuildTargets = await readdir(esbuild).catch((error) => {
+    if (error.code === 'ENOENT') return []
+    throw error
+  })
+  if (esbuildTargets.length) {
+    const target = `${platform}-${arch}`
+    await access(path.join(esbuild, target))
+    for (const entry of esbuildTargets) {
+      if (entry !== target) await rm(path.join(esbuild, entry), { recursive: true, force: true })
+    }
+  }
   if (platform === 'darwin') {
     const purpose = process.env.PACKAGE_PURPOSE
     await signMacHelper({

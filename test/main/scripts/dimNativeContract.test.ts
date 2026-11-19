@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
@@ -223,11 +223,15 @@ it('preserves the original shared Node in unsigned macOS verification packages',
   vi.stubEnv('PACKAGE_PURPOSE', 'verification')
   try {
     const f = await fixture('darwin-arm64')
+    const binaries = path.join(f.plugins, 'node_modules/@esbuild')
+    await f.write(path.join(binaries, 'darwin-arm64/bin/esbuild'), 'packaged binary')
+    await f.write(path.join(binaries, 'win32-x64/esbuild.exe'), 'foreign binary')
     await packageDimAssets(
       { electronPlatformName: 'darwin', arch: 'arm64', packager: { projectDir: f.root } },
       f.resources
     )
     expect(hash(await readFile(f.node))).toBe(hash(binary('darwin-arm64')))
+    expect(await readdir(binaries)).toEqual(['darwin-arm64'])
     const manifest = JSON.parse(await readFile(path.join(f.directory, 'manifest.json'), 'utf8'))
     expect(manifest.sha256).not.toBe(f.manifest.sha256)
     expect(manifest.nodeSha256).toBe(hash(binary('darwin-arm64')))
