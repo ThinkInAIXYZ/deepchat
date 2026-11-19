@@ -309,6 +309,31 @@ export function useDisplayMessages(options: UseDisplayMessagesOptions) {
       !ephemeralRateLimitBlock.value
   )
 
+  // Raw turn activity; compaction inside the regenerated turn keeps it active.
+  const isSessionTurnActive = computed(
+    () =>
+      (sessionStore.activeSession?.id === currentSessionId() &&
+        sessionStore.activeSession.status === 'working') ||
+      isCurrentSessionStreaming.value
+  )
+  let startedRetryPlaceholderId: string | null = null
+
+  // A regenerated turn can stop, fail or be cancelled before any replacement reply exists.
+  // Release the frozen snapshot when that turn ends, never before it has started.
+  watch(isSessionTurnActive, (active) => {
+    const pending = pendingAssistantPlaceholder.value
+    if (!pending?.retry || pending.sessionId !== currentSessionId()) return
+    if (active) {
+      startedRetryPlaceholderId = pending.id
+      return
+    }
+    if (
+      startedRetryPlaceholderId === pending.id &&
+      !newAssistantMessageAfterPendingPlaceholder.value
+    )
+      pendingAssistantPlaceholder.value = null
+  })
+
   watch(
     () =>
       Boolean(

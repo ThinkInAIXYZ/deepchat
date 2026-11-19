@@ -83,7 +83,8 @@ function createHarness(
     activeSession: {
       id: 's1',
       modelId: 'model-1',
-      providerId: 'provider-1'
+      providerId: 'provider-1',
+      status: 'idle' as 'idle' | 'working'
     }
   })
   const modelStore = {
@@ -99,7 +100,7 @@ function createHarness(
     isCurrentSessionStreaming: computed(() => streaming.active)
   })
 
-  return { display, messageStore, records, streaming }
+  return { display, messageStore, records, sessionStore, streaming }
 }
 
 describe('useDisplayMessages', () => {
@@ -333,5 +334,36 @@ describe('useDisplayMessages', () => {
       renderKey: oldReply.id,
       status: 'pending'
     })
+  })
+
+  it('releases the regeneration snapshot when the turn ends without a replacement', async () => {
+    const user = { ...assistantRecord('user', 1, 'Prompt'), role: 'user' as const }
+    const oldReply = assistantRecord('old', 2, 'Previous answer')
+    const { display, messageStore, records, sessionStore, streaming } = createHarness(
+      ['user', 'old'],
+      [user, oldReply]
+    )
+    streaming.active = false
+    messageStore.currentStreamMessageId = null
+    messageStore.streamingBlocks = []
+
+    display.createPendingAssistantPlaceholder('s1', oldReply.id)
+    // Accepted but not started yet: the old reply stays frozen in place.
+    records.delete(oldReply.id)
+    messageStore.messageIds = [user.id]
+    await nextTick()
+    expect(display.regeneratingMessageId.value).toBe(oldReply.id)
+    expect(display.displayMessages.value.map(({ id }) => id)).toEqual([user.id, oldReply.id])
+
+    sessionStore.activeSession.status = 'working'
+    await nextTick()
+    expect(display.displayMessages.value.map(({ id }) => id)).toEqual([user.id, oldReply.id])
+
+    // Stopped before any replacement reply: the transcript follows the persisted history.
+    sessionStore.activeSession.status = 'idle'
+    await nextTick()
+    expect(display.pendingAssistantPlaceholder.value).toBeNull()
+    expect(display.regeneratingMessageId.value).toBeNull()
+    expect(display.displayMessages.value.map(({ id }) => id)).toEqual([user.id])
   })
 })

@@ -260,6 +260,9 @@ export function useMessageActions(options: UseMessageActionsOptions) {
 
   async function onMessageEditSave(payload: UserMessageEdit): Promise<boolean> {
     if (options.isReadOnlySession.value) return false
+    // The edit commits before its retry, so refuse it up front instead of committing an edit
+    // whose regeneration would be rejected by the running turn or a pending interaction.
+    if (options.isGenerating.value || options.hasBlockingInteraction()) return false
     const messageId = payload?.messageId
     const text = payload.inlineItems ? payload.text : payload.text?.trim()
     if (!messageId || (!payload.inlineItems && !text?.trim())) return false

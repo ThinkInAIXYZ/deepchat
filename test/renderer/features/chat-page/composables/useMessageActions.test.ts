@@ -383,6 +383,22 @@ describe('useMessageActions', () => {
     }
   )
 
+  it.each(['generating', 'blocked'] as const)(
+    'keeps the edit draft without committing it while the session is %s',
+    async (state) => {
+      const harness = createHarness()
+      harness.isGenerating.value = state === 'generating'
+      harness.isBlocking.value = state === 'blocked'
+
+      expect(
+        await harness.actions.onMessageEditSave({ messageId: 'message-1', text: 'updated' })
+      ).toBe(false)
+      expect(harness.sessionClient.editUserMessage).not.toHaveBeenCalled()
+      expect(harness.sessionClient.retryMessage).not.toHaveBeenCalled()
+      harness.stop()
+    }
+  )
+
   it('reports rejected edits without retrying and lets the editor retain its draft', async () => {
     const harness = createHarness()
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
