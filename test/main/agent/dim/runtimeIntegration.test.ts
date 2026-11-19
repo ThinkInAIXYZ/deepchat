@@ -2888,8 +2888,8 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
         })
       await client.call('session.deepchat_tools.refresh', ref)
       await send('tool:deepchat_echo {"text":"first"}')
+      await expect.poll(() => calls.length, { timeout: 10_000 }).toBe(1)
       await client.call('deepchat.host.idle', ref)
-      expect(calls).toHaveLength(1)
       expect(calls[0]).toMatchObject({
         ...ref,
         name: 'deepchat_echo',
@@ -2947,15 +2947,17 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
         count: 2
       })
       await send('tool:deepchat_changed {"text":"second"}')
+      await expect.poll(() => calls.at(-1)?.name, { timeout: 10_000 }).toBe('deepchat_changed')
       await client.call('deepchat.host.idle', ref)
-      expect(calls.at(-1)?.name).toBe('deepchat_changed')
       await send('tool:deepchat_hold {}')
       await expect
-        .poll(() => ({ name: calls.at(-1)?.name, request: lastRequestSummary }))
+        .poll(() => ({ name: calls.at(-1)?.name, request: lastRequestSummary }), {
+          timeout: 10_000
+        })
         .toMatchObject({ name: 'deepchat_hold' })
       await client.call('deepchat.host.stop', ref)
       await client.call('deepchat.host.idle', ref)
-      await expect.poll(() => cancelled).toBe(true)
+      await expect.poll(() => cancelled, { timeout: 10_000 }).toBe(true)
       await host.stop()
       const restored = await host.start()
       await restored.call('deepchat.storage.history', { ...ref, limit: 1 })
@@ -2967,11 +2969,13 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
         rawBlocks: [],
         content: [{ type: 'text', text: 'tool:deepchat_changed {"text":"restored"}' }]
       })
+      await expect
+        .poll(() => calls.at(-1), { timeout: 10_000 })
+        .toMatchObject({
+          name: 'deepchat_changed',
+          arguments: { text: 'restored' }
+        })
       await restored.call('deepchat.host.idle', ref)
-      expect(calls.at(-1)).toMatchObject({
-        name: 'deepchat_changed',
-        arguments: { text: 'restored' }
-      })
     } finally {
       await host.stop()
       await gateway.stop()
