@@ -17,7 +17,7 @@
     "importFailed": "Falha na importação, os dados originais foram restaurados",
     "importProcess": "Ocorreu um erro durante o processo de importação",
     "unknown": "Erro desconhecido",
-    "encryptedBackupPasswordMissing": "Este backup está criptografado, mas a chave do banco de dados local não está disponível. Desbloqueie o banco criptografado primeiro e importe novamente.",
+    "encryptedBackupPasswordMissing": "A nova arquitetura não oferece suporte à criptografia do SQLite, por isso a criptografia do banco de dados está temporariamente indisponível. Este backup está criptografado e não pode ser restaurado diretamente da nuvem. Baixe-o para a pasta de sincronização, use Importar Dados e informe a senha original do banco de dados.",
     "overwriteEncryptionMismatch": "A importação por substituição exige que o backup e o banco atual usem o mesmo estado de criptografia.",
     "cloudNotConfigured": "Cloud is not configured. Fill in and save the cloud connection first.",
     "cloudNoBackup": "No backup available in the cloud bucket",

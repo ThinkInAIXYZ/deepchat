@@ -17,7 +17,7 @@
     "importFailed": "导入失败，已恢复原始数据",
     "importProcess": "导入过程出错",
     "unknown": "未知错误",
-    "encryptedBackupPasswordMissing": "该备份已加密，但本地数据库密钥不可用。请先解锁加密数据库，再重新导入。",
+    "encryptedBackupPasswordMissing": "由于新的架构不支持 SQLite 加密，暂时加密功能已下线。该备份是加密备份，无法直接从云端恢复，请下载到同步文件夹后通过“导入数据”导入并输入原数据库密码。",
     "overwriteEncryptionMismatch": "覆盖导入要求备份和当前数据库处于相同的加密状态。",
     "cloudNotConfigured": "尚未配置云端,请先填写并保存云端连接信息",
     "cloudNoBackup": "云端没有可用的备份文件",

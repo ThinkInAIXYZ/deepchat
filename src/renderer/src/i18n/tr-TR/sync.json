@@ -17,7 +17,7 @@
     "importFailed": "İçe aktarma başarısız oldu, orijinal veriler geri yüklendi",
     "importProcess": "İçe aktarma işlemi sırasında bir hata oluştu",
     "unknown": "Bilinmeyen hata",
-    "encryptedBackupPasswordMissing": "Bu yedekleme şifrelenmiştir ancak yerel veritabanı anahtarı mevcut değildir. Önce şifrelenmiş veritabanının kilidini açın, ardından tekrar içe aktarın.",
+    "encryptedBackupPasswordMissing": "Yeni mimari SQLite şifrelemesini desteklemediğinden veritabanı şifrelemesi geçici olarak kullanılamıyor. Bu yedek şifrelidir ve doğrudan buluttan geri yüklenemez. Yedeği eşitleme klasörüne indirin, ardından Verileri İçe Aktar'ı kullanıp özgün veritabanı parolasını girin.",
     "overwriteEncryptionMismatch": "Üzerine yazma içe aktarma, yedek ve geçerli veritabanının aynı şifreleme durumunu kullanmasını gerektirir.",
     "cloudNotConfigured": "Cloud is not configured. Fill in and save the cloud connection first.",
     "cloudNoBackup": "No backup available in the cloud bucket",

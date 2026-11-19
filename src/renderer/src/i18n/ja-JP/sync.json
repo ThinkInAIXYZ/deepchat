@@ -17,7 +17,7 @@
     "importFailed": "インポートに失敗しました。元のデータが復元されました",
     "importProcess": "インポートプロセスでエラーが発生しました",
     "unknown": "不明なエラー",
-    "encryptedBackupPasswordMissing": "このバックアップは暗号化されていますが、ローカルデータベースキーを利用できません。先に暗号化データベースのロックを解除してから、もう一度インポートしてください。",
+    "encryptedBackupPasswordMissing": "新しいアーキテクチャは SQLite の暗号化に対応していないため、データベースの暗号化は一時的に利用できません。このバックアップは暗号化されているため、クラウドから直接復元できません。同期フォルダにダウンロードしてから「データをインポート」を使い、元のデータベースのパスワードを入力してください。",
     "overwriteEncryptionMismatch": "上書きインポートでは、バックアップと現在のデータベースの暗号化状態が同じである必要があります。",
     "cloudNotConfigured": "Cloud is not configured. Fill in and save the cloud connection first.",
     "cloudNoBackup": "No backup available in the cloud bucket",
