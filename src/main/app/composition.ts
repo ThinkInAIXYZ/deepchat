@@ -215,6 +215,7 @@ import { DimInputPreparation } from '@/agent/dim/inputPreparation'
 import { createDimMemoryRuntime } from '@/agent/dim/memoryRuntime'
 import { createDimDesktopTools } from './dimDesktopTools'
 import { createDimToolReview } from '@/agent/dim/review/toolReview'
+import { createDimRuntimeDiagnostic } from '@/agent/dim/runtimeDiagnostics'
 import { AgentToolManager } from '@/tool/agentTools/agentToolManager'
 import { DimToolCatalog } from '@/agent/dim/toolCatalog'
 import { nativeMcpStdio } from '@/mcp/nativeStdio'
@@ -1065,7 +1066,8 @@ export async function createMainProcessControl(dependencies: {
     ),
     nativePlugins: true,
     contextBridge: true,
-    gatewayAddress: await dimGateway.start()
+    gatewayAddress: await dimGateway.start(),
+    diagnostic: createDimRuntimeDiagnostic(logger)
   })
   const dimModelBridge = new DimModelBridge(dimHost)
   const dimCredentials = new DimProviderCredentials()
@@ -2293,6 +2295,11 @@ export async function createMainProcessControl(dependencies: {
       }
     }
   })
+  const publishDimSessionStatus = createSessionStatusProjection({
+    publishEvent: publishDeepchatEvent,
+    publishSessionUpdate,
+    sessionUiPort
+  })
   dimAgent = createDimAgent({
     database: sessionData.database,
     host: dimHost,
@@ -2376,11 +2383,7 @@ export async function createMainProcessControl(dependencies: {
       publishEvent: publishDeepchatEvent,
       publishSessionUpdate
     }),
-    publishStatus: createSessionStatusProjection({
-      publishEvent: publishDeepchatEvent,
-      publishSessionUpdate,
-      sessionUiPort
-    }),
+    publishStatus: publishDimSessionStatus,
     publishEvent: publishDeepchatEvent,
     completed: notifySessionCompleted,
     committed: dimMemory.observe,
@@ -2388,8 +2391,12 @@ export async function createMainProcessControl(dependencies: {
       appSessionService.update(sessionId, { title })
       publishDeepchatEvent('sessions.updated', { sessionIds: [sessionId], reason: 'updated' })
     },
-    failed: (sessionId, error) =>
-      logger.error('[dim] Desktop projection failed', { sessionId, error }),
+    failed: (sessionId, error) => {
+      logger.error('[dim] Desktop projection failed', { sessionId, error })
+      // The reader is gone, so no later event can settle this session; leave no stale
+      // generating state behind. The next open re-attaches and projects the real status.
+      publishDimSessionStatus({ sessionId, status: 'error', changed: true, updatedAt: Date.now() })
+    },
     mcpServers: async (binding) => (await dimMcpConfiguration(binding.sessionId)).servers,
     refreshTools: async (binding) => {
       await (
