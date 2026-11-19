@@ -441,7 +441,7 @@ the existing `mcp-app` render item.
 - With the bootstrap's link handler suppressed, scripted clicks on `_top`, `_blank`, `_parent` and
   `_self` links, `top.location` and `location` assignment, `window.open`, `fetch` and remote images
   all fail; the main-process window-open handler is never reached. A page stuck in a loop blocks only its own frame process.
-  `test/e2e/specs/47-html-render-isolation.smoke.spec.ts` checks these against a real build.
+  `test/e2e/specs/48-html-render-isolation.smoke.spec.ts` checks these against a real build.
 - An html_render instance cannot reach any MCP server action or open links.
 - Existing registry limits apply: 64 instances per process, 32 per WebContents, 30-minute token
   TTL.
