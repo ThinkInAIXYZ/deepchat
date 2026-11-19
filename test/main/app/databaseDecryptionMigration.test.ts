@@ -118,8 +118,9 @@ it('restores the encrypted database if the decrypted replacement cannot reopen',
       id: 'preserved'
     })
     expect(fixture.security.getStatus().enabled).toBe(true)
+    // The encrypted original stays active, so a failed attempt leaves no extra copy behind.
     expect(readdirSync(fixture.directory).some((name) => name.includes('.legacy-encrypted.'))).toBe(
-      true
+      false
     )
   } finally {
     fixture.port.close()

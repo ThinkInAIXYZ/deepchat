@@ -209,20 +209,20 @@ export class SplashWindow {
     const options: MessageBoxOptions = {
       type: 'warning',
       title: app.getName(),
-      message: 'Local database encryption is being retired',
+      message: 'Database encryption is being taken offline',
       detail:
-        'DeepChat will keep an encrypted recovery copy. After migration, the local database, including chat history, will be stored without database encryption.',
+        'The new architecture does not support SQLite encryption, so database encryption is temporarily unavailable. Your database will return to an unencrypted state.',
       buttons: ['Continue']
     }
     if (locale === 'zh-CN') {
-      options.message = '本地数据库加密即将停用'
+      options.message = '数据库加密功能暂时下线'
       options.detail =
-        'DeepChat 会保留一份加密的恢复副本。迁移后，本机数据库（包括聊天记录）将以未加密的方式存储。'
+        '由于新的架构不支持 SQLite 加密，暂时加密功能会下线，对应数据库也会回退到不加密状态。'
       options.buttons = ['继续']
     } else if (locale.startsWith('zh-')) {
-      options.message = '本機資料庫加密即將停用'
+      options.message = '資料庫加密功能暫時下線'
       options.detail =
-        'DeepChat 會保留一份加密的復原副本。移轉後，本機資料庫（包括聊天記錄）將以未加密的方式儲存。'
+        '由於新的架構不支援 SQLite 加密，暫時加密功能會下線，對應資料庫也會回退到不加密狀態。'
       options.buttons = ['繼續']
     }
     const parent = this.splashWindow

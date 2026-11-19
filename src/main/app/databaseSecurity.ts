@@ -298,6 +298,9 @@ export class DatabaseSecurityService {
     this.migrationInProgress = true
     const tempPath = this.getTempPath(dbPath)
     const rollbackPath = this.getRollbackPath(dbPath)
+    // A copy made by this attempt is redundant while the encrypted source is intact.
+    let createdRecoveryCopy: string | undefined
+    let sourceIntact = true
 
     try {
       this.removeIfExists(tempPath)
@@ -324,6 +327,7 @@ export class DatabaseSecurityService {
             fs.closeSync(backupFd)
           }
           fs.renameSync(partial, backup)
+          createdRecoveryCopy = backup
         } finally {
           this.removeIfExists(partial)
         }
@@ -332,6 +336,7 @@ export class DatabaseSecurityService {
       this.exportDatabaseToTemp(dbPath, tempPath, input.sourcePassword)
       this.verifyMigratedDatabase(tempPath, undefined, expectedCounts)
 
+      sourceIntact = false
       this.replaceDatabaseWithRollback(dbPath, tempPath, rollbackPath)
 
       try {
@@ -339,6 +344,7 @@ export class DatabaseSecurityService {
       } catch (error) {
         input.database.close()
         this.restoreRollbackDatabase(dbPath, rollbackPath)
+        sourceIntact = true
         input.database.reopenWithPassword(input.sourcePassword)
         throw error
       }
@@ -351,6 +357,8 @@ export class DatabaseSecurityService {
       if (!fs.existsSync(dbPath) && fs.existsSync(rollbackPath)) {
         fs.renameSync(rollbackPath, dbPath)
       }
+      // The encrypted original is still the active database, so this attempt's copy is redundant.
+      if (createdRecoveryCopy && sourceIntact) this.removeIfExists(createdRecoveryCopy)
       if (!input.database.isOpen()) {
         try {
           input.database.reopenWithPassword(input.sourcePassword)
