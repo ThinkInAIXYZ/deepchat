@@ -120,15 +120,12 @@ test('desktop Code Mode projects native child calls @smoke', async ({ app }) => 
       'data-generating',
       'false'
     )
-    const sessionId = await getActiveSessionId(app.page)
     await app.page.getByRole('button', { name: 'Advanced Settings', exact: true }).click()
     const modes = app.page.getByTestId('tool-mode-section')
     await modes.getByText('Code', { exact: true }).click()
     await expect(modes.getByRole('radio', { name: 'Code', exact: true })).toBeChecked()
     await app.page.keyboard.press('Escape')
-    code = `const result = await tools.call('read_session', {
-      sessionId:${JSON.stringify(sessionId)}, action:'messages'
-    }); return result.content;`
+    code = `const result = await tools.call('read_session', { action:'messages' }); return result.content;`
     await sendMessage(app.page, 'NATIVE_CODE_UI_SECOND')
     await expect(getAssistantMessages(app.page)).toHaveCount(2)
     await expect(getAssistantMessages(app.page).last()).toContainText('NATIVE_CODE_UI_RESULT')

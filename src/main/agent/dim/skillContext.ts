@@ -107,7 +107,7 @@ export class DimSkillContext {
       throw new Error('Assigned skill catalog changed during publication')
     const content = [
       `Agent skills catalog: ${JSON.stringify(receipt.path)}`,
-      'Use dim read for the catalog and applicable SKILL.md; dim exec runs bundled scripts.',
+      'DeepChat-assigned skills use read for the catalog and its SKILL.md paths. The skill tool is for the separate native skill list. Use exec when the instructions call for a bundled script.',
       ...(bodies.length ? ['Selected instructions are already loaded:'] : []),
       ...bodies
     ].join('\n\n')

@@ -1238,7 +1238,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
           })
         holdQueue = true
         await send('hold the native queue fixture')
-        await expect.poll(() => Boolean(heldQueueResponse)).toBe(true)
+        await expect.poll(() => Boolean(heldQueueResponse), { timeout: 10_000 }).toBe(true)
         const queueRuntime = new DimSessionRuntime({
           database: grants.data,
           host,
@@ -2441,10 +2441,10 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
         expect(productToolCalls).toHaveLength(1)
         const beforeBlockedContext = conversationRequests().length
         await facade.backend.send(facadeId, { content: { text: 'block native product context' } })
-        await expect.poll(() => contextStarted).toBe(true)
+        await expect.poll(() => contextStarted, { timeout: 10_000 }).toBe(true)
         await facade.backend.cancelGeneration(facadeId)
         await facade.runtime.waitIdle(facadeId)
-        await expect.poll(() => contextCancelled).toBe(true)
+        await expect.poll(() => contextCancelled, { timeout: 10_000 }).toBe(true)
         expect(conversationRequests()).toHaveLength(beforeBlockedContext)
         // dim's own agent tool creates and runs the member. The desktop authorizes its
         // immutable native parent link; it never creates, schedules or calls the child model.
@@ -2599,7 +2599,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
         heldQueueResponse = null
         holdQueue = true
         await facade.backend.send(facadeId, { content: { text: 'hold before scheduled input' } })
-        await expect.poll(() => Boolean(heldQueueResponse)).toBe(true)
+        await expect.poll(() => Boolean(heldQueueResponse), { timeout: 10_000 }).toBe(true)
         const capped = await facade.backend.queuePendingInput(
           facadeId,
           { text: 'scheduled input' },

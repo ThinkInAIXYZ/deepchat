@@ -3,6 +3,7 @@
 use dim_agent_capabilities::{
     host::SessionFilesHost,
     methods::{Interruption, MethodDecl, RpcError, SessionMethods, params, reply},
+    skills::SkillsConfig,
     timeline_tree::TreeCommands,
 };
 use dim_agent_runtime::{AgentBuilder, Feature, SessionIdentity};
@@ -16,6 +17,14 @@ use sha2::{Digest, Sha256};
 use std::sync::Arc;
 
 pub fn install(builder: &mut AgentBuilder) {
+    builder.replace_session_host(|_| {
+        Arc::new(SkillsConfig {
+            instructions: Some(
+                "Load relevant instructions before acting. Use the skill tool only for names in the native skill list. For DeepChat-assigned skills, use the current Agent skills catalog: read the catalog with the read tool, then read the entry's SKILL.md path. Selected DeepChat skill instructions already in context do not need to be loaded again."
+                    .into(),
+            ),
+        })
+    });
     builder.require_feature(Feature::new("DeepChatSkillCatalog").session(
         "DeepChatSkillCatalog",
         |names| {

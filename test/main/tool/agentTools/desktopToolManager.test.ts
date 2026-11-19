@@ -4,6 +4,7 @@ import { createAgentToolDependencies } from './agentToolDependencies'
 import { createDimDesktopTools } from '@/app/dimDesktopTools'
 import { dimDatabase } from '../../agent/dim/fixtures/database'
 import { TOOL_EXECUTION } from '@shared/types/mcp'
+import { SessionReferenceReadError } from '@/session/data/sessionReferences'
 
 it('publishes desktop capabilities without replacing native tools or exposing ACP session readers', async () => {
   const session = vi
@@ -44,6 +45,16 @@ it('publishes desktop capabilities without replacing native tools or exposing AC
   const input = { sessionId: 'referenced', action: 'messages' }
   await desktop.callTool('read_session', input, 'root')
   expect(readSession).toHaveBeenCalledWith('root', input)
+  await desktop.callTool('read_session', { action: 'messages' }, 'root')
+  expect(readSession).toHaveBeenLastCalledWith('root', { sessionId: 'root', action: 'messages' })
+  readSession.mockRejectedValueOnce(
+    new SessionReferenceReadError('Add a fresh @session reference.')
+  )
+  const denied = await desktop.callTool('read_session', input, 'root')
+  expect(denied).toMatchObject({
+    content: expect.stringContaining('Add a fresh @session reference.'),
+    rawData: { isError: true }
+  })
   for (const row of [
     { agentType: 'acp', sessionKind: 'regular' },
     { agentType: 'deepchat', sessionKind: 'subagent' }

@@ -28,6 +28,8 @@
 - [x] 将 Native 桌面烟测接入 macOS arm64 verification，覆盖 Code Mode 子调用、媒体及会话恢复。
 - [x] 保留用户插件声明的超时、队列重提交的 provider 轮数上限及混合队列内的排序。
 - [x] 通过现有 Native 凭据恢复边界支持 Grok OAuth，迁移 Gemini、Azure 和 Anthropic 端点形式，并撤下未提供的 DeepSeek 服务商搜索。
+- [x] Verify self and referenced session reads in the macOS arm64 package, actionable tool errors,
+  private Skill guidance in native model requests, and pruning of foreign plugin binaries.
 
 ## P0. 基线与已确认决策
 

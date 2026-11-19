@@ -190,6 +190,12 @@ Desktop cron jobs retain their scheduler, detached-session lifecycle and deliver
 
 当前已实现 `DimMcp`：通过 `session.mcp_temporary.attach/renew/detach` 将所选配置挂到原生 Session，目录和调用由 dim MCP 持有。DeepChat 只续期桌面授权，更新/撤销先卸载旧绑定；30 秒原生租约在桌面失联时到期。配置与凭据不写入 dim 设置或 Timeline。配置导出保留 DeepChat 的 OAuth/企业身份 owner，通过临时 token 交给原生 transport；in-memory 与产品管理的进程列为兼容桥候选。主 composition 已接入 Native 临时配置、stdio 工具链/环境映射和产品服务目录。显式 CWD/隔离环境及产品管理进程通过产品插件桥接；Direct ACP 和桌面 MCP 管理继续保留其产品 owner，旧执行器清理另行验收。
 
+DeepChat-assigned Skills retain their desktop Agent scope and selection. The host publishes their
+catalog as a native Session file. The model uses native `read` for these entries and uses
+`skill` for names in Dim's native catalog. The host instruction override states this distinction.
+A unified `skill` path requires a Session-scoped catalog source that participates in Dim's
+prompt list and lookup with the same authorization on each call.
+
 ### 5.3 deepchat-storage
 
 是数据访问与产品生命周期插件，不是复制 timeline 的监听器。由 DeepChat main 在启动前解析和创建根目录，作为不可变启动配置交给 dim；插件加载发生在存储打开之后，不能声称它动态替换了已经装配的 SqliteStoragePlugin。
@@ -321,6 +327,21 @@ timeline query 与公开 `session.history` 用途不同：history 用聊天；In
 6. migration key 由旧 session identity、revision、格式版本组成；重复执行无重复 session/内容。支持 dry run、单会话中断续跑、失败隔离和磁盘空间预检。
 
 首次续聊流程固定为：加锁 → 解密前置检查 → 转换历史 → 校验 → 切换映射 → 将本次新输入交给 dim。转换未完成时不发送本次输入；失败允许重试，旧历史保持可读。浏览历史和首次启动都不触发全量 dim 会话迁移。
+
+### 7.4 Conversation forks and subagents
+
+DeepChat currently implements message-level Fork by importing a frozen transcript prefix into a
+new native Session. Dim's `session.fork` creates an independent Session from a safe cut on
+`main`; `session.branch_create` starts a branch inside the same Session with its own prompt.
+Use an independent native fork for a new sidebar conversation when the selected message maps
+to a supported rest point. Preserve the existing transcript conversion for message boundaries
+that the pinned native API cannot fork. Verify product identity and projection, permission and
+reference scope, deletion, sync, and attachment ownership before changing the fork route.
+
+Use native collaboration members for built-in Agent delegation. Keep distinct Session identity
+and permissions for child work. Preserve DeepChat's product delegation records for explicit
+cross-Agent policy, approval and status, and keep Direct ACP on the ACP contract. Branches within
+a Session are available for alternate conversation paths and do not replace collaboration members.
 
 ## 8. 能力归属与接入验收
 

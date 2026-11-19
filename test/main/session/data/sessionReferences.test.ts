@@ -206,7 +206,7 @@ describeIfNativeSqlite('SessionReferences', () => {
     })
     await expect(
       data.sessionReferences.read('source', { sessionId: 'source', action: 'messages' })
-    ).rejects.toThrow(/bootstrap.*missing/i)
+    ).rejects.toThrow('The referenced session history is unavailable.')
     expect(table.getBySession('source')).toEqual([])
 
     const reference = await data.sessionReferences.resolve('source')

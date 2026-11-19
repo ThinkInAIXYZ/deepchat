@@ -32,6 +32,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([true, false])(
     let modelRequests = 0
     let observedInstructions = false
     let firstRequestHadInstructions: boolean | undefined
+    let currentCatalogInstructions = false
     let bodyReads = 0
     let observedCatalog = false
     let titles: DimTitles | undefined
@@ -80,6 +81,12 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([true, false])(
                 }
       if (!title) {
         modelRequests++
+        currentCatalogInstructions ||= body.messages.some(
+          (message: { role: string; content: unknown }) =>
+            message.role === 'system' &&
+            typeof message.content === 'string' &&
+            message.content.includes('Use the skill tool only for names in the native skill list.')
+        )
         firstRequestHadInstructions ??= JSON.stringify(body.messages).includes(
           'PRIVATE_SKILL_INSTRUCTIONS'
         )
@@ -205,6 +212,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([true, false])(
       })
       await client.call('deepchat.host.idle', ref, 60_000)
       expect(observedInstructions).toBe(true)
+      expect(currentCatalogInstructions).toBe(true)
       expect(firstRequestHadInstructions).toBe(selected)
       expect(bodyReads > 0).toBe(selected)
       expect(observedCatalog).toBe(true)
