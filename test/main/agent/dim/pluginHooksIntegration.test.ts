@@ -40,7 +40,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
       script,
       `
 const fs = require('node:fs'); const path = require('node:path');
-let input = ''; process.stdin.on('data', x => input += x); process.stdin.on('end', () => {
+let input = ''; process.stdin.on('data', x => input += x); process.stdin.on('end', async () => {
   const p = JSON.parse(input); const root = process.env.PLUGIN_ROOT;
   fs.writeFileSync(path.join(root, 'environment.json'),JSON.stringify({path:process.env.PATH,secret:process.env.DEEPCHAT_HOOK_TEST_SECRET}));
   fs.appendFileSync(path.join(root, 'calls'), JSON.stringify(p) + '\\n');
@@ -50,6 +50,7 @@ let input = ''; process.stdin.on('data', x => input += x); process.stdin.on('end
     setInterval(() => fs.appendFileSync(path.join(root, p.prompt + '-heartbeat'), '.'), 20); return;
   }
   if (p.prompt === 'control') { console.log(JSON.stringify({decision:'deny'})); return; }
+  if (p.prompt === 'first prompt') await new Promise(resolve => setTimeout(resolve, 10500));
   console.log(JSON.stringify({hookSpecificOutput:{hookEventName:p.hook_event_name,additionalContext:'native-hook:' + (p.source || p.prompt || p.agent_type)},systemMessage:'native audit'}));
 });
 `
@@ -77,7 +78,7 @@ let input = ''; process.stdin.on('data', x => input += x); process.stdin.on('end
         event: 'UserPromptSubmit',
         command: `exec ${command}`,
         commandWindows: command,
-        timeout: 5.5
+        timeout: 20
       }
     ]
     const source: UserPluginHookSource = {

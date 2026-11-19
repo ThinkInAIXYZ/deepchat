@@ -617,11 +617,7 @@ export class ProviderSettings implements ProviderSettingsPort {
         baseUrl: provider?.baseUrl
       })
     ) {
-      return {
-        ...snapshot,
-        supportsSearch: true,
-        searchExecution: 'provider'
-      }
+      snapshot.supportsSearch = false
     }
 
     return snapshot

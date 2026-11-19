@@ -6,10 +6,10 @@
   "bridgeVersion": "0.46.0",
   "storeFormat": 44,
   "apiVersion": 1,
-  "cargoLockSha256": "66742884b64c9ad2d4bf1ba01bc082fdab98081705b8131fefe39756668f8538",
+  "cargoLockSha256": "abe57487f9845829f8b56ce07c10a09acde409bd0f78d3ec85b8a3d1fe0b30a8",
   "assemblyPatch": {
     "path": "crates/dim-app-server/src/provider.rs",
-    "sha256": "1efdf44c936721817646c7517e3d35daf15282b655fd466eaf258dbaf80def3e"
+    "sha256": "0b40a6ea95dc9891227a6424bd4298caf291251cdffdccff9e9d4aed0e00ece5"
   },
   "extensionPatches": [
     {
@@ -71,6 +71,14 @@
     {
       "path": "crates/dim-app-server/src/cli.rs",
       "sha256": "a4b374448db4349d057ee0f1238fa6f9cb993e776d62f09438b35ab8801a4629"
+    },
+    {
+      "path": "crates/dim-app-server/src/provider/drivers.rs",
+      "sha256": "7cc95abdcfbda87662a42b0990c59300150139c9b3800747cb4f9e4151305215"
+    },
+    {
+      "path": "crates/dim-agent-aimux/src/driver.rs",
+      "sha256": "2ece177481d069f6039fd710ffaf3f8e460ab451b4fae1b754062ac8fad3e527"
     }
   ]
 }

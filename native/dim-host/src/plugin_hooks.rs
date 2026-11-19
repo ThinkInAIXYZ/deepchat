@@ -798,7 +798,7 @@ async fn execute(
     };
     let result = tokio::select! {
         _ = cancel.cancelled() => Err("Plugin hook cancelled".into()),
-        _ = tokio::time::sleep(Duration::from_secs_f64(hook.timeout.min(10.0))) => Err("Plugin hook exceeded its time budget".into()),
+        _ = tokio::time::sleep(Duration::from_secs_f64(hook.timeout)) => Err("Plugin hook exceeded its time budget".into()),
         result = revoked => result.and(Err("Plugin hook owner was revoked".into())),
         status = process.wait() => status.map_err(|_|"Cannot wait for plugin hook".into()).and_then(|s| if s.success() { Ok(()) } else { Err(format!("Hook exited with status {s}")) }),
     };

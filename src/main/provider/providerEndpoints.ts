@@ -123,6 +123,7 @@ export function normalizeAzureBaseUrl(
 
   try {
     const url = new URL(normalizedBaseUrl)
+    const endpointApiVersion = url.searchParams.get('api-version')?.trim()
     url.search = ''
     url.hash = ''
 
@@ -144,6 +145,7 @@ export function normalizeAzureBaseUrl(
     return {
       baseURL: url.toString().replace(/\/+$/, ''),
       apiVersion:
+        endpointApiVersion ||
         normalizedApiVersion ||
         (deploymentName ? DEFAULT_AZURE_DEPLOYMENT_API_VERSION : DEFAULT_AZURE_V1_API_VERSION),
       useDeploymentBasedUrls: Boolean(deploymentName),

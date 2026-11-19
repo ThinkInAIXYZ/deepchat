@@ -94,6 +94,69 @@ it.each([
   })
 })
 
+it.each([
+  [
+    'gemini',
+    'gemini',
+    'https://generativelanguage.googleapis.com',
+    'https://generativelanguage.googleapis.com/v1beta',
+    'fixture'
+  ],
+  [
+    'anthropic',
+    'anthropic',
+    'https://custom.example/messages',
+    'https://custom.example/messages',
+    'fixture'
+  ],
+  [
+    'azure-openai',
+    'openai-completions',
+    'https://example.openai.azure.com/openai/deployments/production/responses?api-version=2025-04-01-preview',
+    'https://example.openai.azure.com/openai/deployments/production?api-version=2025-04-01-preview',
+    'production'
+  ]
+] as const)(
+  'preserves the supported %s endpoint through native configuration',
+  async (id, apiType, baseUrl, expected, modelId) => {
+    const db = dimDatabase()
+    const configure = vi.fn(async () => ({ providerId: 'native', modelId }))
+    const catalog = new DimModelCatalog({
+      settings: {
+        getProviderById: () => ({
+          id,
+          apiType,
+          baseUrl,
+          name: id,
+          apiKey: 'fixture-key',
+          enable: true
+        }),
+        getModelStatus: () => true,
+        getModelConfig: () => ({ contextLength: 8192, maxTokens: 1024 }) as ModelConfig,
+        getProviderModelRouteMetadata: () => null,
+        getCapabilitySnapshot: () =>
+          ({ supportsAudioInput: false, supportsReasoning: false }) as ReturnType<
+            ProviderSettingsPort['getCapabilitySnapshot']
+          >
+      },
+      grants: db.data.dimProviderGrantsTable,
+      models: { configure },
+      credential: async () => 'fixture-key'
+    })
+    try {
+      await catalog.admit(id, 'fixture')
+      expect(configure).toHaveBeenCalledWith(
+        expect.objectContaining({
+          connection: expect.objectContaining({ baseUrl: expected }),
+          model: expect.objectContaining({ modelId })
+        })
+      )
+    } finally {
+      db.sqlite.close()
+    }
+  }
+)
+
 it('persists non-secret grants, rotates credentials and fences replaced or disabled providers', async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'dc-dim-grants-'))
   const filename = path.join(directory, 'desktop.sqlite')

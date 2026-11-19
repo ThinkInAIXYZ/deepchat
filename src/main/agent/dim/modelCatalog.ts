@@ -22,6 +22,13 @@ import { resolveProviderTransport } from '@/provider/providerTransport'
 import { GITHUB_COPILOT_CHAT_HEADERS } from '@/provider/auth/githubCopilotProtocol'
 import { resolveVertexSettings } from '@/provider/vertexSettings'
 import { normalizeOpenAICodexBaseUrl } from '@/provider/openaiCodexAdapter'
+import {
+  normalizeAnthropicBaseUrl,
+  normalizeAzureBaseUrl,
+  normalizeGeminiBaseUrl
+} from '@/provider/providerEndpoints'
+import { XAI_GROK_API_BASE_URL } from '@/provider/auth/xaiGrok/constants'
+import { shouldUseXaiGrokOAuthFetch } from '@/provider/xaiGrokAuthAdapter'
 import { DimModelBridge, type DimModelId, type DimModelParameters } from './modelBridge'
 
 type JsonObject = { [key: string]: JsonValue }
@@ -41,7 +48,12 @@ interface CatalogOptions {
     | 'getProviderModelRouteMetadata'
     | 'getModelStatus'
   > &
-    Partial<Pick<ProviderSettingsPort, 'getVoiceAiConfig' | 'getProviderMediaRoute'>>
+    Partial<
+      Pick<
+        ProviderSettingsPort,
+        'getVoiceAiConfig' | 'getProviderMediaRoute' | 'getAzureApiVersion'
+      >
+    >
   models: Pick<DimModelBridge, 'configure'> & Partial<Pick<DimModelBridge, 'releaseConfiguration'>>
   grants: Pick<DimProviderGrantsTable, 'get' | 'put'>
   credential(provider: LLM_PROVIDER, signal: AbortSignal): Promise<DimCredential>
@@ -216,12 +228,16 @@ export class DimModelCatalog {
       ...(options?.timeout === undefined ? {} : { timeout: options.timeout })
     }
     const connection = this.connection(provider, modelId, config)
+    const deployment =
+      connection.driverKind === 'azure-openai'
+        ? normalizeAzureBaseUrl(provider.baseUrl, undefined).deploymentName
+        : undefined
     const capability = this.options.settings.getCapabilitySnapshot({ providerId, modelId })
     const portrait = capability.reasoningPortrait
     const modality = dimModality(config)
     const mediaRoute = this.options.settings.getProviderMediaRoute?.(provider.id, modelId)
     const model: JsonObject & { modelId: string } = {
-      modelId: conversation ? `deepchat-media/${modelId}` : modelId,
+      modelId: conversation ? `deepchat-media/${modelId}` : (deployment ?? modelId),
       displayName: modelId,
       status: 'active',
       capabilities: {
@@ -424,6 +440,8 @@ export class DimModelCatalog {
   private credentialReference(provider: LLM_PROVIDER): string {
     if (resolveAiSdkProviderDefinition(provider)?.runtimeKind === 'openai-codex')
       return `deepchat/codex/v1/${encodeURIComponent(provider.id)}/${fingerprint(this.credentialScope(provider))}`
+    if (shouldUseXaiGrokOAuthFetch(provider))
+      return `deepchat/grok/v1/${encodeURIComponent(provider.id)}/${fingerprint(this.credentialScope(provider))}`
     return isBedrock(provider) || isCopilot(provider) || isVertex(provider)
       ? `deepchat/provider/scoped/v1/${encodeURIComponent(provider.id)}/${fingerprint(this.credentialScope(provider))}`
       : `deepchat/provider/v1/${encodeURIComponent(provider.id)}`
@@ -490,6 +508,21 @@ export class DimModelCatalog {
           : '')
     ).replace(/\/+$/, '')
     if (kind === 'openai-codex') baseUrl = normalizeOpenAICodexBaseUrl(provider.baseUrl)
+    if (kind === 'gemini') baseUrl = normalizeGeminiBaseUrl(provider.baseUrl)
+    if (kind === 'anthropic' && !baseUrl.endsWith('/messages'))
+      baseUrl = normalizeAnthropicBaseUrl(provider.baseUrl)
+    if (!baseUrl && shouldUseXaiGrokOAuthFetch(provider)) baseUrl = XAI_GROK_API_BASE_URL
+    if (kind === 'azure') {
+      const azure = normalizeAzureBaseUrl(
+        provider.baseUrl,
+        this.options.settings.getAzureApiVersion?.()
+      )
+      const endpoint = new URL(azure.baseURL ?? baseUrl)
+      if (azure.deploymentName)
+        endpoint.pathname += `/deployments/${encodeURIComponent(azure.deploymentName)}`
+      endpoint.searchParams.set('api-version', azure.apiVersion)
+      baseUrl = endpoint.toString()
+    }
     if (vertex) baseUrl = vertex.baseUrl
     if (kind === 'aws-bedrock' && !baseUrl)
       baseUrl = `https://bedrock-runtime.${bedrockRegion(provider)}.amazonaws.com`
@@ -500,7 +533,7 @@ export class DimModelCatalog {
       url.username ||
       url.password ||
       url.hash ||
-      url.search
+      (url.search && kind !== 'azure')
     )
       throw new Error('Invalid native provider endpoint')
     if (
@@ -561,6 +594,7 @@ function isAnonymous(provider: LLM_PROVIDER): boolean {
   return (
     !provider.apiKey &&
     provider.openaiAuthMode !== 'chatgpt' &&
+    !shouldUseXaiGrokOAuthFetch(provider) &&
     (isOllama(provider) ||
       ['openai', 'openai-completions', 'openai-responses'].includes(provider.apiType ?? 'openai'))
   )

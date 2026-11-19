@@ -195,6 +195,39 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
       }))
     ]
     try {
+      const azure = {
+        key: 'azure-deployment-fixture',
+        displayName: 'Azure deployment fixture',
+        connection: {
+          driverKind: 'azure-openai',
+          baseUrl:
+            'https://example.openai.azure.com/openai/deployments/production?api-version=2025-04-01-preview',
+          auth: { type: 'anonymous' }
+        },
+        model: {
+          modelId: 'production',
+          displayName: 'Production deployment',
+          status: 'active',
+          capabilities: {
+            modalities: ['text'],
+            toolCalling: false,
+            streaming: true,
+            structuredOutput: false,
+            vision: false,
+            audio: false,
+            reasoning: false,
+            contextWindow: 32768,
+            maxOutputTokens: 8192
+          }
+        }
+      }
+      await expect(bridge.configure(azure)).resolves.toMatchObject({ modelId: 'production' })
+      await expect(
+        bridge.configure({
+          ...azure,
+          connection: { ...azure.connection, baseUrl: `${azure.connection.baseUrl}&other=1` }
+        })
+      ).rejects.toThrow()
       for (const scenario of scenarios) {
         const { providerKind, modelId, reasoningPortrait } = scenario
         const vertex = providerKind === 'vertex'
@@ -203,7 +236,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
           displayName: 'Local reasoning fixture',
           connection: {
             driverKind: vertex ? 'gemini' : providerKind,
-            baseUrl: `http://127.0.0.1:${(fixture.address() as { port: number }).port}/v1${vertex ? '/publishers/google' : ''}`,
+            baseUrl: `http://127.0.0.1:${(fixture.address() as { port: number }).port}${providerKind === 'anthropic' ? '/custom/messages' : '/v1'}${vertex ? '/publishers/google' : ''}`,
             auth: { type: 'anonymous' }
           },
           model: {
@@ -246,7 +279,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
         const captured = requests[before]
         expect(captured.url).toMatch(
           providerKind === 'anthropic'
-            ? /\/messages$/
+            ? /^\/custom\/messages$/
             : /:(?:streamGenerateContent|generateContent)(?:\?|$)/
         )
         expect(captured.body).toMatchObject(scenario.expected)

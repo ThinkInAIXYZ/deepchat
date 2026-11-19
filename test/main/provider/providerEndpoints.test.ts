@@ -124,5 +124,11 @@ describe('provider metadata endpoints', () => {
       useDeploymentBasedUrls: true,
       deploymentName: 'deepchat-prod'
     })
+    expect(
+      normalizeAzureBaseUrl(
+        'https://example.openai.azure.com/openai/deployments/deepchat-prod/responses?api-version=2025-04-01-preview',
+        'v1'
+      )
+    ).toMatchObject({ apiVersion: '2025-04-01-preview', deploymentName: 'deepchat-prod' })
   })
 })

@@ -46,23 +46,39 @@ impl PrepareProviderConnection for Desktop {
         cancel: CancellationToken,
     ) -> HostFuture<'_, ResolvedModelConnection> {
         Box::pin(async move {
-            if !credential_reference
-                .as_deref()
-                .is_some_and(|reference| reference.starts_with("deepchat/codex/v1/"))
+            let reference = credential_reference.as_deref().unwrap_or_default();
+            let preset = if reference.starts_with("deepchat/codex/v1/") {
+                OAuthPreset::Codex
+            } else if reference.starts_with("deepchat/grok/v1/") {
+                OAuthPreset::Grok
+            } else {
+                return Ok(connection);
+            };
+            let auth = credential(&provider_id, &model_id, None, cancel).await?;
+            if let Some(auth) = auth {
+                return attach(provider_id, model_id, connection, preset, auth);
+            }
+            if preset == OAuthPreset::Grok
+                && matches!(&connection.connection, ModelConnection::Http(http)
+                    if http.bearer.as_deref().is_some_and(|value| value != "deepchat-grok-admission-v1"))
             {
                 return Ok(connection);
             }
-            let auth = credential(&provider_id, &model_id, None, cancel)
-                .await?
-                .ok_or_else(unavailable)?;
-            attach(provider_id, model_id, connection, auth)
+            Err(unavailable())
         })
     }
+}
+#[derive(Clone, Copy, Deserialize, PartialEq, Eq)]
+enum OAuthPreset {
+    #[serde(rename = "openai-codex")]
+    Codex,
+    #[serde(rename = "xai-grok")]
+    Grok,
 }
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct Auth {
-    preset: String,
+    preset: OAuthPreset,
     bearer: String,
     account_id: Option<String>,
     lease: String,
@@ -84,9 +100,10 @@ fn attach(
     provider_id: String,
     model_id: String,
     mut connection: ResolvedModelConnection,
+    preset: OAuthPreset,
     auth: Auth,
 ) -> Result<ResolvedModelConnection, HostError> {
-    if auth.preset != "openai-codex"
+    if auth.preset != preset
         || auth.bearer.is_empty()
         || auth.bearer.len() > 32 * 1024
         || !auth
@@ -103,13 +120,42 @@ fn attach(
     let ModelConnection::Http(http) = &mut connection.connection else {
         return Err(unavailable());
     };
-    if http.protocol != ModelProtocol::OpenaiResponses {
-        return Err(unavailable());
+    match preset {
+        OAuthPreset::Codex if http.protocol == ModelProtocol::OpenaiResponses => {
+            http.preset = Some("openai-codex".into());
+            configure_codex_headers(&mut http.headers, auth.account_id);
+        }
+        OAuthPreset::Grok if http.protocol == ModelProtocol::OpenaiCompatible => {
+            let url = url::Url::parse(&http.base_url).map_err(|_| unavailable())?;
+            if url.scheme() != "https"
+                || !url
+                    .host_str()
+                    .is_some_and(|host| host == "x.ai" || host.ends_with(".x.ai"))
+            {
+                return Err(unavailable());
+            }
+            http.headers
+                .retain(|name, _| !name.eq_ignore_ascii_case("authorization"));
+        }
+        _ => return Err(unavailable()),
     }
-    http.preset = Some(auth.preset);
     http.bearer = Some(auth.bearer);
     http.api_key = None;
-    http.headers.retain(|name, _| {
+    connection.recovery = Some(Arc::new(Recovery {
+        provider_id,
+        model_id,
+        connection: connection.connection.clone(),
+        preset,
+        lease: auth.lease,
+    }));
+    Ok(connection)
+}
+
+fn configure_codex_headers(
+    headers: &mut std::collections::HashMap<String, String>,
+    account_id: Option<String>,
+) {
+    headers.retain(|name, _| {
         ![
             "chatgpt-account-id",
             "authorization",
@@ -121,30 +167,22 @@ fn attach(
         .iter()
         .any(|controlled| name.eq_ignore_ascii_case(controlled))
     });
-    http.headers.insert("Version".into(), "0.144.1".into());
-    if let Some(id) = auth.account_id {
-        http.headers.insert("ChatGPT-Account-Id".into(), id);
+    headers.insert("Version".into(), "0.144.1".into());
+    if let Some(id) = account_id {
+        headers.insert("ChatGPT-Account-Id".into(), id);
     }
-    http.headers
-        .insert("OAI-Product-Sku".into(), "codex".into());
-    http.headers
-        .insert("originator".into(), "codex_cli_rs".into());
-    http.headers.insert(
+    headers.insert("OAI-Product-Sku".into(), "codex".into());
+    headers.insert("originator".into(), "codex_cli_rs".into());
+    headers.insert(
         "User-Agent".into(),
         "codex_cli_rs/0.144.1 (Ubuntu 22.4.0; x86_64) xterm-256color".into(),
     );
-    connection.recovery = Some(Arc::new(Recovery {
-        provider_id,
-        model_id,
-        connection: connection.connection.clone(),
-        lease: auth.lease,
-    }));
-    Ok(connection)
 }
 struct Recovery {
     provider_id: String,
     model_id: String,
     connection: ModelConnection,
+    preset: OAuthPreset,
     lease: String,
 }
 impl RecoverModelConnection for Recovery {
@@ -179,6 +217,7 @@ impl RecoverModelConnection for Recovery {
                     failure_policy: None,
                     recovery: None,
                 },
+                self.preset,
                 auth,
             )?;
             Ok(RecoveredModelConnection {
@@ -193,4 +232,49 @@ impl RecoverModelConnection for Recovery {
 }
 fn unavailable() -> HostError {
     HostError::failed("Product OAuth connection is unavailable")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use dim_agent_capabilities::host::HttpModelConnection;
+
+    #[test]
+    fn grok_oauth_replaces_the_bearer_only_on_trusted_https() {
+        let connect = |base_url: &str| {
+            let token = "fixture-oauth";
+            attach(
+                "grok".into(),
+                "fixture".into(),
+                ResolvedModelConnection {
+                    connection: ModelConnection::Http(HttpModelConnection {
+                        protocol: ModelProtocol::OpenaiCompatible,
+                        base_url: base_url.into(),
+                        network: Default::default(),
+                        headers: Default::default(),
+                        bearer: Some("deepchat-grok-admission-v1".into()),
+                        api_key: None,
+                        preset: None,
+                    }),
+                    failure_policy: None,
+                    recovery: None,
+                },
+                OAuthPreset::Grok,
+                Auth {
+                    preset: OAuthPreset::Grok,
+                    bearer: token.into(),
+                    account_id: None,
+                    lease: format!("{:x}", Sha256::digest(token.as_bytes())),
+                },
+            )
+        };
+        let resolved = connect("https://api.x.ai/v1").expect("trusted Grok endpoint");
+        let ModelConnection::Http(http) = resolved.connection else {
+            panic!("expected HTTP connection")
+        };
+        assert_eq!(http.bearer.as_deref(), Some("fixture-oauth"));
+        assert!(resolved.recovery.is_some());
+        assert!(connect("https://api.x.ai.example.com/v1").is_err());
+        assert!(connect("http://api.x.ai/v1").is_err());
+    }
 }

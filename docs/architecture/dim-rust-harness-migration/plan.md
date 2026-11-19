@@ -26,6 +26,8 @@
 - [x] 加密库迁移提示、废弃写入路由清理、同序号历史续传与分步关闭。
 - [x] Native 通过 Electron 持有的 stdin 管道绑定进程生命周期。回归覆盖管道断开后的正常退出、默认确认及自动批准。
 - [x] 将 Native 桌面烟测接入 macOS arm64 verification，覆盖 Code Mode 子调用、媒体及会话恢复。
+- [x] 保留用户插件声明的超时、队列重提交的 provider 轮数上限及混合队列内的排序。
+- [x] 通过现有 Native 凭据恢复边界支持 Grok OAuth，迁移 Gemini、Azure 和 Anthropic 端点形式，并撤下未提供的 DeepSeek 服务商搜索。
 
 ## P0. 基线与已确认决策
 

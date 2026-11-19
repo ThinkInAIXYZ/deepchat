@@ -17,6 +17,39 @@ const aws = (): AWS_BEDROCK_PROVIDER => ({
 })
 const signal = () => new AbortController().signal
 
+it('refreshes a rejected trusted Grok lease while preserving API-key connections', async () => {
+  let bearer = 'first-oauth-token'
+  const ensureAccessToken = vi.fn(async () => bearer)
+  const forceRefreshAccessToken = vi.fn(async () => (bearer = 'rotated-oauth-token'))
+  const owner = new DimProviderCredentials({
+    grokAuth: () => ({ ensureAccessToken, forceRefreshAccessToken })
+  })
+  const provider: LLM_PROVIDER = {
+    id: 'grok',
+    name: 'Grok',
+    apiType: 'grok',
+    baseUrl: 'https://api.x.ai/v1',
+    apiKey: '',
+    enable: true
+  }
+  expect(await owner.resolve(provider, signal())).toBe('deepchat-grok-admission-v1')
+  const first = await owner.connectionAuth(provider, undefined, signal())
+  expect(first).toMatchObject({ preset: 'xai-grok', bearer: 'first-oauth-token' })
+  expect(await owner.connectionAuth(provider, first!.lease, signal())).toMatchObject({
+    bearer: 'rotated-oauth-token'
+  })
+  await owner.connectionAuth(provider, first!.lease, signal())
+  expect(forceRefreshAccessToken).toHaveBeenCalledTimes(1)
+
+  ensureAccessToken.mockRejectedValueOnce(new Error('No OAuth account'))
+  provider.apiKey = 'api-key'
+  expect(await owner.connectionAuth(provider, undefined, signal())).toBeNull()
+  expect(await owner.resolve(provider, signal())).toBe('api-key')
+  provider.baseUrl = 'https://api.x.ai.example.com/v1'
+  expect(await owner.connectionAuth(provider, undefined, signal())).toBeNull()
+  expect(await owner.resolve(provider, signal())).toBe('api-key')
+})
+
 it('passes explicit AWS credentials and session tokens without an SDK credential lookup', async () => {
   const awsChain = vi.fn()
   const owner = new DimProviderCredentials({ awsChain })

@@ -182,22 +182,34 @@ export class DimQueue {
     itemId: string,
     toIndex: number
   ): Promise<PendingSessionInputRecord[]> => {
+    if (!Number.isInteger(toIndex) || toIndex < 0)
+      throw new Error('Invalid native queue destination')
+    const items = await this.listPendingInputs(sessionId)
+    const lane = items.filter((item) => item.mode === 'queue')
+    if (toIndex >= lane.length) throw new Error('Invalid native queue destination')
+    const beforeDestination = lane.filter((item) => item.id !== itemId).slice(0, toIndex)
     if (isDimLegacyDraft(itemId)) {
-      const offset = (await this.listPendingInputs(sessionId)).filter(
-        (item) => !isDimLegacyDraft(item.id)
-      ).length
-      await this.legacy.mutate(sessionId, itemId, 'move', { toIndex: toIndex - offset })
+      const destination = beforeDestination.filter((item) => isDimLegacyDraft(item.id)).length
+      const drafts = items.filter((item) => isDimLegacyDraft(item.id))
+      const visible = drafts.filter((item) => item.mode === 'queue')
+      if (visible.findIndex((item) => item.id === itemId) === destination) return items
+      const next = visible.filter((item) => item.id !== itemId)[destination]
+      const remaining = drafts.filter((item) => item.id !== itemId)
+      await this.legacy.mutate(sessionId, itemId, 'move', {
+        toIndex: next ? remaining.indexOf(next) : remaining.length
+      })
       return this.listPendingInputs(sessionId)
     }
-    const held = await this.held(sessionId, itemId)
-    if (!Number.isInteger(toIndex) || toIndex < 0 || toIndex >= held.length)
-      throw new Error('Invalid native queue destination')
+    const held = this.heldItems(items, itemId)
+    const destination = beforeDestination.filter(
+      (item) => !isDimLegacyDraft(item.id) && item.state === 'pending'
+    ).length
     const index = held.findIndex((item) => item.id === itemId)
-    if (index === toIndex) return this.listPendingInputs(sessionId)
+    if (index === destination) return items
     const ids = held.map((item) => item.id)
     const reordered = [...ids]
-    reordered.splice(toIndex, 0, ...reordered.splice(index, 1))
-    const start = Math.min(index, toIndex)
+    reordered.splice(destination, 0, ...reordered.splice(index, 1))
+    const start = Math.min(index, destination)
     await this.mutate(sessionId, ids.slice(start), reordered.slice(start))
     return this.listPendingInputs(sessionId)
   }
@@ -250,7 +262,10 @@ export class DimQueue {
   }
 
   private async held(sessionId: string, itemId: string) {
-    const held = (await this.listPendingInputs(sessionId)).filter(
+    return this.heldItems(await this.listPendingInputs(sessionId), itemId)
+  }
+  private heldItems(items: PendingSessionInputRecord[], itemId: string) {
+    const held = items.filter(
       (item) => !isDimLegacyDraft(item.id) && item.mode === 'queue' && item.state === 'pending'
     )
     if (!held.some((item) => item.id === itemId))

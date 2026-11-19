@@ -207,7 +207,6 @@ import { DimAuxiliaryModels } from '@/agent/dim/auxiliaryModels'
 import { DimMediaModels } from '@/agent/dim/mediaModels'
 import { DimModality } from '@/agent/dim/modality'
 import { DimProviderCredentials } from '@/agent/dim/providerCredentials'
-import { resolveAiSdkProviderDefinition } from '@/provider/providerRegistry'
 import { DimContent } from '@/agent/dim/content'
 import { DimTimelineInspector } from '@/agent/dim/timelineInspector'
 import { DimScopes } from '@/agent/dim/scopes'
@@ -1048,9 +1047,7 @@ export async function createMainProcessControl(dependencies: {
     grants: sessionData.database.dimProviderGrantsTable,
     credential: (provider, signal) => dimCredentials.resolve(provider, signal),
     connectionAuth: (provider, rejectedLease, signal) =>
-      resolveAiSdkProviderDefinition(provider)?.runtimeKind === 'openai-codex'
-        ? dimCredentials.codexConnection(signal, rejectedLease)
-        : Promise.resolve(null)
+      dimCredentials.connectionAuth(provider, rejectedLease, signal)
   })
   const dimAuxiliary = new DimAuxiliaryModels({
     models: dimModels,

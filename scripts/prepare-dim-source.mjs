@@ -147,12 +147,27 @@ for (const [before, after] of [
 }
 expected +=
   '\n' + (await readFile(path.join(root, 'resources/dim-sdk/provider-connection-host.rs'), 'utf8'))
+const beforeAzureEndpoints = expected
+for (const [before, after] of [
+  [
+    '            || url.password().is_some()\n            || url.query().is_some()\n            || url.fragment().is_some()',
+    '            || url.password().is_some()\n            || (url.query().is_some() && record.driver_kind != "azure-openai")\n            || url.fragment().is_some()'
+  ],
+  [
+    '                || url.path().trim_end_matches(\'/\') != "/openai")',
+    '                || !drivers::valid_azure_endpoint(&url))'
+  ]
+]) {
+  if (expected.split(before).length !== 2) throw new Error('Native Azure endpoint seam changed')
+  expected = expected.replace(before, after)
+}
 const current = await readFile(path.join(directory, filename), 'utf8')
 if (
   current !== original &&
   current !== assembled &&
   current !== headersExpected &&
   current !== activityExpected &&
+  current !== beforeAzureEndpoints &&
   current !== expected
 )
   throw new Error('Pinned dim provider source has unexpected changes')
@@ -249,6 +264,8 @@ if (commandCurrent !== commandOriginal && commandCurrent !== commandExpected)
 if (commandCurrent !== commandExpected)
   await writeFile(path.join(directory, commandFile), commandExpected)
 const cliFile = 'crates/dim-app-server/src/cli.rs'
+const azureDriversFile = 'crates/dim-app-server/src/provider/drivers.rs'
+const aimuxDriverFile = 'crates/dim-agent-aimux/src/driver.rs'
 git([
   'diff',
   '--exit-code',
@@ -256,6 +273,8 @@ git([
   '.',
   `:!${filename}`,
   `:!${cliFile}`,
+  `:!${azureDriversFile}`,
+  `:!${aimuxDriverFile}`,
   `:!${assemblyFile}`,
   `:!${secretsFile}`,
   `:!${servicesFile}`,
@@ -598,6 +617,56 @@ if (cliCurrent !== cliOriginal && cliCurrent !== cliExpected)
   throw new Error('Pinned native CLI has unexpected changes')
 if (cliCurrent !== cliExpected) await writeFile(path.join(directory, cliFile), cliExpected)
 
+const endpointPatches = []
+for (const [file, before, after] of [
+  [
+    azureDriversFile,
+    '        format!("{base}/v1")',
+    `        let mut url = reqwest::Url::parse(base).expect("validated Azure endpoint");
+        if url.path().trim_end_matches('/') == "/openai" {
+            url.set_path("/openai/v1");
+        }
+        url.to_string()`
+  ],
+  [
+    aimuxDriverFile,
+    '    if base_url.ends_with("/v1") {',
+    `    if let Some(base) = base_url.strip_suffix("/messages") {
+        base.to_owned()
+    } else if base_url.ends_with("/v1") {`
+  ]
+]) {
+  const original = git(['show', `HEAD:${file}`]) + '\n'
+  if (original.split(before).length !== 2) throw new Error('Native endpoint routing seam changed')
+  let expected = original.replace(before, after)
+  if (file === azureDriversFile) {
+    expected += `
+// Provider owns the endpoint allowlist; the transport carries only its API-version query.
+pub(super) fn valid_azure_endpoint(url: &reqwest::Url) -> bool {
+    let path = url.path().trim_end_matches('/');
+    let valid_component = |value: &str| {
+        !value.is_empty() && value.len() <= 128 && value.bytes().all(|byte| {
+            byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.')
+        }) && !matches!(value, "." | "..")
+    };
+    if path != "/openai" && !path.strip_prefix("/openai/deployments/").is_some_and(valid_component) {
+        return false;
+    }
+    let mut query = url.query_pairs();
+    match query.next() {
+        None => url.query().is_none(),
+        Some((name, value)) => name == "api-version" && valid_component(&value) && query.next().is_none(),
+    }
+}
+`
+  }
+  const current = await readFile(path.join(directory, file), 'utf8')
+  if (current !== original && current !== expected)
+    throw new Error('Pinned native endpoint driver has unexpected changes')
+  if (current !== expected) await writeFile(path.join(directory, file), expected)
+  endpointPatches.push({ path: file, sha256: digest(expected) })
+}
+
 export const nativeSource = {
   sourceRevision: lock.sourceCommit,
   storeFormat: Number(
@@ -619,6 +688,7 @@ export const nativeSource = {
     { path: historyFile, sha256: digest(historyExpected) },
     { path: googleOptionsFile, sha256: digest(googleOptionsExpected) },
     { path: usageFile, sha256: digest(usageExpected) },
-    { path: cliFile, sha256: digest(cliExpected) }
+    { path: cliFile, sha256: digest(cliExpected) },
+    ...endpointPatches
   ]
 }

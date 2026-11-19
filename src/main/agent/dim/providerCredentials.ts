@@ -7,11 +7,13 @@ import {
   type CopilotTokenResponse
 } from '@/provider/auth/githubCopilotDeviceFlow'
 import { getGlobalOpenAICodexAuth, type OpenAICodexAuth } from '@/provider/auth/openaiCodex'
+import { getGlobalXaiGrokAuth, type XaiGrokAuth } from '@/provider/auth/xaiGrok'
+import { shouldUseXaiGrokOAuthFetch } from '@/provider/xaiGrokAuthAdapter'
 import { resolveAiSdkProviderDefinition } from '@/provider/providerRegistry'
 import type { DimCredential } from './modelCatalog'
 
 export interface DimOAuthConnection {
-  preset: 'openai-codex'
+  preset: 'openai-codex' | 'xai-grok'
   bearer: string
   accountId?: string
   lease: string
@@ -23,6 +25,7 @@ interface CredentialOptions {
   now?: () => number
   vertexAuth?: (options: GoogleAuthOptions) => Pick<GoogleAuth, 'getAccessToken'>
   codexAuth?: () => Pick<OpenAICodexAuth, 'getBackendAuth' | 'forceRefreshBackendAuth'>
+  grokAuth?: () => Pick<XaiGrokAuth, 'ensureAccessToken' | 'forceRefreshAccessToken'>
 }
 
 /** Authentication only. Native ProviderSecretHost owns each model connection. */
@@ -45,6 +48,9 @@ export class DimProviderCredentials {
       let credential: DimCredential
       if (resolveAiSdkProviderDefinition(provider)?.runtimeKind === 'openai-codex') {
         credential = (await this.codexConnection(signal)).bearer
+      } else if (shouldUseXaiGrokOAuthFetch(provider)) {
+        // The native connection host replaces this marker before any provider request.
+        credential = provider.apiKey || 'deepchat-grok-admission-v1'
       } else if (provider.apiType === 'aws-bedrock' || provider.id === 'aws-bedrock') {
         credential = await this.bedrock(provider as AWS_BEDROCK_PROVIDER)
       } else if (provider.apiType === 'github-copilot' || provider.id === 'github-copilot') {
@@ -61,6 +67,43 @@ export class DimProviderCredentials {
       signal.throwIfAborted()
       throw new Error('Provider credential is unavailable')
     }
+  }
+
+  async connectionAuth(
+    provider: LLM_PROVIDER,
+    rejectedLease: string | undefined,
+    signal: AbortSignal
+  ) {
+    if (resolveAiSdkProviderDefinition(provider)?.runtimeKind === 'openai-codex')
+      return this.codexConnection(signal, rejectedLease)
+    if (shouldUseXaiGrokOAuthFetch(provider))
+      return this.grokConnection(provider, signal, rejectedLease)
+    return null
+  }
+
+  private async grokConnection(
+    provider: LLM_PROVIDER,
+    signal: AbortSignal,
+    rejectedLease?: string
+  ): Promise<DimOAuthConnection | null> {
+    signal.throwIfAborted()
+    const auth = (this.options.grokAuth ?? getGlobalXaiGrokAuth)()
+    let bearer: string | null
+    try {
+      bearer = await auth.ensureAccessToken()
+      signal.throwIfAborted()
+      if (bearer && rejectedLease === createHash('sha256').update(bearer).digest('hex')) {
+        bearer = await auth.forceRefreshAccessToken()
+        signal.throwIfAborted()
+      }
+    } catch (error) {
+      signal.throwIfAborted()
+      if (!rejectedLease && provider.apiKey) return null
+      throw error
+    }
+    return bearer
+      ? { preset: 'xai-grok', bearer, lease: createHash('sha256').update(bearer).digest('hex') }
+      : null
   }
 
   /** The native recovery owner supplies a rejected lease only after an authorized 401. */

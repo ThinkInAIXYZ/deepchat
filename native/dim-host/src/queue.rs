@@ -73,9 +73,10 @@ async fn transitions(
     )
     .await
 }
-async fn representations(
+async fn input_facts(
     metadata: &DeepChatInputMetadata,
     inputs: &[Arc<AgentEvent>],
+    fact: &str,
 ) -> Result<BTreeMap<String, Value>, RpcError> {
     let submissions: Vec<_> = inputs
         .iter()
@@ -90,7 +91,7 @@ async fn representations(
     let facts = events(
         &metadata.timeline,
         and(vec![
-            extension("input-representation"),
+            extension(fact),
             one_of("data.submissionId", json!(submissions)),
         ]),
     )
@@ -117,7 +118,7 @@ async fn list(metadata: &DeepChatInputMetadata) -> Result<Value, RpcError> {
             _ => None,
         })
         .collect();
-    let representations = representations(metadata, &inputs).await?;
+    let representations = input_facts(metadata, &inputs, "input-representation").await?;
     let drafts = crate::legacy_queue::list(metadata).await?;
     Ok(json!({"inputs":inputs.iter().map(|event| {
         let EventKind::InputMessage(input) = &event.kind else { unreachable!() };
@@ -282,7 +283,8 @@ async fn finish(
         .ok_or_else(|| invalid("Invalid queue recovery stage"))?;
     let order: Vec<String> = serde_json::from_value(ready["order"].clone())
         .map_err(|_| invalid("Invalid queue recovery order"))?;
-    let reprs = representations(metadata, &source_events).await?;
+    let reprs = input_facts(metadata, &source_events, "input-representation").await?;
+    let limits = input_facts(metadata, &source_events, "provider-round-limit").await?;
     let mut inputs = Vec::new();
     for id in &order {
         let event = originals
@@ -320,6 +322,17 @@ async fn finish(
         if let Some(mut value) = representation {
             value["submissionId"] = json!(submission);
             append(&metadata.timeline, "input-representation", value)?;
+        }
+        if let Some(limit) = original
+            .submission_id
+            .as_ref()
+            .and_then(|id| limits.get(id))
+        {
+            append(
+                &metadata.timeline,
+                "provider-round-limit",
+                json!({"submissionId":submission,"limit":limit["limit"]}),
+            )?;
         }
         inputs.push(input);
     }

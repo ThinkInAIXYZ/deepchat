@@ -60,7 +60,8 @@ export class DimPluginHooks {
     scope.assertCurrent()
     const reply: DimProductContextReply = { messages: [], receipts: [] }
     const caller = signal
-    const deadline = AbortSignal.timeout(10000)
+    // Leave time to return accepted contributions before the native gateway deadline.
+    const deadline = AbortSignal.timeout(55_000)
     signal = AbortSignal.any([signal, deadline])
     let bytes = 0
     const append = (invocation: Invocation) => {
@@ -329,22 +330,26 @@ export class DimPluginHooks {
     signal.addEventListener('abort', cancel, { once: true })
     this.inFlight.add(invocationId)
     try {
-      const result = await client.call<Invocation>('session.deepchat_hooks.run', {
-        ...ref,
-        invocationId,
-        pluginId: source.pluginId,
-        digest: source.digest,
-        hookId: hook.id,
-        boundaryId,
-        messageId,
-        launchId: this.launchId,
-        event: hook.event,
-        matcher,
-        payload,
-        contextBudget,
-        inputTooLarge,
-        ...(retryOf ? { retryOf } : {})
-      })
+      const result = await client.call<Invocation>(
+        'session.deepchat_hooks.run',
+        {
+          ...ref,
+          invocationId,
+          pluginId: source.pluginId,
+          digest: source.digest,
+          hookId: hook.id,
+          boundaryId,
+          messageId,
+          launchId: this.launchId,
+          event: hook.event,
+          matcher,
+          payload,
+          contextBudget,
+          inputTooLarge,
+          ...(retryOf ? { retryOf } : {})
+        },
+        40_000
+      )
       signal.throwIfAborted()
       return result
     } finally {
@@ -500,7 +505,7 @@ export class DimPluginHooks {
         )
     )
       throw new Error('Finish active turns before retrying a hook')
-    const signal = AbortSignal.timeout(10000)
+    const signal = AbortSignal.timeout(40_000)
     const source = (await this.options.hooks.nativeSources(signal)).find(
       (source) => source.pluginId === pluginId && source.digest === row.invocation.digest
     )

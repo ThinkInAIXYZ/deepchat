@@ -201,6 +201,16 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
       await expect.poll(() => requests.length).toBe(1)
       expect(requests[0]).toContain('Queued beta')
       expect(requests[0]).not.toContain('Retry only once')
+      await queue.queuePendingInput('legacy', { text: 'Native one' })
+      await queue.queuePendingInput('legacy', { text: 'Native two' })
+      const mixed = await queue.listPendingInputs('legacy')
+      const first = mixed.find((item) => item.payload.text === 'Native one')!
+      const reordered = await queue.moveQueuedInput('legacy', first.id, mixed.length - 1)
+      const afterLegacyDrag = await queue.moveQueuedInput('legacy', 'legacy-queue:retry', 0)
+      expect(afterLegacyDrag).toEqual(reordered)
+      const temporary = reordered.filter((item) => item.payload.text.startsWith('Native '))
+      expect(temporary.map((item) => item.payload.text)).toEqual(['Native two', 'Native one'])
+      for (const item of temporary) await queue.deletePendingInput('legacy', item.id)
       await Promise.all([
         queue.retryPendingQueueInput('legacy', 'legacy-queue:retry'),
         queue.retryPendingQueueInput('legacy', 'legacy-queue:retry')

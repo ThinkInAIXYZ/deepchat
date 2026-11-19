@@ -1831,6 +1831,11 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
           JSON.parse(grants.data.deepchatMessagesTable.get('legacy-user')!.metadata)
             .legacyAnnotation
         ).toBe(legacyText)
+        expect(
+          (await new DimContent(host).transcript(legacyRef, legacyProduct)).messages
+            .slice(0, 3)
+            .map((message) => message.id)
+        ).toEqual(oldMessages.map((message) => message.id))
         expect(importFailures).toEqual([])
         await expect(readFile(path.join(profile, 'legacy-never-run.txt'))).rejects.toMatchObject({
           code: 'ENOENT'
@@ -2591,6 +2596,21 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
           tool_call: { response: expect.stringContaining('DIM_NATIVE_EXEC_OK') }
         })
         const cappedPrompt = 'verify scheduled provider round limit'
+        heldQueueResponse = null
+        holdQueue = true
+        await facade.backend.send(facadeId, { content: { text: 'hold before scheduled input' } })
+        await expect.poll(() => Boolean(heldQueueResponse)).toBe(true)
+        const capped = await facade.backend.queuePendingInput(
+          facadeId,
+          { text: 'scheduled input' },
+          {
+            maxProviderRounds: 1
+          }
+        )
+        await facade.backend.queuePendingInput(facadeId, { text: 'temporary input' })
+        const reordered = await facade.backend.moveQueuedInput(facadeId, capped.id, 1)
+        await facade.backend.updateQueuedInput(facadeId, reordered[1].id, { text: cappedPrompt })
+        await facade.backend.deletePendingInput(facadeId, reordered[0].id)
         nextTools = [
           {
             id: 'capped-tool-call',
@@ -2599,11 +2619,10 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
           }
         ]
         const providerCallsBeforeCap = conversationRequests().length
-        await facade.backend.send(facadeId, {
-          content: { text: cappedPrompt },
-          context: { maxProviderRounds: 1 },
-          queue: { source: 'send' }
-        })
+        const held = heldQueueResponse as unknown as ServerResponse
+        held.end(
+          `data: ${JSON.stringify({ id: 'held', object: 'chat.completion.chunk', model: 'fixture', created: 0, choices: [{ index: 0, delta: { role: 'assistant', content: 'Held response' }, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`
+        )
         await facade.runtime.waitIdle(facadeId)
         expect(conversationRequests().slice(providerCallsBeforeCap)).toHaveLength(1)
         const cappedMessage = grants.data.deepchatMessagesTable.getBySession(facadeId).at(-1)
