@@ -4,16 +4,20 @@ Status: maintained contract.
 
 ## Ownership
 
-Provider code lives in `src/main/provider/`:
+DeepChat owns provider configuration, credentials, and catalog metadata in `src/main/provider/`:
 
-- `defaults.ts` and provider database define display/config/model metadata;
-- `providerRegistry.ts` maps a provider profile to a known runtime, model source, check strategy and
+- `defaults.ts` defines provider presets and PublicProviderConf supplies shared model metadata;
+- `providerRegistry.ts` maps a provider profile to a known transport, model source, check strategy and
   auth kind;
-- `index.ts` owns provider/model settings and runtime instances;
-- `aiSdk/` maps supported HTTP transports;
-- `providers/` contains behavior that exceeds a generic transport;
+- `index.ts` owns provider/model settings and provider management instances;
+- `providerTransport.ts` selects the wire protocol, including per-model routing for aggregators;
+- `providers/` implements discovery, connection checks, and other desktop provider management;
 - `auth/` owns OAuth/device flows and encrypted credential storage;
 - `routes.ts` exposes typed renderer operations.
+
+For the built-in agent, `src/main/agent/dim/modelCatalog.ts` maps the selected protocol to a
+native driver and applies the model configuration. Dim owns request construction, streaming and
+retries. DeepChat uses the driver shipped with its pinned Dim runtime.
 
 Renderer code selects and configures providers but never owns API keys, OAuth refresh tokens or provider
 instances.
@@ -30,9 +34,10 @@ Adding a provider is an explicit reviewed source change, not a runtime npm/plugi
 5. request headers, endpoint rewrites or capability exceptions;
 6. renderer icon/config and focused tests.
 
-Prefer an existing OpenAI-compatible/Anthropic/AI SDK transport when wire behavior matches. Add a
-special adapter only when auth, request shape, discovery, streaming or error semantics differ. Do not infer
-runtime behavior from package names and do not install arbitrary SDKs dynamically.
+Use an existing Dim driver when wire behavior matches. A new DeepChat provider ID can reuse the
+driver independently of Dim's provider catalog. Implement provider-specific discovery and auth in
+DeepChat. A new wire protocol or unsupported feature requires driver support in Dim. Do not infer
+runtime behavior from package names or install arbitrary SDKs dynamically.
 
 API-key profiles such as NVIDIA, Hugging Face, Moonshot, StepFun, Upstage, Alibaba, MiniMax, DaoXE,
 Kimi For Coding and OpenCode Go remain catalog/registry mappings unless they need a real special adapter.
@@ -79,7 +84,8 @@ passing through unless an explicit model request policy requires a different wir
 - Refresh is single-flight and persists rotated credentials before they replace the active instance.
 - Browser OAuth uses `shell.openExternal` plus loopback callback when supported; paste/device fallback is
   provider-specific and must be explicit.
-- AbortSignal, proxy, timeout and provider error mapping must survive every adapter layer.
+- The native model configuration carries opaque references for credentials and protected headers.
+  Dim resolves them at request time through the DeepChat connection owner.
 
 ## Fireworks
 
@@ -178,9 +184,9 @@ its dedicated runtime catalog; manual refresh remains available.
 
 ## Validation
 
-Provider work must test registry mapping, defaults/import, auth redaction/refresh, request adapter, model
-catalog/check and renderer configuration where affected. Existing providers must remain unchanged unless the
-spec explicitly includes a migration.
+Verify registry mapping, defaults/import, auth redaction/refresh, model discovery and renderer
+configuration where affected. For changes to request routing or driver behavior, verify a built-in
+agent request through Dim in addition to any separate provider connection check.
 
 Non-goals: runtime provider manifests, renderer-owned credentials, automatic SDK installation and provider
 behavior inferred from external catalogs.

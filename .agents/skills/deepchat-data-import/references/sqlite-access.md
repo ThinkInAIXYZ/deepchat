@@ -1,12 +1,13 @@
 # SQLite Access And Encryption
 
-Use this reference before opening `agent.db` or `chat.db`.
+Use this reference before opening `agent.db` or `chat.db`. Current DeepChat profiles use
+plain SQLite for `agent.db`. SQLCipher support applies to legacy databases and backups.
 
 ## Decision Tree
 
-1. Locate `database-security.json`.
-2. If the file is absent or `metadata.enabled !== true`, open `agent.db` as plain SQLite.
-3. If `metadata.enabled === true`, open with SQLCipher using the DeepChat SQLite password.
+1. Locate `database-security.json` for a profile or read `databaseEncrypted` in the backup manifest.
+2. When neither indicates encryption, open `agent.db` as plain SQLite.
+3. For an encrypted source, open with SQLCipher using the DeepChat SQLite password.
 4. If `metadata.passwordStorage === "safeStorage"` and `wrappedPassword` exists, first try an
    Electron safeStorage helper.
 5. If safeStorage is unavailable, decryption fails, or the importing runtime is not Electron, ask the

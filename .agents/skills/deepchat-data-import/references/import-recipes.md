@@ -2,7 +2,14 @@
 
 Use this reference when turning DeepChat data into an importer or migration tool.
 
-## Minimal Read-Only Export
+## Native Sessions
+
+For a readable transcript, use DeepChat's session export. For an import that needs raw events,
+attachments, or restorable history, keep the version 3 backup with its native payload. Restore
+with DeepChat, then read through the app's export or native history interfaces. A copied
+`agent.db` alone may only contain a projection for sessions with a `dim_session_bindings` row.
+
+## Read-Only App Data And Legacy Transcript Export
 
 1. Locate and snapshot `agent.db`.
 2. Open it with the flow in `sqlite-access.md`.
@@ -104,9 +111,9 @@ Avoid third-party direct writes to a user's live DeepChat database.
 If a tool must generate data for DeepChat:
 
 - Prefer creating an export file or backup package that DeepChat can import through its own code.
-- If implementing inside DeepChat, use Presenter/table helpers instead of raw SQL.
-- If writing a copied database for controlled migration tests, use one transaction per session and
-  keep table groups consistent:
+- If implementing inside DeepChat, use the owning session and provider services.
+- For a controlled legacy migration fixture, use one transaction per session and keep table
+  groups consistent:
   - `new_sessions`
   - `deepchat_sessions`
   - `deepchat_messages`
