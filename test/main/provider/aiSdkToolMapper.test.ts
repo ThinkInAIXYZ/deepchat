@@ -163,6 +163,100 @@ describe('AI SDK tool schema normalization', () => {
     })
   })
 
+  it('intersects overlapping allOf property constraints', () => {
+    const lowerBound = { type: 'integer', minimum: 1 }
+    const upperBound = { type: 'integer', maximum: 100 }
+    const normalized = normalizeToolInputSchema({
+      type: 'object',
+      allOf: [
+        { type: 'object', properties: { limit: lowerBound }, required: ['limit'] },
+        { type: 'object', properties: { limit: upperBound }, required: ['limit'] }
+      ]
+    })
+
+    expect(normalized.properties).toEqual({ limit: { allOf: [lowerBound, upperBound] } })
+    expect(normalized.required).toEqual(['limit'])
+    expect(normalized).not.toHaveProperty('allOf')
+  })
+
+  it('intersects root properties with allOf branch properties', () => {
+    const root = { type: 'integer', minimum: 1 }
+    const first = { type: 'integer', maximum: 100 }
+    const second = { type: 'integer', multipleOf: 10 }
+    const normalized = normalizeToolInputSchema({
+      type: 'object',
+      properties: { limit: root },
+      allOf: [
+        { type: 'object', properties: { limit: first } },
+        { type: 'object', properties: { limit: second } }
+      ]
+    })
+
+    expect(normalized.properties).toEqual({
+      limit: {
+        allOf: [root, { allOf: [first, second] }]
+      }
+    })
+  })
+
+  it.each(['anyOf', 'oneOf'])(
+    'preserves %s behavior when a branch omits the root property',
+    (composition) => {
+      const root = { type: 'integer' }
+      const branch = { type: 'integer', minimum: 10 }
+      const normalized = normalizeToolInputSchema({
+        type: 'object',
+        properties: { limit: root },
+        [composition]: [
+          { type: 'object', properties: { limit: branch } },
+          { type: 'object', properties: { query: { type: 'string' } } }
+        ]
+      })
+
+      expect(normalized.properties).toEqual({
+        limit: { anyOf: [root, branch] },
+        query: { type: 'string' }
+      })
+    }
+  )
+
+  it('does not widen conflicting allOf constants to an enum', () => {
+    const first = { type: 'string', const: 'create' }
+    const second = { type: 'string', const: 'delete' }
+    const normalized = normalizeToolInputSchema({
+      type: 'object',
+      allOf: [
+        { type: 'object', properties: { action: first } },
+        { type: 'object', properties: { action: second } }
+      ]
+    })
+
+    expect(normalized.properties).toEqual({ action: { allOf: [first, second] } })
+  })
+
+  it.each([
+    [false, { type: 'string' }],
+    [{ type: 'string' }, false],
+    [true, false],
+    [false, true]
+  ])('preserves boolean property intersections for %j and %j', (first, second) => {
+    const normalizedBranches = normalizeToolInputSchema({
+      type: 'object',
+      allOf: [
+        { type: 'object', properties: { value: first } },
+        { type: 'object', properties: { value: second } }
+      ]
+    })
+    const normalizedRoot = normalizeToolInputSchema({
+      type: 'object',
+      properties: { value: first },
+      allOf: [{ type: 'object', properties: { value: second } }]
+    })
+
+    expect(normalizedBranches.properties).toEqual({ value: { allOf: [first, second] } })
+    expect(normalizedRoot.properties).toEqual({ value: { allOf: [first, second] } })
+  })
+
   it('lifts local definitions from composition branches', () => {
     const normalized = normalizeToolInputSchema({
       anyOf: [
