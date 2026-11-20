@@ -472,6 +472,10 @@ Common commands include `/start`, `/help`, `/pair`, `/new`, `/sessions`, `/use`,
       <img src="./src/renderer/src/assets/llm-icons/wiro.svg" width="50" height="50" alt="Wiro AI Icon"><br/>
       <a href="https://wiro.ai/">Wiro AI</a>
     </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/worldrouter.svg" width="50" height="50" alt="WorldRouter Icon"><br/>
+      <a href="https://www.worldrouter.ai/">WorldRouter</a>
+    </td>
   </tr>
 
 </table>

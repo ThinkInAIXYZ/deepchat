@@ -455,6 +455,25 @@ describe('DEFAULT_PROVIDERS', () => {
     )
   })
 
+  it('includes WorldRouter as a disabled built-in OpenAI-compatible provider', () => {
+    expect(DEFAULT_PROVIDERS).toContainEqual(
+      expect.objectContaining({
+        id: 'worldrouter',
+        name: 'WorldRouter',
+        apiType: 'openai-completions',
+        baseUrl: 'https://inference-api.worldrouter.ai/v1',
+        enable: false,
+        websites: expect.objectContaining({
+          official: 'https://www.worldrouter.ai/',
+          apiKey: 'https://www.worldrouter.ai/',
+          docs: 'https://www.worldrouter.ai/docs/quickstart',
+          models: 'https://www.worldrouter.ai/models',
+          defaultBaseUrl: 'https://inference-api.worldrouter.ai/v1'
+        })
+      })
+    )
+  })
+
   it('includes llm.buzz as a disabled built-in OpenAI-compatible provider', () => {
     expect(DEFAULT_PROVIDERS).toContainEqual(
       expect.objectContaining({
