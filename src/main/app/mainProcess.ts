@@ -84,7 +84,7 @@ export async function startMainProcess(
     const startupDatabase = database
     if (
       startupDatabase.getDatabasePassword() &&
-      !(await splashWindow.showDatabaseMigrationNotice())
+      !(await splashWindow.showDatabaseMigrationNotice(startupDatabase.getDatabasePath()))
     ) {
       startupDatabase.close()
       await splashWindow.close()

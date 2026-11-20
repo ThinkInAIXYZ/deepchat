@@ -202,7 +202,7 @@ export class SplashWindow {
     })
   }
 
-  async showDatabaseMigrationNotice(): Promise<boolean> {
+  async showDatabaseMigrationNotice(databasePath: string): Promise<boolean> {
     this.forceShowSplash({ skipDelay: true })
     if (!this.isVisible()) await this.splashLoadPromise
     const labels = getBestMatchTranslation(app.getLocale(), databaseMigrationTranslations)
@@ -210,7 +210,7 @@ export class SplashWindow {
       type: 'warning',
       title: app.getName(),
       message: labels.title,
-      detail: labels.detail,
+      detail: labels.detail.replace('{backup}', () => `${databasePath}.legacy-encrypted.*.bak`),
       buttons: [labels.continue, labels.quit],
       defaultId: 1,
       cancelId: 1

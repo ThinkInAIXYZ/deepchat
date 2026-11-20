@@ -195,14 +195,14 @@ describe('SplashWindow display gating', () => {
     const splash = createdWindows[0]
     splash.emit('ready-to-show')
 
-    await manager.showDatabaseMigrationNotice()
+    await manager.showDatabaseMigrationNotice('/profiles/work/app_db/agent.db')
 
     expect(splash.visible).toBe(true)
     expect(showMessageBox).toHaveBeenCalledWith(
       splash,
       expect.objectContaining({
         type: 'warning',
-        detail: expect.stringContaining('未加密'),
+        detail: expect.stringContaining('/profiles/work/app_db/agent.db.legacy-encrypted.*.bak'),
         buttons: ['继续', '退出'],
         cancelId: 1
       })
