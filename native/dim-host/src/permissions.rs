@@ -6,9 +6,10 @@ use dim_agent_capabilities::{
         ToolAdviceRequest,
     },
     prompt_state::PromptSnapshot,
+    tool_binding::ToolBinding,
 };
-use dim_agent_runtime::{AgentBuilder, Feature, Names, SessionIdentity, StateCell};
-use dim_agent_types::{BranchSource, PermissionPreset};
+use dim_agent_runtime::{AgentBuilder, Feature, Names, SessionIdentity, StateCell, Timeline};
+use dim_agent_types::{ApprovalRequestData, BranchSource, EventKind, PermissionPreset};
 use rutis::Ctx;
 use rutis::host::{BoxFuture, CtxHost, DynPlugin, Effect, Key, TypeKey};
 use serde_json::json;
@@ -29,6 +30,8 @@ pub fn install(builder: &mut AgentBuilder) {
 }
 struct Consent {
     permission: Key<Permission>,
+    binding: Key<ToolBinding>,
+    timeline: Key<Timeline>,
     prompt: Key<StateCell<PromptSnapshot>>,
     policy: Key<StateCell<PermissionState>>,
     identity: Key<SessionIdentity>,
@@ -37,6 +40,8 @@ impl Consent {
     fn new(names: &Names<'_>) -> rutis::Result<Self> {
         Ok(Self {
             permission: names.key()?,
+            binding: names.key()?,
+            timeline: names.key()?,
             prompt: names.state_cell()?,
             policy: names.state_cell()?,
             identity: names.key()?,
@@ -153,6 +158,20 @@ async fn review(
         _ => ask(),
     })
 }
+fn bridged_tool_label(request: &ApprovalRequestData, binding: &ToolBinding) -> Option<String> {
+    let BranchSource::Tool { request_id, .. } = &request.source else {
+        return None;
+    };
+    if !request.call.name.starts_with("deepchat_mcp_") {
+        return None;
+    }
+    let tool = binding.handler(request_id, &request.call.name).ok()?;
+    let metadata = &tool.definition.metadata.as_ref()?.extensions;
+    let server = metadata.get("deepchatServer")?.as_str()?;
+    let name = metadata.get("deepchatMcpTool")?.as_str()?;
+    Some(format!("{server} / {name}"))
+}
+
 impl DynPlugin for Consent {
     fn name(&self) -> &str {
         "DeepChatConsent"
@@ -160,6 +179,8 @@ impl DynPlugin for Consent {
     fn injects(&self) -> Vec<TypeKey> {
         vec![
             self.permission.erase(),
+            self.binding.erase(),
+            self.timeline.erase(),
             self.prompt.erase(),
             self.policy.erase(),
             self.identity.erase(),
@@ -167,6 +188,25 @@ impl DynPlugin for Consent {
     }
     fn apply<'a>(&'a self, ctx: &'a Ctx) -> BoxFuture<'a, rutis::Result<Effect>> {
         Box::pin(async move {
+            let binding = ctx.require_at(&self.binding)?;
+            ctx.require_at(&self.timeline)?.before(
+                ctx,
+                "deepchat-mcp-consent",
+                &["approval/request"],
+                move |mut draft| {
+                    if let EventKind::ApprovalRequest(request) = &mut draft.kind
+                        && let Some(label) = bridged_tool_label(request, &binding)
+                    {
+                        // Persist the pinned label for replay; policy, hooks and dispatch use call.name.
+                        request.reason = request.reason.replace(&request.call.name, &label);
+                        draft
+                            .tags
+                            .get_or_insert_default()
+                            .push(format!("deepchat:mcp-tool:{label}"));
+                    }
+                    Ok(draft)
+                },
+            )?;
             ctx.require_at(&self.permission)?.register_advice(
                 ctx,
                 "deepchat-consent",

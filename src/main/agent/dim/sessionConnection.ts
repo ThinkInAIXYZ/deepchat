@@ -10,6 +10,7 @@ export interface DimEvent {
   id: string
   sequence: number | string
   create_at: number
+  tags?: string[]
   parent_call_id?: string
   type: string
   name: string

@@ -261,7 +261,13 @@ export function projectDimEvent(
   const metadata = JSON.parse(original.metadata) as MessageMetadata
   let changed = false
   if (key === 'approval/request' && typeof event.data.approval_id === 'string') {
-    const call = event.data.call
+    const raw = event.data.call
+    const call = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : undefined
+    const name = typeof call?.name === 'string' ? call.name : ''
+    const prefix = 'deepchat:mcp-tool:'
+    const label = name.startsWith('deepchat_mcp_')
+      ? event.tags?.find((tag) => tag.startsWith(prefix))?.slice(prefix.length)
+      : undefined
     blocks.push({
       id: event.data.approval_id,
       type: 'action',
@@ -271,7 +277,8 @@ export function projectDimEvent(
       content: typeof event.data.reason === 'string' ? event.data.reason : '',
       tool_call: {
         id: event.data.approval_id,
-        name: call && typeof call === 'object' && !Array.isArray(call) ? String(call.name) : ''
+        name: label || name,
+        params: JSON.stringify(call?.input)
       },
       extra: { needsUserAction: true, permissionRequest: JSON.stringify(call) }
     })

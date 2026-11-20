@@ -2742,7 +2742,12 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
       let payload = ''
       for await (const chunk of request) payload += chunk
       const body = JSON.parse(payload)
-      const last = body.messages?.at(-1)
+      // Native state can follow the operator's input in a user-role message.
+      const last = body.messages?.findLast(
+        (message: { role: string; content: unknown }) =>
+          message.role !== 'user' ||
+          !(typeof message.content === 'string' && message.content.startsWith('<dim-state '))
+      )
       lastRequestSummary = JSON.stringify({ role: last?.role, content: last?.content }).slice(
         0,
         2048
@@ -2792,7 +2797,8 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
     })
     await new Promise<void>((resolve) => fixture.listen(0, '127.0.0.1', resolve))
     let version = 'one'
-    let names = ['deepchat_echo', 'deepchat_hold']
+    const bridgedName = 'deepchat_mcp_6b942ad9ca21c86f0874f7eec309113c'
+    let names = [bridgedName, 'deepchat_hold']
     const calls: DimProductToolCall[] = []
     let cancelled = false
     const gateway = new DimProductGateway({
@@ -2803,7 +2809,10 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
           description: 'DeepChat native bridge fixture',
           inputSchema: { type: 'object' },
           source: 'extension',
-          risk: 'session'
+          risk: name === bridgedName ? 'product_approval' : 'session',
+          ...(name === bridgedName
+            ? { metadata: { deepchatServer: 'Computer Use', deepchatMcpTool: 'click' } }
+            : {})
         })),
         execute: async (call, signal) => {
           calls.push(call)
@@ -2887,12 +2896,34 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
           content: [{ type: 'text', text }]
         })
       await client.call('session.deepchat_tools.refresh', ref)
-      await send('tool:deepchat_echo {"text":"first"}')
+      await send(`tool:${bridgedName} {"text":"first"}`)
+      const approval = await vi.waitFor(
+        async () => {
+          const { events } = await client.call<{ events: DimEvent[] }>('deepchat.storage.history', {
+            ...ref,
+            limit: 100
+          })
+          const request = events.find(
+            (event) => event.type === 'approval' && event.name === 'request'
+          )
+          expect(request?.data, lastRequestSummary).toMatchObject({
+            call: { name: bridgedName },
+            reason: 'DeepChat requires consent to use Computer Use / click'
+          })
+          return request!.data.approval_id
+        },
+        { timeout: 10_000 }
+      )
+      expect(calls).toHaveLength(0)
+      await new DimSessionControls(host).call('approval', ref, {
+        requestId: approval,
+        decision: 'allow'
+      })
       await expect.poll(() => calls.length, { timeout: 10_000 }).toBe(1)
       await client.call('deepchat.host.idle', ref)
       expect(calls[0]).toMatchObject({
         ...ref,
-        name: 'deepchat_echo',
+        name: bridgedName,
         arguments: { text: 'first' },
         turnId: expect.any(String),
         callId: expect.any(String)
@@ -2927,10 +2958,17 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
       }
       expect(JSON.parse([...transcript.values()][1].content)).toContainEqual(
         expect.objectContaining({
+          action_type: 'tool_call_permission',
+          status: 'granted',
+          tool_call: { id: approval, name: 'Computer Use / click', params: '{"text":"first"}' }
+        })
+      )
+      expect(JSON.parse([...transcript.values()][1].content)).toContainEqual(
+        expect.objectContaining({
           type: 'tool_call',
           status: 'success',
           tool_call: expect.objectContaining({
-            name: 'deepchat_echo',
+            name: bridgedName,
             response: expect.stringContaining('product: first')
           })
         })
