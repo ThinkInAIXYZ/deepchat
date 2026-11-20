@@ -1,6 +1,10 @@
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { AssistantMessageBlock, ChatMessageRecord } from '@shared/types/agent-interface'
-import type { DimToolReviewDecision, DimToolReviewRequest } from '../productGateway'
+import type {
+  DimProductToolDefinition,
+  DimToolReviewDecision,
+  DimToolReviewRequest
+} from '../productGateway'
 import {
   AUTO_APPROVE_REVIEW_MAX_RECENT_MESSAGES,
   reviewAutoApproveToolPermission,
@@ -22,50 +26,61 @@ export interface DimToolReviewOptions {
     assertCurrent(): void
   }>
   messages(sessionId: string): ChatMessageRecord[] | Promise<ChatMessageRecord[]>
-  bridgedTool?(
-    nativeSessionId: string,
-    name: string
-  ): Promise<{ name: string; serverName: string } | null>
+  catalog(
+    nativeSessionId: string
+  ): Promise<{ tools: Pick<DimProductToolDefinition, 'name' | 'metadata'>[] }>
 }
 
-function reviewMessages(record: ChatMessageRecord): ChatMessage[] {
+type BridgedTool = { name: string; serverName: string }
+
+async function reviewMessages(
+  record: ChatMessageRecord,
+  bridgedTool: (name: string) => Promise<BridgedTool | undefined>
+): Promise<ChatMessage[]> {
   const text = (content: string): ChatMessage[] => [{ role: record.role, content }]
+  let parsed: unknown
   try {
-    const parsed = JSON.parse(record.content) as unknown
-    if (typeof parsed === 'string') return text(parsed)
-    if (record.role === 'user') {
-      const content = (parsed as { text?: unknown } | null)?.text
-      return typeof content === 'string' ? text(content) : []
-    }
-    if (!Array.isArray(parsed)) return []
-    return (parsed as AssistantMessageBlock[]).flatMap((block): ChatMessage[] => {
-      if (!block) return []
-      if (block.type === 'tool_call' && typeof block.tool_call?.response === 'string') {
-        const call = block.tool_call
-        const name = call.name ?? 'unknown tool'
-        return [
-          {
-            role: 'tool',
-            tool_call_id: call.id,
-            content: truncateReviewText(
-              `${name} ${block.status === 'error' ? 'error' : 'result'}:\n${call.response}`,
-              undefined,
-              'head-and-tail'
-            )
-          }
-        ]
-      }
-      if ((block.type === 'content' || block.type === 'error') && typeof block.content === 'string')
-        return text(block.content)
-      return []
-    })
+    parsed = JSON.parse(record.content)
   } catch {
     return text(record.content)
   }
-}
-
-function recentMessages(records: ChatMessageRecord[]): ChatMessage[] {
-  return records.slice(-AUTO_APPROVE_REVIEW_MAX_RECENT_MESSAGES).flatMap(reviewMessages)
+  if (typeof parsed === 'string') return text(parsed)
+  if (record.role === 'user') {
+    const content = (parsed as { text?: unknown } | null)?.text
+    return typeof content === 'string' ? text(content) : []
+  }
+  if (!Array.isArray(parsed)) return []
+  const messages: ChatMessage[] = []
+  for (const block of parsed as AssistantMessageBlock[]) {
+    if (!block) continue
+    if (block.type === 'tool_call' && typeof block.tool_call?.response === 'string') {
+      const call = block.tool_call
+      let name = call.name ?? 'unknown tool'
+      if (typeof name === 'string' && name.startsWith('deepchat_mcp_')) {
+        if (typeof block.extra?.toolName === 'string' && block.extra.toolName) {
+          name = block.extra.toolName
+        } else {
+          const tool = await bridgedTool(name)
+          if (tool) name = `${tool.serverName} / ${tool.name}`
+        }
+      }
+      messages.push({
+        role: 'tool',
+        tool_call_id: call.id,
+        content: truncateReviewText(
+          `${name} ${block.status === 'error' ? 'error' : 'result'}:\n${call.response}`,
+          undefined,
+          'head-and-tail'
+        )
+      })
+    } else if (
+      (block.type === 'content' || block.type === 'error') &&
+      typeof block.content === 'string'
+    ) {
+      messages.push(...text(block.content))
+    }
+  }
+  return messages
 }
 
 function permissionOf(request: DimToolReviewRequest): ToolPermissionReviewRequest['permission'] {
@@ -90,11 +105,26 @@ export function createDimToolReview(options: DimToolReviewOptions) {
     signal: AbortSignal
   ): Promise<DimToolReviewDecision> => {
     const owner = await options.owner(request.sessionId, signal)
-    const bridged = request.toolName.startsWith('deepchat_mcp_')
-      ? await options.bridgedTool?.(request.sessionId, request.toolName)
-      : undefined
-    if (request.toolName.startsWith('deepchat_mcp_') && !bridged) return 'ask_user'
+    let catalog: ReturnType<DimToolReviewOptions['catalog']> | undefined
+    async function bridgedTool(name: string): Promise<BridgedTool | undefined> {
+      catalog ??= options.catalog(request.sessionId)
+      const metadata = (await catalog).tools.find((tool) => tool.name === name)?.metadata
+      if (
+        typeof metadata?.deepchatMcpTool === 'string' &&
+        typeof metadata.deepchatServer === 'string'
+      )
+        return { name: metadata.deepchatMcpTool, serverName: metadata.deepchatServer }
+      return undefined
+    }
+    const isMcp = request.toolName.startsWith('deepchat_mcp_')
+    const bridged = isMcp ? await bridgedTool(request.toolName) : undefined
+    if (isMcp && !bridged) return 'ask_user'
     const records = await options.messages(owner.sessionId)
+    const messages = await Promise.all(
+      records
+        .slice(-AUTO_APPROVE_REVIEW_MAX_RECENT_MESSAGES)
+        .map((record) => reviewMessages(record, bridgedTool))
+    )
     owner.assertCurrent()
     const toolName = bridged?.name ?? request.toolName
     const result = await reviewAutoApproveToolPermission(
@@ -114,7 +144,7 @@ export function createDimToolReview(options: DimToolReviewOptions) {
       {
         providerId: owner.providerId,
         modelId: owner.modelId,
-        messages: recentMessages(records),
+        messages: messages.flat(),
         signal
       }
     )

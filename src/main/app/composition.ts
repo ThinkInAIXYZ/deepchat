@@ -1048,14 +1048,7 @@ export async function createMainProcessControl(dependencies: {
         }
       },
       messages: (sessionId) => sessionData.transcript.getMessages(sessionId),
-      bridgedTool: async (nativeId, name) => {
-        const catalog = await dimTools.resolve(nativeId)
-        const metadata = catalog.tools.find((tool) => tool.name === name)?.metadata
-        return typeof metadata?.deepchatMcpTool === 'string' &&
-          typeof metadata.deepchatServer === 'string'
-          ? { name: metadata.deepchatMcpTool, serverName: metadata.deepchatServer }
-          : null
-      }
+      catalog: (nativeId) => dimTools.resolve(nativeId)
     }),
     credential: (id, reference, signal) => dimModels.credential(id, reference, signal),
     connectionAuth: (id, modelId, rejectedLease, signal) =>
