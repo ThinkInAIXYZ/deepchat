@@ -1588,6 +1588,20 @@ const PROVIDER_DEFAULTS: LLM_PROVIDER_BASE[] = [
       docs: 'https://astraflow.ucloud.cn/docs',
       models: 'https://astraflow.ucloud.cn/modelverse/playground'
     }
+  },
+  {
+    id: 'worldrouter',
+    name: 'WorldRouter',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://inference-api.worldrouter.ai/v1',
+    enable: false,
+    websites: {
+      official: 'https://www.worldrouter.ai/',
+      apiKey: 'https://www.worldrouter.ai/',
+      docs: 'https://www.worldrouter.ai/docs/quickstart',
+      models: 'https://www.worldrouter.ai/models'
+    }
   }
 ]
 

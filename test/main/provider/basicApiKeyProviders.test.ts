@@ -1109,6 +1109,25 @@ describe('basic API-key provider registrations', () => {
     })
   })
 
+  it('resolves WorldRouter through authenticated OpenAI-compatible model discovery', () => {
+    expect(
+      resolveAiSdkProviderDefinition(
+        createProvider({
+          id: 'worldrouter',
+          name: 'WorldRouter',
+          baseUrl: 'https://inference-api.worldrouter.ai/v1'
+        })
+      )
+    ).toMatchObject({
+      runtimeKind: 'openai-compatible',
+      modelSource: 'openai',
+      checkStrategy: 'fetch-models',
+      credentialStrategy: 'api-key',
+      routeStrategy: 'none',
+      embeddingStrategy: 'none'
+    })
+  })
+
   it('resolves llm.buzz through authenticated OpenAI-compatible model discovery', () => {
     expect(
       resolveAiSdkProviderDefinition(
