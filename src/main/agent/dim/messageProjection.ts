@@ -34,6 +34,10 @@ export function dimProjectionInputKey(input: DimEvent): string {
   return input.id
 }
 
+function toolLabel(event: DimEvent, prefix: string): string | undefined {
+  return event.tags?.find((tag) => tag.startsWith(prefix))?.slice(prefix.length)
+}
+
 /** A desktop read-model fold; none of these decisions can advance dim's execution. */
 export function projectDimEvent(
   binding: DimSessionBinding,
@@ -264,9 +268,8 @@ export function projectDimEvent(
     const raw = event.data.call
     const call = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : undefined
     const name = typeof call?.name === 'string' ? call.name : ''
-    const prefix = 'deepchat:mcp-tool:'
     const label = name.startsWith('deepchat_mcp_')
-      ? event.tags?.find((tag) => tag.startsWith(prefix))?.slice(prefix.length)
+      ? toolLabel(event, 'deepchat:mcp-tool:')
       : undefined
     blocks.push({
       id: event.data.approval_id,
@@ -319,11 +322,13 @@ export function projectDimEvent(
   } else if (key === 'step/tool-call' && Array.isArray(event.data.calls)) {
     for (const value of event.data.calls) {
       if (!value || typeof value !== 'object' || Array.isArray(value)) continue
+      const label = toolLabel(event, `deepchat:mcp-call:${value.name}:`)
       blocks.push({
         id: `${event.data.request_id}:${value.id}`,
         type: 'tool_call',
         extra: {
           dimRequestId: String(event.data.request_id),
+          ...(label ? { toolName: label } : {}),
           ...(event.parent_call_id ? { dimParentCallId: event.parent_call_id } : {})
         },
         status: 'loading',

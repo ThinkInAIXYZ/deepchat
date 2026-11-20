@@ -2967,6 +2967,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
         expect.objectContaining({
           type: 'tool_call',
           status: 'success',
+          extra: expect.objectContaining({ toolName: 'Computer Use / click' }),
           tool_call: expect.objectContaining({
             name: bridgedName,
             response: expect.stringContaining('product: first')

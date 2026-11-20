@@ -9,7 +9,7 @@ use dim_agent_capabilities::{
     tool_binding::ToolBinding,
 };
 use dim_agent_runtime::{AgentBuilder, Feature, Names, SessionIdentity, StateCell, Timeline};
-use dim_agent_types::{ApprovalRequestData, BranchSource, EventKind, PermissionPreset};
+use dim_agent_types::{BranchSource, EventKind, PermissionPreset};
 use rutis::Ctx;
 use rutis::host::{BoxFuture, CtxHost, DynPlugin, Effect, Key, TypeKey};
 use serde_json::json;
@@ -158,14 +158,11 @@ async fn review(
         _ => ask(),
     })
 }
-fn bridged_tool_label(request: &ApprovalRequestData, binding: &ToolBinding) -> Option<String> {
-    let BranchSource::Tool { request_id, .. } = &request.source else {
-        return None;
-    };
-    if !request.call.name.starts_with("deepchat_mcp_") {
+fn bridged_tool_label(binding: &ToolBinding, request_id: &str, name: &str) -> Option<String> {
+    if !name.starts_with("deepchat_mcp_") {
         return None;
     }
-    let tool = binding.handler(request_id, &request.call.name).ok()?;
+    let tool = binding.handler(request_id, name).ok()?;
     let metadata = &tool.definition.metadata.as_ref()?.extensions;
     let server = metadata.get("deepchatServer")?.as_str()?;
     let name = metadata.get("deepchatMcpTool")?.as_str()?;
@@ -191,18 +188,36 @@ impl DynPlugin for Consent {
             let binding = ctx.require_at(&self.binding)?;
             ctx.require_at(&self.timeline)?.before(
                 ctx,
-                "deepchat-mcp-consent",
-                &["approval/request"],
+                "deepchat-mcp-labels",
+                &["approval/request", "step/tool-call"],
                 move |mut draft| {
-                    if let EventKind::ApprovalRequest(request) = &mut draft.kind
-                        && let Some(label) = bridged_tool_label(request, &binding)
-                    {
-                        // Persist the pinned label for replay; policy, hooks and dispatch use call.name.
-                        request.reason = request.reason.replace(&request.call.name, &label);
-                        draft
-                            .tags
-                            .get_or_insert_default()
-                            .push(format!("deepchat:mcp-tool:{label}"));
+                    // Persist pinned labels for replay; policy, hooks and dispatch use call.name.
+                    match &mut draft.kind {
+                        EventKind::ApprovalRequest(request) => {
+                            if let BranchSource::Tool { request_id, .. } = &request.source
+                                && let Some(label) =
+                                    bridged_tool_label(&binding, request_id, &request.call.name)
+                            {
+                                request.reason = request.reason.replace(&request.call.name, &label);
+                                draft
+                                    .tags
+                                    .get_or_insert_default()
+                                    .push(format!("deepchat:mcp-tool:{label}"));
+                            }
+                        }
+                        EventKind::ToolCall(batch) => {
+                            for call in &batch.calls {
+                                if let Some(label) =
+                                    bridged_tool_label(&binding, &batch.request_id, &call.name)
+                                {
+                                    draft
+                                        .tags
+                                        .get_or_insert_default()
+                                        .push(format!("deepchat:mcp-call:{}:{label}", call.name));
+                                }
+                            }
+                        }
+                        _ => {}
                     }
                     Ok(draft)
                 },

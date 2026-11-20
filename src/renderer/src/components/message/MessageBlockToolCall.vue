@@ -398,6 +398,8 @@ const statusVariant = computed(() => {
 
 const functionLabel = computed(() => {
   const toolCall = props.block.tool_call
+  if (toolCall?.name?.startsWith('deepchat_mcp_') && props.block.extra?.toolName)
+    return props.block.extra.toolName
   return toolCall?.name ?? ''
 })
 
