@@ -254,14 +254,27 @@
               @click="prepareChatWorkspace"
             />
           </div>
-          <p
+          <div
             v-if="selectedProjectDirectoryInvalid"
-            data-testid="new-thread-workdir-status"
-            role="status"
-            class="mt-1 px-2.5 text-xs text-muted-foreground break-words"
+            class="mt-1 flex flex-wrap items-center gap-x-2 px-2.5 text-xs"
           >
-            {{ selectedProjectUnavailableTooltip }}
-          </p>
+            <p
+              data-testid="new-thread-workdir-status"
+              role="status"
+              class="min-w-0 break-all text-muted-foreground"
+            >
+              {{ selectedProjectUnavailableTooltip }}
+            </p>
+            <DcButton
+              data-testid="new-thread-replace-folder"
+              variant="link"
+              size="sm"
+              class="h-auto px-0 text-xs"
+              @click="handleOpenFolderPicker"
+            >
+              {{ t('common.project.openFolder') }}
+            </DcButton>
+          </div>
         </div>
       </div>
 

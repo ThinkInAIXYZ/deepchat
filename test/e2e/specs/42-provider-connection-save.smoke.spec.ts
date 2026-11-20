@@ -180,6 +180,11 @@ test('connection saving does not depend on the fixed probe model @smoke', async 
     await page.screenshot({ path: testInfo.outputPath('connection-verified.png') })
     await page.setViewportSize({ width: 900, height: 1000 })
     await page.screenshot({ path: testInfo.outputPath('connection-verified-narrow.png') })
+    await page.setViewportSize({ width: 760, height: 720 })
+    const removeKey = page.getByTestId('provider-remove-key')
+    await removeKey.scrollIntoViewIfNeeded()
+    await expect(removeKey).toBeInViewport({ ratio: 1 })
+
     await page.setViewportSize({ width: 1440, height: 640 })
     await page.screenshot({ path: testInfo.outputPath('connection-verified-short.png') })
     await page.setViewportSize({ width: 900, height: 640 })

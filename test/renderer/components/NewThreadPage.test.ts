@@ -1175,7 +1175,14 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
     expect(sessionStore.createSession).not.toHaveBeenCalled()
     expect((wrapper.vm as any).message).toBe('hello deepchat invalid workdir')
 
-    projectStore.selectProject('/tmp/valid-workspace')
+    const replaceFolder = wrapper.get('[data-testid="new-thread-replace-folder"]')
+    await replaceFolder.trigger('click')
+    expect(projectStore.openFolderPicker).toHaveBeenCalledOnce()
+    expect((wrapper.vm as any).message).toBe('hello deepchat invalid workdir')
+    projectStore.openFolderPicker.mockImplementationOnce(async () => {
+      projectStore.selectProject('/tmp/valid-workspace')
+    })
+    await replaceFolder.trigger('click')
     await flushPromises()
     expect(wrapper.find('[data-testid="new-thread-workdir-status"]').exists()).toBe(false)
     await (wrapper.vm as any).onSubmit()
