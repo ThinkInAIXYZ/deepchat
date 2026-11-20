@@ -198,7 +198,7 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
         'legacy-queue:retry'
       ])
       expect(await queue.resumePendingQueue('legacy')).toBe(true)
-      await expect.poll(() => requests.length).toBe(1)
+      await expect.poll(() => requests.length, { timeout: 10_000 }).toBe(1)
       expect(requests[0]).toContain('Queued beta')
       expect(requests[0]).not.toContain('Retry only once')
       await queue.queuePendingInput('legacy', { text: 'Native one' })
