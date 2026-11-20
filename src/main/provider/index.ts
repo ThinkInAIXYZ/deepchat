@@ -64,6 +64,7 @@ import type {
   ProviderLocalePort
 } from './ports'
 import { resolveAiSdkProviderDefinition } from './providerRegistry'
+import { PROVIDER_CONNECTION_TIMEOUT_MS } from './providerService'
 import { AcpProvider } from './providers/acpProvider'
 import type { OllamaProvider } from './providers/ollamaProvider'
 
@@ -831,7 +832,7 @@ export class ProviderRuntime
               configured,
               modelId,
               'hi',
-              AbortSignal.timeout(60_000)
+              AbortSignal.timeout(PROVIDER_CONNECTION_TIMEOUT_MS)
             )
             return { isOk: true, errorMsg: null }
           }
@@ -844,10 +845,12 @@ export class ProviderRuntime
                   testMessage,
                   0.1,
                   10,
-                  AbortSignal.timeout(60_000)
+                  AbortSignal.timeout(PROVIDER_CONNECTION_TIMEOUT_MS)
                 )
               : this.acpExecution(providerId).completions(testMessage, modelId, 0.1, 10),
-            new Promise<null>((resolve) => setTimeout(() => resolve(null), 60000))
+            new Promise<null>((resolve) =>
+              setTimeout(() => resolve(null), PROVIDER_CONNECTION_TIMEOUT_MS)
+            )
           ])
           // 检查响应是否有效
           if (
