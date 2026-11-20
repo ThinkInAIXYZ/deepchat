@@ -195,18 +195,20 @@ describe('SplashWindow display gating', () => {
     const splash = createdWindows[0]
     splash.emit('ready-to-show')
 
-    await manager.showDatabaseMigrationNotice('/profiles/work/app_db/agent.db')
+    const directory = path.resolve('profiles', '$&', 'app_db')
+    await manager.showDatabaseMigrationNotice(path.join(directory, 'agent.db'))
 
     expect(splash.visible).toBe(true)
     expect(showMessageBox).toHaveBeenCalledWith(
       splash,
       expect.objectContaining({
         type: 'warning',
-        detail: expect.stringContaining('/profiles/work/app_db/agent.db.legacy-encrypted.*.bak'),
+        detail: expect.stringContaining(`\n${directory}\n`),
         buttons: ['继续', '退出'],
         cancelId: 1
       })
     )
+    expect(showMessageBox.mock.lastCall?.[1].detail).toContain('agent.db.legacy-encrypted.')
   })
 
   it('waits 200ms before showing the splash window', async () => {

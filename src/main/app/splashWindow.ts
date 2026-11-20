@@ -210,7 +210,11 @@ export class SplashWindow {
       type: 'warning',
       title: app.getName(),
       message: labels.title,
-      detail: labels.detail.replace('{backup}', () => `${databasePath}.legacy-encrypted.*.bak`),
+      detail: labels.detail.replace(/\{folder\}|\{prefix\}/g, (key) =>
+        key === '{folder}'
+          ? path.dirname(databasePath)
+          : `${path.basename(databasePath)}.legacy-encrypted.`
+      ),
       buttons: [labels.continue, labels.quit],
       defaultId: 1,
       cancelId: 1

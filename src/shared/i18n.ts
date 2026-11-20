@@ -13,21 +13,21 @@ export const databaseMigrationTranslations: TranslationCollection = {
   'en-US': {
     title: 'Local database encryption is being retired',
     detail:
-      'Continuing migrates the local database to unencrypted storage. Chat history and provider API keys stored in the database will be readable on disk and in new sync backups. After verifying your chats, you can delete just the encrypted recovery files matching this path:\n{backup}\nQuit to keep the database encrypted.',
+      'Continuing migrates the local database to unencrypted storage. Chat history and provider API keys stored in the database will be readable on disk and in new sync backups. After verifying your chats, open the folder below. To remove only the encrypted recovery copies, delete the .bak files whose names start with “{prefix}”.\n{folder}\nQuit to keep the database encrypted.',
     continue: 'Continue',
     quit: 'Quit'
   },
   'zh-CN': {
     title: '本地数据库加密即将停用',
     detail:
-      '继续后，数据库将迁移为未加密存储。数据库中的聊天记录和服务商 API 密钥将可以从本机文件及新建的同步备份读取。确认聊天记录完整后，可单独删除符合以下路径的加密恢复文件：\n{backup}\n退出可保留加密数据库。',
+      '继续后，数据库将迁移为未加密存储。数据库中的聊天记录和服务商 API 密钥将可以从本机文件及新建的同步备份读取。确认聊天记录完整后，可打开以下文件夹，仅删除文件名以“{prefix}”开头的 .bak 文件，即可移除加密恢复副本。\n{folder}\n退出可保留加密数据库。',
     continue: '继续',
     quit: '退出'
   },
   'zh-TW': {
     title: '本機資料庫加密即將停用',
     detail:
-      '繼續後，資料庫將移轉為未加密儲存。資料庫中的聊天記錄和服務商 API 金鑰將可以從本機檔案及新建的同步備份讀取。確認聊天記錄完整後，可單獨刪除符合以下路徑的加密復原檔案：\n{backup}\n退出可保留加密資料庫。',
+      '繼續後，資料庫將移轉為未加密儲存。資料庫中的聊天記錄和服務商 API 金鑰將可以從本機檔案及新建的同步備份讀取。確認聊天記錄完整後，可開啟下列資料夾，僅刪除檔名以「{prefix}」開頭的 .bak 檔案，即可移除加密復原副本。\n{folder}\n退出可保留加密資料庫。',
     continue: '繼續',
     quit: '退出'
   }
