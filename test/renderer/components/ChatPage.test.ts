@@ -2409,6 +2409,30 @@ describe('ChatPage', () => {
     expect(messageStore.loadMessages).toHaveBeenCalledWith('s1', undefined)
   })
 
+  it('announces regeneration while the retry request is pending', async () => {
+    const { wrapper, sessionClient } = await setup({
+      activeSessionPatch: { providerId: 'openai', modelId: 'gpt-4.1' }
+    })
+    const retry = createDeferred<{ accepted: false }>()
+    sessionClient.retryMessage.mockReturnValueOnce(retry.promise)
+    const status = wrapper.get('[data-testid="chat-generation-status"]')
+    expect(status.text()).toBe('chat.notify.generationComplete')
+
+    wrapper.getComponent({ name: 'MessageList' }).vm.$emit('retry', 'm1')
+    await flushPromises()
+
+    expect(sessionClient.retryMessage).toHaveBeenCalledWith('s1', 'm1')
+    expect(wrapper.get('[data-testid="chat-page-shell"]').attributes('data-generating')).toBe(
+      'false'
+    )
+    expect(status.text()).toBe('chat.toolCall.subagents.status.running')
+
+    retry.resolve({ accepted: false })
+    await flushPromises()
+    expect(status.text()).toBe('chat.notify.generationComplete')
+    wrapper.unmount()
+  })
+
   it('confirms before deleting a message', async () => {
     const { wrapper, sessionClient, messageStore } = await setup()
     const messageList = wrapper.findComponent({ name: 'MessageList' })
