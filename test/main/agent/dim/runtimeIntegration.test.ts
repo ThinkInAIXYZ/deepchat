@@ -1600,6 +1600,40 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1').each([false, true])(
         await desktop.waitIdle('product-ui')
         expect(pendingAction()).toBeUndefined()
         expect(interactionHooks.at(-1)).toMatchObject({ event: 'Stop', stop: { userStop: true } })
+        nextTools = [
+          { id: 'native-long-wait', name: 'wait', arguments: { timeoutMs: 3_600_000 } },
+          { id: 'native-invalid-wait', name: 'wait', arguments: { timeoutMs: 3_600_001 } }
+        ]
+        const waiting = new Promise<void>((resolve) => {
+          toolFlushWaiters.set('native-long-wait', resolve)
+        })
+        await desktop.submit('product-ui', [{ type: 'text', text: 'native long wait fixture' }])
+        await waiting
+        const waitContent = new DimContent(host)
+        await expect
+          .poll(async () => {
+            const { event } = await waitContent.latest(ref, ['step/tool-call'])
+            return event?.data.calls
+          })
+          .toContainEqual(expect.objectContaining({ id: 'native-long-wait' }))
+        await desktop.submit('product-ui', [{ type: 'text', text: 'wake the long wait' }], {
+          mode: 'steer'
+        })
+        await desktop.waitIdle('product-ui')
+        expect(requests.at(-1)!.body.messages).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              role: 'tool',
+              tool_call_id: 'native-long-wait',
+              content: expect.stringContaining('wait ended: steer')
+            }),
+            expect.objectContaining({
+              role: 'tool',
+              tool_call_id: 'native-invalid-wait',
+              content: expect.stringContaining('3600000')
+            })
+          ])
+        )
         const context = new DimContext({
           database: grants.data,
           controls: new DimSessionControls(host),

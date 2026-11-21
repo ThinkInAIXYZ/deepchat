@@ -58,6 +58,7 @@ export function createDimAgent(options: DimAgentOptions) {
   if (!host.usesNativePlugins)
     throw new Error('The built-in backend requires the native dim plugin host')
   const controls = new DimSessionControls(host)
+  const interactions = new DimInteractions(database, controls)
   const content = new DimContent(host)
   const profiles = new DimAgentProfiles(host)
   const titles = new DimTitles({
@@ -120,8 +121,12 @@ export function createDimAgent(options: DimAgentOptions) {
     // A reader can hydrate and convert historical content without granting model execution.
     prepare: (binding) => migration.prepare(binding),
     opened: (binding) => titles.open(binding),
-    closed: (id) => titles.close(id),
-    projected: (_id, projection) => {
+    closed: (id) => {
+      interactions.clearAcceptedQuestions(id)
+      return titles.close(id)
+    },
+    projected: (id, projection) => {
+      if (projection.completed) interactions.clearAcceptedQuestions(id)
       views.apply(projection)
       try {
         notifyHooks?.(projection)
@@ -175,7 +180,6 @@ export function createDimAgent(options: DimAgentOptions) {
     setProjectDir: (id, directory) => settings.setSessionProjectDir(id, directory),
     prepareInput: options.prepareInput
   })
-  const interactions = new DimInteractions(database, controls)
   const mutations = new DimTranscriptMutations({
     database,
     host,

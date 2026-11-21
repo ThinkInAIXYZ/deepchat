@@ -11,6 +11,7 @@ import { captureDimProfile } from '../../../src/main/agent/dim/profileSnapshot'
 import { DimRuntimeSupervisor } from '../../../src/main/agent/dim/runtimeSupervisor'
 import { test, expect } from '../fixtures/electronApp'
 import {
+  createNewChat,
   getActiveSessionId,
   getAssistantMessages,
   openSessionById,
@@ -261,6 +262,7 @@ test('desktop chat uses persistent native dim sessions @smoke', async ({
   const manualTitle = 'NATIVE_MANUAL_TITLE_'.repeat(12)
   const requests: Array<{ messages?: unknown[]; tools?: Array<{ function: { name: string } }> }> =
     []
+  let askQuestion = false
   let htmlPhase: 'shell' | 'section' | null = null
   let panelId = ''
   let readSession: { sessionId: string; messageId: string; action: 'messages' | 'message' } | null =
@@ -280,6 +282,35 @@ test('desktop chat uses persistent native dim sessions @smoke', async ({
     for await (const chunk of request) text += chunk
     const body = JSON.parse(text)
     requests.push(body)
+    if (
+      body.stream &&
+      askQuestion &&
+      body.tools?.some((tool: { function: { name: string } }) => tool.function.name === 'ask_user')
+    ) {
+      askQuestion = false
+      const toolCalls = [
+        {
+          question: 'Choose colours',
+          options: [{ label: 'red, green' }, { label: 'blue' }],
+          multiSelect: true
+        },
+        {
+          question: 'Choose a language',
+          options: [{ label: 'Rust' }, { label: 'TypeScript' }]
+        }
+      ].map((question, index) => ({
+        index,
+        id: `native-ui-question-${index}`,
+        type: 'function',
+        function: { name: 'ask_user', arguments: JSON.stringify({ questions: [question] }) }
+      }))
+      response
+        .writeHead(200, { 'Content-Type': 'text/event-stream' })
+        .end(
+          `data: ${JSON.stringify({ id: 'native-question', object: 'chat.completion.chunk', created: 0, model: 'dim-desktop-fixture', choices: [{ index: 0, delta: { role: 'assistant', tool_calls: toolCalls }, finish_reason: 'tool_calls' }] })}\n\ndata: [DONE]\n\n`
+        )
+      return
+    }
     if (
       body.stream &&
       htmlPhase &&
@@ -464,14 +495,45 @@ test('desktop chat uses persistent native dim sessions @smoke', async ({
     expect(cli.stdout).toContain('text_delta')
     expect(cli.stdout).toContain('NATIVE_DIM_DESKTOP_REPLY')
     expect(cli.stdout).toContain('stop')
+    askQuestion = true
     await sendMessage(app.page, 'NATIVE_DIM_FIRST_INPUT')
+    const sessionId = await getActiveSessionId(app.page)
+    const question = app.page.getByTestId('agent-interaction-dock-panel')
+    await question.getByRole('checkbox', { name: 'red, green', exact: true }).click()
+    await question.getByRole('checkbox', { name: 'blue', exact: true }).click()
+    await question.getByRole('button', { name: /^(Confirm|确认)$/ }).click()
+    await expect(question.getByText('Choose a language', { exact: true })).toBeVisible()
+    await createNewChat(app.page)
+    await openSessionById(app.page, sessionId)
+    await expect(question.getByText('Choose a language', { exact: true })).toBeVisible()
+    await app.page.reload()
+    await waitForAppReady(app.page)
+    await openSessionById(app.page, sessionId)
+    await question.getByRole('checkbox', { name: 'blue', exact: true }).click()
+    await question.getByRole('button', { name: /^(Confirm|确认)$/ }).click()
+    await question.getByRole('radio', { name: 'TypeScript', exact: true }).click()
+    await question.getByRole('button', { name: /^(Confirm|确认)$/ }).click()
+    await expect(question).toBeHidden()
     await expect(getAssistantMessages(app.page)).toHaveCount(1)
     await expect(getAssistantMessages(app.page).last()).toContainText('NATIVE_DIM_DESKTOP_REPLY')
     await expect(app.page.getByTestId('chat-page-shell')).toHaveAttribute(
       'data-generating',
       'false'
     )
-    const sessionId = await getActiveSessionId(app.page)
+    expect(requests.flatMap((request) => request.messages ?? [])).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          role: 'tool',
+          tool_call_id: 'native-ui-question-0',
+          content: expect.stringContaining('red, green, blue')
+        }),
+        expect.objectContaining({
+          role: 'tool',
+          tool_call_id: 'native-ui-question-1',
+          content: expect.stringContaining('TypeScript')
+        })
+      ])
+    )
     const limits = await app.page.evaluate(
       async (id) => ({
         generation: await window.deepchat.invoke('sessions.getGenerationSettings', {
