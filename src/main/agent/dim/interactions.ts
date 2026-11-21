@@ -7,7 +7,7 @@ import type {
 } from '@shared/types/agent-interface'
 import type { DimSessionControls } from './sessionControls'
 import type { JsonValue } from '@shared/contracts/json'
-import { dimQuestions } from '@shared/dimQuestions'
+import { dimQuestions, staleDimInteractionMessages } from '@shared/dimQuestions'
 
 /** Responds to native owners. A desktop response never resumes a TypeScript continuation. */
 export class DimInteractions {
@@ -84,13 +84,13 @@ export class DimInteractions {
     const binding = this.database.dimSessionBindingsTable.get(sessionId)
     const message = this.database.deepchatMessagesTable.get(messageId)
     if (!binding || !message || message.session_id !== sessionId || message.role !== 'assistant')
-      throw new Error('Native interaction does not belong to this session')
+      throw new Error(staleDimInteractionMessages.wrongSession)
     const metadata = JSON.parse(message.metadata) as MessageMetadata
     if (
       metadata.dim?.sessionId !== binding.dimSessionId ||
       metadata.dim.branchId !== binding.branchId
     )
-      throw new Error('Native interaction belongs to a replaced session scope')
+      throw new Error(staleDimInteractionMessages.replacedScope)
     const blocks = JSON.parse(message.content) as AssistantMessageBlock[]
     const block = blocks.find(
       (candidate) =>
@@ -99,7 +99,7 @@ export class DimInteractions {
         candidate.extra?.needsUserAction !== false &&
         candidate.tool_call?.id === toolCallId
     )
-    if (!block) throw new Error('Native interaction is no longer pending')
+    if (!block) throw new Error(staleDimInteractionMessages.noLongerPending)
     return { ref: { sessionId: binding.dimSessionId, branchId: binding.branchId }, block }
   }
 }

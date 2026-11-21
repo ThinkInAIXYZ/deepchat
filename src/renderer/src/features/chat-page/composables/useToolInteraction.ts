@@ -1,10 +1,15 @@
-import { computed, ref } from 'vue'
+import { computed, ref, shallowReactive, watch } from 'vue'
 import { projectPendingInteraction } from '@shared/chat/pendingInteraction'
+import { DEEPCHAT_ROUTE_INVOKE_CHANNEL } from '@shared/contracts/channels'
+import { staleDimInteractionMessages } from '@shared/dimQuestions'
 import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
 import type { useMessageStore } from '@/stores/ui/message'
 import type { ToolInteractionResponse, ToolInteractionResult } from '@shared/types/agent-interface'
 
 type MessageStore = ReturnType<typeof useMessageStore>
+
+// Answers may still be awaiting their batch result when the chat page is remounted.
+const answeredNativeQuestions = shallowReactive(new Map<string, Set<string>>())
 
 type PendingInteractionView = {
   sessionId: string
@@ -67,14 +72,32 @@ function parseSubagentProgress(value: unknown): SubagentProgressPayload | null {
   }
 }
 
+function isStaleDimInteraction(error: unknown): boolean {
+  if (!(error instanceof Error)) return false
+  const prefix = `Error invoking remote method '${DEEPCHAT_ROUTE_INVOKE_CHANNEL}': Error: `
+  return Object.values(staleDimInteractionMessages).some(
+    (message) => error.message === message || error.message === prefix + message
+  )
+}
+
 /**
  * Owns pending tool/question interaction discovery and response submission.
  * It preserves the page's current-session refresh semantics after a response,
  * while the page composes the returned state into its plan and composer gates.
  */
 export function useToolInteraction(options: UseToolInteractionOptions) {
-  const isSubmittingInteraction = ref(false)
-  const awaitingQuestionResult = ref<string | null>(null)
+  const isHandlingInteraction = ref(false)
+
+  watch(
+    () => options.messageStore.messages,
+    (messages) => {
+      if (answeredNativeQuestions.size === 0) return
+      for (const message of messages) {
+        if (message.status !== 'pending') answeredNativeQuestions.delete(message.id)
+      }
+    },
+    { immediate: true }
+  )
 
   // Interactions the main process could not resolve (their backing run is gone,
   // the session was replaced mid-response, or the subagent session vanished).
@@ -139,22 +162,16 @@ export function useToolInteraction(options: UseToolInteractionOptions) {
       }
     }
 
-    if (staleInteractionKeys.value.size === 0) {
-      return list
-    }
-
-    const stale = staleInteractionKeys.value
-    return list.filter((entry) => !stale.has(interactionKey(entry)))
+    return list.filter((entry) => {
+      const key = interactionKey(entry)
+      return (
+        !staleInteractionKeys.value.has(key) &&
+        !answeredNativeQuestions.get(entry.messageId)?.has(key)
+      )
+    })
   })
 
   const activePendingInteraction = computed(() => pendingInteractions.value[0] ?? null)
-  const isHandlingInteraction = computed(() => {
-    const interaction = activePendingInteraction.value
-    return (
-      isSubmittingInteraction.value ||
-      (interaction !== null && interactionKey(interaction) === awaitingQuestionResult.value)
-    )
-  })
 
   async function onToolInteractionRespond(response: ToolInteractionResponse) {
     const interaction = activePendingInteraction.value
@@ -167,7 +184,7 @@ export function useToolInteraction(options: UseToolInteractionOptions) {
     const isNativeQuestion =
       interaction.actionType === 'question_request' &&
       typeof interaction.block.extra?.dimRequestId === 'string'
-    isSubmittingInteraction.value = true
+    isHandlingInteraction.value = true
     const isCurrentView = () => options.canWriteSessionView(sessionId, requestId)
     const refreshAfterResponse = async () => {
       if (!isCurrentView()) return false
@@ -203,8 +220,12 @@ export function useToolInteraction(options: UseToolInteractionOptions) {
         response
       })
       if (isNativeQuestion) {
-        // The native tool result closes the prompt after the response is accepted.
-        awaitingQuestionResult.value = interactionKey(interaction)
+        // The batch result can be blocked on a sibling question that the dock must show next.
+        if (!isCurrentView() || isStillPending()) {
+          const { messageId } = interaction
+          const keys = new Set(answeredNativeQuestions.get(messageId))
+          answeredNativeQuestions.set(messageId, keys.add(interactionKey(interaction)))
+        }
         return
       }
       const refreshed = await refreshAfterResponse()
@@ -219,8 +240,10 @@ export function useToolInteraction(options: UseToolInteractionOptions) {
     } catch (error) {
       console.error('[ChatPage] respond tool interaction failed:', error)
       options.onResponseFailed?.(interaction, error)
-      // A decline would resume the model without the user's answer.
-      if (isNativeQuestion) return
+      if (isNativeQuestion) {
+        if (isStaleDimInteraction(error)) markStale(interaction)
+        return
+      }
       // A rejected respond is itself a strong staleness signal (a resolvable
       // interaction would not be rejected). Reload once and, if the interaction
       // is still pending, release the UI from the uncloseable approval.
@@ -233,7 +256,7 @@ export function useToolInteraction(options: UseToolInteractionOptions) {
         console.error('[ChatPage] refresh after failed tool interaction response:', refreshError)
       }
     } finally {
-      isSubmittingInteraction.value = false
+      isHandlingInteraction.value = false
     }
   }
 
