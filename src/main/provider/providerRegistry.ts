@@ -370,6 +370,14 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
     })
   ],
   [
+    'aigrow',
+    createDefinition({
+      ...OPENAI_BASE,
+      credentialStrategy: 'api-key',
+      embeddingStrategy: 'none'
+    })
+  ],
+  [
     'llmbuzz',
     createDefinition({
       ...OPENAI_BASE,
