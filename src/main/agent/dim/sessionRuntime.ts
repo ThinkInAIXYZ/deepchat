@@ -16,6 +16,7 @@ export interface DimSessionRuntimeOptions {
   prepare?(binding: DimSessionBinding): Promise<void>
   opened?(binding: DimSessionBinding): Promise<void>
   closed?(sessionId: string): Promise<void>
+  scopeClosed?(sessionId: string): void
   projected(sessionId: string, projection: DimProjection): void
   failed(sessionId: string, error: unknown): void
 }
@@ -237,6 +238,7 @@ export class DimSessionRuntime {
     const reader = this.readers.get(sessionId)
     this.readers.delete(sessionId)
     this.scopes.delete(sessionId)
+    this.options.scopeClosed?.(sessionId)
     if (reader) await (await reader.catch(() => null))?.reader.close()
     await this.options.closed?.(sessionId)
   }

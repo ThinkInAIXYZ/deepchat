@@ -257,9 +257,10 @@ test('desktop chat uses persistent native dim sessions @smoke', async ({
   app,
   launchApp
 }, testInfo) => {
-  // This workflow includes CLI inference, backup rollback and application restart recovery.
-  test.setTimeout(60_000)
+  // Busy backup admission alone can take 30 seconds before the workflow resumes.
+  test.setTimeout(90_000)
   const manualTitle = 'NATIVE_MANUAL_TITLE_'.repeat(12)
+  const backupFolder = path.join(app.userDataDir, 'native-backups')
   const requests: Array<{ messages?: unknown[]; tools?: Array<{ function: { name: string } }> }> =
     []
   let askQuestion = false
@@ -506,6 +507,12 @@ test('desktop chat uses persistent native dim sessions @smoke', async ({
     await createNewChat(app.page)
     await openSessionById(app.page, sessionId)
     await expect(question.getByText('Choose a language', { exact: true })).toBeVisible()
+    await expect(
+      app.page.evaluate(async (folderPath) => {
+        await window.deepchat.invoke('config.updateSyncSettings', { enabled: true, folderPath })
+        return window.deepchat.invoke('sync.startBackup', {})
+      }, backupFolder)
+    ).rejects.toThrow('Native profile has active work')
     await app.page.reload()
     await waitForAppReady(app.page)
     await openSessionById(app.page, sessionId)
@@ -643,13 +650,10 @@ test('desktop chat uses persistent native dim sessions @smoke', async ({
     expect(afterMaintenance.messages.map((message) => message.id)).toEqual(
       firstPage.messages.map((message) => message.id)
     )
-    const captured = await app.page.evaluate(
-      async (folderPath) => {
-        await window.deepchat.invoke('config.updateSyncSettings', { enabled: true, folderPath })
-        return window.deepchat.invoke('sync.startBackup', {})
-      },
-      path.join(app.userDataDir, 'native-backups')
-    )
+    const captured = await app.page.evaluate(async (folderPath) => {
+      await window.deepchat.invoke('config.updateSyncSettings', { enabled: true, folderPath })
+      return window.deepchat.invoke('sync.startBackup', {})
+    }, backupFolder)
     expect(captured.backup).not.toBeNull()
     const archive = unzipSync(
       await readFile(path.join(app.userDataDir, 'native-backups', captured.backup!.fileName))

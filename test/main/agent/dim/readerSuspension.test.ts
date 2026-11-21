@@ -18,6 +18,7 @@ it('restores detached readers after a refused snapshot without revoking an in-fl
   const start = vi.fn(async () => client)
   const opened = vi.fn(async () => {})
   const closed = vi.fn(async () => {})
+  const scopeClosed = vi.fn()
   const failed = vi.fn()
   const runtime = new DimSessionRuntime({
     database: data,
@@ -27,6 +28,7 @@ it('restores detached readers after a refused snapshot without revoking an in-fl
     },
     opened,
     closed,
+    scopeClosed,
     projected: () => {},
     failed
   })
@@ -52,6 +54,7 @@ it('restores detached readers after a refused snapshot without revoking an in-fl
     ).rejects.toThrow('Native owner is busy')
     await waiting
     expect(opened).toHaveBeenCalledTimes(2)
+    expect(scopeClosed).not.toHaveBeenCalled()
     releaseAdmission()
     await expect(admission).resolves.toEqual({ inputId: 'input', sequence: '1' })
     expect(failed).not.toHaveBeenCalled()
@@ -60,4 +63,5 @@ it('restores detached readers after a refused snapshot without revoking an in-fl
     await runtime.close('app')
     sqlite.close()
   }
+  expect(scopeClosed).toHaveBeenCalledExactlyOnceWith('app')
 })

@@ -121,10 +121,8 @@ export function createDimAgent(options: DimAgentOptions) {
     // A reader can hydrate and convert historical content without granting model execution.
     prepare: (binding) => migration.prepare(binding),
     opened: (binding) => titles.open(binding),
-    closed: (id) => {
-      interactions.clearAcceptedQuestions(id)
-      return titles.close(id)
-    },
+    closed: (id) => titles.close(id),
+    scopeClosed: (id) => interactions.clearAcceptedQuestions(id),
     projected: (id, projection) => {
       if (projection.completed) interactions.clearAcceptedQuestions(id)
       views.apply(projection)
