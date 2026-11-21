@@ -472,6 +472,10 @@ DeepChat 可以通过聊天软件远程控制，让你离开桌面后也能继�
       <img src="./src/renderer/src/assets/llm-icons/worldrouter.svg" width="50" height="50" alt="WorldRouter Icon"><br/>
       <a href="https://www.worldrouter.ai/">WorldRouter</a>
     </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/aigrow.svg" width="50" height="50" alt="AIGROW Icon"><br/>
+      <a href="https://aigrow.gg/ai-api">AIGROW</a>
+    </td>
   </tr>
 
 </table>

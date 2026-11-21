@@ -474,6 +474,25 @@ describe('DEFAULT_PROVIDERS', () => {
     )
   })
 
+  it('includes AIGROW as a disabled built-in OpenAI-compatible provider', () => {
+    expect(DEFAULT_PROVIDERS).toContainEqual(
+      expect.objectContaining({
+        id: 'aigrow',
+        name: 'AIGROW',
+        apiType: 'openai-completions',
+        baseUrl: 'https://aigrow.gg/v1',
+        enable: false,
+        websites: expect.objectContaining({
+          official: 'https://aigrow.gg/ai-api',
+          apiKey: 'https://aigrow.gg/dashboard/api',
+          docs: 'https://aigrow.gg/ai-api/guide',
+          models: 'https://aigrow.gg/ai-api',
+          defaultBaseUrl: 'https://aigrow.gg/v1'
+        })
+      })
+    )
+  })
+
   it('includes llm.buzz as a disabled built-in OpenAI-compatible provider', () => {
     expect(DEFAULT_PROVIDERS).toContainEqual(
       expect.objectContaining({

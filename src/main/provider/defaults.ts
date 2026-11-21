@@ -1602,6 +1602,20 @@ const PROVIDER_DEFAULTS: LLM_PROVIDER_BASE[] = [
       docs: 'https://www.worldrouter.ai/docs/quickstart',
       models: 'https://www.worldrouter.ai/models'
     }
+  },
+  {
+    id: 'aigrow',
+    name: 'AIGROW',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://aigrow.gg/v1',
+    enable: false,
+    websites: {
+      official: 'https://aigrow.gg/ai-api',
+      apiKey: 'https://aigrow.gg/dashboard/api',
+      docs: 'https://aigrow.gg/ai-api/guide',
+      models: 'https://aigrow.gg/ai-api'
+    }
   }
 ]
 

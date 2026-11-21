@@ -112,6 +112,7 @@ import yapiIcon from '@/assets/llm-icons/yapi.svg?url'
 import xxapiIcon from '@/assets/llm-icons/xxapi.svg?url'
 import llmbuzzIcon from '@/assets/llm-icons/llmbuzz.svg?url'
 import worldrouterIcon from '@/assets/llm-icons/worldrouter.svg?url'
+import aigrowIcon from '@/assets/llm-icons/aigrow.svg?url'
 import apimodelsIcon from '@/assets/llm-icons/apimodels.png?url'
 import anonrouterIcon from '@/assets/llm-icons/anonrouter.svg?url'
 import typesafeIcon from '@/assets/llm-icons/typesafe.png?url'
@@ -171,6 +172,7 @@ export const modelIcons = {
   xxapi: xxapiIcon,
   llmbuzz: llmbuzzIcon,
   worldrouter: worldrouterIcon,
+  aigrow: aigrowIcon,
   apimodels: apimodelsIcon,
   zeabur: zeaburColorIcon,
   zeroone: zerooneColorIcon,
@@ -317,6 +319,7 @@ const monoIconUrls = new Set<string>([
   xxapiIcon,
   llmbuzzIcon,
   worldrouterIcon,
+  aigrowIcon,
   obscurifyIcon,
   demonrouteColorIcon,
   githubColorIcon,
