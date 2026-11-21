@@ -25,6 +25,7 @@ import { providerDbLoader } from '../../provider/providerDbLoader'
 import { BaseLLMProvider } from '../baseProvider'
 import { isOpenCodeGoAnthropicRoute, resolveCapabilityFamilyHint } from '../capabilityIdentity'
 import { modelCapabilities } from '../modelCapabilities'
+import { OPENAI_CODEX_RECOMMENDED_MODEL_IDS } from '../openaiCodexAdapter'
 import type { ProviderLocalePort } from '../ports'
 import type { ProviderTransportKind } from '../providerEndpoints'
 import { normalizeAzureBaseUrl, normalizeGeminiBaseUrl } from '../providerEndpoints'
@@ -38,22 +39,6 @@ import {
 } from '../providerRegistry'
 import { shouldUseXaiGrokOAuthFetch } from '../xaiGrokAuthAdapter'
 
-const OPENAI_CODEX_RECOMMENDED_MODEL_IDS = [
-  'gpt-6.2-sol',
-  'gpt-6.2-astra',
-  'gpt-6.1-terra',
-  'gpt-6.1-sol',
-  'gpt-6-astra',
-  'gpt-6-sol',
-  'gpt-6-luna',
-  'gpt-5.5',
-  'gpt-5.6-sol',
-  'gpt-5.6-terra',
-  'gpt-5.6-luna',
-  'gpt-image-2.5-sunburst',
-  'gpt-image-2.5-flare',
-  'gpt-image-2'
-]
 const GREENPT_RECOMMENDED_MODEL_IDS = [
   'glm-5.2',
   'kimi-k2.7-code',

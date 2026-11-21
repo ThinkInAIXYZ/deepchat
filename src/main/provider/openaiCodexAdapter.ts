@@ -1,5 +1,22 @@
 import { OPENAI_CODEX_API_BASE_URL } from './auth/openaiCodex/constants'
 
+export const OPENAI_CODEX_RECOMMENDED_MODEL_IDS = [
+  'gpt-6.2-sol',
+  'gpt-6.2-astra',
+  'gpt-6.1-terra',
+  'gpt-6.1-sol',
+  'gpt-6-astra',
+  'gpt-6-sol',
+  'gpt-6-luna',
+  'gpt-5.5',
+  'gpt-5.6-sol',
+  'gpt-5.6-terra',
+  'gpt-5.6-luna',
+  'gpt-image-2.5-sunburst',
+  'gpt-image-2.5-flare',
+  'gpt-image-2'
+]
+
 function stripResponsesSuffix(pathname: string): string {
   return pathname.replace(/\/responses\/?$/i, '') || '/'
 }
