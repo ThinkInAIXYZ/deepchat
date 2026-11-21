@@ -190,9 +190,9 @@ describe('useToolInteraction', () => {
       createAssistantMessage('m1', [
         {
           type: 'action',
-          action_type: 'question_request',
+          action_type: 'tool_call_permission',
           status: 'pending',
-          tool_call: { id: 'tool-1', name: 'question', params: '{}' }
+          tool_call: { id: 'tool-1', name: 'write_file', params: '{}' }
         }
       ])
     ])
@@ -215,6 +215,50 @@ describe('useToolInteraction', () => {
     expect(harness.toolInteraction.activePendingInteraction.value).toBeNull()
     expect(harness.toolInteraction.isHandlingInteraction.value).toBe(false)
     expect(consoleError).toHaveBeenCalledWith('[ChatPage] respond tool interaction failed:', error)
+    consoleError.mockRestore()
+    harness.stop()
+  })
+
+  it('lets the user retry a native answer and waits for the tool result once accepted', async () => {
+    const error = new Error('answer was not accepted')
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const onResponseFailed = vi.fn()
+    const pendingQuestion = {
+      type: 'action',
+      action_type: 'question_request',
+      status: 'pending',
+      extra: { dimRequestId: 'request-1' },
+      tool_call: { id: 'tool-1', name: 'ask_user', params: '{}' }
+    }
+    const harness = createHarness(
+      [createAssistantMessage('m1', [pendingQuestion])],
+      onResponseFailed
+    )
+    const response = { kind: 'question_option', optionLabel: 'Yes' } as const
+    harness.chatClient.respondToolInteraction
+      .mockRejectedValueOnce(error)
+      .mockResolvedValueOnce({ resumed: true })
+
+    await harness.toolInteraction.onToolInteractionRespond(response)
+    expect(onResponseFailed).toHaveBeenCalledWith(
+      expect.objectContaining({ actionType: 'question_request' }),
+      error
+    )
+    expect(harness.toolInteraction.activePendingInteraction.value?.toolCallId).toBe('tool-1')
+    expect(harness.toolInteraction.isHandlingInteraction.value).toBe(false)
+
+    await harness.toolInteraction.onToolInteractionRespond(response)
+    expect(harness.toolInteraction.activePendingInteraction.value?.toolCallId).toBe('tool-1')
+    expect(harness.toolInteraction.isHandlingInteraction.value).toBe(true)
+    await harness.toolInteraction.onToolInteractionRespond(response)
+    expect(harness.chatClient.respondToolInteraction).toHaveBeenCalledTimes(2)
+    expect(harness.chatClient.dismissToolInteraction).not.toHaveBeenCalled()
+
+    harness.messageRecords.value = [
+      createAssistantMessage('m1', [{ ...pendingQuestion, status: 'success' }])
+    ]
+    expect(harness.toolInteraction.activePendingInteraction.value).toBeNull()
+    expect(harness.toolInteraction.isHandlingInteraction.value).toBe(false)
     consoleError.mockRestore()
     harness.stop()
   })

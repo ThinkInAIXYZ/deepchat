@@ -62,10 +62,8 @@ export function createChatClient(bridge: DeepchatBridge = getDeepchatBridge()) {
     toolCallId: string
     response: ToolInteractionResponse
   }) {
-    return await bridge.invoke(
-      chatRespondToolInteractionRoute.name,
-      input as DeepchatRouteInput<typeof chatRespondToolInteractionRoute.name>
-    )
+    const normalizedInput = chatRespondToolInteractionRoute.input.parse(input)
+    return await bridge.invoke(chatRespondToolInteractionRoute.name, normalizedInput)
   }
 
   async function dismissToolInteraction(input: {

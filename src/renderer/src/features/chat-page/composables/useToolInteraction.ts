@@ -50,10 +50,7 @@ type UseToolInteractionOptions = {
   applyRestoredSessionSummary: (session: unknown) => void
   currentRestoreRequestId: () => number
   canWriteSessionView: (sessionId: string, requestId: number) => boolean
-  /**
-   * Reports a response the main process refused to accept. The failure must be visible: releasing
-   * the approval afterwards closes it without a decision, which is not something the user chose.
-   */
+  /** Reports a response the main process refused to accept. */
   onResponseFailed?: (interaction: PendingInteractionView, error: unknown) => void
 }
 
@@ -76,7 +73,8 @@ function parseSubagentProgress(value: unknown): SubagentProgressPayload | null {
  * while the page composes the returned state into its plan and composer gates.
  */
 export function useToolInteraction(options: UseToolInteractionOptions) {
-  const isHandlingInteraction = ref(false)
+  const isSubmittingInteraction = ref(false)
+  const awaitingQuestionResult = ref<string | null>(null)
 
   // Interactions the main process could not resolve (their backing run is gone,
   // the session was replaced mid-response, or the subagent session vanished).
@@ -84,13 +82,10 @@ export function useToolInteraction(options: UseToolInteractionOptions) {
   // can never close and block access to newer pending approvals.
   const staleInteractionKeys = ref<Set<string>>(new Set())
 
-  const interactionKey = (interaction: {
-    sessionId: string
-    messageId: string
-    toolCallId: string
-  }) => `${interaction.sessionId}:${interaction.messageId}:${interaction.toolCallId}`
+  const interactionKey = ({ sessionId, messageId, toolCallId, block }: PendingInteractionView) =>
+    `${sessionId}:${messageId}:${toolCallId}:${block.extra?.dimRequestId ?? ''}`
 
-  const markStale = (interaction: { sessionId: string; messageId: string; toolCallId: string }) => {
+  const markStale = (interaction: PendingInteractionView) => {
     const key = interactionKey(interaction)
     if (staleInteractionKeys.value.has(key)) return
     staleInteractionKeys.value = new Set(staleInteractionKeys.value).add(key)
@@ -153,6 +148,13 @@ export function useToolInteraction(options: UseToolInteractionOptions) {
   })
 
   const activePendingInteraction = computed(() => pendingInteractions.value[0] ?? null)
+  const isHandlingInteraction = computed(() => {
+    const interaction = activePendingInteraction.value
+    return (
+      isSubmittingInteraction.value ||
+      (interaction !== null && interactionKey(interaction) === awaitingQuestionResult.value)
+    )
+  })
 
   async function onToolInteractionRespond(response: ToolInteractionResponse) {
     const interaction = activePendingInteraction.value
@@ -162,7 +164,10 @@ export function useToolInteraction(options: UseToolInteractionOptions) {
 
     const sessionId = options.sessionId()
     const requestId = options.currentRestoreRequestId()
-    isHandlingInteraction.value = true
+    const isNativeQuestion =
+      interaction.actionType === 'question_request' &&
+      typeof interaction.block.extra?.dimRequestId === 'string'
+    isSubmittingInteraction.value = true
     const isCurrentView = () => options.canWriteSessionView(sessionId, requestId)
     const refreshAfterResponse = async () => {
       if (!isCurrentView()) return false
@@ -197,6 +202,11 @@ export function useToolInteraction(options: UseToolInteractionOptions) {
         toolCallId: interaction.toolCallId,
         response
       })
+      if (isNativeQuestion) {
+        // The native tool result closes the prompt after the response is accepted.
+        awaitingQuestionResult.value = interactionKey(interaction)
+        return
+      }
       const refreshed = await refreshAfterResponse()
       if (!refreshed || result.handledInline || result.waitingForUserMessage) {
         return
@@ -209,6 +219,8 @@ export function useToolInteraction(options: UseToolInteractionOptions) {
     } catch (error) {
       console.error('[ChatPage] respond tool interaction failed:', error)
       options.onResponseFailed?.(interaction, error)
+      // A decline would resume the model without the user's answer.
+      if (isNativeQuestion) return
       // A rejected respond is itself a strong staleness signal (a resolvable
       // interaction would not be rejected). Reload once and, if the interaction
       // is still pending, release the UI from the uncloseable approval.
@@ -221,7 +233,7 @@ export function useToolInteraction(options: UseToolInteractionOptions) {
         console.error('[ChatPage] refresh after failed tool interaction response:', refreshError)
       }
     } finally {
-      isHandlingInteraction.value = false
+      isSubmittingInteraction.value = false
     }
   }
 
