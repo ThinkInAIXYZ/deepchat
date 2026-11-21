@@ -1810,6 +1810,90 @@ describe('ProviderImportService', () => {
     })
   })
 
+  it('maps an Opper base URL to the built-in Opper provider', async () => {
+    homeDir = createHome()
+    const defaultCherryPath = path.join(
+      homeDir,
+      'Library/Application Support/CherryStudio/Local Storage/leveldb'
+    )
+    await createCherryStudioLevelDb(defaultCherryPath, [
+      {
+        id: 'my-gateway',
+        name: 'My Gateway',
+        type: 'openai',
+        apiKey: 'op-test',
+        apiHost: 'https://api.opper.ai/v3/compat',
+        models: [{ id: 'anthropic/claude-sonnet-4-6', name: 'Claude Sonnet 4.6' }]
+      }
+    ])
+
+    const providerSettings = createProviderSettings([
+      {
+        id: 'opper',
+        name: 'Opper',
+        apiType: 'openai-completions',
+        apiKey: '',
+        baseUrl: 'https://api.opper.ai/v3/compat',
+        enable: false
+      }
+    ] as LLM_PROVIDER[])
+    const service = new ProviderImportService(providerSettings as any, {
+      homeDir,
+      platform: 'darwin'
+    })
+
+    const scan = await service.scan()
+
+    expect(scan.providers[0]).toMatchObject({
+      sourceProviderId: 'my-gateway',
+      targetKind: 'builtin',
+      targetProviderId: 'opper',
+      targetApiType: 'openai-completions',
+      modelPreview: ['Claude Sonnet 4.6'],
+      warnings: []
+    })
+  })
+
+  it('does not map a lookalike Opper host to the built-in Opper provider', async () => {
+    homeDir = createHome()
+    const defaultCherryPath = path.join(
+      homeDir,
+      'Library/Application Support/CherryStudio/Local Storage/leveldb'
+    )
+    await createCherryStudioLevelDb(defaultCherryPath, [
+      {
+        id: 'lookalike-gateway',
+        name: 'Lookalike Gateway',
+        type: 'openai',
+        apiKey: 'sk-test',
+        apiHost: 'https://opper.ai.example.com/v3/compat',
+        models: [{ id: 'anthropic/claude-sonnet-4-6', name: 'Claude Sonnet 4.6' }]
+      }
+    ])
+
+    const providerSettings = createProviderSettings([
+      {
+        id: 'opper',
+        name: 'Opper',
+        apiType: 'openai-completions',
+        apiKey: '',
+        baseUrl: 'https://api.opper.ai/v3/compat',
+        enable: false
+      }
+    ] as LLM_PROVIDER[])
+    const service = new ProviderImportService(providerSettings as any, {
+      homeDir,
+      platform: 'darwin'
+    })
+
+    const scan = await service.scan()
+
+    expect(scan.providers[0]).toMatchObject({
+      sourceProviderId: 'lookalike-gateway',
+      targetKind: 'custom'
+    })
+  })
+
   it('maps a Synthorai base URL to the built-in Synthorai provider', async () => {
     homeDir = createHome()
     const defaultCherryPath = path.join(

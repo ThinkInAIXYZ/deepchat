@@ -242,6 +242,15 @@ const isDemonRouteHost = (value: string): boolean => {
   }
 }
 
+const isOpperHost = (value: string): boolean => {
+  try {
+    const { hostname } = new URL(value)
+    return hostname === 'opper.ai' || hostname.endsWith('.opper.ai')
+  } catch {
+    return false
+  }
+}
+
 const normalizeName = (value: string | undefined): string =>
   normalizeToken(value).replace(/[^a-z0-9-]/g, '')
 
@@ -1222,6 +1231,7 @@ export class ProviderImportService {
     if (baseUrl.includes('openrouter.ai')) return 'openrouter'
     if (isRequestyHost(baseUrl)) return 'requesty'
     if (isDemonRouteHost(baseUrl)) return 'demonroute'
+    if (isOpperHost(baseUrl)) return 'opper'
     if (baseUrl.includes('api.orcarouter.ai')) return 'orcarouter'
     if (baseUrl.includes('synthorai.io')) return 'synthorai'
     if (baseUrl.includes('aihubmix.com')) return 'aihubmix'
