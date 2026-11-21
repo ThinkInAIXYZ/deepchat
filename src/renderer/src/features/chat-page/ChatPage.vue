@@ -1459,7 +1459,9 @@ const generationAnnouncement = computed(() => {
       ? t('chat.toolCall.subagents.status.waiting_permission')
       : t('chat.toolCall.subagents.status.waiting_question')
   }
-  if (isGenerating.value) return t('chat.toolCall.subagents.status.running')
+  if (isGenerating.value || regeneratingMessageId.value) {
+    return t('chat.toolCall.subagents.status.running')
+  }
   const latestResponse = displayMessages.value.find(
     (message) => message.id === latestAssistantMessageId.value
   )

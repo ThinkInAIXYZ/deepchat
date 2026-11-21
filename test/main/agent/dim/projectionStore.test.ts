@@ -57,6 +57,57 @@ it('projects terminal conversation state without creating a Tape and ignores rep
   )
 })
 
+it('settles each thinking phase at its timeline boundary while the turn is still running', () => {
+  const { data, binding, projection } = database()
+  const turn = { turn_id: 'turn', request_id: 'request' }
+  const message = () => data.deepchatMessagesTable.getBySession('app')[0]
+  const blocks = () => JSON.parse(message().content)
+
+  projection.apply(binding, event(1, 'turn', 'start', turn))
+  projection.apply(binding, event(2, 'step', 'thinking', { ...turn, delta: 'Plan ' }))
+  projection.apply(binding, event(3, 'step', 'thinking', { ...turn, delta: 'first' }))
+  expect(blocks()).toMatchObject([{ id: 'event-2', content: 'Plan first', status: 'loading' }])
+
+  projection.apply(binding, event(4, 'step', 'text', { ...turn, delta: 'Starting' }))
+  expect(blocks()).toMatchObject([
+    { id: 'event-2', status: 'success', reasoning_time: { start: 2000, end: 4000 } },
+    { id: 'event-4', type: 'content', status: 'loading' }
+  ])
+
+  projection.apply(binding, event(5, 'step', 'thinking', { ...turn, delta: 'Choose a tool' }))
+  projection.apply(binding, event(6, 'step', 'tool-use-start', { ...turn, call_id: 'exec' }))
+  projection.apply(binding, event(7, 'step', 'model-output-end', { ...turn, status: 'completed' }))
+  projection.apply(
+    binding,
+    event(8, 'step', 'tool-call', { ...turn, calls: [{ id: 'exec', name: 'exec', input: {} }] })
+  )
+  expect(message().status).toBe('pending')
+  expect(blocks()).toMatchObject([
+    { id: 'event-2', status: 'success', reasoning_time: { start: 2000, end: 4000 } },
+    { id: 'event-4', status: 'success' },
+    { id: 'event-5', status: 'success', reasoning_time: { start: 5000, end: 6000 } },
+    { type: 'tool_call', status: 'loading' }
+  ])
+})
+
+it.each([
+  ['completed', 'success'],
+  ['failed', 'error'],
+  ['cancelled', 'error']
+])('settles the final thought when model output is %s', (outcome, status) => {
+  const { data, binding, projection } = database()
+  const turn = { turn_id: 'turn', request_id: 'request' }
+  projection.apply(binding, event(1, 'turn', 'start', turn))
+  projection.apply(binding, event(2, 'step', 'thinking', { ...turn, delta: 'Thinking' }))
+  projection.apply(binding, event(3, 'step', 'model-output-end', { ...turn, status: outcome }))
+
+  const [message] = data.deepchatMessagesTable.getBySession('app')
+  expect(message.status).toBe('pending')
+  expect(JSON.parse(message.content)).toMatchObject([
+    { id: 'event-2', status, reasoning_time: { start: 2000, end: 3000 } }
+  ])
+})
+
 it('rolls back both the message and cursor when projection persistence fails', () => {
   const { data, sqlite, binding, projection } = database()
   projection.apply(binding, event(1, 'turn', 'start', { turn_id: 'turn' }))

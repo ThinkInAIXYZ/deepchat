@@ -56,13 +56,6 @@ vi.mock('@/stores/theme', () => ({
   })
 }))
 
-vi.mock('@shadcn/components/ui/spinner', () => ({
-  Spinner: defineComponent({
-    name: 'Spinner',
-    template: '<div data-testid="spinner" />'
-  })
-}))
-
 vi.mock('@dc-ui/components/button', () => ({
   DcButton: defineComponent({
     name: 'Button',
@@ -306,7 +299,7 @@ describe('MessageItemAssistant', () => {
     expect(contentElement.parentElement?.classList.contains('min-w-0')).toBe(true)
   })
 
-  it('does not render a spinner for empty non-pending assistant messages', () => {
+  it('does not show activity for a failed assistant message', () => {
     const wrapper = mount(MessageItemAssistant, {
       props: {
         message: createMessage('error', []),
@@ -315,10 +308,10 @@ describe('MessageItemAssistant', () => {
       global
     })
 
-    expect(wrapper.find('[data-testid="spinner"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="message-activity-indicator"]').exists()).toBe(false)
   })
 
-  it('renders a spinner for empty pending assistant messages', () => {
+  it('keeps one activity indicator after the latest content until the assistant finishes', async () => {
     const wrapper = mount(MessageItemAssistant, {
       props: {
         message: createMessage('pending', []),
@@ -326,34 +319,30 @@ describe('MessageItemAssistant', () => {
       },
       global
     })
-
-    expect(wrapper.find('[data-testid="spinner"]').exists()).toBe(true)
-    expect(wrapper.find('[data-message-content="true"]').exists()).toBe(true)
-  })
-
-  it('keeps the message content wrapper stable when the first pending content arrives', async () => {
-    const wrapper = mount(MessageItemAssistant, {
-      props: {
-        message: createMessage('pending', []),
-        isCapturingImage: false
-      },
-      global
-    })
-    const contentWrapper = wrapper.find('[data-message-content="true"]').element
+    const content = wrapper.get('[data-message-content]')
+    const activity = content.get('[data-testid="message-activity-indicator"]').element
+    const text: DisplayAssistantMessageBlock = {
+      type: 'content',
+      content: 'first chunk',
+      status: 'success',
+      timestamp: 2
+    }
+    const tool = createToolCallBlock({ status: 'loading' })
 
     await wrapper.setProps({
-      message: createMessage('pending', [
-        {
-          type: 'content',
-          content: 'first chunk',
-          status: 'loading',
-          timestamp: 2
-        }
-      ])
+      message: createMessage('pending', [text, tool])
     })
 
-    expect(wrapper.find('[data-testid="spinner"]').exists()).toBe(false)
-    expect(wrapper.find('[data-message-content="true"]').element).toBe(contentWrapper)
+    expect(wrapper.get('[data-message-content]').element).toBe(content.element)
+    expect(
+      content.findAll('[data-testid="message-activity-indicator"]').map((row) => row.element)
+    ).toEqual([activity])
+    expect(content.element.lastElementChild).toBe(activity)
+
+    await wrapper.setProps({
+      message: createMessage('sent', [text, { ...tool, status: 'success' }])
+    })
+    expect(content.find('[data-testid="message-activity-indicator"]').exists()).toBe(false)
   })
 
   it('passes markdown virtualization disable state to message content blocks', () => {

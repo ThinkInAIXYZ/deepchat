@@ -28,24 +28,8 @@
         </div>
 
         <div class="flex min-w-0 flex-col w-full space-y-1.5">
-          <div class="flex items-center gap-2">
-            <MessageInfo :name="currentMessage.model_name" :timestamp="currentMessage.timestamp" />
-            <Spinner
-              v-if="isRegenerating"
-              data-testid="regeneration-pending"
-              class="size-3 text-muted-foreground"
-              role="status"
-              :aria-label="t('thread.toolbar.retry')"
-            />
-          </div>
+          <MessageInfo :name="currentMessage.model_name" :timestamp="currentMessage.timestamp" />
           <div class="flex flex-col w-full gap-1.5" data-message-content="true">
-            <Spinner
-              v-if="
-                currentContent.length === 0 &&
-                (currentMessage?.status ?? message.status) === 'pending'
-              "
-              class="size-3 text-muted-foreground"
-            />
             <template v-for="item in currentRenderItems" :key="item.key">
               <MessageBlockActivityGroup
                 v-if="item.kind === 'activity-group'"
@@ -157,6 +141,18 @@
               :allow-continue="allowGuardStopContinue !== false"
               @continue="handleGuardStopContinue"
             />
+            <div
+              v-if="currentMessage.status === 'pending' || isRegenerating"
+              class="flex h-4 items-center self-start"
+              data-testid="message-activity-indicator"
+              aria-hidden="true"
+            >
+              <span class="block h-1 w-10 rounded-full bg-black/10 dark:bg-white/10">
+                <span
+                  class="message-activity-marker block h-full w-3 rounded-full bg-black/65 dark:bg-white/65"
+                />
+              </span>
+            </div>
           </div>
           <MessageToolbar
             :loading="message.status === 'pending' || isRegenerating"
@@ -271,7 +267,6 @@ import MessageToolbar from './MessageToolbar.vue'
 import MessageInfo from './MessageInfo.vue'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
-import { Spinner } from '@shadcn/components/ui/spinner'
 import MessageBlockAction from './MessageBlockAction.vue'
 import { useI18n } from 'vue-i18n'
 import MessageBlockImage from './MessageBlockImage.vue'
@@ -802,3 +797,25 @@ defineExpose({
   handleAction
 })
 </script>
+
+<style scoped>
+.message-activity-marker {
+  transform: translateX(0.875rem);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .message-activity-marker {
+    animation: message-activity-sweep 1.1s ease-in-out infinite alternate;
+  }
+}
+
+@keyframes message-activity-sweep {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(1.75rem);
+  }
+}
+</style>
