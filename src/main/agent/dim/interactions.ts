@@ -8,9 +8,13 @@ import type {
 import type { DimSessionControls } from './sessionControls'
 import type { JsonValue } from '@shared/contracts/json'
 import { dimQuestions, staleDimInteractionMessages } from '@shared/dimQuestions'
+import { DimMethodError } from './pluginClient'
+import type { DimSessionRef } from './sessionConnection'
 
 /** Responds to native owners. A desktop response never resumes a TypeScript continuation. */
 export class DimInteractions {
+  private readonly acceptedQuestions = new Map<string, Set<string>>()
+
   constructor(
     private readonly database: SessionDatabase,
     private readonly controls: DimSessionControls
@@ -37,7 +41,11 @@ export class DimInteractions {
       const questions = dimQuestions(JSON.parse(String(block.extra?.dimQuestions ?? '[]')))
       if (!questions.length) throw new Error('Native question arguments are unavailable')
       if (response.kind === 'question_other') {
-        await this.controls.call('answer', ref, { requestId, callId: toolCallId, declined: true })
+        await this.answerQuestion(sessionId, messageId, ref, {
+          requestId,
+          callId: toolCallId,
+          declined: true
+        })
       } else {
         const answers =
           response.kind === 'question_option' && response.answers
@@ -52,7 +60,7 @@ export class DimInteractions {
                 ]
               : null
         if (!answers) throw new Error('Answer every native question before submitting the batch')
-        await this.controls.call('answer', ref, {
+        await this.answerQuestion(sessionId, messageId, ref, {
           requestId,
           callId: toolCallId,
           answers: answers as unknown as JsonValue
@@ -71,13 +79,51 @@ export class DimInteractions {
     if (block.action_type === 'tool_call_permission')
       await this.controls.call('approval', ref, { requestId: toolCallId, decision: 'deny' })
     else if (block.action_type === 'question_request')
-      await this.controls.call('answer', ref, {
+      await this.answerQuestion(sessionId, messageId, ref, {
         requestId: String(block.extra?.dimRequestId),
         callId: toolCallId,
         declined: true
       })
     else return false
     return true
+  }
+
+  clearAcceptedQuestions(sessionId: string): void {
+    this.acceptedQuestions.delete(sessionId)
+  }
+
+  private async answerQuestion(
+    sessionId: string,
+    messageId: string,
+    ref: DimSessionRef,
+    params: { requestId: string; callId: string } & ({ answers: JsonValue } | { declined: true })
+  ): Promise<void> {
+    const key = JSON.stringify([messageId, params.requestId, params.callId])
+    try {
+      await this.controls.call('answer', ref, params)
+    } catch (error) {
+      const data = error instanceof DimMethodError ? error.data : null
+      if (
+        data &&
+        typeof data === 'object' &&
+        !Array.isArray(data) &&
+        data.appError === 'question_not_pending'
+      ) {
+        // Dim also returns this before the handler registers its waiter.
+        const { block } = this.pending(sessionId, messageId, params.callId)
+        if (
+          this.acceptedQuestions.get(sessionId)?.has(key) ||
+          block.extra?.dimRequestId !== params.requestId
+        )
+          throw new Error(staleDimInteractionMessages.noLongerPending)
+      }
+      throw error
+    }
+    // Remember the acknowledgement until the transcript catches up, including across renderer reloads.
+    if (this.database.deepchatMessagesTable.get(messageId)?.status !== 'pending') return
+    const accepted = this.acceptedQuestions.get(sessionId) ?? new Set<string>()
+    accepted.add(key)
+    this.acceptedQuestions.set(sessionId, accepted)
   }
 
   private pending(sessionId: string, messageId: string, toolCallId: string) {
