@@ -187279,6 +187279,90 @@
           "type": "chat"
         },
         {
+          "id": "gpt-6.2-sol",
+          "name": "GPT-6.2 Sol",
+          "display_name": "GPT-6.2 Sol",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1050000,
+            "output": 128000
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "effort_options": [
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2026-06-01",
+          "release_date": "2026-11-17",
+          "last_updated": "2026-11-17",
+          "type": "chat"
+        },
+        {
+          "id": "gpt-6.2-astra",
+          "name": "GPT-6.2 Astra",
+          "display_name": "GPT-6.2 Astra",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1050000,
+            "output": 128000
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "effort_options": [
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2026-05-18",
+          "release_date": "2026-11-17",
+          "last_updated": "2026-11-17",
+          "type": "chat"
+        },
+        {
           "id": "gpt-6.1-sol",
           "name": "GPT-6.1 Sol",
           "display_name": "GPT-6.1 Sol",

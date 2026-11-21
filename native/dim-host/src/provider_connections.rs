@@ -155,6 +155,8 @@ fn configure_codex_headers(
     headers: &mut std::collections::HashMap<String, String>,
     account_id: Option<String>,
 ) {
+    // The Codex backend gates model availability by client version.
+    const CLIENT_VERSION: &str = "0.170.0";
     headers.retain(|name, _| {
         ![
             "chatgpt-account-id",
@@ -167,7 +169,7 @@ fn configure_codex_headers(
         .iter()
         .any(|controlled| name.eq_ignore_ascii_case(controlled))
     });
-    headers.insert("Version".into(), "0.144.1".into());
+    headers.insert("Version".into(), CLIENT_VERSION.into());
     if let Some(id) = account_id {
         headers.insert("ChatGPT-Account-Id".into(), id);
     }
@@ -175,7 +177,7 @@ fn configure_codex_headers(
     headers.insert("originator".into(), "codex_cli_rs".into());
     headers.insert(
         "User-Agent".into(),
-        "codex_cli_rs/0.144.1 (Ubuntu 22.4.0; x86_64) xterm-256color".into(),
+        format!("codex_cli_rs/{CLIENT_VERSION} (Ubuntu 22.4.0; x86_64) xterm-256color"),
     );
 }
 struct Recovery {

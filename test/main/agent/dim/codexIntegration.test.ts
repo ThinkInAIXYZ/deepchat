@@ -60,7 +60,8 @@ it.runIf(process.env.DEEPCHAT_DIM_SMOKE === '1')(
       })
       expect(request.url).toBe('/backend-api/codex/responses')
       expect(request.headers.originator).toBe('codex_cli_rs')
-      expect(request.headers.version).toBe('0.144.1')
+      expect(request.headers.version).toBe('0.170.0')
+      expect(request.headers['user-agent']).toMatch(/^codex_cli_rs\/0\.170\.0 /)
       expect(body).toMatchObject({ stream: true, store: false })
       expect(body).not.toHaveProperty('max_output_tokens')
       if (request.headers.authorization === 'Bearer codex-first-secret') {

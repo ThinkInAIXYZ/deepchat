@@ -9,6 +9,9 @@ import { resolveAiSdkProviderDefinition } from '../../../src/main/provider/provi
 import { AiSdkProvider } from '../../../src/main/provider/providers/aiSdkProvider'
 
 const CODEX_RESOURCE_MODEL_IDS = [
+  'gpt-6.2-sol',
+  'gpt-6.2-astra',
+  'gpt-6.1-terra',
   'gpt-6.1-sol',
   'gpt-6-astra',
   'gpt-6-sol',
@@ -104,7 +107,15 @@ describe('OpenAI Codex provider registration', () => {
       id: 'openai',
       name: 'OpenAI',
       models: [
-        ...['gpt-6.1-sol', 'gpt-6-astra', 'gpt-6-sol', 'gpt-6-luna'].map((id) => ({
+        ...[
+          'gpt-6.2-sol',
+          'gpt-6.2-astra',
+          'gpt-6.1-terra',
+          'gpt-6.1-sol',
+          'gpt-6-astra',
+          'gpt-6-sol',
+          'gpt-6-luna'
+        ].map((id) => ({
           id,
           display_name: id,
           modalities: { input: ['text', 'image'], output: ['text'] },
@@ -201,6 +212,9 @@ describe('OpenAI Codex provider registration', () => {
     providerDbSpy.mockRestore()
 
     expect(models.map((model) => model.id)).toEqual([
+      'gpt-6.2-sol',
+      'gpt-6.2-astra',
+      'gpt-6.1-terra',
       'gpt-6.1-sol',
       'gpt-6-astra',
       'gpt-6-sol',
