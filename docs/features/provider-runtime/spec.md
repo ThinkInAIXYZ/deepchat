@@ -163,15 +163,20 @@ Upstream reference: [Completions API](https://wiro.ai/docs/completions-api).
 ## OpenAI Codex
 
 `openai-codex` is separate from standard `openai`: distinct provider ID, runtime kind, credential store,
-routes and request adapter. Current recommended catalog includes `gpt-6.1-sol`, `gpt-6-astra`,
-`gpt-6-sol`, `gpt-6-luna`, `gpt-5.5`, `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`,
+routes and request adapter. The recommended catalog starts with `gpt-6.2-sol`, `gpt-6.2-astra`,
+`gpt-6.1-terra` and `gpt-6.1-sol`. It also includes `gpt-6-astra`, `gpt-6-sol`, `gpt-6-luna`,
+`gpt-5.5`, `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`,
 `gpt-image-2.5-sunburst`, `gpt-image-2.5-flare` and `gpt-image-2`. Chat models require provider-db
-metadata. Curated image models remain listed when metadata is missing and use the OpenAI image-route
-compatibility fallback; explicit user model settings retain precedence. Connection check uses
+metadata. The effective OpenAI catalog fills missing curated Codex records from the bundle, even
+in privacy mode, and gives existing cached records precedence. Curated image models remain listed
+when metadata is missing and use the OpenAI image-route compatibility fallback. Explicit user
+model settings retain precedence. The connection check uses
 `gpt-5.6-luna`. GPT-5.4, GPT-5.4 mini and Codex Spark are omitted following their
 [Codex retirement](https://learn.chatgpt.com/docs/models#deprecated-codex-models).
 
-Codex requests include required instructions and backend routing headers, preserve streaming/tool/reasoning
+The native Codex connection sends the same supported client version in the Version and User-Agent
+headers because the backend uses it to determine model availability. Codex requests include
+required instructions and backend routing headers, preserve streaming/tool/reasoning
 behavior, and surface entitlement failure without logging token or account identifiers. Rejected refresh
 tokens retain their HTTP failure metadata and require sign-in again; media CLI calls return
 `authentication_failed` with `retriable: false`. Other media provider failures expose only normalized
