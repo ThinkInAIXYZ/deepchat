@@ -17,7 +17,7 @@
     "importFailed": "Nhập không thành công, dữ liệu gốc đã được khôi phục",
     "importProcess": "Đã xảy ra lỗi trong quá trình nhập",
     "unknown": "Lỗi không xác định",
-    "encryptedBackupPasswordMissing": "Bản sao lưu này được mã hóa nhưng không có khóa cơ sở dữ liệu cục bộ. Mở khóa cơ sở dữ liệu được mã hóa trước, sau đó nhập lại.",
+    "encryptedBackupPasswordMissing": "Kiến trúc mới không hỗ trợ mã hóa SQLite, vì vậy tính năng mã hóa cơ sở dữ liệu tạm thời không khả dụng. Bản sao lưu này được mã hóa và không thể khôi phục trực tiếp từ đám mây. Hãy tải xuống thư mục đồng bộ, sau đó dùng Nhập dữ liệu và nhập mật khẩu cơ sở dữ liệu ban đầu.",
     "overwriteEncryptionMismatch": "Quá trình nhập ghi đè yêu cầu bản sao lưu và cơ sở dữ liệu hiện tại sử dụng cùng trạng thái mã hóa.",
     "cloudNotConfigured": "Cloud is not configured. Fill in and save the cloud connection first.",
     "cloudNoBackup": "No backup available in the cloud bucket",

@@ -231,7 +231,6 @@
     "thinkingBudget": "Budget ragionamento",
     "reasoningEffort": "Intensità reasoning",
     "verbosity": "Livello di dettaglio",
-    "interleaved": "Forza compatibilità Interleaved Thinking",
     "systemPrompt": "Prompt di sistema predefinito",
     "systemPromptPlaceholder": "Lascia vuoto per usare un prompt di sistema vuoto",
     "defaultProjectPath": "Directory predefinita (opzionale)",
@@ -241,7 +240,6 @@
     "permissionDefault": "Permesso predefinito",
     "defaultToolMode": "Modalità predefinita",
     "defaultToolModeModelDefaultDesc": "Decisa dal modello corrente. La maggior parte dei modelli usa Agent.",
-    "defaultToolModeCodePermissionHint": "La modalità Code richiede che il permesso predefinito sia \"{permission}\", altrimenti le chiamate di codice falliscono.",
     "subagentsTitle": "subagent",
     "subagentsDescription": "Consenti a questo agente di delegare sottoattività indipendenti. Il modello decide quando usare gli slot configurati; la delega richiede token, tempo e risorse di sistema aggiuntivi.",
     "subagentsEnabled": "Consenti a questo agente di delegare sottoattività",
@@ -617,46 +615,6 @@
         "type-mismatch": "tipo colonna non corrispondente"
       }
     },
-    "databaseEncryption": {
-      "title": "Cifratura database SQLite",
-      "description": "Cifra agent.db con SQLCipher; quando lo sblocco di sistema non è disponibile, richiede la password SQLite.",
-      "enabled": "Attiva",
-      "disabled": "Non attiva",
-      "cipher": "Metodo di cifratura",
-      "systemUnlock": "Sblocco di sistema",
-      "startupUnlock": "Sblocco all'avvio",
-      "lastMigration": "Ultima migrazione",
-      "loading": "Caricamento",
-      "never": "Mai",
-      "notRequired": "Non richiesto",
-      "systemUnlockAvailable": "Disponibile",
-      "systemUnlockUnavailable": "Non disponibile",
-      "systemUnlockMode": "Sblocco di sistema",
-      "manualUnlock": "Inserimento manuale password",
-      "currentPassword": "Password corrente",
-      "newPassword": "Nuova password SQLite",
-      "confirmPassword": "Conferma password",
-      "passwordMismatch": "Le due password non coincidono",
-      "systemCredentialStore": "Quando l'archivio sicuro di sistema è disponibile, DeepChat salva la password SQLite cifrata nel vault delle credenziali del sistema (ad esempio macOS Keychain, Windows Credential Vault o Linux secret store). Dopo il primo sblocco riuscito, gli avvii successivi di solito si aprono automaticamente; la chiave di cifratura va reinserita solo dopo migrazione dati, se la credenziale di sistema manca o non può essere decifrata, oppure se l'archivio sicuro non è disponibile.",
-      "safeStorageUnavailable": "Electron safeStorage non è disponibile su questo sistema. Dopo l'attivazione sarà necessario inserire manualmente la password a ogni avvio.",
-      "enableButton": "Attiva cifratura",
-      "changeButton": "Modifica password",
-      "disableButton": "Disattiva cifratura",
-      "enabledTitle": "Cifratura database attivata",
-      "changedTitle": "Password SQLite modificata",
-      "disabledTitle": "Cifratura database disattivata",
-      "failedTitle": "Operazione cifratura database non riuscita",
-      "failedDescription": "Controlla la password e riprova.",
-      "setPasswordButton": "Imposta password",
-      "enableDialogTitle": "Imposta password SQLite",
-      "changeDialogTitle": "Modifica password SQLite",
-      "disableDialogTitle": "Disattiva cifratura database",
-      "enableDialogDescription": "Crea un database SQLite cifrato e migra i dati locali correnti.",
-      "changeDialogDescription": "Migra il database cifrato corrente in un nuovo database cifrato con la nuova password.",
-      "disableDialogDescription": "Migra il database cifrato corrente a un database locale in chiaro.",
-      "cancelButton": "Annulla",
-      "unknown": "Sconosciuto"
-    },
     "modelConfigUpdate": {
       "title": "Aggiorna configurazione modelli",
       "descriptionPrefix": "Sincronizza dati modello da ",
@@ -847,7 +805,8 @@
       "saveAndTest": "Salva e testa",
       "saveOnly": "Solo salva",
       "saveAndTestFirst": "Salva e testa prima la configurazione cloud."
-    }
+    },
+    "legacyBackupPassword": "Password del vecchio backup cifrato (facoltativa)"
   },
   "dashboard": {
     "badge": "Dashboard utilizzo",
@@ -1024,10 +983,6 @@
       "reasoningToggle": {
         "label": "Attiva reasoning",
         "description": "Controlla se il reasoning è attivo per impostazione predefinita su questo modello"
-      },
-      "interleavedThinking": {
-        "label": "Interleaved Thinking",
-        "description": "Controlla se questo modello gestisce i messaggi di reasoning e tool-call con Interleaved Thinking. Se il provider dichiara il supporto, verrà attivato automaticamente."
       },
       "thinkingBudget": {
         "label": "Budget ragionamento",

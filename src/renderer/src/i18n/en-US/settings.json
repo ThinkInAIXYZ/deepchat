@@ -231,7 +231,6 @@
     "thinkingBudget": "Thinking Budget",
     "reasoningEffort": "Reasoning Effort",
     "verbosity": "Verbosity",
-    "interleaved": "Force interleaved thinking compat",
     "systemPrompt": "Default system prompt",
     "systemPromptPlaceholder": "Leave blank for an empty system prompt",
     "defaultProjectPath": "Default directory (optional)",
@@ -241,7 +240,6 @@
     "permissionDefault": "Default permission",
     "defaultToolMode": "Default mode",
     "defaultToolModeModelDefaultDesc": "Decided by the current model. Most models use Agent.",
-    "defaultToolModeCodePermissionHint": "Code mode needs the default permission set to \"{permission}\", otherwise code calls fail.",
     "subagentsTitle": "Subagents",
     "subagentsDescription": "Allow this Agent to delegate independent subtasks. The model decides when to use configured slots; delegation uses additional tokens, time, and system resources.",
     "subagentsEnabled": "Allow this Agent to delegate subtasks",
@@ -658,46 +656,6 @@
         "type-mismatch": "column type mismatch"
       }
     },
-    "databaseEncryption": {
-      "title": "SQLite database encryption",
-      "description": "Encrypt agent.db with SQLCipher and require a SQLite password when system unlock cannot be used.",
-      "enabled": "Enabled",
-      "disabled": "Disabled",
-      "cipher": "Cipher",
-      "systemUnlock": "System unlock",
-      "startupUnlock": "Startup unlock",
-      "lastMigration": "Last migration",
-      "loading": "Loading",
-      "never": "Never",
-      "notRequired": "Not required",
-      "systemUnlockAvailable": "Available",
-      "systemUnlockUnavailable": "Unavailable",
-      "systemUnlockMode": "System unlock",
-      "manualUnlock": "Manual password",
-      "currentPassword": "Current password",
-      "newPassword": "New SQLite password",
-      "confirmPassword": "Confirm password",
-      "passwordMismatch": "Passwords do not match",
-      "systemCredentialStore": "When system secure storage is available, DeepChat stores the SQLite password in the OS credential vault (macOS Keychain, Windows Credential Vault, or a Linux secret store). After one successful unlock, later startups usually open automatically; you only need to enter the encryption key again after data migration, when the OS credential is missing or cannot be decrypted, or when secure storage is unavailable.",
-      "safeStorageUnavailable": "Electron safeStorage is not available on this system. After enabling encryption, you must enter the password on every startup.",
-      "enableButton": "Enable encryption",
-      "changeButton": "Change password",
-      "disableButton": "Disable encryption",
-      "enabledTitle": "Database encryption enabled",
-      "changedTitle": "SQLite password changed",
-      "disabledTitle": "Database encryption disabled",
-      "failedTitle": "Database encryption failed",
-      "failedDescription": "Check the password and try again.",
-      "setPasswordButton": "Set password",
-      "enableDialogTitle": "Set SQLite password",
-      "changeDialogTitle": "Change SQLite password",
-      "disableDialogTitle": "Disable database encryption",
-      "enableDialogDescription": "Create an encrypted SQLite database and migrate the current local data into it.",
-      "changeDialogDescription": "Migrate the current encrypted database into a new encrypted database with the new password.",
-      "disableDialogDescription": "Migrate the current encrypted database back to a plaintext local database.",
-      "cancelButton": "Cancel",
-      "unknown": "Unknown"
-    },
     "modelConfigUpdate": {
       "title": "Update Model Config",
       "descriptionPrefix": "Sync model data from ",
@@ -847,7 +805,8 @@
         "workersAi": "Cloudflare Workers AI"
       },
       "applyFailed": "Import failed: {message}"
-    }
+    },
+    "legacyBackupPassword": "Legacy encrypted backup password (optional)"
   },
   "dashboard": {
     "badge": "Usage Dashboard",
@@ -1012,10 +971,6 @@
       "reasoningToggle": {
         "description": "Controls whether reasoning is enabled by default for this model",
         "label": "Enable reasoning"
-      },
-      "interleavedThinking": {
-        "label": "Interleaved Thinking",
-        "description": "Controls whether this model handles reasoning and tool-call messages with Interleaved Thinking. Provider defaults are applied automatically."
       },
       "thinkingBudget": {
         "label": "Thinking Budget",

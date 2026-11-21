@@ -184,21 +184,6 @@ describe('renderer api clients', () => {
                   lastMigrationAt: undefined
                 }
               }
-            case 'databaseSecurity.enable':
-            case 'databaseSecurity.changePassword':
-            case 'databaseSecurity.disable':
-              return {
-                status: {
-                  enabled: routeName !== 'databaseSecurity.disable',
-                  cipher: 'sqlcipher',
-                  safeStorageAvailable: true,
-                  safeStorageBackend: undefined,
-                  passwordStorage: 'safeStorage',
-                  manualUnlockRequired: false,
-                  migrationInProgress: false,
-                  lastMigrationAt: 123
-                }
-              }
             case 'databaseSecurity.repairSchema':
               return {
                 report: {
@@ -2400,24 +2385,11 @@ describe('renderer api clients', () => {
     const databaseSecurityClient = createDatabaseSecurityClient(bridge)
 
     await databaseSecurityClient.getStatus()
-    await databaseSecurityClient.enable('new-password')
-    await databaseSecurityClient.changePassword('old-password', 'new-password')
-    await databaseSecurityClient.disable('old-password')
     const repairReport = await databaseSecurityClient.repairSchema()
 
     expect(repairReport.status).toBe('healthy')
     expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'databaseSecurity.getStatus', {})
-    expect(bridge.invoke).toHaveBeenNthCalledWith(2, 'databaseSecurity.enable', {
-      password: 'new-password'
-    })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'databaseSecurity.changePassword', {
-      currentPassword: 'old-password',
-      newPassword: 'new-password'
-    })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(4, 'databaseSecurity.disable', {
-      currentPassword: 'old-password'
-    })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(5, 'databaseSecurity.repairSchema', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(2, 'databaseSecurity.repairSchema', {})
   })
 
   it('routes settings window calls through the shared registry names', async () => {

@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "sourceRevision": "092aaa7ff9c536474b0b2ed396eb98cdbc904b75",
+  "baseRelease": "0.1.0-alpha.23",
+  "serverVersion": "0.1.0-alpha.18",
+  "bridgeVersion": "0.46.0",
+  "storeFormat": 44,
+  "apiVersion": 1,
+  "cargoLockSha256": "abe57487f9845829f8b56ce07c10a09acde409bd0f78d3ec85b8a3d1fe0b30a8",
+  "assemblyPatch": {
+    "path": "crates/dim-app-server/src/provider.rs",
+    "sha256": "0b40a6ea95dc9891227a6424bd4298caf291251cdffdccff9e9d4aed0e00ece5"
+  },
+  "extensionPatches": [
+    {
+      "path": "crates/dim-agent-runtime/src/assembly.rs",
+      "sha256": "02d775e6e89a383f8f117f4b035b1eade2b04dc8afb24b59c255484b1ccad087"
+    },
+    {
+      "path": "crates/dim-app-server/src/provider/secrets.rs",
+      "sha256": "b5aa2958949ae9e28c75ada15549d234bab7eaf50e8655ff17b341d61a4e80ad"
+    },
+    {
+      "path": "crates/dim-app-server/src/lib.rs",
+      "sha256": "578cfaa74397044b3fcb3e73072656c3700749ab7c32ce95ba4b7ebee1baf8a7"
+    },
+    {
+      "path": "crates/dim-app-server/src/agent_records.rs",
+      "sha256": "8fc59027c8dd6891bc44c02d84c844661fb6324d759185828163986f13ed5254"
+    },
+    {
+      "path": "crates/dim-app-server/src/storage/files.rs",
+      "sha256": "43d6079e761c910d477912d8166b001d6809f82b2c9778338df8e6ef512e0b6d"
+    },
+    {
+      "path": "crates/dim-app-server/src/storage/timeline.rs",
+      "sha256": "14cb99850602b2d57efa5a07cc645cab5c3f07d754c072a3def81980e7dd5e57"
+    },
+    {
+      "path": "crates/dim-app-server/src/mcp/temporary.rs",
+      "sha256": "c47e501f35cfca6dcb9f77dec998896125214b4b70125de9aad1542f9368c452"
+    },
+    {
+      "path": "crates/dim-app-server/src/mcp.rs",
+      "sha256": "7ba8388e9699ade70a4a6548f9dc42e5f7f85206f59a2824b0d5b51928c3abae"
+    },
+    {
+      "path": "crates/dim-session-title/src/lib.rs",
+      "sha256": "2f31795c3afcc08510373c574fc290cd688171fce85250b88faeb007caa03cc2"
+    },
+    {
+      "path": "vendor/aimux/aimux-providers/src/jev.rs",
+      "sha256": "ef20cea18241780a5e5bfc489d571a7a8f10fee0889206e731ff8adfefc41ba8"
+    },
+    {
+      "path": "crates/dim-agent-capabilities/src/host_platform.rs",
+      "sha256": "2064b40eb2095e093179e3c38f3393eb951bcbc33806c3904e3952e848fe5bb7"
+    },
+    {
+      "path": "crates/dim-agent-capabilities/src/history.rs",
+      "sha256": "47527e6a52e338fb5d1cc454be41e1addc9d6e9a51bb9da4fe0edb54aa356e99"
+    },
+    {
+      "path": "vendor/aimux/aimux-providers/src/google/language_model_options.rs",
+      "sha256": "0b2935ace7207d3ac317275240e8d464d5c1eb349f8d0abb5d5bd725eb62610f"
+    },
+    {
+      "path": "crates/dim-agent-capabilities/src/context_usage/sources.rs",
+      "sha256": "702cf65c63776d0fae594cd4b69304b421aa6963a6f5be81eee1e83904a108e6"
+    },
+    {
+      "path": "crates/dim-app-server/src/cli.rs",
+      "sha256": "a4b374448db4349d057ee0f1238fa6f9cb993e776d62f09438b35ab8801a4629"
+    },
+    {
+      "path": "crates/dim-app-server/src/provider/drivers.rs",
+      "sha256": "7cc95abdcfbda87662a42b0990c59300150139c9b3800747cb4f9e4151305215"
+    },
+    {
+      "path": "crates/dim-agent-aimux/src/driver.rs",
+      "sha256": "2ece177481d069f6039fd710ffaf3f8e460ab451b4fae1b754062ac8fad3e527"
+    }
+  ]
+}

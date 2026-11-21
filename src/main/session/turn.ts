@@ -127,7 +127,7 @@ export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
   async sendMessage(
     sessionId: string,
     content: string | SendMessageInput,
-    options?: { maxProviderRounds?: number; signal?: AbortSignal }
+    options?: { maxProviderRounds?: number; signal?: AbortSignal; submissionId?: string }
   ): Promise<MessageStartResult> {
     return await this.dependencies.workdir.runWithSessionOperationGate(
       sessionId,
@@ -138,7 +138,7 @@ export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
   private async sendMessageUnderSessionGate(
     sessionId: string,
     content: string | SendMessageInput,
-    options?: { maxProviderRounds?: number; signal?: AbortSignal }
+    options?: { maxProviderRounds?: number; signal?: AbortSignal; submissionId?: string }
   ): Promise<MessageStartResult> {
     let session = this.requireSession(sessionId)
     const wasDraft = session.isDraft
@@ -165,7 +165,8 @@ export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
       },
       queue: {
         source: 'send',
-        projectDir: session.projectDir ?? null
+        projectDir: session.projectDir ?? null,
+        ...(options?.submissionId ? { submissionId: options.submissionId } : {})
       }
     })
     if (result.attachmentPreparation?.status === 'needs_user_action') {
@@ -385,7 +386,7 @@ export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
     if (runtime.kind === 'acp') {
       // ACP re-creates the user message on send, so truncate from the source
       // user message (inclusive) to avoid a stale duplicate.
-      this.dependencies.transcript.commitRetryMessage(sessionId, prepared.sourceOrderSeq)
+      await this.dependencies.transcript.commitRetryMessage(sessionId, prepared.sourceOrderSeq)
       return await runtime.send({
         content: prepared.content,
         context: { projectDir: prepared.projectDir, emitRefreshBeforeStream: true }
@@ -403,9 +404,16 @@ export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
         projectDir: prepared.projectDir,
         emitRefreshBeforeStream: true,
         preserveResolvedRepresentations: true,
+        ...(prepared.reuseUserMessage ? { reuseUserMessage: prepared.reuseUserMessage } : {}),
         ...(prepared.sourceMessageId ? { preStreamAnchorMessageId: prepared.sourceMessageId } : {}),
         beforeHistoryPreparation: () =>
-          this.dependencies.transcript.commitRetryMessage(sessionId, prepared.retryFromOrderSeq)
+          prepared.reuseUserMessage
+            ? this.dependencies.transcript.commitRetryMessage(
+                sessionId,
+                prepared.retryFromOrderSeq,
+                prepared.reuseUserMessage
+              )
+            : this.dependencies.transcript.commitRetryMessage(sessionId, prepared.retryFromOrderSeq)
       }
     })
   }

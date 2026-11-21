@@ -1105,6 +1105,19 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
       )
       sessionEvents.publish({
         sessionId: `session-${result.run.id}`,
+        kind: 'status',
+        status: 'idle',
+        updatedAt: Date.now()
+      })
+      expect(service.getRun(result.run.id).status).toBe('running')
+      sessionEvents.publish({
+        sessionId: `session-${result.run.id}`,
+        kind: 'status',
+        status: 'generating',
+        updatedAt: Date.now()
+      })
+      sessionEvents.publish({
+        sessionId: `session-${result.run.id}`,
         kind: 'blocks',
         messageId: 'message-1',
         previewMarkdown: 'Finished cron session',
@@ -1387,6 +1400,12 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
           session_id: `session-${run.id}`
         })
       )
+      sessionEvents.publish({
+        sessionId: `session-${run.id}`,
+        kind: 'status',
+        status: 'generating',
+        updatedAt: Date.now()
+      })
       sessionEvents.publish({
         sessionId: `session-${run.id}`,
         kind: 'status',

@@ -2,6 +2,7 @@ import Database from 'better-sqlite3-multiple-ciphers'
 import { configureSQLiteConnection } from '@/data/connectionConfig'
 import { shouldExcludeFromSyncImport } from '@/data/sqliteCopyExclusions'
 import { orderSqliteTablesForCopy } from '@/data/sqliteCopyOrder'
+import { NativeImportRows } from './nativeImportRows'
 import {
   isAgentMemoryEmbeddingState,
   isAgentMemoryKind,
@@ -73,6 +74,7 @@ function parseImportedMemoryScope(row: Record<string, unknown>): MemoryScope | n
 export class DataImporter {
   private sourceDb: Database.Database
   private targetDb: Database.Database
+  private nativeRows?: NativeImportRows
 
   constructor(
     sourcePath: string,
@@ -103,6 +105,7 @@ export class DataImporter {
     const repairedRowCounts: Record<string, number> = {}
     const skippedRowCounts: Record<string, number> = {}
     const tables = this.getTablesInOrder()
+    this.nativeRows = new NativeImportRows(this.sourceDb, this.targetDb)
 
     const importTransaction = this.targetDb.transaction(() => {
       for (const table of tables) {
@@ -275,6 +278,10 @@ export class DataImporter {
     let repaired = 0
     let skipped = 0
     for (const row of rows) {
+      if (this.nativeRows?.skip(tableName, row)) {
+        skipped++
+        continue
+      }
       let normalizedState:
         | {
             lifecycleState: AgentMemoryLifecycleState
@@ -431,7 +438,7 @@ export class DataImporter {
               : legacyUserScopeForMemoryScope(normalizedScope)
           }
         }
-        return row[column]
+        return this.nativeRows?.value(tableName, row, column) ?? row[column]
       })
       const info = insertStmt.run(...values)
       if (pkColumns.length === 0 || info.changes > 0) {

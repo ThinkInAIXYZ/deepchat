@@ -1,3 +1,12 @@
+import { SessionReferenceEpochsTable } from './tables/sessionReferenceEpochs'
+import { DimTimelineInspectorTable } from './tables/dimTimelineInspector'
+import { DimInputProjectionTable } from './tables/dimInputProjection'
+import { DimSessionImportsTable } from './tables/dimSessionImports'
+import { DimScopeChangesTable } from './tables/dimScopeChanges'
+import { DimSessionScopesTable } from './tables/dimSessionScopes'
+import { DimInputIntentsTable } from './tables/dimInputIntents'
+import { DimSessionBindingsTable } from './tables/dimSessionBindings'
+import { DimProviderGrantsTable } from './tables/dimProviderGrants'
 import type { CONVERSATION, CONVERSATION_SETTINGS, SQLITE_MESSAGE } from '@shared/types/session'
 import type { DatabaseConnectionProvider } from '@/data/databaseConnection'
 import { ConversationsTable } from './tables/conversations'
@@ -56,6 +65,59 @@ export class SessionDatabase {
 
   get newSessionsTable() {
     return new NewSessionsTable(this.getDatabase())
+  }
+
+  get sessionReferenceEpochsTable() {
+    return new SessionReferenceEpochsTable(this.getDatabase())
+  }
+
+  get dimTimelineInspectorTable() {
+    return new DimTimelineInspectorTable(this.getDatabase())
+  }
+
+  get dimInputProjectionTable() {
+    return new DimInputProjectionTable(this.getDatabase())
+  }
+  get dimSessionImportsTable() {
+    return new DimSessionImportsTable(this.getDatabase())
+  }
+  get dimScopeChangesTable() {
+    return new DimScopeChangesTable(this.getDatabase())
+  }
+  get dimSessionScopesTable() {
+    return new DimSessionScopesTable(this.getDatabase())
+  }
+
+  get dimProviderGrantsTable() {
+    return new DimProviderGrantsTable(this.getDatabase())
+  }
+
+  get dimInputIntentsTable() {
+    return new DimInputIntentsTable(this.getDatabase())
+  }
+
+  /** Read-only archive port for first-continuation migration; never bootstraps a Tape. */
+  get legacyTape() {
+    return {
+      getEffectiveViewInputRows: (sessionId: string) =>
+        this.deepchatTapeEntriesTable.getEffectiveViewInputRows(sessionId),
+      getBySession: (sessionId: string, name: string) => {
+        const db = this.getDatabase()
+        if (
+          !db
+            .prepare(
+              "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'deepchat_tape_entries'"
+            )
+            .get()
+        )
+          return []
+        return new DeepChatTapeEntriesTable(db).getBySessionExcludingContext(sessionId, name)
+      }
+    }
+  }
+
+  get dimSessionBindingsTable() {
+    return new DimSessionBindingsTable(this.getDatabase())
   }
 
   get deepchatSessionsTable() {

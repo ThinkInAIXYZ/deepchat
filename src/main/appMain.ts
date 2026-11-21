@@ -177,6 +177,11 @@ export function startApp(): void {
         mainStartupRunId,
         requestUpdateInstall
       )
+      if (!mainProcess) {
+        allowQuit = true
+        app.quit()
+        return
+      }
       const durationMs = elapsedMonotonicMs(startupStartedAt)
       mainLogger.emit('app.startup.terminal', {
         startupRunId: mainStartupRunId,

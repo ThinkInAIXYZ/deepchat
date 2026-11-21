@@ -1155,31 +1155,6 @@
                           {{ getNumericInputErrorMessage('thinkingBudget') }}
                         </p>
                       </div>
-
-                      <div v-if="!showOpenAIMediaGenerationSettings" class="space-y-1.5">
-                        <div class="flex items-start justify-between gap-3">
-                          <div class="min-w-0">
-                            <label class="text-xs font-medium">
-                              {{ t('chat.advancedSettings.forceInterleavedThinkingCompat') }}
-                            </label>
-                            <p class="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-                              {{
-                                t('chat.advancedSettings.forceInterleavedThinkingCompatDescription')
-                              }}
-                            </p>
-                          </div>
-                          <Switch
-                            data-setting-control="forceInterleavedThinkingCompat-toggle"
-                            :model-value="isInterleavedThinkingEnabled"
-                            :aria-label="
-                              t('chat.advancedSettings.toggleValue', {
-                                label: t('chat.advancedSettings.forceInterleavedThinkingCompat')
-                              })
-                            "
-                            @update:model-value="onInterleavedThinkingToggle(Boolean($event))"
-                          />
-                        </div>
-                      </div>
                     </TooltipProvider>
                   </div>
                 </div>
@@ -1927,10 +1902,6 @@ const isThinkingBudgetEnabled = computed(
       (hasThinkingBudgetSupport(capabilityReasoningPortrait.value) &&
         localSettings.value.reasoningEffort === undefined))
 )
-const isInterleavedThinkingEnabled = computed(
-  () => localSettings.value?.forceInterleavedThinkingCompat === true
-)
-
 const thinkingBudgetHint = computed(() => {
   if (!isThinkingBudgetEnabled.value) {
     return t('common.disabled')
@@ -2299,16 +2270,6 @@ const resolveDefaultGenerationSettings = async (
         : Math.min(4096, contextLengthDefault)
   }
 
-  const interleavedThinkingDefault =
-    typeof modelConfig.forceInterleavedThinkingCompat === 'boolean'
-      ? modelConfig.forceInterleavedThinkingCompat
-      : portrait?.interleaved === true
-        ? true
-        : undefined
-  if (typeof interleavedThinkingDefault === 'boolean') {
-    defaults.forceInterleavedThinkingCompat = interleavedThinkingDefault
-  }
-
   const imageGeneration = normalizeImageGenerationOptions(modelConfig.imageGeneration)
   if (imageGeneration) {
     defaults.imageGeneration = imageGeneration
@@ -2485,9 +2446,6 @@ const updateLocalGenerationSettings = (patch: Partial<SessionGenerationSettings>
   }
   if (Object.prototype.hasOwnProperty.call(nextPatch, 'verbosity')) {
     normalizedPatch.verbosity = next.verbosity
-  }
-  if (Object.prototype.hasOwnProperty.call(nextPatch, 'forceInterleavedThinkingCompat')) {
-    normalizedPatch.forceInterleavedThinkingCompat = next.forceInterleavedThinkingCompat
   }
   if (Object.prototype.hasOwnProperty.call(nextPatch, 'imageGeneration')) {
     normalizedPatch.imageGeneration = normalizeImageGenerationOptions(next.imageGeneration)
@@ -2886,7 +2844,6 @@ async function changeModelSelection(
     reasoningEffort: undefined,
     reasoningVisibility: undefined,
     verbosity: undefined,
-    forceInterleavedThinkingCompat: undefined,
     imageGeneration: undefined,
     videoGeneration: undefined
   } as Partial<SessionGenerationSettings>
@@ -3268,15 +3225,6 @@ function onReasoningVisibilitySelect(value: string) {
     return
   }
   updateLocalGenerationSettings({ reasoningVisibility: normalized })
-}
-
-function onInterleavedThinkingToggle(enabled: boolean) {
-  if (!localSettings.value) {
-    return
-  }
-  updateLocalGenerationSettings({
-    forceInterleavedThinkingCompat: enabled
-  })
 }
 
 function onImageGenerationSettingsUpdate(

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { defineRouteContract } from '../common'
+import { defineRouteContract, DimTimelinePositionSchema } from '../common'
 import {
   AGENT_MEMORY_AUDIT_ACTOR_TYPES,
   AGENT_MEMORY_AUDIT_FAILURE_STATUSES,
@@ -82,6 +82,23 @@ const MemoryScopeIdInputSchema = z
   .refine((id) => unicodeCodePointLength(id) <= AGENT_MEMORY_SCOPE_ID_MAX_CHARS, {
     message: `scope id must be at most ${AGENT_MEMORY_SCOPE_ID_MAX_CHARS} Unicode code points`
   })
+
+export const DimMemorySourceSchema = z.object({
+  kind: z.literal('dim'),
+  sessionId: z.string().min(1).max(4096),
+  branchId: z.string().min(1).max(4096),
+  through: z
+    .string()
+    .regex(/^(0|[1-9][0-9]{0,19})$/)
+    .refine(
+      (value) => /^(0|[1-9][0-9]{0,19})$/.test(value) && BigInt(value) <= 18446744073709551615n
+    ),
+  messageId: z.string().min(1).max(4096)
+})
+const MemorySourceSchema = z.union([
+  z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+  DimMemorySourceSchema
+])
 
 export const MemoryScopeSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('agent') }).strict(),
@@ -179,7 +196,7 @@ const MemoryItemBaseSchema = z.object({
   importance: z.number(),
   status: z.enum(AGENT_MEMORY_HEALTH_STATUS_KEYS),
   sourceSession: z.string().nullable(),
-  sourceEntryIds: z.array(z.number().int().nonnegative()).nullable(),
+  sourceEntryIds: z.array(MemorySourceSchema).nullable(),
   supersededBy: z.string().nullable(),
   createdAt: z.number(),
   confidence: z.number().nullable().optional(),
@@ -790,7 +807,8 @@ export const MemoryAuditEventSchema = z.object({
 export const MemoryViewManifestSchema = z.object({
   sessionId: z.string(),
   messageId: z.string().nullable(),
-  entryId: z.number(),
+  entryId: z.number().nullable(),
+  timeline: DimTimelinePositionSchema.optional(),
   policyVersion: z.number().nullable(),
   tokenBudget: z.number(),
   estimatedTokens: z.number(),
@@ -1029,7 +1047,8 @@ export const memoryGetSourceSpanRoute = defineRouteContract({
         sessionId: z.string(),
         entries: z.array(
           z.object({
-            entryId: z.number().int().nonnegative(),
+            entryId: z.number().int().nonnegative().nullable(),
+            timeline: DimMemorySourceSchema.optional(),
             role: z.enum(['user', 'assistant']),
             content: z.string(),
             orderSeq: z.number()

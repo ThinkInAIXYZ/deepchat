@@ -13,7 +13,7 @@ test('provider headers use a JSON editor above the model list @smoke', async ({ 
 
   const providerRow = settingsPage.locator('[data-provider-id="openai"]').first()
   if (!(await providerRow.isVisible())) {
-    await settingsPage.getByTestId('disabled-providers-toggle').click()
+    await settingsPage.getByTestId('provider-browse-all').click()
   }
   await selectProvider(settingsPage, 'openai')
 

@@ -455,16 +455,6 @@
                   </template>
                 </DropdownMenuContent>
               </DropdownMenu>
-              <div v-if="showCodeModePermissionHint" class="flex gap-1 text-[11px] text-orange-500">
-                <Icon icon="lucide:triangle-alert" class="mt-0.5 h-3 w-3 shrink-0" />
-                <span>
-                  {{
-                    t('settings.deepchatAgents.defaultToolModeCodePermissionHint', {
-                      permission: t('settings.deepchatAgents.permissionFullAccess')
-                    })
-                  }}
-                </span>
-              </div>
             </div>
           </div>
         </section>
@@ -912,6 +902,7 @@
 </template>
 
 <script setup lang="ts">
+import { dimDisabledTools } from '@shared/lib/nativeToolPreferences'
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
@@ -963,7 +954,7 @@ import {
 } from '@shared/orchestration/policy'
 import {
   normalizeToolModeOverride,
-  ToolModeSchema,
+  AVAILABLE_TOOL_MODES,
   type ToolMode,
   type ToolModeOverride
 } from '@shared/toolMode'
@@ -1166,7 +1157,7 @@ const form = reactive<FormState>({
   subagentEnabled: true,
   defaultOrchestrationPolicy: 'explicit',
   subagents: normalizeDeepChatSubagentSlots(createDefaultDeepChatSubagentSlots()),
-  disabledAgentTools: [...DEFAULT_DISABLED_AGENT_TOOLS],
+  disabledAgentTools: dimDisabledTools([...DEFAULT_DISABLED_AGENT_TOOLS]),
   autoCompactionEnabled: uiSettingsStore.autoCompactionEnabled,
   autoCompactionTriggerThreshold: String(uiSettingsStore.autoCompactionTriggerThreshold),
   autoCompactionRetainRecentPairs: String(uiSettingsStore.autoCompactionRetainRecentPairs),
@@ -1253,7 +1244,7 @@ const toolModeOptions = computed<
     description: t('settings.deepchatAgents.defaultToolModeModelDefaultDesc'),
     icon: 'lucide:sparkles'
   },
-  ...ToolModeSchema.options.map((mode) => ({
+  ...AVAILABLE_TOOL_MODES.map((mode) => ({
     value: mode,
     label: t(`chat.input.toolMode.options.${mode}`),
     description: t(`chat.input.toolMode.descriptions.${mode}`),
@@ -1264,9 +1255,6 @@ const selectedToolModeOption = computed(
   () =>
     toolModeOptions.value.find((option) => option.value === form.defaultToolMode) ??
     toolModeOptions.value[0]
-)
-const showCodeModePermissionHint = computed(
-  () => form.defaultToolMode === 'code' && form.permissionMode !== 'full_access'
 )
 const pathLabel = (value: string) => value.split(/[/\\]/).pop() ?? value
 const directoryOptions = computed(() => {
@@ -1459,7 +1447,7 @@ const emptyForm = (): FormState => ({
   subagentEnabled: true,
   defaultOrchestrationPolicy: 'explicit',
   subagents: normalizeDeepChatSubagentSlots(createDefaultDeepChatSubagentSlots()),
-  disabledAgentTools: [...DEFAULT_DISABLED_AGENT_TOOLS],
+  disabledAgentTools: dimDisabledTools([...DEFAULT_DISABLED_AGENT_TOOLS]),
   autoCompactionEnabled: uiSettingsStore.autoCompactionEnabled,
   autoCompactionTriggerThreshold: String(uiSettingsStore.autoCompactionTriggerThreshold),
   autoCompactionRetainRecentPairs: String(uiSettingsStore.autoCompactionRetainRecentPairs),
@@ -1676,7 +1664,9 @@ const fromAgent = (agent?: Agent | null): FormState => {
     subagents: normalizeDeepChatSubagentSlots(
       config.subagents ?? createDefaultDeepChatSubagentSlots()
     ),
-    disabledAgentTools: [...(config.disabledAgentTools ?? DEFAULT_DISABLED_AGENT_TOOLS)],
+    disabledAgentTools: dimDisabledTools([
+      ...(config.disabledAgentTools ?? DEFAULT_DISABLED_AGENT_TOOLS)
+    ]),
     autoCompactionEnabled: config.autoCompactionEnabled ?? true,
     autoCompactionTriggerThreshold: numText(
       config.autoCompactionTriggerThreshold ?? AUTO_COMPACTION_TRIGGER_THRESHOLD_DEFAULT

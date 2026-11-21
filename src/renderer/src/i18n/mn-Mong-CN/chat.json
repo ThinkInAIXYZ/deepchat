@@ -83,16 +83,13 @@
       },
       "descriptions": {
         "agent": "ᠶᠢᠨ Agent ᠶᠢ ᠬᠡᠷᠡᠭᠯᠡᠨ᠎ᠡ ᠃",
-        "code": "ᠶᠢᠨ ᠣᠳᠣᠬᠢ ᠨᠡᠭᠡᠭᠡᠯᠲᠡ ᠲᠡᠢ ᠪᠠᠭᠠᠵᠢ ᠶᠢ ᠺᠣᠳ᠋ ᠢᠶᠠᠷ ᠲᠣᠬᠢᠷᠠᠭᠤᠯᠬᠤ ᠳᠤ ᠂ ᠪᠦᠬᠦ ᠶᠠᠪᠤᠴᠠ ᠶᠢ ᠣᠷᠣᠭᠤᠯᠬᠤ ᠠᠷᠭ᠎ᠠ ᠱᠠᠭᠠᠷᠳᠠᠯᠭ᠎ᠠ ᠱᠠᠭᠠᠷᠳᠠᠨ᠎ᠠ ᠃",
+        "code": "ᠶᠢᠨ ᠣᠳᠣᠬᠢ ᠨᠡᠭᠡᠭᠡᠯᠲᠡ ᠲᠡᠢ ᠪᠠᠭᠠᠵᠢ ᠶᠢ ᠺᠣᠳ᠋ ᠢᠶᠠᠷ ᠲᠣᠬᠢᠷᠠᠭᠤᠯᠬᠤ ᠳᠤ ᠃",
         "minimal": "ᠶᠢᠨ ᠠᠵᠢᠯᠯᠠᠭᠠᠨ ᠢ ᠳᠥᠭᠥᠮᠴᠢᠯᠡᠬᠦ ᠶᠢᠨ ᠬᠠᠮᠲᠤ ᠪᠤᠰᠤᠳ ᠨᠡᠭᠡᠭᠡᠯᠲᠡ ᠶᠢᠨ ᠪᠠᠭᠠᠵᠢ ᠶᠢ ᠦᠯᠡᠳᠡᠭᠡᠵᠦ ᠴᠢᠳᠠᠨ᠎ᠠ ᠃"
       },
       "useModelDefault": "ᠶᠢᠨ ᠲᠣᠭᠲᠠᠪᠤᠷᠢ ᠶᠢ ᠬᠡᠷᠡᠭᠯᠡᠬᠦ",
       "saving": "ᠬᠠᠳᠠᠭᠠᠯᠠᠬᠤ ᠠᠷᠭ᠋ ᠠ ᠁",
       "locked": "ᠶᠢ ᠲᠤᠰᠬᠠᠭᠰᠠᠨ ᠤ ᠳᠠᠷᠠᠭ᠎ᠠ ᠰᠣᠯᠢᠵᠤ ᠪᠣᠯᠣᠨ᠎ᠠ ᠃",
-      "updateFailed": "ᠶᠢᠨ ᠠᠷᠭ᠎ᠠ ᠬᠡᠮᠵᠢᠶ᠎ᠡ ᠶᠢ ᠰᠢᠨᠡᠳᠬᠡᠬᠦ ᠦᠭᠡᠢ ᠃",
-      "codeEntry": "ᠨᠣᠮᠧᠷ ᠢ ᠲᠠᠭᠯᠠᠬᠤ",
-      "codeCallable": "Code ᠳᠠᠭᠤᠳᠠᠵᠤ ᠪᠣᠯᠬᠤ",
-      "minimalTools": "ᠶᠢᠨ ᠨᠣᠮᠧᠷᠯᠠᠬᠤ ᠪᠠᠭᠠᠵᠢ"
+      "updateFailed": "ᠶᠢᠨ ᠠᠷᠭ᠎ᠠ ᠬᠡᠮᠵᠢᠶ᠎ᠡ ᠶᠢ ᠰᠢᠨᠡᠳᠬᠡᠬᠦ ᠦᠭᠡᠢ ᠃"
     },
     "fileUploadFailed": "ᠶᠢᠨ ᠳᠠᠭᠠᠯᠳᠤᠭᠤᠯᠤᠯ ᠢ ᠰᠢᠢᠳᠪᠦᠷᠢᠯᠡᠵᠦ ᠴᠢᠳᠠᠭᠰᠠᠨ ᠦᠭᠡᠢ",
     "fileUploadFailedDesc": "ᠪᠢᠴᠢᠭ᠌ ᠮᠠᠲ᠋ᠧᠷᠢᠶᠠᠯ {count} ᠰᠢᠢᠳᠪᠦᠷᠢᠯᠡᠬᠦ ᠶᠢᠨ ᠠᠷᠭ᠎ᠠ ᠦᠭᠡᠢ ᠄ {names}",
@@ -321,8 +318,6 @@
     "maxTokens": "ᠬᠠᠮᠤᠭ ᠶᠡᠬᠡ ᠭᠠᠷᠭᠠᠯᠲᠠ",
     "thinkingBudget": "ᠢ ᠪᠣᠳᠣᠯᠬᠢᠯᠠᠬᠤ",
     "verbosity": "ᠶᠢᠨ ᠨᠠᠷᠢᠨ ᠲᠠᠰ ᠤᠨ ᠬᠠᠷᠢᠭᠤᠯᠲᠠ",
-    "forceInterleavedThinkingCompat": "ᠡᠭᠡᠯᠵᠢᠯᠡᠨ ᠪᠣᠳᠣᠬᠤ",
-    "forceInterleavedThinkingCompatDescription": "ᠶᠢᠨ ᠨᠢᠭᠡ ᠤᠳᠠᠭᠠᠨ ᠤ ᠬᠤᠷᠠᠯ ᠳᠤ reasoning ᠪᠠ tool-call ᠶᠢᠨ ᠮᠡᠳᠡᠭᠡ ᠶᠢ Interleaved Thinking ᠶᠢ ᠡᠵᠡᠮᠰᠢᠨ᠎ᠡ ᠃",
     "verbosityPlaceholder": "ᠶᠢ ᠢᠯᠭᠠᠬᠤ",
     "currentCustomPrompt": "ᠵᠠᠩ ᠦᠢᠯᠡ ᠶᠢᠨ",
     "useDefault": "ᠶᠢ ᠬᠡᠷᠡᠭ᠍ᠯᠡᠬᠦ",

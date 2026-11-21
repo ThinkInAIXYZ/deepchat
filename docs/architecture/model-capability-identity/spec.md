@@ -171,7 +171,7 @@ authoritative.
 
 The `reasoningEnabled` name ends at the capability-query and request-policy resolver input
 boundary. `ModelRequestPolicy.reasoning` remains the policy governing the reasoning parameter,
-parallel to `temperature`, `topP`, and `legacyThinking`. `ModelConfig.reasoning` remains the
+parallel to `temperature` and `topP`. `ModelConfig.reasoning` remains the
 backward-compatible persisted configuration field.
 
 The route output schema matches the resolved snapshot producer. `supportsAudioInput`,

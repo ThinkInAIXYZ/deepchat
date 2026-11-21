@@ -5,7 +5,7 @@
     "expand": "ᠳᠡᠯᠭᠡᠬᠦ",
     "collapse": "ᠨᠤᠷᠠᠬᠤ",
     "refresh": "ᠰᠢᠨ᠎ᠡ ᠪᠡᠷ",
-    "loadOlder": "ᠪᠠᠨ ᠡᠷᠲᠡᠬᠡᠨ Tape Entry",
+    "loadOlder": "ᠪᠠᠨ ᠡᠷᠲᠡᠬᠡᠨ timeline event",
     "loadMore": "ᠶᠢ ᠨᠡᠮᠡᠬᠦ",
     "loadEvidence": "ᠶᠢᠨ ᠵᠠᠭᠪᠤᠷ ᠢ ᠨᠡᠮᠡᠬᠦ ᠪᠡᠷ ᠱᠠᠭᠠᠷᠳᠠᠨ᠎ᠠ",
     "loadMatchingEntries": "ᠵᠣᠬᠢᠴᠠᠩᠭ᠋ᠤᠢ Entry",
@@ -23,8 +23,8 @@
     "waterfall": "ᠬᠦᠷᠬᠢᠷ᠎ᠡ ᠶᠢᠨ ᠵᠢᠷᠤᠭᠲᠤ ᠵᠢᠷᠤᠭ"
   },
   "search": {
-    "loadedLabel": "ᠢ ᠡᠷᠢᠬᠦ Tape Entry ᠪᠠ ᠵᠠᠭᠪᠤᠷ ᠤᠨ ᠱᠠᠭᠠᠷᠳᠠᠯᠭ᠎ᠠ ᠶᠢ ᠡᠷᠢᠬᠦ",
-    "loadedPlaceholder": "ᠢ ᠡᠷᠢᠬᠦ Tape Entry ᠪᠠ ᠵᠠᠭᠪᠤᠷ ᠤᠨ ᠱᠠᠭᠠᠷᠳᠠᠯᠭ᠎ᠠ ᠶᠢ ᠡᠷᠢᠬᠦ",
+    "loadedLabel": "ᠢ ᠡᠷᠢᠬᠦ timeline event ᠪᠠ ᠵᠠᠭᠪᠤᠷ ᠤᠨ ᠱᠠᠭᠠᠷᠳᠠᠯᠭ᠎ᠠ ᠶᠢ ᠡᠷᠢᠬᠦ",
+    "loadedPlaceholder": "ᠢ ᠡᠷᠢᠬᠦ timeline event ᠪᠠ ᠵᠠᠭᠪᠤᠷ ᠤᠨ ᠱᠠᠭᠠᠷᠳᠠᠯᠭ᠎ᠠ ᠶᠢ ᠡᠷᠢᠬᠦ",
     "loadedScope": "ᠶᠢᠨ ᠦᠰᠦᠭ᠍ ᠡᠷᠢᠬᠦ ᠨᠢ ᠵᠥᠪᠬᠡᠨ ᠠᠴᠢᠶᠠᠯᠠᠭᠰᠠᠨ ᠬᠡᠪᠴᠢᠶᠡᠨ ᠳᠦ ᠪᠠᠢ᠌ᠳᠠᠭ ᠃"
   },
   "filters": {
@@ -104,11 +104,11 @@
     "timingNotRecorded": "ᠡᠨᠡ ᠲᠡᠮᠳᠡᠭ᠍ᠯᠡᠯ ᠨᠢ ᠬᠣᠶᠠᠷ ᠴᠠᠭ ᠤᠨ ᠬᠢᠵᠠᠭᠠᠷ ᠢ ᠬᠠᠮᠲᠤ ᠬᠠᠳᠠᠭᠠᠯᠠᠬᠤ ᠪᠢᠰᠢ",
     "timingInconsistent": "ᠲᠡᠮᠳᠡᠭᠯᠡᠭᠰᠡᠨ ᠴᠠᠭ ᠬᠤᠭᠤᠴᠠᠭᠠᠨ ᠤ ᠵᠠᠭᠠᠭ ᠨᠢ ᠨᠡᠢ᠌ᠴᠡᠬᠦ ᠦᠭᠡᠢ",
     "notApplicable": "ᠲᠤᠰ ᠵᠦᠢᠯ ᠲᠣᠬᠢᠷᠠᠬᠤ ᠦᠭᠡᠢ",
-    "empty": "Tape Entry ᠂ ᠵᠠᠭᠪᠤᠷ ᠤᠨ ᠱᠠᠭᠠᠷᠳᠠᠯᠭ᠎ᠠ ᠶᠢ ᠭᠦᠢᠴᠡᠳᠬᠡᠵᠦ ᠪᠣᠯᠬᠤ ᠦᠭᠡᠶ",
-    "loadedCounts": "{entries} ᠵᠦᠢᠯ · Tape Entry · {evidence} ᠶᠢᠨ ᠵᠠᠭᠪᠤᠷ ᠤᠨ ᠭᠤᠶᠤᠴᠢᠯᠠᠯ ᠤᠨ ᠱᠠᠭᠠᠷᠳᠠᠯᠭ᠎ᠠ",
-    "pageLoaded": "{count} Tape Entry ᠶᠢ ᠰᠠᠪᠠᠯᠠᠨ᠎ᠠ ᠃ ᠣᠳᠣᠬᠠᠨ ᠤ ᠪᠠᠢ᠌ᠷᠢ ᠶᠢ ᠦᠯᠡᠳᠡᠭᠡᠨ᠎ᠡ ᠃ ᠦᠷᠭᠦᠯᠵᠢᠯᠡᠨ ᠥᠩᠰᠦᠭ᠍ᠢᠨᠡᠵᠦ ᠦᠵᠡᠭᠡᠷᠡᠢ ᠃",
-    "pageLoadedComplete": "{count} ᠶᠢ Tape Entry ᠳᠤ Tape ᠃",
-    "pageNoMatches": "ᠳᠠᠷᠠᠭᠠᠴᠢ ᠶᠢᠨ ᠬᠡᠪᠴᠢᠶᠡᠨ ᠦ ᠬᠡᠮᠵᠢᠶ᠎ᠡ ᠶᠢ ᠨᠢᠭᠡᠨᠲᠡ ᠰᠢᠷᠪᠢᠭᠰᠡᠨ ᠪᠣᠯᠪᠠᠴᠤ ᠣᠳᠣ ᠶᠢᠨ ᠪᠠᠶᠢᠳᠠᠯ ᠳᠤ Tape Entry ᠪᠠᠶᠢᠭᠰᠠᠨ ᠦᠭᠡᠶ ᠃",
+    "empty": "timeline event ᠂ ᠵᠠᠭᠪᠤᠷ ᠤᠨ ᠱᠠᠭᠠᠷᠳᠠᠯᠭ᠎ᠠ ᠶᠢ ᠭᠦᠢᠴᠡᠳᠬᠡᠵᠦ ᠪᠣᠯᠬᠤ ᠦᠭᠡᠶ",
+    "loadedCounts": "{entries} ᠵᠦᠢᠯ · timeline event · {evidence} ᠶᠢᠨ ᠵᠠᠭᠪᠤᠷ ᠤᠨ ᠭᠤᠶᠤᠴᠢᠯᠠᠯ ᠤᠨ ᠱᠠᠭᠠᠷᠳᠠᠯᠭ᠎ᠠ",
+    "pageLoaded": "{count} timeline event ᠶᠢ ᠰᠠᠪᠠᠯᠠᠨ᠎ᠠ ᠃ ᠣᠳᠣᠬᠠᠨ ᠤ ᠪᠠᠢ᠌ᠷᠢ ᠶᠢ ᠦᠯᠡᠳᠡᠭᠡᠨ᠎ᠡ ᠃ ᠦᠷᠭᠦᠯᠵᠢᠯᠡᠨ ᠥᠩᠰᠦᠭ᠍ᠢᠨᠡᠵᠦ ᠦᠵᠡᠭᠡᠷᠡᠢ ᠃",
+    "pageLoadedComplete": "{count} ᠶᠢ timeline event ᠳᠤ Tape ᠃",
+    "pageNoMatches": "ᠳᠠᠷᠠᠭᠠᠴᠢ ᠶᠢᠨ ᠬᠡᠪᠴᠢᠶᠡᠨ ᠦ ᠬᠡᠮᠵᠢᠶ᠎ᠡ ᠶᠢ ᠨᠢᠭᠡᠨᠲᠡ ᠰᠢᠷᠪᠢᠭᠰᠡᠨ ᠪᠣᠯᠪᠠᠴᠤ ᠣᠳᠣ ᠶᠢᠨ ᠪᠠᠶᠢᠳᠠᠯ ᠳᠤ timeline event ᠪᠠᠶᠢᠭᠰᠠᠨ ᠦᠭᠡᠶ ᠃",
     "pageNoMatchesComplete": "Tape ᠡᠬᠢᠯᠡᠯᠲᠡ ᠳᠤ ᠬᠦᠷᠦᠭᠰᠡᠨ ᠦᠭᠡᠢ ᠂ ᠡᠷᠲᠡ ᠦᠶ᠎ᠡ ᠶᠢᠨ Entry ᠤᠤᠯ ᠤᠨ ᠨᠦᠭᠦᠴᠡᠯ ᠢ ᠪᠦᠷᠢᠯᠲᠦᠭᠦᠯᠵᠡᠢ ᠃",
     "matchingEntriesUnavailable": "Tape ᠶᠢᠨ ᠵᠠᠬᠢᠶᠠᠯᠠᠭ᠎ᠠ ᠶᠢ ᠬᠡᠷᠡᠭ᠍ᠯᠡᠵᠦ ᠂ ᠬᠠᠷᠢᠴᠠᠩᠭᠤᠢ ᠶᠢᠨ Entry ᠢ ᠠᠴᠢᠶᠠᠯᠠᠭᠰᠠᠨ ᠤ ᠳᠠᠷᠠᠭ᠎ᠠ ᠤᠷᠢᠳᠠᠪᠠᠷ ᠱᠦᠭᠦᠭ᠍ᠴᠢ ᠴᠡᠭᠯᠡᠭᠦᠷ ᠢ ᠴᠡᠪᠡᠷᠯᠡᠨ᠎ᠡ ᠃",
     "live": "ᠵᠢᠩᠬᠢᠨᠢ ᠴᠠᠭ",
@@ -129,7 +129,7 @@
     "duration": "ᠶᠢᠨ ᠬᠤᠭᠤᠴᠠᠭ᠎ᠠ",
     "point": "ᠶᠢᠨ ᠴᠠᠭ",
     "error": "ᠠᠯᠳᠠᠭ᠎ᠠ",
-    "earlierNotLoaded": "ᠡᠷᠲᠡ ᠦᠶ᠎ᠡ Tape Entry ᠪᠠᠷᠠᠭ᠎ᠠ ᠠᠴᠢᠶᠠᠯᠠᠭᠠᠳᠤᠢ"
+    "earlierNotLoaded": "ᠡᠷᠲᠡ ᠦᠶ᠎ᠡ timeline event ᠪᠠᠷᠠᠭ᠎ᠠ ᠠᠴᠢᠶᠠᠯᠠᠭᠠᠳᠤᠢ"
   },
   "detail": {
     "title": "ᠳᠡᠯᠭᠡᠷᠡᠩᠭᠦᠶ ᠮᠡᠳᠡᠭᠡ",

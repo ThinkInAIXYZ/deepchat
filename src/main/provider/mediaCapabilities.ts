@@ -1,13 +1,13 @@
-import { ApiEndpointType, ModelType, isOpenAIImageGenerationModelId } from '@shared/model'
 import type { NewApiEndpointType } from '@shared/model'
-import type { ModelRouteConfig } from '@shared/types/provider'
+import { ApiEndpointType, ModelType, isOpenAIImageGenerationModelId } from '@shared/model'
 import type { MediaSettingsCapabilities } from '@shared/types/model-capabilities'
+import type { ModelRouteConfig } from '@shared/types/provider'
 import { isVideoGenerationModelConfig } from '@shared/videoGenerationSettings'
-import type { AiSdkProviderKind } from './aiSdk/providerFactory'
+import type { ProviderTransportKind } from './providerEndpoints'
 
 // The caller supplies the effective transport, never the capability/catalog owner.
 export function resolveMediaSettingsCapabilities(
-  providerKind: AiSdkProviderKind | undefined,
+  providerKind: ProviderTransportKind | undefined,
   modelId: string,
   modelConfig: ModelRouteConfig,
   endpointType?: NewApiEndpointType | 'grok-image',

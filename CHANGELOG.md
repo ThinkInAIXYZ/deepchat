@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+- Retired SQLite database encryption. The migration notice explains how the change affects chat history, stored provider API keys, and new backups. Users can quit before conversion. DeepChat keeps the original encrypted database as a recovery copy.
+- 停用 SQLite 数据库加密。迁移提示说明对聊天记录、已保存的服务商 API 密钥和新建备份的影响。用户可以在转换前退出，DeepChat 会保留原加密数据库作为恢复副本。
+
 ## v1.1.4 (2026-11-12)
 - Refreshed the desktop interface with a unified sidebar, searchable settings, compact ACP Agent details, and a message minimap with scrollable previews
 - Moved conversation search into global search, prioritized matching titles, and fixed accidental selection when confirming input method text

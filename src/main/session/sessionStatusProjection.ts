@@ -1,6 +1,6 @@
-import type { SessionStatusPublisherPorts } from '@/agent/deepchat/runtime/sessionStatusPublisher'
+import type { SessionStatusPublisherPorts } from '@/agent/shared/output'
 import type { SessionEventPublisher } from '@/events/sessionEventRouter'
-import type { DeepChatInternalSessionUpdate } from '@/agent/deepchat/runtime/sessionUpdates'
+import type { DeepChatInternalSessionUpdate } from '@/agent/shared/sessionUpdates'
 import type { SessionUiPort } from './contracts'
 
 export function createSessionStatusProjection(ports: {

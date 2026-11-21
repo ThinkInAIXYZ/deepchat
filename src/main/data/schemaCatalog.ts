@@ -1,3 +1,12 @@
+import { SessionReferenceEpochsTable } from '@/session/data/tables/sessionReferenceEpochs'
+import { DimTimelineInspectorTable } from '@/session/data/tables/dimTimelineInspector'
+import { DimInputProjectionTable } from '@/session/data/tables/dimInputProjection'
+import { DimSessionImportsTable } from '@/session/data/tables/dimSessionImports'
+import { DimScopeChangesTable } from '@/session/data/tables/dimScopeChanges'
+import { DimSessionScopesTable } from '@/session/data/tables/dimSessionScopes'
+import { DimInputIntentsTable } from '@/session/data/tables/dimInputIntents'
+import { DimSessionBindingsTable } from '@/session/data/tables/dimSessionBindings'
+import { DimProviderGrantsTable } from '@/session/data/tables/dimProviderGrants'
 import Database from 'better-sqlite3-multiple-ciphers'
 import { AGENT_MEMORY_SCOPE_ID_MAX_CHARS } from '@shared/types/agent-memory'
 import { ConversationsTable } from '@/session/data/tables/conversations'
@@ -76,6 +85,15 @@ function normalizeDeclaredType(type: string | null | undefined): string | null {
 }
 
 const CATALOG_DEFINITIONS: CatalogDefinition[] = [
+  { name: 'dim_session_scopes', createTable: (db) => new DimSessionScopesTable(db) },
+  { name: 'dim_scope_changes', createTable: (db) => new DimScopeChangesTable(db) },
+  { name: 'dim_session_imports', createTable: (db) => new DimSessionImportsTable(db) },
+  { name: 'dim_provider_grants', createTable: (db) => new DimProviderGrantsTable(db) },
+  { name: 'dim_input_projection', createTable: (db) => new DimInputProjectionTable(db) },
+  { name: 'dim_input_intents', createTable: (db) => new DimInputIntentsTable(db) },
+  { name: 'dim_timeline_inspector_heads', createTable: (db) => new DimTimelineInspectorTable(db) },
+  { name: 'session_reference_epochs', createTable: (db) => new SessionReferenceEpochsTable(db) },
+  { name: 'dim_session_bindings', createTable: (db) => new DimSessionBindingsTable(db) },
   {
     name: 'conversations',
     createTable: (db) => new ConversationsTable(db),
@@ -481,6 +499,15 @@ export function createMainSchemaCatalog(db: Database.Database): MainSchemaCatalo
   const environmentPreferences = new NewEnvironmentPreferencesTable(db)
   const sessions = new NewSessionsTable(db)
   const projects = new NewProjectsTable(db)
+  const dimInputProjection = new DimInputProjectionTable(db)
+  const dimSessionImports = new DimSessionImportsTable(db)
+  const dimScopeChanges = new DimScopeChangesTable(db)
+  const dimSessionScopes = new DimSessionScopesTable(db)
+  const dimIntents = new DimInputIntentsTable(db)
+  const sessionReferenceEpochs = new SessionReferenceEpochsTable(db)
+  const dimBindings = new DimSessionBindingsTable(db)
+  const dimTimelineInspector = new DimTimelineInspectorTable(db)
+  const dimProviderGrants = new DimProviderGrantsTable(db)
   const deepchatSessions = new DeepChatSessionsTable(db)
   const messages = new DeepChatMessagesTable(db)
   const userMessages = new DeepChatUserMessagesTable(db)
@@ -524,6 +551,15 @@ export function createMainSchemaCatalog(db: Database.Database): MainSchemaCatalo
     sessions,
     projects,
     deepchatSessions,
+    sessionReferenceEpochs,
+    dimBindings,
+    dimTimelineInspector,
+    dimProviderGrants,
+    dimIntents,
+    dimInputProjection,
+    dimSessionImports,
+    dimScopeChanges,
+    dimSessionScopes,
     messages,
     userMessages,
     userMessageFiles,

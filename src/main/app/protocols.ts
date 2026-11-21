@@ -1,3 +1,4 @@
+import { materializeNativeMedia } from '@/platform/nativeMediaCache'
 import logger from '@shared/logger'
 /**
  * Protocol handlers used by the main process
@@ -53,6 +54,24 @@ const getMimeTypeForPath = (filePath: string): string => {
       return 'image/x-icon'
     case '.avif':
       return 'image/avif'
+    case '.mp3':
+      return 'audio/mpeg'
+    case '.wav':
+      return 'audio/wav'
+    case '.ogg':
+      return 'audio/ogg'
+    case '.opus':
+      return 'audio/opus'
+    case '.aac':
+      return 'audio/aac'
+    case '.flac':
+      return 'audio/flac'
+    case '.mp4':
+      return 'video/mp4'
+    case '.webm':
+      return 'video/webm'
+    case '.mov':
+      return 'video/quicktime'
     case '.woff':
       return 'font/woff'
     case '.woff2':
@@ -219,6 +238,7 @@ export async function registerProtocols(
     }
 
     try {
+      await materializeNativeMedia(request.url)
       const stat = await fsp.stat(fullPath)
       if (stat.isDirectory()) {
         console.warn(`registerProtocols: imgcache handler: Image file not found: ${fullPath}`)

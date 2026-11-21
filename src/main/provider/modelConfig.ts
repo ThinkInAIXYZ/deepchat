@@ -31,7 +31,7 @@ import { modelCapabilities, type CapabilityModelMatch } from './modelCapabilitie
 import type { StoreLike } from '@/config/storeLike'
 import { resolveCapabilityIdentity } from './capabilityIdentity'
 import type { ResolvedCapabilityIdentity } from '@shared/types/model-capabilities'
-import { normalizeUserModelConfigEntry } from './userModelConfig'
+import { normalizeUserModelConfigEntry, omitRetiredModelConfigFields } from './userModelConfig'
 import { isTextOnlyInputProvider } from './providerRegistry'
 
 const SPECIAL_CONCAT_CHAR = '-_-'
@@ -176,8 +176,7 @@ export class ModelConfigHelper {
 
     return {
       ...policyConfig,
-      contextLength: Math.max(policyConfig.contextLength ?? 0, MINIMAX_M3_CONTEXT_LENGTH),
-      forceInterleavedThinkingCompat: true
+      contextLength: Math.max(policyConfig.contextLength ?? 0, MINIMAX_M3_CONTEXT_LENGTH)
     }
   }
 
@@ -229,7 +228,6 @@ export class ModelConfigHelper {
     const thinkingBudget = portrait?.budgetExclusiveWithEffort
       ? undefined
       : (portrait?.budget?.default ?? model.reasoning?.budget?.default ?? undefined)
-    const forceInterleavedThinkingCompat = portrait?.interleaved === true ? true : undefined
     const reasoningEffort = portrait?.budgetExclusiveWithEffort
       ? undefined
       : normalizeReasoningEffortValue(
@@ -264,7 +262,6 @@ export class ModelConfigHelper {
               ? ApiEndpointType.AudioSpeech
               : ApiEndpointType.Chat,
       thinkingBudget,
-      forceInterleavedThinkingCompat,
       reasoningEffort,
       reasoningVisibility,
       verbosity,
@@ -521,7 +518,6 @@ export class ModelConfigHelper {
         apiEndpoint: isCodexImage ? ApiEndpointType.Image : ApiEndpointType.Chat,
         endpointType: undefined,
         thinkingBudget: undefined,
-        forceInterleavedThinkingCompat: undefined,
         reasoningEffort: undefined,
         verbosity: undefined,
         enableSearch: false,
@@ -552,7 +548,7 @@ export class ModelConfigHelper {
         ? Math.round(config.timeout)
         : undefined
     const storedConfig: ModelConfig = this.applyProviderSpecificPolicies(providerId, modelId, {
-      ...config,
+      ...omitRetiredModelConfigFields(config),
       ...(normalizedTimeout !== undefined ? { timeout: normalizedTimeout } : {}),
       isUserDefined: true
     })

@@ -25,13 +25,6 @@ export const createAgentToolDependencies = (
     resolveConversationExecutionAuthority:
       overrides.resolveConversationExecutionAuthority ?? vi.fn().mockResolvedValue(null)
   },
-  tape: {
-    getTapeInfo: overrides.getTapeInfo ?? vi.fn(),
-    searchTape: overrides.searchTape ?? vi.fn(),
-    getTapeContext: overrides.getTapeContext ?? vi.fn(),
-    listTapeAnchors: overrides.listTapeAnchors ?? vi.fn(),
-    handoffTape: overrides.handoffTape ?? vi.fn()
-  },
   memory: {
     isMemoryEnabled: overrides.isMemoryEnabled ?? vi.fn(() => false),
     rememberMemory: overrides.rememberMemory ?? vi.fn(),
@@ -39,18 +32,6 @@ export const createAgentToolDependencies = (
     forgetMemory:
       overrides.forgetMemory ??
       vi.fn().mockResolvedValue({ action: 'rejected', reason: 'unavailable' })
-  },
-  cronJobs: {
-    listCronJobs:
-      overrides.listCronJobs ??
-      vi.fn().mockResolvedValue({ jobs: [], schedulerStatus: { state: 'idle' } }),
-    upsertCronJob: overrides.upsertCronJob ?? vi.fn(),
-    deleteCronJob: overrides.deleteCronJob ?? vi.fn(),
-    toggleCronJob: overrides.toggleCronJob ?? vi.fn(),
-    runCronJobNow: overrides.runCronJobNow ?? vi.fn(),
-    listCronJobRuns: overrides.listCronJobRuns ?? vi.fn().mockResolvedValue([]),
-    previewCronSchedule:
-      overrides.previewCronSchedule ?? vi.fn().mockResolvedValue({ runs: [], error: null })
   },
   subagents: {
     createSubagentSession: overrides.createSubagentSession ?? vi.fn(),

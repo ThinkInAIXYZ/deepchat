@@ -20,6 +20,18 @@ describe('normalizeUserModelConfigEntry', () => {
     })
   })
 
+  it('drops the retired harness flag without changing other stored configuration', () => {
+    const value = entry({
+      source: 'user',
+      config: { forceInterleavedThinkingCompat: true, temperature: 0.6 }
+    })
+    expect(normalizeUserModelConfigEntry(value)?.config).toEqual({
+      isUserDefined: true,
+      temperature: 0.6
+    })
+    expect(value.config).toHaveProperty('forceInterleavedThinkingCompat', true)
+  })
+
   it.each([
     {
       label: 'missing source',

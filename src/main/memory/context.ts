@@ -28,7 +28,7 @@ import {
 
 export type { MemoryModelRef } from './domain/types'
 
-export type MemoryOperationFence = MemoryExecutionToken
+export type MemoryOperationFence = MemoryExecutionToken & { signal?: AbortSignal }
 
 interface MemoryExecutionState {
   generation: number
@@ -108,9 +108,10 @@ export class MemoryRuntimeContext {
     this.options.providerControl.abortAll()
   }
 
-  captureOperationFence(agentId: string): MemoryOperationFence {
+  captureOperationFence(agentId: string, signal?: AbortSignal): MemoryOperationFence {
     return {
       agentId,
+      ...(signal ? { signal } : {}),
       generation: this.getOrCreateExecutionState(agentId).generation
     }
   }
@@ -119,6 +120,7 @@ export class MemoryRuntimeContext {
     return (
       !this.disposed &&
       !this.paused &&
+      !fence.signal?.aborted &&
       (this.executionStateByAgent.get(fence.agentId)?.generation ?? 0) === fence.generation
     )
   }

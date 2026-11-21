@@ -1,7 +1,8 @@
 # Schema Reference
 
-Use this reference when extracting provider config, settings, sessions, and messages from
-`agent.db`. Verify against `sqlite_master` for user databases created by newer DeepChat versions.
+Use this reference for the app SQLite schema. Verify against `sqlite_master` for the source
+version. For Dim-backed sessions, use `dim_session_bindings` to identify the native session and
+branch. SQLite message rows may contain legacy content or a cached transcript projection.
 
 ## Core Version Tables
 
@@ -122,7 +123,7 @@ Important columns:
 
 ### deepchat_messages
 
-Message timeline for a session.
+Transcript rows for a session. The Dim profile owns the native timeline for bound sessions.
 
 - `id`: message id.
 - `session_id`: references the session id.
@@ -221,5 +222,5 @@ Legacy message timeline.
 
 Legacy attachments by `message_id`, `type`, and serialized `content`.
 
-Prefer `new_sessions` and `deepchat_*` for current imports. Use legacy tables or `chat.db` only when
-`agent.db` is missing, an old backup is imported, or the user explicitly wants legacy data.
+Use `new_sessions` and `deepchat_*` for app metadata and legacy transcripts when present. Fall back
+to legacy tables or `chat.db` for older profiles without those records.

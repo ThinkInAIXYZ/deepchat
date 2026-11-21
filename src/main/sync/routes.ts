@@ -31,7 +31,8 @@ export function createSyncRoutes(deps: {
   settings: SyncSettings
   importFromSync(
     backupFileName: string,
-    importMode?: 'increment' | 'overwrite'
+    importMode?: 'increment' | 'overwrite',
+    legacyPassword?: string
   ): Promise<SyncImportResult>
   pullLatestBackupFromCloud(importMode?: 'increment' | 'overwrite'): Promise<CloudSyncResult>
   recordActivity(input: SettingsActivityInput): void
@@ -97,7 +98,9 @@ export function createSyncRoutes(deps: {
       syncImportRoute.name,
       async (rawInput) => {
         const input = syncImportRoute.input.parse(rawInput)
-        const result = await deps.importFromSync(input.backupFile, input.mode)
+        const result = input.legacyPassword
+          ? await deps.importFromSync(input.backupFile, input.mode, input.legacyPassword)
+          : await deps.importFromSync(input.backupFile, input.mode)
         if (result?.success) {
           deps.recordActivity({
             category: 'data',

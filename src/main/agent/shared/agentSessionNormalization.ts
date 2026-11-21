@@ -1,3 +1,4 @@
+import { dimDisabledTools } from '@shared/lib/nativeToolPreferences'
 import type {
   CreateSessionInput,
   MessageFile,
@@ -22,17 +23,19 @@ export const normalizeDisabledAgentTools = (
     ? LEGACY_PERSISTED_DISABLED_AGENT_TOOLS
     : RETIRED_DEFAULT_AGENT_TOOLS
 
-  return Array.from(
-    new Set(
-      disabledAgentTools
-        .filter((item): item is string => typeof item === 'string')
-        .map((item) => item.trim())
-        .map((item) => LEGACY_AGENT_TOOL_NAME_MAP.get(item) ?? item)
-        .filter(
-          (item) => Boolean(item) && !retiredTools.has(item) && isUserConfigurableAgentTool(item)
-        )
-    )
-  ).sort((left, right) => left.localeCompare(right))
+  return dimDisabledTools(
+    Array.from(
+      new Set(
+        disabledAgentTools
+          .filter((item): item is string => typeof item === 'string')
+          .map((item) => item.trim())
+          .map((item) => LEGACY_AGENT_TOOL_NAME_MAP.get(item) ?? item)
+          .filter(
+            (item) => Boolean(item) && !retiredTools.has(item) && isUserConfigurableAgentTool(item)
+          )
+      )
+    ).sort((left, right) => left.localeCompare(right))
+  )
 }
 
 export const normalizeActiveSkills = (activeSkills?: string[]): string[] => {

@@ -635,3 +635,49 @@ describe('Tape Inspector renderer projection', () => {
     expect(lastFact?.actualStart).toBe(1)
   })
 })
+
+it('groups native timeline boundaries without changing their names or u64 positions', () => {
+  const records = [
+    fact(1, {
+      runId: 'native-turn',
+      name: 'turn/start',
+      createdAt: 100,
+      dim: {
+        sessionId: 'native',
+        branchId: 'main',
+        eventId: 'start',
+        sequence: '9007199254740993',
+        ordinal: 0,
+        semanticName: 'execution/run_started'
+      }
+    }),
+    fact(2, {
+      runId: 'native-turn',
+      name: 'turn/end',
+      createdAt: 180,
+      facts: { status: 'completed' },
+      dim: {
+        sessionId: 'native',
+        branchId: 'main',
+        eventId: 'end',
+        sequence: '18446744073709551615',
+        ordinal: 0,
+        semanticName: 'execution/run_terminal'
+      }
+    })
+  ]
+  const rows = buildTapeInspectorRows({
+    tapeIncarnationId: 'native-cache-epoch',
+    records,
+    evidence: [],
+    collapsedKeys: new Set()
+  })
+  const run = rows.find((row) => row.recordType === 'group' && row.group.kind === 'run')
+  expect(run?.durationMs).toBe(80)
+  expect(run?.status).toBe('completed')
+  expect(rows.filter((row) => row.recordType === 'fact').map((row) => row.record.name)).toEqual([
+    'turn/start',
+    'turn/end'
+  ])
+  expect(records[1].dim?.sequence).toBe('18446744073709551615')
+})

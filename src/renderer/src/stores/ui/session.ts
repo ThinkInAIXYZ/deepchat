@@ -345,7 +345,8 @@ export const useSessionStore = defineStore('session', () => {
         boundaryReason: payload.boundaryReason
       },
       emitSeq: payload.emitSeq,
-      latestAnchorEntryId: payload.latestAnchorEntryId
+      latestAnchorEntryId: payload.latestAnchorEntryId,
+      ...(payload.timeline ? { timeline: payload.timeline } : {})
     }
     if (payload.status === 'compacted') {
       synchronizeContextOccupancy(payload.sessionId)

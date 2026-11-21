@@ -346,7 +346,12 @@ const summaryFields = computed(() => {
   if (detail.source === 'tape') {
     const record = detail.detail.record
     return [
-      { label: t('tapeInspector.fields.entryId'), value: String(record.entryId) },
+      {
+        label: record.dim
+          ? t('tapeInspector.timeline.sequence')
+          : t('tapeInspector.fields.entryId'),
+        value: record.dim?.sequence ?? String(record.entryId)
+      },
       {
         label: t('tapeInspector.fields.family'),
         value: t(`tapeInspector.families.${record.family}`)
@@ -409,8 +414,8 @@ const correlationValue = computed(() => {
   const row = props.row
   if (!row) return null
   if (row.recordType === 'fact') {
-    const { entryId, runId, messageId, requestSeq, logicalRound, physicalAttempt } = row.record
-    return { entryId, runId, messageId, requestSeq, logicalRound, physicalAttempt }
+    const { entryId, runId, messageId, requestSeq, logicalRound, physicalAttempt, dim } = row.record
+    return { entryId, runId, messageId, requestSeq, logicalRound, physicalAttempt, dim }
   }
   if (row.recordType === 'evidence') {
     const { traceId, messageId, requestSeq, physicalAttempt } = row.record

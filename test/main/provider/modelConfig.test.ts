@@ -446,7 +446,7 @@ describe('ModelConfigHelper', () => {
   })
 
   describe('Interleaved Thinking Defaults', () => {
-    it('derives interleaved thinking from the provider reasoning portrait', () => {
+    it('does not derive the removed interleaved thinking flag from the provider portrait', () => {
       const getDbSpy = vi.spyOn(providerDbLoader, 'getDb').mockReturnValue({
         providers: {
           moonshot: {
@@ -477,13 +477,16 @@ describe('ModelConfigHelper', () => {
 
       const config = modelConfigHelper.getModelConfig('moonshotai/kimi-k2.5', 'zenmux')
 
-      expect(config.forceInterleavedThinkingCompat).toBe(true)
+      expect(config).not.toHaveProperty('forceInterleavedThinkingCompat')
       expect(config.isUserDefined).toBe(false)
+      // The portrait keeps interleaved as upstream metadata; only the legacy flag is gone.
+      expect(config.reasoningEffort).toBe('medium')
+      expect(config.verbosity).toBe('medium')
 
       getDbSpy.mockRestore()
     })
 
-    it('keeps explicit user overrides for interleaved thinking', () => {
+    it('ignores a legacy stored interleaved thinking override', () => {
       modelConfigHelper.setModelConfig('moonshotai/kimi-k2.5', 'zenmux', {
         maxTokens: 8192,
         contextLength: 128000,
@@ -493,12 +496,45 @@ describe('ModelConfigHelper', () => {
         reasoning: true,
         forceInterleavedThinkingCompat: false,
         type: ModelType.Chat
-      })
+      } as ModelConfig)
 
       const config = modelConfigHelper.getModelConfig('moonshotai/kimi-k2.5', 'zenmux')
 
-      expect(config.forceInterleavedThinkingCompat).toBe(false)
+      expect(config).not.toHaveProperty('forceInterleavedThinkingCompat')
       expect(config.isUserDefined).toBe(true)
+      expect(config.maxTokens).toBe(8192)
+    })
+
+    it('drops the legacy interleaved thinking key from configs already persisted on disk', () => {
+      const helperAny = modelConfigHelper as any
+      const cacheKey = helperAny.generateCacheKey('zenmux', 'moonshotai/kimi-k2.5')
+      const store = helperAny.modelConfigStore
+      store.set(cacheKey, {
+        id: 'moonshotai/kimi-k2.5',
+        providerId: 'zenmux',
+        source: 'user',
+        config: {
+          maxTokens: 8192,
+          contextLength: 128000,
+          temperature: 0.7,
+          vision: false,
+          functionCall: true,
+          reasoning: true,
+          type: ModelType.Chat,
+          forceInterleavedThinkingCompat: true
+        }
+      })
+
+      const refreshedHelper = new ModelConfigHelper()
+      const config = refreshedHelper.getModelConfig('moonshotai/kimi-k2.5', 'zenmux')
+
+      expect(config).not.toHaveProperty('forceInterleavedThinkingCompat')
+      expect(config.maxTokens).toBe(8192)
+      expect(config.isUserDefined).toBe(true)
+
+      const stored = refreshedHelper.getProviderModelConfigs('zenmux')
+      expect(stored).toHaveLength(1)
+      expect(stored[0].config).not.toHaveProperty('forceInterleavedThinkingCompat')
     })
 
     it('keeps exclusive reasoning defaults implicit and preserves budget intent', () => {

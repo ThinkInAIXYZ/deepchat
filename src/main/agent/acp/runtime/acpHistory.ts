@@ -3,8 +3,8 @@ import type { SessionNotification } from '@agentclientprotocol/sdk'
 import type { AcpHistorySnapshot } from '@shared/types/acp-extensions'
 import { AcpContentMapper } from './acpContentMapper'
 import { readLodySessionMeta } from './acpLodyExtensions'
-import { createState } from '@/agent/deepchat/runtime/types'
-import { accumulate } from '@/agent/deepchat/runtime/accumulator'
+import { createState } from '@/agent/shared/messageStream'
+import { accumulate } from '@/agent/shared/streamAccumulator'
 
 /** History is staged as a complete ordered response, never merged by matching text. */
 export function buildAcpHistory(

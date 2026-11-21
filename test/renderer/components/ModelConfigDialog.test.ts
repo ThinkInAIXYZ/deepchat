@@ -79,8 +79,7 @@ const createCapabilityResult = (options: SetupOptions, modelId = options.modelId
         temperatureCapability === false
           ? ({ mode: 'omit' } as const)
           : ({ mode: 'passthrough' } as const),
-      reasoning: { mode: 'passthrough' as const },
-      legacyThinking: { mode: 'passthrough' as const }
+      reasoning: { mode: 'passthrough' as const }
     },
     supportsAudioInput: false,
     supportsReasoning: options.reasoningPortrait?.supported ?? true,
@@ -291,8 +290,7 @@ describe('ModelConfigDialog reasoning portraits', () => {
       requestPolicy: {
         temperature: { mode: 'fixed', value: 1 },
         topP: { mode: 'omit' },
-        reasoning: { mode: 'passthrough' },
-        legacyThinking: { mode: 'passthrough' }
+        reasoning: { mode: 'passthrough' }
       }
     })
     const vm = wrapper.vm as any
@@ -528,40 +526,13 @@ describe('ModelConfigDialog reasoning portraits', () => {
     expect(wrapper.text()).toContain('settings.model.modelConfig.speechRecognition.description')
   })
 
-  it('shows interleaved thinking when an OpenAI-compatible model defaults to interleaved mode', async () => {
+  it('does not expose the removed interleaved thinking switch', async () => {
     const { wrapper } = await setup({
       providerId: 'zenmux',
       modelId: 'moonshotai/kimi-k2.5',
       modelName: 'Kimi K2.5',
       modelConfig: {
-        reasoning: true,
-        forceInterleavedThinkingCompat: true
-      },
-      reasoningPortrait: {
-        supported: true,
-        defaultEnabled: true,
-        interleaved: true,
-        mode: 'effort',
-        effort: 'medium',
-        effortOptions: ['minimal', 'low', 'medium', 'high'],
-        verbosity: 'medium',
-        verbosityOptions: ['low', 'medium', 'high']
-      }
-    })
-
-    expect(wrapper.text()).toContain('settings.model.modelConfig.interleavedThinking.label')
-    expect(wrapper.text()).toContain('settings.model.modelConfig.interleavedThinking.description')
-  })
-
-  it('hides interleaved thinking for Responses providers', async () => {
-    const { wrapper } = await setup({
-      providerId: 'openai',
-      modelId: 'gpt-5',
-      modelName: 'GPT-5',
-      providerApiType: 'openai-responses',
-      modelConfig: {
-        reasoning: true,
-        forceInterleavedThinkingCompat: true
+        reasoning: true
       },
       reasoningPortrait: {
         supported: true,
@@ -576,6 +547,10 @@ describe('ModelConfigDialog reasoning portraits', () => {
     })
 
     expect(wrapper.text()).not.toContain('settings.model.modelConfig.interleavedThinking.label')
+    expect(wrapper.text()).not.toContain(
+      'settings.model.modelConfig.interleavedThinking.description'
+    )
+    expect(wrapper.find('[data-setting-control="interleavedThinking-toggle"]').exists()).toBe(false)
   })
 
   it('renders full effort options for non-grok-3-mini xAI portraits', async () => {
@@ -1027,8 +1002,7 @@ describe('ModelConfigDialog reasoning portraits', () => {
       requestPolicy: {
         temperature: { mode: 'fixed', value: 1 },
         topP: { mode: 'passthrough' },
-        reasoning: { mode: 'fixed', value: true },
-        legacyThinking: { mode: 'fixed', value: 'enabled' }
+        reasoning: { mode: 'fixed', value: true }
       },
       reasoningPortrait: {
         supported: true,
@@ -1062,8 +1036,7 @@ describe('ModelConfigDialog reasoning portraits', () => {
       requestPolicy: {
         temperature: { mode: 'fixed', value: 1 },
         topP: { mode: 'passthrough' },
-        reasoning: { mode: 'fixed', value: true },
-        legacyThinking: { mode: 'fixed', value: 'enabled' }
+        reasoning: { mode: 'fixed', value: true }
       },
       reasoningPortrait: {
         supported: true,
@@ -1089,8 +1062,7 @@ describe('ModelConfigDialog reasoning portraits', () => {
       requestPolicy: {
         temperature: { mode: 'passthrough' },
         topP: { mode: 'fixed', value: 0.8 },
-        reasoning: { mode: 'passthrough' },
-        legacyThinking: { mode: 'passthrough' }
+        reasoning: { mode: 'passthrough' }
       }
     })
 
@@ -1119,8 +1091,7 @@ describe('ModelConfigDialog reasoning portraits', () => {
       requestPolicy: {
         temperature: { mode: 'omit' },
         topP: { mode: 'omit' },
-        reasoning: { mode: 'fixed', value: true },
-        legacyThinking: { mode: 'omit' }
+        reasoning: { mode: 'fixed', value: true }
       },
       reasoningPortrait: {
         supported: true,
@@ -1171,8 +1142,7 @@ describe('ModelConfigDialog reasoning portraits', () => {
       requestPolicy: {
         temperature: { mode: 'omit' },
         topP: { mode: 'omit' },
-        reasoning: { mode: 'fixed', value: true },
-        legacyThinking: { mode: 'omit' }
+        reasoning: { mode: 'fixed', value: true }
       },
       temperatureCapability: undefined
     })
@@ -1226,8 +1196,7 @@ describe('ModelConfigDialog reasoning portraits', () => {
         requestPolicy: {
           temperature: { mode: 'omit' },
           topP: { mode: 'omit' },
-          reasoning: { mode: 'fixed', value: true },
-          legacyThinking: { mode: 'omit' }
+          reasoning: { mode: 'fixed', value: true }
         }
       })
     )
@@ -1252,8 +1221,7 @@ describe('ModelConfigDialog reasoning portraits', () => {
       requestPolicy: {
         temperature: { mode: 'omit' },
         topP: { mode: 'omit' },
-        reasoning: { mode: 'fixed', value: true },
-        legacyThinking: { mode: 'omit' }
+        reasoning: { mode: 'fixed', value: true }
       },
       getCapabilities: () => Promise.reject(new Error('ipc unavailable'))
     }

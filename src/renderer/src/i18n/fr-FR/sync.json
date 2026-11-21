@@ -17,7 +17,7 @@
     "importFailed": "L'importation a échoué, les données d'origine ont été restaurées",
     "importProcess": "Erreur dans le processus d'importation",
     "unknown": "Erreur inconnue",
-    "encryptedBackupPasswordMissing": "Cette sauvegarde est chiffrée, mais la clé de la base locale n’est pas disponible. Déverrouillez d’abord la base chiffrée, puis relancez l’importation.",
+    "encryptedBackupPasswordMissing": "La nouvelle architecture ne prend pas en charge le chiffrement SQLite ; le chiffrement de la base de données est donc temporairement indisponible. Cette sauvegarde est chiffrée et ne peut pas être restaurée directement depuis le cloud. Téléchargez-la dans le dossier de synchronisation, puis utilisez « Importer des données » et saisissez le mot de passe d’origine de la base de données.",
     "overwriteEncryptionMismatch": "L’importation avec remplacement exige que la sauvegarde et la base actuelle aient le même état de chiffrement.",
     "cloudNotConfigured": "Le cloud n'est pas configuré. Renseignez et enregistrez d'abord la connexion cloud.",
     "cloudNoBackup": "Aucune sauvegarde disponible dans le bucket cloud",

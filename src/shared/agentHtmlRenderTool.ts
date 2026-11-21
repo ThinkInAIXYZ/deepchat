@@ -9,17 +9,3 @@ export const HTML_RENDER_MAX_PANEL_BYTES = 2 * 1024 * 1024
 export const HTML_RENDER_SECTION_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/
 export const HTML_RENDER_SECTIONS_METHOD = 'dc/html-render/sections'
 export const HTML_RENDER_SCRIPT_ERROR_METHOD = 'dc/html-render/script-error'
-
-// Full HTML stays in persisted tool blocks. Runtime keeps compact call/result pairs for turn
-// accounting; the provider mapper replaces completed render pairs with execution receipts.
-export const compactHtmlRenderToolArguments = (name: string, args: string): string => {
-  if (name !== HTML_RENDER_TOOL_NAME && name !== HTML_RENDER_SECTION_TOOL_NAME) return args
-  try {
-    const value = JSON.parse(args) as { html?: unknown } | null
-    if (typeof value?.html !== 'string') return args
-    delete value.html
-    return JSON.stringify(value)
-  } catch {
-    return args
-  }
-}

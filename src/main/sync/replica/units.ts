@@ -13,6 +13,13 @@ export interface SyncUnitDefinition {
   keys?: readonly string[]
 }
 
+/** Product identities only; canonical Native content travels as a separate profile. */
+export const SYNC_NATIVE_SESSION_TABLES: SyncTable[] = [
+  { table: 'dim_session_bindings', key: 'session_id' },
+  { table: 'dim_session_scopes', key: 'session_id' },
+  { table: 'dim_session_imports', key: 'session_id' }
+]
+
 // Only these domain-owned records cross devices. Jobs, approvals, local paths and indexes do not.
 export const SYNC_UNITS: SyncUnitDefinition[] = [
   {

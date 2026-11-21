@@ -35,9 +35,7 @@ const { t } = useI18n()
 
 const configClient = createConfigClient()
 
-// kept for potential future scroll anchoring; currently unused
-
-const collapse = ref(props.initiallyExpanded === false)
+const collapse = ref(props.initiallyExpanded !== true)
 let hasManualToggle = props.initiallyExpanded !== undefined
 
 const toggleExpanded = () => {

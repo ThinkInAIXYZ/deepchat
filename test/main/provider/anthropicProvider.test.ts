@@ -1,13 +1,9 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LLM_PROVIDER } from '@shared/types/provider'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AiSdkProvider } from '../../../src/main/provider/providers/aiSdkProvider'
 
-const { mockGetProvider, mockRunAiSdkCoreStream, mockRunAiSdkGenerateText } = vi.hoisted(() => ({
-  mockGetProvider: vi.fn(),
-  mockRunAiSdkCoreStream: vi.fn(),
-  mockRunAiSdkGenerateText: vi.fn().mockResolvedValue({ content: 'ok' })
-}))
+const { mockGetProvider } = vi.hoisted(() => ({ mockGetProvider: vi.fn() }))
 
 vi.mock('electron', () => ({
   app: {
@@ -17,11 +13,6 @@ vi.mock('electron', () => ({
     isReady: vi.fn(() => true),
     on: vi.fn()
   }
-}))
-
-vi.mock('../../../src/main/provider/aiSdk', () => ({
-  runAiSdkCoreStream: mockRunAiSdkCoreStream,
-  runAiSdkGenerateText: mockRunAiSdkGenerateText
 }))
 
 vi.mock('../../../src/main/provider/providerDbLoader', () => ({
@@ -80,7 +71,6 @@ describe('AiSdkProvider anthropic', () => {
         }
       ]
     })
-    mockRunAiSdkGenerateText.mockResolvedValue({ content: 'ok' })
     delete process.env.ANTHROPIC_API_KEY
   })
 
@@ -105,80 +95,6 @@ describe('AiSdkProvider anthropic', () => {
       isOk: false,
       errorMsg: 'Missing API key'
     })
-    expect(mockRunAiSdkGenerateText).not.toHaveBeenCalled()
-  })
-
-  it('uses the AI SDK runtime for provider health checks', async () => {
-    process.env.ANTHROPIC_API_KEY = 'env-key'
-    const provider = new AiSdkProvider(
-      createProvider({
-        apiKey: ''
-      }),
-      createProviderSettings()
-    )
-    ;(provider as any).isInitialized = true
-
-    await expect(provider.check()).resolves.toEqual({
-      isOk: true,
-      errorMsg: null
-    })
-    expect(mockRunAiSdkGenerateText).toHaveBeenCalledWith(
-      expect.objectContaining({
-        providerKind: 'anthropic'
-      }),
-      [{ role: 'user', content: 'Hello' }],
-      'claude-sonnet-4-5-20250929',
-      expect.any(Object),
-      0.2,
-      16
-    )
-  })
-
-  it('passes system prompts through the AI SDK text path', async () => {
-    const provider = new AiSdkProvider(createProvider(), createProviderSettings())
-    ;(provider as any).isInitialized = true
-    const signal = new AbortController().signal
-
-    await provider.generateText('hi', 'claude-sonnet-4-5-20250929', 0.2, 32, {
-      systemPrompt: 'Real system prompt',
-      signal
-    })
-
-    expect(mockRunAiSdkGenerateText).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        providerKind: 'anthropic'
-      }),
-      [
-        { role: 'system', content: 'Real system prompt' },
-        { role: 'user', content: 'hi' }
-      ],
-      'claude-sonnet-4-5-20250929',
-      expect.any(Object),
-      0.2,
-      32,
-      signal
-    )
-  })
-
-  it('preserves the legacy positional system prompt argument', async () => {
-    const provider = new AiSdkProvider(createProvider(), createProviderSettings())
-    ;(provider as any).isInitialized = true
-
-    await provider.generateText('hi', 'claude-sonnet-4-5-20250929', 0.2, 32, 'Legacy system prompt')
-
-    expect(mockRunAiSdkGenerateText).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        providerKind: 'anthropic'
-      }),
-      [
-        { role: 'system', content: 'Legacy system prompt' },
-        { role: 'user', content: 'hi' }
-      ],
-      'claude-sonnet-4-5-20250929',
-      expect.any(Object),
-      0.2,
-      32
-    )
   })
 
   it('reads model identities without duplicating catalog capability state', async () => {

@@ -14,7 +14,18 @@ on:
         required: false
       DC_GITHUB_REDIRECT_URI:
         required: false
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Platform to verify; normal regression covers every platform.
+        type: choice
+        default: all
+        options: [all, windows, linux, macos]
+      arch:
+        description: Architecture to verify.
+        type: choice
+        default: all
+        options: [all, x64, arm64]
   schedule:
     - cron: '37 18 * * *'
 
@@ -24,12 +35,13 @@ permissions:
 jobs:
   package-windows:
     name: regression-windows(${{ matrix.arch }})
+    if: github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'windows'
     permissions:
       contents: read
     strategy:
       fail-fast: false
       matrix:
-        arch: [x64, arm64]
+        arch: ${{ fromJSON(inputs.arch == 'arm64' && '["arm64"]' || inputs.arch == 'x64' && '["x64"]' || '["x64","arm64"]') }}
     uses: ./.github/workflows/_package-windows.yml
     with:
       source-sha: ${{ inputs.source-sha || github.sha }}
@@ -43,12 +55,13 @@ jobs:
 
   package-linux:
     name: regression-linux(${{ matrix.arch }})
+    if: github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'linux'
     permissions:
       contents: read
     strategy:
       fail-fast: false
       matrix:
-        arch: [x64, arm64]
+        arch: ${{ fromJSON(inputs.arch == 'arm64' && '["arm64"]' || inputs.arch == 'x64' && '["x64"]' || '["x64","arm64"]') }}
     uses: ./.github/workflows/_package-linux.yml
     with:
       source-sha: ${{ inputs.source-sha || github.sha }}
@@ -62,12 +75,13 @@ jobs:
 
   package-macos:
     name: regression-macos(${{ matrix.arch }})
+    if: github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'macos'
     permissions:
       contents: read
     strategy:
       fail-fast: false
       matrix:
-        arch: [x64, arm64]
+        arch: ${{ fromJSON(inputs.arch == 'arm64' && '["arm64"]' || inputs.arch == 'x64' && '["x64"]' || '["x64","arm64"]') }}
     uses: ./.github/workflows/_package-macos.yml
     with:
       source-sha: ${{ inputs.source-sha || github.sha }}

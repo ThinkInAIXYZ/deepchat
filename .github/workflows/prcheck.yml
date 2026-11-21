@@ -57,7 +57,7 @@ jobs:
 
   test-main:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -75,10 +75,33 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Install dim release and plugin runtime
+        run: pnpm run installRuntime:dim
+
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.98.1 --profile minimal
+
+      - name: Cache dim Rust dependencies
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            native/dim-host/target
+          key: ${{ runner.os }}-dim-rust-1.98.1-dev0-${{ hashFiles('native/dim-host/Cargo.lock', 'resources/dim-native-host-lock.json') }}
+
+      - name: Build pinned dim native host
+        env:
+          RUSTUP_TOOLCHAIN: 1.98.1
+          CARGO_BUILD_JOBS: '2'
+          CARGO_PROFILE_DEV_DEBUG: '0'
+          CARGO_INCREMENTAL: '0'
+        run: pnpm run build:dim-host --dev
+
       - name: Test main process
         run: pnpm run test:main
 
-      - name: Verify standalone Node Harness
+      - name: Verify actual dim Rust owners
         run: pnpm run test:harness:node
 
   test-renderer:

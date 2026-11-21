@@ -1,16 +1,15 @@
-import { APICallError } from '@ai-sdk/provider'
-import { describe, expect, it, vi } from 'vitest'
 import {
   createProviderHttpErrorFromResponse,
   extractProviderFailureMetadata,
   ProviderHttpError,
   sanitizeProviderFailureMetadata
 } from '@/provider/providerFailure'
+import { describe, expect, it, vi } from 'vitest'
 
 describe('provider failure metadata', () => {
   it('extracts retry signals without retaining unsafe AI SDK error fields', () => {
     const cause = Object.assign(new Error('socket reset'), { code: 'ECONNRESET' })
-    const error = new APICallError({
+    const error = Object.assign(new Error('rate limited', { cause }), {
       message: 'rate limited',
       url: 'https://provider.example.com/chat',
       requestBodyValues: { secret: 'request-secret' },

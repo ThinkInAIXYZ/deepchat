@@ -4,7 +4,7 @@ Use this reference when an importer must locate DeepChat data on disk or inside 
 
 ## Primary Files
 
-DeepChat stores the current main database at:
+DeepChat stores product settings, metadata and SQLite projections at:
 
 ```text
 <electron userData>/app_db/agent.db
@@ -12,13 +12,14 @@ DeepChat stores the current main database at:
 <electron userData>/app_db/agent.db-shm
 ```
 
-The legacy database, when present, is:
+The built-in agent uses `<electron userData>/dim/rust` for native session history, events and
+attachments. The legacy database, when present, is:
 
 ```text
 <electron userData>/app_db/chat.db
 ```
 
-Database encryption metadata is outside SQLite:
+Legacy database encryption metadata is outside SQLite:
 
 ```text
 <electron userData>/database-security.json
@@ -60,16 +61,16 @@ elsewhere.
 
 ## Sync Backup Layout
 
-DeepChat sync backups use `database/agent.db` as the primary database payload in current backup
-versions. Some compatibility backups may also contain `database/chat.db` or old JSON settings. When
-both `agent.db` and `chat.db` exist, prefer `agent.db`.
+DeepChat sync backups contain `manifest.json` and `database/agent.db`, with a WAL sidecar when
+needed. When a version 3 manifest declares `nativeProfile`, retain `dim/manifest.json` and the
+matching payload under `dim/profile/` for native session restore. Some compatibility backups
+contain `database/chat.db` or old JSON settings. Use `agent.db` for app data when both exist.
 
 ## Snapshot Rules
 
-- If DeepChat is running, copy `agent.db`, `agent.db-wal`, and `agent.db-shm` together.
-- If DeepChat is closed, `agent.db` alone is usually enough, but copying sidecars is still harmless.
-- For high-integrity import, open a read-only source connection and run a SQLite backup into a temp
-  file, then import from the temp file.
+- For a running app, use its backup or the SQLite backup API from a read-only source connection
+  when only the app database is needed.
+- For a closed app, keep `agent.db` with any existing WAL and SHM sidecars.
 - Do not delete `*.migration-tmp`, `*.migration-rollback`, `agent.db-wal`, or `agent.db-shm` from a
   user profile. DeepChat owns those lifecycle decisions.
 

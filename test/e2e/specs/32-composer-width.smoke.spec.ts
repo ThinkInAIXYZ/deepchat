@@ -28,8 +28,9 @@ test('输入框输入长英文/长路径时不顶开宽度 @smoke', async ({ app
   await selectAgent(app.page)
   await createNewChat(app.page)
   await selectModel(app.page, E2E_TARGET_MODEL_ID, E2E_TARGET_PROVIDER_ID)
-  await sendMessage(app.page, createExactReplyPrompt(createSmokeToken('E2E_WIDTH')))
-  await waitForGenerationDone(app.page)
+  const token = createSmokeToken('E2E_WIDTH')
+  await sendMessage(app.page, createExactReplyPrompt(token))
+  await waitForGenerationDone(app.page, token)
 
   const box = app.page.getByTestId('chat-input-box')
   await expect(box).toBeVisible({ timeout: 30_000 })

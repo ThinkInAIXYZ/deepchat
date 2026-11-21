@@ -8,7 +8,7 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url))
 export const repositoryRoot = path.resolve(scriptDir, '..')
 export const runtimeVersionsPath = path.join(repositoryRoot, 'resources', 'runtime-versions.json')
 
-const supportedRuntimeTypes = new Set(['node', 'uv', 'cloudflared'])
+const supportedRuntimeTypes = new Set(['node', 'uv', 'cloudflared', 'dim'])
 const supportedToolchainManifestSchemas = new Set([2, 3])
 const sha256Pattern = /^[a-f0-9]{64}$/
 
@@ -141,6 +141,13 @@ export function buildRuntimeInstallPlan({
     { type: 'node', version: versions.node }
   ]
 
+  if (types?.includes('dim')) {
+    const lock = JSON.parse(
+      readFileSync(path.join(repositoryRoot, 'resources', 'dim-runtime-lock.json'), 'utf8')
+    )
+    runtimes.push({ type: 'dim', version: lock.version })
+  }
+
   if (versions.cloudflaredArtifacts?.[`${platform}-${arch}`])
     runtimes.push({ type: 'cloudflared', version: versions.cloudflared })
 
@@ -152,10 +159,11 @@ export function buildRuntimeInstallPlan({
   }
 
   return runtimes.map(({ type, version }) =>
-    type === 'cloudflared' || (type === 'uv' && platform === 'win32')
+    type === 'cloudflared' || type === 'dim' || (type === 'uv' && platform === 'win32')
       ? {
           command: process.execPath,
           args: [
+            ...(type === 'dim' ? ['--use-env-proxy'] : []),
             path.join(repositoryRoot, 'scripts', `install-${type}.mjs`),
             platform,
             arch,

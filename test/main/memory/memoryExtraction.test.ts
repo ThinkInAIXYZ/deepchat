@@ -1088,3 +1088,54 @@ describe('MemoryService.maybeReflect cheap model', () => {
 function makeFakeRepo() {
   return createFakeRepository()
 }
+
+it('keeps native evidence views on model-cited claims without synthesizing Tape ids', () => {
+  const source = {
+    kind: 'dim' as const,
+    sessionId: 'native',
+    branchId: 'main',
+    through: '9007199254740993',
+    messageId: 'user-message'
+  }
+  expect(
+    parseMemoryCandidates(
+      '[{"kind":"semantic","content":"prefers Rust","evidenceIds":["e1"]}]',
+      new Map([['e1', source]])
+    )
+  ).toMatchObject({
+    ok: true,
+    candidates: [{ sourceEntryIds: [source] }]
+  })
+})
+
+it('cancels a scoped extraction before a late model reply can create a claim', async () => {
+  const { makeLLMPresenter } = await import('./serviceTestSupport')
+  const abort = new AbortController()
+  let release!: (value: string) => void
+  let receivedSignal: AbortSignal | undefined
+  const pending = new Promise<string>((resolve) => {
+    release = resolve
+  })
+  const generateText = vi.fn(
+    async (_provider: string, _model: string, _prompt: string, signal?: AbortSignal) => {
+      receivedSignal = signal
+      return pending
+    }
+  )
+  const { presenter, repo } = makeLLMPresenter(generateText)
+  const extraction = presenter.extractAndStore({
+    agentId: 'a',
+    spanText: 'User prefers Rust',
+    model: { providerId: 'p', modelId: 'm' },
+    signal: abort.signal
+  })
+  await vi.waitFor(() => expect(generateText).toHaveBeenCalledTimes(1))
+  abort.abort(new Error('source session removed'))
+  await expect(extraction).resolves.toEqual({ ok: false })
+  expect(receivedSignal?.aborted).toBe(true)
+  release('KEEP')
+  await Promise.resolve()
+  expect(repo.countByAgent('a')).toBe(0)
+  expect(generateText).toHaveBeenCalledTimes(1)
+  await presenter.dispose()
+})

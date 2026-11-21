@@ -326,7 +326,7 @@ export interface SessionTurnPort {
   sendMessage(
     sessionId: string,
     content: string | SendMessageInput,
-    options?: { maxProviderRounds?: number; signal?: AbortSignal }
+    options?: { maxProviderRounds?: number; signal?: AbortSignal; submissionId?: string }
   ): Promise<MessageStartResult>
   steerActiveTurn(
     sessionId: string,

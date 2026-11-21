@@ -26,8 +26,7 @@ describe('moonshot Kimi temperature policy', () => {
     ).toEqual(
       expect.objectContaining({
         reasoningEnabled: true,
-        temperature: MOONSHOT_KIMI_THINKING_ENABLED_TEMPERATURE,
-        thinkingType: 'enabled'
+        temperature: MOONSHOT_KIMI_THINKING_ENABLED_TEMPERATURE
       })
     )
 
@@ -36,8 +35,7 @@ describe('moonshot Kimi temperature policy', () => {
     ).toEqual(
       expect.objectContaining({
         reasoningEnabled: false,
-        temperature: MOONSHOT_KIMI_THINKING_DISABLED_TEMPERATURE,
-        thinkingType: 'disabled'
+        temperature: MOONSHOT_KIMI_THINKING_DISABLED_TEMPERATURE
       })
     )
   })
@@ -71,8 +69,7 @@ describe('moonshot Kimi temperature policy', () => {
       expect(resolveModelRequestPolicy(providerId, modelId, false)).toEqual({
         temperature: { mode: 'omit' },
         topP: { mode: 'omit' },
-        reasoning: { mode: 'fixed', value: true },
-        legacyThinking: { mode: 'omit' }
+        reasoning: { mode: 'fixed', value: true }
       })
     }
   )
@@ -88,8 +85,7 @@ describe('moonshot Kimi temperature policy', () => {
     expect(resolveModelRequestPolicy('new-api', modelId, false)).toEqual({
       temperature: { mode: 'passthrough' },
       topP: { mode: 'passthrough' },
-      reasoning: { mode: 'passthrough' },
-      legacyThinking: { mode: 'passthrough' }
+      reasoning: { mode: 'passthrough' }
     })
   })
 
@@ -143,14 +139,12 @@ describe('MiniMax-M3 thinking temperature policy', () => {
   const omitTemperaturePolicy = {
     temperature: { mode: 'omit' },
     topP: { mode: 'passthrough' },
-    reasoning: { mode: 'passthrough' },
-    legacyThinking: { mode: 'passthrough' }
+    reasoning: { mode: 'passthrough' }
   }
   const passthroughPolicy = {
     temperature: { mode: 'passthrough' },
     topP: { mode: 'passthrough' },
-    reasoning: { mode: 'passthrough' },
-    legacyThinking: { mode: 'passthrough' }
+    reasoning: { mode: 'passthrough' }
   }
 
   it.each([

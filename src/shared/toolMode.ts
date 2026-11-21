@@ -4,6 +4,7 @@ export const ToolModeSchema = z.enum(['agent', 'code', 'minimal'])
 
 export type ToolMode = z.infer<typeof ToolModeSchema>
 export type ToolModeOverride = ToolMode | null
+export const AVAILABLE_TOOL_MODES: readonly ToolMode[] = ['agent', 'code', 'minimal']
 export type ToolModeResolutionSource = 'session' | 'model-catalog' | 'fallback'
 
 export interface ResolvedToolMode {

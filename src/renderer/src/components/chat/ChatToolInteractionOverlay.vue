@@ -28,7 +28,11 @@
         !props.embedded && isPermission ? 'flex min-h-0 flex-1 flex-col' : ''
       ]"
     >
-      <p :id="questionId" class="text-sm whitespace-pre-wrap break-words">
+      <p
+        v-if="!nativeQuestions.length"
+        :id="questionId"
+        class="text-sm whitespace-pre-wrap break-words"
+      >
         {{ bodyText }}
       </p>
 
@@ -67,7 +71,24 @@
         </div>
       </div>
 
-      <div v-if="isQuestion" class="mt-4">
+      <DimQuestionBatch
+        v-if="isQuestion && nativeQuestions.length"
+        :id="questionId"
+        :key="interaction.toolCallId"
+        :questions="nativeQuestions"
+        :processing="processing"
+        @answer="
+          (answers) =>
+            emit('respond', {
+              kind: 'question_option',
+              optionLabel: answers
+                .map((answer) => [...answer.selected, answer.custom].filter(Boolean).join(', '))
+                .join('\n'),
+              answers
+            })
+        "
+      />
+      <div v-else-if="isQuestion" class="mt-4">
         <DcCheckboxGroup
           v-if="isMultiple"
           v-model="multiSelected"
@@ -148,6 +169,8 @@ import type { DcChoiceOption } from '@dc-ui/components/choice-group'
 import { Icon } from '@iconify/vue'
 import type { ToolInteractionResponse } from '@shared/types/agent-interface'
 import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
+import { dimQuestions } from '@shared/dimQuestions'
+import DimQuestionBatch from './DimQuestionBatch.vue'
 
 type PendingInteractionView = {
   messageId: string
@@ -175,6 +198,13 @@ const focusInteraction = () => void nextTick(() => interactionRegion.value?.focu
 onMounted(focusInteraction)
 
 const isQuestion = computed(() => props.interaction.actionType === 'question_request')
+const nativeQuestions = computed(() => {
+  try {
+    return dimQuestions(JSON.parse(String(props.interaction.block.extra?.dimQuestions ?? '[]')))
+  } catch {
+    return []
+  }
+})
 const isPermission = computed(() => props.interaction.actionType === 'tool_call_permission')
 const isSkillDraft = computed(() => props.interaction.block.extra?.skillDraftAction === 'confirm')
 

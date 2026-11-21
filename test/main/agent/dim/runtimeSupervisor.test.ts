@@ -1,0 +1,162 @@
+import { expect, it, vi } from 'vitest'
+import { DimRuntimeSupervisor } from '@/agent/dim/runtimeSupervisor'
+import { terminateProcessTree } from '@/agent/shared/process/processTree'
+import { setTimeout as delay } from 'node:timers/promises'
+
+vi.mock('@/agent/shared/process/processTree', () => ({ terminateProcessTree: vi.fn() }))
+vi.mock('node:timers/promises', async (original) => {
+  const timers = await original<typeof import('node:timers/promises')>()
+  return { ...timers, setTimeout: vi.fn(timers.setTimeout) }
+})
+
+function host() {
+  return new DimRuntimeSupervisor({
+    runtimeRoot: '/unused',
+    profileRoot: '/unused',
+    nodeExecutable: '/unused'
+  })
+}
+
+it('refuses all new callers before admission while a profile rollback requires recovery', async () => {
+  const owner = host()
+  owner.requireProfileRecovery(new Error('Native rollback requires recovery'))
+  await expect(owner.start()).rejects.toMatchObject({ outcome: 'not-sent' })
+  await expect(owner.openConnection()).rejects.toMatchObject({ outcome: 'not-sent' })
+})
+
+it('serializes cold profile operations until the preceding storage callback settles', async () => {
+  const owner = host()
+  const stop = vi.spyOn(owner, 'stop').mockResolvedValue()
+  let release!: () => void
+  const firstWork = vi.fn(
+    () =>
+      new Promise<void>((resolve) => {
+        release = resolve
+      })
+  )
+  const secondWork = vi.fn(async () => 'next')
+  const first = owner.withStopped(firstWork)
+  await vi.waitFor(() => expect(firstWork).toHaveBeenCalledOnce())
+  const second = owner.withStopped(secondWork)
+  await Promise.resolve()
+  expect(stop).toHaveBeenCalledOnce()
+  expect(secondWork).not.toHaveBeenCalled()
+  release()
+  await first
+  await expect(second).resolves.toBe('next')
+  expect(stop).toHaveBeenCalledTimes(2)
+})
+
+it('rejects waiting starts without admission when profile maintenance fails, then permits recovery', async () => {
+  const owner = host()
+  vi.spyOn(owner, 'stop').mockResolvedValue()
+  let waiting!: Promise<unknown>
+  let rejection!: Promise<void>
+  await expect(
+    owner.withStopped(async () => {
+      waiting = owner.start()
+      rejection = expect(waiting).rejects.toMatchObject({
+        outcome: 'not-sent',
+        message: 'Native storage maintenance failed; retry after recovery'
+      })
+      throw new Error('Profile restore failed')
+    })
+  ).rejects.toThrow('Profile restore failed')
+  await rejection
+  await expect(owner.withStopped(async () => 'recovered')).resolves.toBe('recovered')
+})
+
+it('does not expose files to the callback unless native shutdown completed successfully', async () => {
+  const owner = host()
+  vi.spyOn(owner, 'stop').mockRejectedValue(new Error('dim did not complete graceful shutdown'))
+  const work = vi.fn(async () => {})
+  const stopped = expect(owner.withStopped(work)).rejects.toThrow('graceful shutdown')
+  const waiting = expect(owner.start()).rejects.toMatchObject({ outcome: 'not-sent' })
+  await Promise.all([stopped, waiting])
+  expect(work).not.toHaveBeenCalled()
+})
+
+it.each(['request rejected', 'exit unconfirmed'] as const)(
+  'preserves both native shutdown and cleanup errors when %s',
+  async (failure) => {
+    const owner = host()
+    const primary = new Error('Native shutdown acknowledgement lost')
+    const close = vi.fn()
+    const client = {
+      call:
+        failure === 'request rejected'
+          ? vi.fn().mockRejectedValue(primary)
+          : vi.fn().mockResolvedValue({}),
+      close
+    }
+    // Establish an admitted child whose shutdown/exit outcome is controlled by
+    // the external RPC and process owners. No real process or profile is touched.
+    Object.assign(owner, {
+      connection: client,
+      process: { pid: 42 },
+      exitCode: null,
+      exited: new Promise(() => {})
+    })
+    vi.mocked(terminateProcessTree).mockResolvedValueOnce(false)
+    if (failure === 'exit unconfirmed') vi.mocked(delay).mockResolvedValueOnce(undefined)
+    const work = vi.fn(async () => {})
+    const stopped = owner.withStopped(work).catch((error: unknown) => error)
+    const error = await stopped
+    expect(error).toBeInstanceOf(AggregateError)
+    expect((error as AggregateError).errors).toEqual([
+      failure === 'request rejected'
+        ? primary
+        : expect.objectContaining({ message: 'dim did not complete graceful shutdown' }),
+      expect.objectContaining({ message: 'dim process tree did not terminate' })
+    ])
+    expect(work).not.toHaveBeenCalled()
+    expect(close).toHaveBeenCalledOnce()
+  }
+)
+
+it.each([false, true])(
+  'keeps the cold-profile fence through a slow valid shutdown (ifIdle=%s)',
+  async (ifIdle) => {
+    const owner = host()
+    const acknowledgement = Promise.withResolvers<object>()
+    const exited = Promise.withResolvers<void>()
+    const waitingForExit = Promise.withResolvers<void>()
+    let now = 0
+    const clock = vi.spyOn(Date, 'now').mockImplementation(() => now)
+    const client = { call: vi.fn(() => acknowledgement.promise), close: vi.fn() }
+    Object.assign(owner, {
+      connection: client,
+      process: { pid: 42 },
+      exitCode: null,
+      exited: exited.promise
+    })
+    let exitBudget = -1
+    vi.mocked(delay).mockImplementationOnce((ms) => {
+      exitBudget = ms ?? 0
+      waitingForExit.resolve()
+      return new Promise(() => {})
+    })
+    const work = vi.fn(async () => 'closed profile')
+    try {
+      const result = owner.withStopped(work, { ifIdle })
+      expect(client.call).toHaveBeenCalledWith(
+        'daemon.shutdown',
+        ifIdle ? { ifIdle: true } : {},
+        30_000
+      )
+      // The native owner may still be completing a legal plugin cleanup after 10 s.
+      now = 15_000
+      expect(work).not.toHaveBeenCalled()
+      acknowledgement.resolve({})
+      await waitingForExit.promise
+      expect(exitBudget).toBe(15_000)
+      expect(work).not.toHaveBeenCalled()
+      Object.assign(owner, { exitCode: 0 })
+      exited.resolve()
+      await expect(result).resolves.toBe('closed profile')
+      expect(work).toHaveBeenCalledOnce()
+    } finally {
+      clock.mockRestore()
+    }
+  }
+)

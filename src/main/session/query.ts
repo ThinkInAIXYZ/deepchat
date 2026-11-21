@@ -1,3 +1,4 @@
+import type { DimTimelineInspector } from '@/agent/dim/timelineInspector'
 import logger from '@shared/logger'
 import type {
   AgentTapeAnchorResult,
@@ -62,11 +63,15 @@ import { projectMessagePageForClient } from './clientMessageProjection'
 
 export interface SessionQueryDependencies {
   usesAgentTitle?(sessionId: string): boolean
-  onTitleRenamed?(sessionId: string, agentId: string): Promise<void>
+  onTitleRenamed?(sessionId: string, agentId: string, title: string): Promise<void>
   sessions: SessionProjectionStorePort
   runtime: SessionProjectionRuntimePort
   transcript: SessionProjectionTranscriptPort
   tape: SessionProjectionTapePort
+  nativeInspector?: Pick<
+    DimTimelineInspector,
+    'owns' | 'listPage' | 'getDetail' | 'resolveEvidence' | 'exportFacts'
+  >
   messages: SessionProjectionMessageLookupPort
   searchResults: SessionProjectionSearchResultStorePort
   traces: SessionProjectionTraceStorePort
@@ -218,6 +223,8 @@ export class SessionQuery implements SessionProjectionReadPort, SessionProjectio
     input: ListTapeInspectorPageInput
   ): Promise<ListTapeInspectorPageOutput> {
     this.requireSession(input.sessionId)
+    if (this.dependencies.nativeInspector?.owns(input.sessionId))
+      return await this.dependencies.nativeInspector.listPage(input)
     return await this.dependencies.tape.listTapeInspectorPage(input)
   }
 
@@ -225,6 +232,8 @@ export class SessionQuery implements SessionProjectionReadPort, SessionProjectio
     input: ResolveTapeInspectorEvidenceEntriesInput
   ): Promise<ResolveTapeInspectorEvidenceEntriesOutput> {
     this.requireSession(input.sessionId)
+    if (this.dependencies.nativeInspector?.owns(input.sessionId))
+      return await this.dependencies.nativeInspector.resolveEvidence(input)
     return await this.dependencies.tape.resolveTapeInspectorEvidenceEntries(input)
   }
 
@@ -232,6 +241,8 @@ export class SessionQuery implements SessionProjectionReadPort, SessionProjectio
     input: GetTapeInspectorRecordDetailInput
   ): Promise<GetTapeInspectorRecordDetailOutput> {
     this.requireSession(input.sessionId)
+    if (this.dependencies.nativeInspector?.owns(input.sessionId))
+      return await this.dependencies.nativeInspector.getDetail(input)
     return await this.dependencies.tape.getTapeInspectorRecordDetail(input)
   }
 
@@ -239,7 +250,9 @@ export class SessionQuery implements SessionProjectionReadPort, SessionProjectio
     input: ExportTapeInspectorSupportTraceInput
   ): Promise<ExportTapeInspectorSupportTraceOutput> {
     this.requireSession(input.sessionId)
-    const facts = await this.dependencies.tape.exportTapeInspectorSupportFacts(input)
+    const facts = this.dependencies.nativeInspector?.owns(input.sessionId)
+      ? await this.dependencies.nativeInspector.exportFacts(input)
+      : await this.dependencies.tape.exportTapeInspectorSupportFacts(input)
     if (facts.status === 'reset') return facts
     const evidence = await this.listTapeInspectorEvidence({
       sessionId: input.sessionId,
@@ -442,7 +455,11 @@ export class SessionQuery implements SessionProjectionReadPort, SessionProjectio
     const normalized = title.trim()
     if (!normalized) throw new Error('Session title cannot be empty.')
 
-    await this.dependencies.onTitleRenamed?.(sessionId, this.requireSession(sessionId).agentId)
+    await this.dependencies.onTitleRenamed?.(
+      sessionId,
+      this.requireSession(sessionId).agentId,
+      normalized
+    )
     this.dependencies.sessions.update(sessionId, { title: normalized })
     const session = await this.materializeRequired(sessionId)
     this.notify({ sessionIds: [sessionId], reason: 'updated' })
@@ -553,6 +570,7 @@ export class SessionQuery implements SessionProjectionReadPort, SessionProjectio
   private async generateSessionTitle(input: TitleGenerationInput): Promise<void> {
     const { sessionId, initialTitle, fallbackProviderId, fallbackModelId } = input
     try {
+      if (this.dependencies.usesAgentTitle?.(sessionId)) return
       const titleMessages = await this.waitForSessionTitleMessages(sessionId)
       if (!titleMessages || this.dependencies.usesAgentTitle?.(sessionId)) return
 

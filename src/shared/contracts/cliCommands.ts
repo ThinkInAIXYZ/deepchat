@@ -251,7 +251,7 @@ export const CLI_COMMAND_DEFINITIONS = [
     domain: 'provider',
     verb: 'test',
     contract: providersTestPublicConnectionRoute,
-    timeoutClass: standard,
+    timeoutClass: longRunning,
     agentInvocation: 'deny'
   },
   {

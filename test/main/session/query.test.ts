@@ -104,6 +104,7 @@ function createHarness() {
   const agentConfig = { getAssistantModel: vi.fn().mockResolvedValue(null) }
   const events = { publish: vi.fn() }
   const ui = { refreshSessionUi: vi.fn() }
+  const usesAgentTitle = vi.fn(() => false)
   const dependencies = {
     sessions,
     runtime,
@@ -115,7 +116,8 @@ function createHarness() {
     titles,
     agentConfig,
     events,
-    ui
+    ui,
+    usesAgentTitle
   } as unknown as SessionQueryDependencies
 
   return {
@@ -131,7 +133,8 @@ function createHarness() {
     titles,
     agentConfig,
     events,
-    ui
+    ui,
+    usesAgentTitle
   }
 }
 
@@ -630,6 +633,20 @@ describe('SessionQuery', () => {
       activeSessionId: undefined,
       webContentsId: undefined
     })
+  })
+
+  it('leaves native title generation and readiness to its owner', async () => {
+    const harness = createHarness()
+    harness.usesAgentTitle.mockReturnValue(true)
+    harness.coordinator.scheduleTitleGeneration({
+      sessionId: 's1',
+      initialTitle: 'Original title',
+      fallbackProviderId: 'openai',
+      fallbackModelId: 'gpt-4'
+    })
+    await Promise.resolve()
+    expect(harness.transcript.getMessages).not.toHaveBeenCalled()
+    expect(harness.titles.summaryTitles).not.toHaveBeenCalled()
   })
 
   it('uses the preferred title model, falls back, normalizes, and checks both CAS points', async () => {

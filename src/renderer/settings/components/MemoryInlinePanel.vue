@@ -210,7 +210,11 @@
             <ol v-else class="space-y-2">
               <li
                 v-for="entry in sourceSpan.entries"
-                :key="entry.entryId"
+                :key="
+                  entry.timeline
+                    ? JSON.stringify(entry.timeline)
+                    : (entry.entryId ?? entry.orderSeq)
+                "
                 class="rounded-md border bg-background px-2 py-1.5"
               >
                 <div class="mb-1 text-[10px] uppercase text-muted-foreground">

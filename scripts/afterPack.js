@@ -6,6 +6,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { gzip } from 'node:zlib'
 import { promisify } from 'node:util'
+import { packageDimAssets } from './package-dim-runtime.mjs'
 
 import {
   getRequiredPdfiumDirectoryPaths,
@@ -841,6 +842,7 @@ async function afterPack(context) {
   await packageLightOcrAssets(context)
   await validateNativeKitPrebuilds(context)
   await encodeMacVssExtension(context)
+  await packageDimAssets(context, getResourcesDir(context))
 
   if (isLinux(targets)) {
     await afterPackLinux({ appOutDir })

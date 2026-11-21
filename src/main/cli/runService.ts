@@ -28,7 +28,7 @@ import {
   runsTurnFailedEvent
 } from '@shared/contracts/events'
 import { extractUserMessageInput } from '@/session/data/userMessageContent'
-import { hasWaitingInteraction } from '@/agent/deepchat/runtime/sessionUpdates'
+import { hasWaitingInteraction } from '@/agent/shared/sessionUpdates'
 import { projectFinalAssistantAnswer } from '@shared/lib/assistantDeliverySegments'
 import type { AssistantMessageBlock } from '@shared/types/agent-interface'
 import {

@@ -79,8 +79,7 @@ describeIfNativeSqlite('Direct ACP host assembly', () => {
           requestPolicy: {
             temperature: { mode: 'passthrough' },
             topP: { mode: 'passthrough' },
-            reasoning: { mode: 'passthrough' },
-            legacyThinking: { mode: 'passthrough' }
+            reasoning: { mode: 'passthrough' }
           },
           supportsTemperatureControl: true
         })

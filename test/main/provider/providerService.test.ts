@@ -1,4 +1,5 @@
 import { ProviderService } from '@/provider/providerService'
+import { createNodeScheduler } from '@/routes/scheduler'
 
 describe('ProviderService', () => {
   const createScheduler = () => ({
@@ -62,12 +63,12 @@ describe('ProviderService', () => {
     expect(scheduler.timeout).toHaveBeenCalledTimes(2)
   })
 
-  it('tests provider connections through the provider execution port', async () => {
-    const scheduler = createScheduler()
+  it('allows a model probe to outlast the catalog query deadline', async () => {
+    const scheduler = createNodeScheduler()
     const providerExecutionPort = {
-      testConnection: vi.fn().mockResolvedValue({
-        isOk: true,
-        errorMsg: null
+      testConnection: vi.fn(async () => {
+        await scheduler.sleep({ ms: 5_100, reason: 'model response' })
+        return { isOk: true, errorMsg: null }
       })
     }
 
@@ -91,6 +92,5 @@ describe('ProviderService', () => {
     })
 
     expect(providerExecutionPort.testConnection).toHaveBeenCalledWith('openai', 'gpt-5.4')
-    expect(scheduler.timeout).toHaveBeenCalledTimes(1)
-  })
+  }, 15_000)
 })

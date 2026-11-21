@@ -84,16 +84,13 @@
       },
       "descriptions": {
         "agent": "Gunakan perangkat alat standar Agent.",
-        "code": "Rangkai alat yang aktif melalui kode. Memerlukan mode izin Akses penuh.",
+        "code": "Rangkai alat yang aktif melalui kode.",
         "minimal": "Sederhanakan operasi file sambil mempertahankan alat lain yang diaktifkan."
       },
       "useModelDefault": "Gunakan bawaan model",
       "saving": "Menyimpan mode...",
       "locked": "Anda dapat mengganti mode setelah respons ini selesai.",
-      "updateFailed": "Mode alat tidak dapat diperbarui.",
-      "codeEntry": "Entri kode",
-      "codeCallable": "Dapat dipanggil dari kode",
-      "minimalTools": "Alat pengodean"
+      "updateFailed": "Mode alat tidak dapat diperbarui."
     },
     "fileUploadFailed": "Pemrosesan lampiran gagal",
     "fileUploadFailedDesc": "Tidak dapat memproses file {count}: {names}",
@@ -236,8 +233,6 @@
     "maxTokens": "keluaran maksimal",
     "thinkingBudget": "Pikirkan tentang anggaran",
     "verbosity": "Jawab secara detail",
-    "forceInterleavedThinkingCompat": "Pemikiran Disisipkan",
-    "forceInterleavedThinkingCompatDescription": "Mengontrol apakah sesi saat ini menangani pesan penalaran dan panggilan alat dalam mode Berpikir Interleaved.",
     "verbosityPlaceholder": "Pilih tingkat verbositas",
     "currentCustomPrompt": "Kustomisasi saat ini",
     "useDefault": "Gunakan nilai default",

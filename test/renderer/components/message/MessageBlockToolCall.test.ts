@@ -733,6 +733,20 @@ describe('MessageBlockToolCall', () => {
     expect(wrapper.get('[data-testid="tool-call-name"]').attributes('title')).toBe('search')
   })
 
+  it('shows the pinned MCP identity on the executed tool card', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: { name: 'deepchat_mcp_abc', response: 'Done' },
+          extra: { toolName: 'Computer Use / click' }
+        })
+      }
+    })
+    expect(wrapper.get('[data-testid="tool-call-name"]').text()).toBe('Computer Use / click')
+    await wrapper.get('[aria-expanded="false"]').trigger('click')
+    expect(wrapper.text()).not.toContain('deepchat_mcp_abc')
+  })
+
   it('stringifies nested first parameter values into a single-line summary', () => {
     const wrapper = mount(MessageBlockToolCall, {
       props: {

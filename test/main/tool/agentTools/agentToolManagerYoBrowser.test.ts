@@ -125,4 +125,24 @@ describe('AgentToolManager YoBrowser routing', () => {
       }
     })
   })
+
+  it('returns a failed navigation as a tool result without exposing the URL', async () => {
+    yoBrowserCallTool.mockRejectedValue(
+      new Error('Navigation failed -105: ERR_NAME_NOT_RESOLVED (https://example.com/private)')
+    )
+
+    const result = await manager.callTool('load_url', { url: 'https://example.com/' }, 'session-a')
+    expect(result).toMatchObject({
+      rawData: {
+        isError: true,
+        toolResult: {
+          error: {
+            code: 'yobrowser_navigation_failed',
+            message: 'Browser navigation failed (ERR_NAME_NOT_RESOLVED).'
+          }
+        }
+      }
+    })
+    expect(JSON.stringify(result)).not.toContain('/private')
+  })
 })

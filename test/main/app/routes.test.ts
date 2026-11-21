@@ -38,9 +38,6 @@ function createRoutes(overrides: Partial<Parameters<typeof createAppRoutes>[0]> 
       replayTarget: vi.fn()
     },
     ensureDefaultWorkspace: vi.fn(),
-    enableDatabaseEncryption: vi.fn(),
-    changeDatabasePassword: vi.fn(),
-    disableDatabaseEncryption: vi.fn(),
     recordActivity: vi.fn(),
     publishSessionsUpdated: vi.fn(),
     splash: {

@@ -1,3 +1,4 @@
+import { materializeNativeMedia } from '@/platform/nativeMediaCache'
 import { lstat, open } from 'node:fs/promises'
 import path from 'node:path'
 import { ArtifactMetadataSchema } from '@shared/contracts/routes/artifacts.routes'
@@ -111,6 +112,7 @@ async function resolveCachedImage(
   claimedMimeType: string,
   cacheDirectory: string
 ): Promise<ResolvedGeneratedMedia> {
+  await materializeNativeMedia(value)
   const decodedPath = decodeUriPath(value.slice('imgcache://'.length))
   const resolvedCacheDirectory = path.resolve(cacheDirectory)
   const cacheDirectoryStat = await lstat(resolvedCacheDirectory).catch(() => null)

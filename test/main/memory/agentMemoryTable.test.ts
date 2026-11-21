@@ -3245,6 +3245,22 @@ describeIfSqlite('AgentMemoryTable', () => {
         sourceEntryIds: []
       })
 
+      const native = {
+        kind: 'dim' as const,
+        sessionId: 'native',
+        branchId: 'main',
+        through: '9007199254740993',
+        messageId: 'message'
+      }
+      table.insert({
+        id: 'native-lineage',
+        agentId: 'deepchat',
+        kind: 'semantic',
+        content: 'native evidence',
+        sourceSession: 's1',
+        sourceEntryIds: [native]
+      })
+      expect(JSON.parse(table.getById('native-lineage')!.source_entry_ids!)).toEqual([native])
       expect(JSON.parse(table.getById('m1')!.source_entry_ids!)).toEqual([11, 12])
       expect(table.getById('m2')?.source_entry_ids).toBe(null)
       expect(table.getById('m3')?.source_entry_ids).toBe(null)

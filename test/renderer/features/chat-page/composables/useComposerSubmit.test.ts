@@ -316,7 +316,8 @@ describe('useComposerSubmit attachment preflight', () => {
       expect.objectContaining({
         text: '',
         inlineItems: [expect.objectContaining({ type: 'session', offset: 0 })]
-      })
+      }),
+      { submissionId: expect.any(String) }
     )
     harness.stop()
   })
@@ -389,7 +390,8 @@ describe('useComposerSubmit attachment preflight', () => {
       expect.objectContaining({
         text: 'hello',
         inlineItems: [expect.objectContaining({ offset: 5 })]
-      })
+      }),
+      { submissionId: expect.any(String) }
     )
     harness.stop()
   })
@@ -695,7 +697,8 @@ describe('useComposerSubmit attachment preflight', () => {
     await harness.actions.onSubmit()
     expect(harness.chatClient.sendMessage).toHaveBeenCalledWith(
       's2',
-      expect.objectContaining({ text: 'session two' })
+      expect.objectContaining({ text: 'session two' }),
+      { submissionId: expect.any(String) }
     )
     expect(harness.actions.message.value).toBe('session two')
     expect(harness.actions.attachmentPreparationSummary.value).toEqual(secondSummary)
@@ -1106,7 +1109,8 @@ describe('useComposerSubmit attachment preflight', () => {
     )
     expect(harness.messageStore.addOptimisticUserMessage).toHaveBeenCalledWith(
       's1',
-      expect.objectContaining({ search: true })
+      expect.objectContaining({ search: true }),
+      harness.chatClient.sendMessage.mock.calls[0][2]?.submissionId
     )
     harness.stop()
   })

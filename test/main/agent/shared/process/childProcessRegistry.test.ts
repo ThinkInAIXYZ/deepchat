@@ -148,7 +148,10 @@ describe('ChildProcessRegistry', () => {
     const result = await registry.reapStale('background-exec')
 
     expect(result.reaped).toEqual(['bg_test'])
-    expect(terminate).toHaveBeenCalledWith(record.pid)
+    expect(terminate).toHaveBeenCalledWith(
+      record.pid,
+      expect.objectContaining({ recordId: record.recordId })
+    )
     expect(recordFileCount('background-exec')).toBe(0)
   })
 
@@ -367,8 +370,8 @@ describe('ChildProcessRegistry', () => {
     expect(result.skipped).toEqual(['keep-me'])
     expect(result.reaped).toEqual(['custom'])
     expect(attester).toHaveBeenCalledWith(vetted, { alive: true, startedAtMs: vetted.startedAtMs })
-    expect(terminate).toHaveBeenCalledWith(5002)
-    expect(terminate).not.toHaveBeenCalledWith(5001)
+    expect(terminate).toHaveBeenCalledWith(5002, expect.anything())
+    expect(terminate).not.toHaveBeenCalledWith(5001, expect.anything())
   })
 
   it('reaps a subsystem only once per process', async () => {

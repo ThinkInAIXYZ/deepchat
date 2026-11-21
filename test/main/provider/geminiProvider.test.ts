@@ -1,13 +1,9 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LLM_PROVIDER } from '@shared/types/provider'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AiSdkProvider } from '../../../src/main/provider/providers/aiSdkProvider'
 
-const { mockGetProvider, mockRunAiSdkCoreStream, mockRunAiSdkGenerateText } = vi.hoisted(() => ({
-  mockGetProvider: vi.fn(),
-  mockRunAiSdkCoreStream: vi.fn(),
-  mockRunAiSdkGenerateText: vi.fn().mockResolvedValue({ content: 'ok' })
-}))
+const { mockGetProvider } = vi.hoisted(() => ({ mockGetProvider: vi.fn() }))
 
 vi.mock('electron', () => ({
   app: {
@@ -17,11 +13,6 @@ vi.mock('electron', () => ({
     isReady: vi.fn(() => true),
     on: vi.fn()
   }
-}))
-
-vi.mock('../../../src/main/provider/aiSdk', () => ({
-  runAiSdkCoreStream: mockRunAiSdkCoreStream,
-  runAiSdkGenerateText: mockRunAiSdkGenerateText
 }))
 
 vi.mock('../../../src/main/provider/providerDbLoader', () => ({

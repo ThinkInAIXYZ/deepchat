@@ -31,7 +31,7 @@ test('基础聊天流程 @smoke', async ({ app }, testInfo) => {
   await selectModel(app.page, E2E_TARGET_MODEL_ID, E2E_TARGET_PROVIDER_ID)
 
   await sendMessage(app.page, createExactReplyPrompt(firstReplyToken))
-  await waitForGenerationDone(app.page)
+  await waitForGenerationDone(app.page, firstReplyToken)
 
   await expect(getUserMessages(app.page)).toHaveCount(1)
   await expect(getAssistantMessages(app.page)).toHaveCount(1)
@@ -61,7 +61,7 @@ test('基础聊天流程 @smoke', async ({ app }, testInfo) => {
   expect(firstSessionId).not.toBe('')
 
   await sendMessage(app.page, createExactReplyPrompt(secondReplyToken))
-  await waitForGenerationDone(app.page)
+  await waitForGenerationDone(app.page, secondReplyToken)
 
   await expect(getUserMessages(app.page)).toHaveCount(2)
   await expect(getAssistantMessages(app.page)).toHaveCount(2)

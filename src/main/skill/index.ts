@@ -89,7 +89,7 @@ import {
 const execFileAsync = promisify(execFile)
 const READ_ONLY_BUNDLED_SKILL_NAMES = new Set(['deepchat-cli'])
 const MAX_METADATA_SNAPSHOT_ITEMS = 4_096
-const EFFECTIVE_SKILL_CONTENT_BUILDER_VERSION = 'skill-effective-content-v3'
+const EFFECTIVE_SKILL_CONTENT_BUILDER_VERSION = 'skill-effective-content-v4'
 // SHA-256 values cover the canonical manifest and complete pre-declaration resource tree.
 const LEGACY_BUILTIN_EXECUTION_SUPPORT_MIGRATIONS = {
   docx: {
@@ -3047,7 +3047,7 @@ export class SkillService implements SkillServicePort {
       '## DeepChat Runtime Context',
       `- Skill root: \`${metadata.skillRoot}\`.`,
       '- Relative paths mentioned by this skill are relative to the skill root unless stated otherwise.',
-      '- When this skill needs script execution, prefer `skill_run` over `exec`.'
+      '- Run scripts with the native command tool from their listed skill root; inspect files with the native file tool.'
     ]
 
     if (scripts.length > 0) {

@@ -91,7 +91,7 @@
 
     <div
       v-if="renderMode !== 'app-only'"
-      class="grid w-full overflow-hidden transition-[grid-template-rows,opacity,margin-top,margin-bottom] duration-[var(--dc-motion-default)] ease-[var(--dc-ease-out-express)] motion-reduce:transition-none"
+      class="grid w-full overflow-clip transition-[grid-template-rows,opacity,margin-top,margin-bottom] duration-[var(--dc-motion-default)] ease-[var(--dc-ease-out-express)] motion-reduce:transition-none"
       :class="
         isExpanded
           ? 'mt-1 mb-2 grid-rows-[1fr] opacity-100'
@@ -100,12 +100,12 @@
       :aria-hidden="!isExpanded"
       :inert="isExpanded ? undefined : true"
     >
-      <div class="min-h-0 overflow-hidden">
+      <div class="min-h-0 overflow-clip">
         <div
           v-if="shouldRenderDetails"
           :id="detailsId"
           :data-testid="isExpanded ? 'tool-call-details' : undefined"
-          class="w-full min-w-0 pl-6 py-1 text-card-foreground overscroll-contain"
+          class="w-full min-w-0 pl-6 py-1 text-card-foreground"
         >
           <div v-if="isSubagentOrchestrator" class="flex flex-col gap-1.5">
             <button
@@ -217,7 +217,7 @@
               </div>
               <div
                 data-testid="tool-call-params"
-                class="dc-overscroll-contain rounded-md bg-muted/50 font-mono text-xs p-2 whitespace-pre-wrap break-words min-h-0 max-h-20 overflow-auto"
+                class="rounded-md bg-muted/50 font-mono text-xs p-2 whitespace-pre-wrap break-words min-h-0 max-h-20 overflow-auto"
               >
                 {{ paramsText }}
               </div>
@@ -239,7 +239,7 @@
                 />
               </div>
               <template v-if="diffData">
-                <div class="markstream-vue dc-overscroll-contain min-h-0 overflow-auto">
+                <div class="markstream-vue min-h-0 overflow-auto">
                   <CodeBlockNode
                     :node="{
                       type: 'code_block',
@@ -266,7 +266,7 @@
               </template>
               <pre
                 v-else
-                class="dc-overscroll-contain rounded-md bg-muted/50 text-xs p-2 whitespace-pre-wrap break-words max-h-64 overflow-auto"
+                class="rounded-md bg-muted/50 text-xs p-2 whitespace-pre-wrap break-words max-h-64 overflow-auto"
                 >{{ responseText }}</pre
               >
             </div>
@@ -398,6 +398,8 @@ const statusVariant = computed(() => {
 
 const functionLabel = computed(() => {
   const toolCall = props.block.tool_call
+  if (toolCall?.name?.startsWith('deepchat_mcp_') && props.block.extra?.toolName)
+    return props.block.extra.toolName
   return toolCall?.name ?? ''
 })
 

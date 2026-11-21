@@ -188,9 +188,7 @@ export function useListGestures(options: UseListGesturesOptions) {
 
   /** Wheel intent: arm pagination direction and keep the scrolling state warm. */
   function markWheelScrollIntent(isUpward: boolean): void {
-    if (!isListScrolling.value) {
-      options.onGestureStart('wheel')
-    }
+    options.onGestureStart('wheel')
     updateUpwardPaginationIntent(isUpward)
     markListScrolling()
   }

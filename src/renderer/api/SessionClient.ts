@@ -84,7 +84,6 @@ import {
 import type {
   AgentTapeContextOptions,
   AttachmentFallbackPolicy,
-  ChatMessageRecord,
   CreateSessionInput,
   PermissionMode,
   SendMessageInput,
@@ -615,11 +614,7 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
   }
 
   function onMessagesChanged(
-    listener: (payload: {
-      sessionId: string
-      messages: ChatMessageRecord[]
-      version: number
-    }) => void
+    listener: (payload: DeepchatEventPayload<typeof sessionsMessagesChangedEvent.name>) => void
   ) {
     return bridge.on(sessionsMessagesChangedEvent.name, listener)
   }

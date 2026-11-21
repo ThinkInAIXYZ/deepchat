@@ -5,6 +5,9 @@ import path from 'path'
 import { gunzipSync } from 'zlib'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+// Native dim has its own artifact-contract tests; these fixtures isolate OCR/native package copying.
+vi.mock('../../../scripts/package-dim-runtime.mjs', () => ({ packageDimAssets: vi.fn() }))
+
 vi.mock('node:fs', async () => {
   const actual = await vi.importActual<typeof import('node:fs')>('node:fs')
   return { ...actual, default: actual }

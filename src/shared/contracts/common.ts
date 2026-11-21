@@ -134,19 +134,27 @@ export const SessionCompactionStateSchema = z.object({
   summaryUpdatedAt: TimestampMsSchema.nullable(),
   boundaryReason: SessionCompactionBoundaryReasonSchema.nullable().default(null)
 })
+export const DimTimelinePositionSchema = z.object({
+  sessionId: z.string().min(1),
+  branchId: z.string().min(1),
+  sequence: z.string().regex(/^\d+$/),
+  eventId: z.string().min(1).optional()
+})
 export const SessionCompactionSnapshotSchema = z.object({
   state: SessionCompactionStateSchema,
   emitSeq: z.number().int().nonnegative(),
-  latestAnchorEntryId: z.number().int().positive().nullable()
+  latestAnchorEntryId: z.number().int().positive().nullable(),
+  timeline: DimTimelinePositionSchema.optional()
 })
 const SessionContextOccupancyEvidenceSchema = z.object({
   source: z.enum(['provider', 'estimated']),
   occupiedTokens: z.number().int().nonnegative(),
   contextWindowTokens: z.number().int().positive(),
-  requestSeq: z.number().int().positive(),
-  manifestEntryId: z.number().int().positive(),
+  requestSeq: z.number().int().positive().nullable(),
+  manifestEntryId: z.number().int().positive().nullable(),
   providerAttemptEntryId: z.number().int().positive().nullable(),
-  measuredAt: TimestampMsSchema
+  measuredAt: TimestampMsSchema,
+  timeline: DimTimelinePositionSchema.optional()
 })
 export const SessionContextOccupancySnapshotSchema = z.discriminatedUnion('freshness', [
   SessionContextOccupancyEvidenceSchema.extend({
@@ -184,7 +192,6 @@ export const SessionGenerationSettingsSchema = z.object({
   reasoningEffort: ReasoningEffortSchema.optional(),
   reasoningVisibility: ReasoningVisibilitySchema.optional(),
   verbosity: VerbositySchema.optional(),
-  forceInterleavedThinkingCompat: z.boolean().optional(),
   imageGeneration: ImageGenerationOptionsSchema,
   videoGeneration: VideoGenerationOptionsSchema
 })
@@ -393,7 +400,18 @@ export const ToolInteractionResponseSchema = z.discriminatedUnion('kind', [
   }),
   z.object({
     kind: z.literal('question_option'),
-    optionLabel: z.string()
+    optionLabel: z.string(),
+    answers: z
+      .array(
+        z.object({
+          questionId: z.string().min(1),
+          selected: z.array(z.string()),
+          custom: z.string().optional()
+        })
+      )
+      .min(1)
+      .max(4)
+      .optional()
   }),
   z.object({
     kind: z.literal('question_custom'),

@@ -43,6 +43,7 @@ export interface SessionAgentAssignmentDependencies {
   deletion: SessionLifecycleDeletionPort
   environment: SessionAssignmentEnvironmentPort
   acp: SessionAssignmentAcpControlPort
+  toolPreferencesChanged?(sessionId: string): Promise<void>
   agentLifecycle: AgentLifecycleGatePort
 }
 
@@ -396,7 +397,7 @@ export class SessionAssignment implements SessionAgentAssignmentPort, SessionAss
 
   async getSessionDisabledAgentTools(sessionId: string): Promise<string[]> {
     this.requireSession(sessionId)
-    return this.dependencies.sessions.getDisabledAgentTools(sessionId)
+    return normalizeDisabledAgentTools(this.dependencies.sessions.getDisabledAgentTools(sessionId))
   }
 
   async getOrchestrationPolicy(sessionId: string): Promise<OrchestrationPolicy> {
@@ -434,6 +435,7 @@ export class SessionAssignment implements SessionAgentAssignmentPort, SessionAss
     this.requireSession(sessionId)
     const normalized = normalizeDisabledAgentTools(disabledAgentTools)
     this.dependencies.sessions.updateDisabledAgentTools(sessionId, normalized)
+    await this.dependencies.toolPreferencesChanged?.(sessionId)
 
     return normalized
   }

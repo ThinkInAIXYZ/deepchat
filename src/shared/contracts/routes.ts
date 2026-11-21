@@ -67,9 +67,6 @@ import {
   chatStopStreamRoute
 } from './routes/chat.routes'
 import {
-  databaseSecurityChangePasswordRoute,
-  databaseSecurityDisableRoute,
-  databaseSecurityEnableRoute,
   databaseSecurityGetStatusRoute,
   databaseSecurityRepairSchemaRoute
 } from './routes/database-security.routes'
@@ -1160,9 +1157,6 @@ const DEEPCHAT_ROUTE_CATALOG_PART_5 = {
   [chatRespondToolInteractionRoute.name]: chatRespondToolInteractionRoute,
   [chatDismissToolInteractionRoute.name]: chatDismissToolInteractionRoute,
   [databaseSecurityGetStatusRoute.name]: databaseSecurityGetStatusRoute,
-  [databaseSecurityEnableRoute.name]: databaseSecurityEnableRoute,
-  [databaseSecurityChangePasswordRoute.name]: databaseSecurityChangePasswordRoute,
-  [databaseSecurityDisableRoute.name]: databaseSecurityDisableRoute,
   [databaseSecurityRepairSchemaRoute.name]: databaseSecurityRepairSchemaRoute,
   [memoryPageRoute.name]: memoryPageRoute,
   [memorySearchRoute.name]: memorySearchRoute,

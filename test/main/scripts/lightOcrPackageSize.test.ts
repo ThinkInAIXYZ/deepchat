@@ -13,6 +13,7 @@ describe('Light OCR packaged component budgets', () => {
       schemaVersion: number
       componentBudgetsMiB: {
         ocrAssetsCompressed: number
+        dimRuntimeCompressed: number
         nodeRuntimeCompressed: number
         otherRuntimeCompressedByTarget: Record<string, number>
       }
@@ -22,7 +23,8 @@ describe('Light OCR packaged component budgets', () => {
       schemaVersion: 1,
       componentBudgetsMiB: {
         ocrAssetsCompressed: 90,
-        nodeRuntimeCompressed: 0,
+        nodeRuntimeCompressed: 56,
+        dimRuntimeCompressed: 84,
         otherRuntimeCompressedByTarget: {
           'darwin-arm64': 48,
           'darwin-x64': 48,
@@ -33,13 +35,14 @@ describe('Light OCR packaged component budgets', () => {
         }
       }
     })
-    expect(
-      Object.keys(manifest.componentBudgetsMiB.otherRuntimeCompressedByTarget).sort()
-    ).toEqual([...TARGET_IDS].sort())
+    expect(Object.keys(manifest.componentBudgetsMiB.otherRuntimeCompressedByTarget).sort()).toEqual(
+      [...TARGET_IDS].sort()
+    )
     for (const target of TARGET_IDS) {
       expect(readComponentBudgets(manifest, target)).toEqual({
         ocrAssetsCompressed: 90,
-        nodeRuntimeCompressed: 0,
+        nodeRuntimeCompressed: 56,
+        dimRuntimeCompressed: 84,
         otherRuntimeCompressed: target === 'win32-arm64' ? 32 : 48
       })
     }
@@ -52,7 +55,8 @@ describe('Light OCR packaged component budgets', () => {
           schemaVersion: 1,
           componentBudgetsMiB: {
             ocrAssetsCompressed: 90,
-            nodeRuntimeCompressed: 0,
+            nodeRuntimeCompressed: 56,
+            dimRuntimeCompressed: 84,
             otherRuntimeCompressedByTarget: {}
           }
         },

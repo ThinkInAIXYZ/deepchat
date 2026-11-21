@@ -39,16 +39,17 @@
           />
         </div>
       </div>
-      <!-- The message map gets a column of its own beside the scroll container, so it is never
-           clipped by the side panel and never squeezed when the window is narrow. -->
-      <div data-testid="chat-viewport-region" class="relative flex min-h-0 min-w-0 flex-row">
+      <div
+        data-testid="chat-viewport-region"
+        class="chat-viewport-region relative grid min-h-0 min-w-0"
+      >
         <div
           ref="scrollContainer"
           data-testid="chat-page"
           role="region"
           :aria-label="sessionTitle"
           tabindex="0"
-          class="message-list-container relative h-full min-h-0 min-w-0 flex-1 overflow-y-auto"
+          class="message-list-container relative col-span-full row-start-1 h-full min-h-0 min-w-0 overflow-y-auto"
           :class="{ 'dc-list-scrolling': isListScrolling }"
           @scroll.passive="onScroll"
           @scrollend.passive="listGestures.onListScrollEnd"
@@ -62,7 +63,12 @@
           @pointerup.passive="listGestures.onListPointerEnd"
           @pointercancel.passive="listGestures.onListPointerEnd"
         >
-          <div ref="messageSearchRoot" class="min-h-full">
+          <div
+            ref="messageSearchRoot"
+            class="min-h-full"
+            :class="{ 'pr-16': showChatMinimap }"
+            @click.capture="onMessageDisclosureClick"
+          >
             <div
               v-if="messageStore.isLoadingHistory"
               data-testid="history-loading-indicator"
@@ -119,7 +125,8 @@
               :conversation-id="props.sessionId"
               :ephemeral-rate-limit-block="ephemeralRateLimitBlock"
               :ephemeral-rate-limit-message-id="ephemeralRateLimitMessageId"
-              :is-generating="isGenerating"
+              :is-generating="isGenerating || isRetryingAttachments"
+              :regenerating-message-id="regeneratingMessageId"
               :streaming-message-id="streamingMessageId"
               :trace-message-ids="traceMessageIds"
               :is-read-only="isReadOnlySession"
@@ -137,8 +144,9 @@
             <div class="h-px w-full" aria-hidden="true" />
           </div>
         </div>
-        <!-- Sits outside the scroll container so the rail keeps its position while the list moves. -->
+        <!-- The rail stays fixed in the reserved space before the transcript's scrollbar. -->
         <ChatMinimap
+          class="col-start-2 row-start-1"
           :visible="showChatMinimap"
           :ticks="minimapTicks"
           :viewport="minimapViewport"
@@ -538,9 +546,8 @@ const chatScrollController = useChatScrollController({
     const originTop = getMessageWindowOriginTop(container)
     return originTop === null ? null : originTop + entry.top
   },
-  onCommitted() {
-    const container = scrollContainer.value
-    if (container) syncMessageViewportMetrics(container)
+  onCommitted(_, request) {
+    if (request.reason !== 'auto-follow') syncMessageViewportMetrics()
   }
 })
 const TOP_HISTORY_THRESHOLD = 80
@@ -737,10 +744,8 @@ function connectChatGeometryObserver(): void {
   if (!viewport || !messageRoot) return
 
   viewportResizeObserver = new ResizeObserver(() => {
-    const currentViewport = scrollContainer.value
-    if (!currentViewport) return
-    syncMessageViewportMetrics(currentViewport)
-    chatScrollController.notifyViewportResize()
+    if (!regeneratingMessageId.value) chatScrollController.notifyViewportResize()
+    scheduleScrollMetricsRead()
   })
   viewportResizeObserver.observe(viewport)
   viewportResizeObserver.observe(messageRoot)
@@ -751,6 +756,7 @@ function scrollDomToBottom(reason: ChatScrollReason): void {
 }
 
 function scrollToBottom(force = false, reason: ChatScrollReason = 'auto-follow') {
+  if (reason === 'auto-follow' && regeneratingMessageId.value) return
   if (!force && !isBottomFollowingMode()) {
     return
   }
@@ -777,9 +783,17 @@ function scheduleScrollMetricsRead() {
 
 function onWheel(event: WheelEvent) {
   if (event.deltaY === 0) return
-  userGestureSeq += 1
-  chatScrollController.notifyUserGestureStart('wheel')
   listGestures.markWheelScrollIntent(event.deltaY < 0)
+}
+
+function onMessageDisclosureClick(event: MouseEvent) {
+  const button =
+    event.target instanceof Element &&
+    event.target.closest('button[aria-expanded]:not([aria-haspopup])')
+  if (!button || !button.closest('[data-message-id]')) return
+  userGestureSeq += 1
+  chatScrollController.notifyUserGestureStart('pointer')
+  chatScrollController.notifyUserGestureEnd()
 }
 
 function onScroll() {
@@ -1038,6 +1052,7 @@ const {
   ephemeralRateLimitMessageId,
   createPendingAssistantPlaceholder,
   clearPendingAssistantPlaceholder,
+  regeneratingMessageId,
   resetForSessionChange: resetDisplayMessagesForSessionChange
 } = useDisplayMessages({
   sessionId: () => props.sessionId,
@@ -1297,9 +1312,10 @@ watch(
   [
     () => messageStore.messageIds.length,
     () => messageStore.currentStreamMessageId,
-    () => messageStore.streamRevision,
+    () => (typeof ResizeObserver === 'undefined' ? messageStore.streamRevision : 0),
     () => messageStore.lastPersistedRevision,
-    () => ephemeralRateLimitMessageId.value
+    () => ephemeralRateLimitMessageId.value,
+    () => regeneratingMessageId.value
   ],
   () => {
     if (spotlightStore.pendingMessageJump?.sessionId === props.sessionId) {
@@ -1587,6 +1603,7 @@ const {
 } = useMessageActions({
   sessionId: () => props.sessionId,
   isReadOnlySession,
+  isGenerating,
   hasBlockingInteraction: () =>
     Boolean(activePendingInteraction.value) || isHandlingInteraction.value,
   messageStore,
@@ -1599,6 +1616,8 @@ const {
   currentRestoreRequestId,
   canWriteSessionView,
   openModelPicker: openAttachmentModelPicker,
+  createPendingAssistantPlaceholder,
+  clearPendingAssistantPlaceholder,
   notify: notifyRenderer,
   t
 })
@@ -1743,6 +1762,15 @@ onUnmounted(() => {
 </script>
 
 <style>
+.chat-viewport-region {
+  --chat-scrollbar-width: 8px;
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr) auto var(--chat-scrollbar-width);
+}
+
+.message-list-container::-webkit-scrollbar {
+  width: var(--chat-scrollbar-width);
+}
+
 .message-list-container {
   scrollbar-gutter: stable both-edges;
   /* Avoid will-change: scroll-position — it promotes a huge layer and hurts

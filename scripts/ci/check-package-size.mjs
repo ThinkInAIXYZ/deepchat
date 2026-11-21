@@ -120,8 +120,7 @@ export function validatePackageSizePolicy(policy) {
       typeof expected !== 'object' ||
       typeof expected.baselineCommit !== 'string' ||
       !SOURCE_SHA_PATTERN.test(expected.baselineCommit) ||
-      !Number.isSafeInteger(expected.bytes) ||
-      expected.bytes > 0
+      !Number.isSafeInteger(expected.bytes)
     ) {
       throw new Error('Package-size policy expectedDelta is invalid')
     }

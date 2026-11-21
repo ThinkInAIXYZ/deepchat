@@ -75,6 +75,7 @@
       v-else-if="item.role === 'user'"
       :message="item as DisplayUserMessage"
       :is-read-only="isReadOnly"
+      :is-in-generating-thread="isGenerating"
       :save-edit="saveEdit"
       @retry="onRetry"
       @delete="onDelete"
@@ -85,6 +86,7 @@
       :use-legacy-actions="false"
       :is-in-generating-thread="isGenerating"
       :is-streaming-message="isStreamingMessage"
+      :is-regenerating="isRegenerating"
       :show-trace="showTrace"
       :is-capturing-image="isCapturing"
       :is-read-only="isReadOnly"
@@ -121,6 +123,7 @@ const props = withDefaults(
     item: MessageListItem
     isGenerating?: boolean
     isStreamingMessage?: boolean
+    isRegenerating?: boolean
     showTrace?: boolean
     isCapturing?: boolean
     isReadOnly?: boolean

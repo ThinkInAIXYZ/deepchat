@@ -17,7 +17,7 @@
     "importFailed": "Import nie powiódł się, oryginalne dane zostały przywrócone",
     "importProcess": "Wystąpił błąd podczas procesu importowania",
     "unknown": "Nieznany błąd",
-    "encryptedBackupPasswordMissing": "Ta kopia zapasowa jest zaszyfrowana, ale klucz lokalnej bazy danych nie jest dostępny. Najpierw odblokuj zaszyfrowaną bazę danych, a następnie zaimportuj ją ponownie.",
+    "encryptedBackupPasswordMissing": "Nowa architektura nie obsługuje szyfrowania SQLite, dlatego szyfrowanie bazy danych jest tymczasowo niedostępne. Ta kopia zapasowa jest zaszyfrowana i nie można jej przywrócić bezpośrednio z chmury. Pobierz ją do folderu synchronizacji, a następnie użyj opcji „Importuj dane” i wprowadź oryginalne hasło bazy danych.",
     "overwriteEncryptionMismatch": "Import nadpisujący wymaga, aby kopia zapasowa i bieżąca baza danych korzystały z tego samego stanu szyfrowania.",
     "cloudNotConfigured": "Cloud is not configured. Fill in and save the cloud connection first.",
     "cloudNoBackup": "No backup available in the cloud bucket",

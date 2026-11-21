@@ -867,7 +867,7 @@ describeIfSqlite('MainDatabase legacy schema bootstrap', () => {
 
     const presenter = new MainDatabaseCtor(dbPath)
     new SessionDatabase(presenter).deepchatSessionsTable.updateGenerationSettings('session-1', {
-      forceInterleavedThinkingCompat: true
+      timeout: 60000
     })
     presenter.close()
 
@@ -889,7 +889,7 @@ describeIfSqlite('MainDatabase legacy schema bootstrap', () => {
       | undefined
 
     expect(row).toEqual({
-      force_interleaved_thinking_compat: 1
+      force_interleaved_thinking_compat: null
     })
 
     const versions = checkDb

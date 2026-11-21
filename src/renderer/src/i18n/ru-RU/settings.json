@@ -392,46 +392,6 @@
       },
       "applyFailed": "Импорт не удался: {message}"
     },
-    "databaseEncryption": {
-      "title": "Шифрование базы данных SQLite",
-      "description": "Шифрует agent.db с помощью SQLCipher и запрашивает пароль SQLite, когда системная разблокировка недоступна.",
-      "enabled": "Включено",
-      "disabled": "Отключено",
-      "cipher": "Шифр",
-      "systemUnlock": "Системная разблокировка",
-      "startupUnlock": "Разблокировка при запуске",
-      "lastMigration": "Последняя миграция",
-      "loading": "Загрузка",
-      "never": "Никогда",
-      "notRequired": "Не требуется",
-      "systemUnlockAvailable": "Доступна",
-      "systemUnlockUnavailable": "Недоступна",
-      "systemUnlockMode": "Системная разблокировка",
-      "manualUnlock": "Ручной пароль",
-      "currentPassword": "Текущий пароль",
-      "newPassword": "Новый пароль SQLite",
-      "confirmPassword": "Подтвердите пароль",
-      "passwordMismatch": "Пароли не совпадают",
-      "systemCredentialStore": "Когда безопасное системное хранилище доступно, DeepChat сохраняет пароль SQLite в зашифрованном виде в хранилище учетных данных ОС (macOS Keychain, Windows Credential Vault или Linux secret store). После одной успешной разблокировки последующие запуски обычно открываются автоматически; повторный ввод ключа шифрования нужен только после миграции данных, если системные учетные данные отсутствуют или не могут быть расшифрованы, либо если безопасное хранилище недоступно.",
-      "safeStorageUnavailable": "Electron safeStorage недоступен в этой системе. После включения шифрования пароль нужно будет вводить при каждом запуске.",
-      "enableButton": "Включить шифрование",
-      "changeButton": "Изменить пароль",
-      "disableButton": "Отключить шифрование",
-      "enabledTitle": "Шифрование базы данных включено",
-      "changedTitle": "Пароль SQLite изменен",
-      "disabledTitle": "Шифрование базы данных отключено",
-      "failedTitle": "Сбой шифрования базы данных",
-      "failedDescription": "Проверьте пароль и повторите попытку.",
-      "setPasswordButton": "Задать пароль",
-      "enableDialogTitle": "Задать пароль SQLite",
-      "changeDialogTitle": "Изменить пароль SQLite",
-      "disableDialogTitle": "Отключить шифрование базы данных",
-      "enableDialogDescription": "Создает зашифрованную базу SQLite и переносит в нее текущие локальные данные.",
-      "changeDialogDescription": "Переносит текущую зашифрованную базу данных в новую зашифрованную базу с новым паролем.",
-      "disableDialogDescription": "Переносит текущую зашифрованную базу данных обратно в локальную базу в открытом виде.",
-      "cancelButton": "Отмена",
-      "unknown": "Неизвестно"
-    },
     "cloudSync": {
       "title": "Облачная синхронизация (совместимо с S3)",
       "description": "Загружайте резервные копии в S3-совместимое хранилище, например Cloudflare R2, и получайте последнюю копию на другом устройстве.",
@@ -472,7 +432,8 @@
       "saveAndTest": "Сохранить и проверить",
       "saveOnly": "Только сохранить",
       "saveAndTestFirst": "Сначала сохраните и проверьте облачную конфигурацию."
-    }
+    },
+    "legacyBackupPassword": "Пароль старой зашифрованной резервной копии (необязательно)"
   },
   "dashboard": {
     "badge": "Панель использования",
@@ -637,10 +598,6 @@
       "reasoningToggle": {
         "description": "Определяет, включено ли рассуждение по умолчанию для этой модели",
         "label": "Включить рассуждение"
-      },
-      "interleavedThinking": {
-        "label": "Interleaved Thinking",
-        "description": "Определяет, будет ли эта модель обрабатывать сообщения рассуждений и tool-call в режиме Interleaved Thinking. Значения, заданные провайдером, применяются автоматически."
       },
       "thinkingBudget": {
         "label": "Бюджет размышлений",
@@ -2832,7 +2789,6 @@
     "thinkingBudget": "Бюджет мышления",
     "reasoningEffort": "Уровень рассуждения",
     "verbosity": "Степень подробности",
-    "interleaved": "Принудительная совместимость с чередующимся рассуждением",
     "systemPrompt": "Системный промпт по умолчанию",
     "systemPromptPlaceholder": "Оставьте пустым, чтобы использовать пустой системный промпт",
     "defaultProjectPath": "Каталог по умолчанию (необязательно)",
@@ -2842,7 +2798,6 @@
     "permissionDefault": "Стандартные разрешения",
     "defaultToolMode": "Режим по умолчанию",
     "defaultToolModeModelDefaultDesc": "Определяется текущей моделью. Большинство моделей используют Agent.",
-    "defaultToolModeCodePermissionHint": "Для режима Code нужно установить разрешение по умолчанию «{permission}», иначе вызовы кода будут завершаться ошибкой.",
     "toolsTitle": "Встроенные инструменты",
     "outputLimitsTitle": "Расширенные ограничения вывода",
     "outputLimitsDescription": "Укажите, какой объём вывода инструментов остаётся встроенным для этого агента.",

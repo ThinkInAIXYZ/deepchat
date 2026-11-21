@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -14,7 +15,7 @@ import type {
   StoredSkillManagementState
 } from '@shared/types/skillManagement'
 import { resolveAgentSkillsRoot } from '@/skill/agentSkillRoots'
-import { SkillTools } from '@/skill/skillTools'
+import { DimSkillContext } from '@/agent/dim/skillContext'
 
 vi.unmock('fs')
 vi.unmock('node:fs')
@@ -236,25 +237,61 @@ describe('SkillService shared Skills', () => {
     )
     expect(storedState).toEqual(stateBefore)
 
-    const tools = new SkillTools(service)
-    const view = await tools.handleSkillView('a', { name: 'review' })
+    const view = await service.viewSkillForAgent('writer', 'review', { conversationId: 'a' })
     expect(view.content).toContain('# Project A')
     expect(view.contentResolution?.identity.sourceType).toBe('project')
     expect(
-      (await tools.handleSkillView('a', { name: 'review', file_path: 'references/guide.md' }))
-        .content
+      (
+        await service.viewSkillForAgent('writer', 'review', {
+          conversationId: 'a',
+          filePath: 'references/guide.md'
+        })
+      ).content
     ).toBe('Project A reference')
     expect(
-      (await tools.handleSkillView('b', { name: 'review', file_path: 'references/guide.md' }))
-        .success
+      (
+        await service.viewSkillForAgent('writer', 'review', {
+          conversationId: 'b',
+          filePath: 'references/guide.md'
+        })
+      ).success
     ).toBe(false)
     await service.setActiveSkills('a', ['review'])
+    const publish = vi.fn(async (_ref, content: string, signal: AbortSignal) => {
+      signal.throwIfAborted()
+      return {
+        path: '/native/skills/catalog.json',
+        catalogHash: createHash('sha256').update(content).digest('hex'),
+        fileId: 'native-catalog'
+      }
+    })
+    const context = new DimSkillContext({
+      skills: service,
+      session: (id) => sessions.find((row) => row.id === id),
+      catalog: { publish }
+    })
+    const contribution = await context.contribute(
+      { sessionId: 'a', dimSessionId: 'native-a', branchId: 'main' } as never,
+      new AbortController().signal
+    )
+    expect(publish).toHaveBeenCalledWith(
+      { sessionId: 'native-a', branchId: 'main' },
+      expect.stringContaining(rootA),
+      expect.any(AbortSignal)
+    )
+    expect(publish.mock.calls[0][1]).not.toContain('global-secret')
+    expect(JSON.stringify(contribution.messages)).toContain('# Project A')
+    expect(JSON.stringify(contribution.messages)).not.toContain('# Global review')
+    expect(JSON.stringify(contribution.messages)).toContain('dim exec')
+    expect(contribution.receipts).toMatchObject([
+      { source: 'deepchat/skills', selected: [{ name: 'review', skillRoot: rootA }] }
+    ])
     await service.deleteSkill('review', ['writer'])
     expect(await service.getActiveSkills('a')).toEqual(['review'])
     expect(fs.existsSync(path.join(rootA, 'SKILL.md'))).toBe(true)
   })
 
-  it('refreshes session selection and skill tools from the persisted workspace', async () => {
+  it('refreshes session selection and skill catalog from the persisted workspace', async () => {
     await migrate()
     const projectDir = path.join(temporaryRoot, 'project')
     const root = writeSkill(path.join(projectDir, '.agents', 'skills'), 'local-only', '# Local')
@@ -265,9 +302,12 @@ describe('SkillService shared Skills', () => {
     await service.setActiveSkills('a', ['local-only'])
     expect(await service.getActiveSkills('a')).toEqual(['local-only'])
     expect(await service.setActiveSkills('b', ['local-only'])).toEqual([])
-    const tools = new SkillTools(service)
-    expect(JSON.stringify(await tools.handleSkillList('a'))).toContain('local-only')
-    expect(JSON.stringify(await tools.handleSkillList('b'))).not.toContain('local-only')
+    expect(
+      JSON.stringify(await service.getMetadataList('writer', { conversationId: 'a' }))
+    ).toContain('local-only')
+    expect(
+      JSON.stringify(await service.getMetadataList('writer', { conversationId: 'b' }))
+    ).not.toContain('local-only')
     fs.rmSync(root, { recursive: true })
     expect(await service.getActiveSkills('a')).toEqual([])
     await expect(

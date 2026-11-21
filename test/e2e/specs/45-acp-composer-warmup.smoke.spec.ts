@@ -332,13 +332,11 @@ createInterface({ input: process.stdin }).on('line', line => {
         .selectProject(path, 'manual')
     }, path)
   await selectWorkspace(missingWorkspace)
-  await expect(app.page.getByTestId('new-thread-acp-workdir-status')).toContainText(
-    missingWorkspace
-  )
+  await expect(app.page.getByTestId('new-thread-workdir-status')).toContainText(missingWorkspace)
   await expect(app.page.getByTestId('chat-send-button')).toBeDisabled()
   await expect(selector).not.toHaveAttribute('aria-busy', 'true')
   await selectWorkspace(workspace)
-  await expect(app.page.getByTestId('new-thread-acp-workdir-status')).toHaveCount(0)
+  await expect(app.page.getByTestId('new-thread-workdir-status')).toHaveCount(0)
   await expect(modelTrigger).toBeVisible()
   await app.page.evaluate(() => {
     const project = (
@@ -355,7 +353,7 @@ createInterface({ input: process.stdin }).on('line', line => {
   const retryWorkspace = app.page.getByTestId('new-thread-chat-workspace-retry')
   await expect(retryWorkspace).toHaveAccessibleName(/Workspace is read-only/)
   await expect(app.page.getByTestId('chat-send-button')).toBeDisabled()
-  await expect(app.page.getByTestId('new-thread-acp-workdir-status')).toHaveCount(0)
+  await expect(app.page.getByTestId('new-thread-workdir-status')).toHaveCount(0)
   await retryWorkspace.hover()
   await expect(
     app.page.locator('[data-slot="tooltip-content"]').filter({ hasText: 'Workspace is read-only' })
@@ -366,7 +364,7 @@ createInterface({ input: process.stdin }).on('line', line => {
     'data-icon',
     'lucide:message-square'
   )
-  await expect(app.page.getByTestId('new-thread-acp-workdir-status')).toHaveCount(0)
+  await expect(app.page.getByTestId('new-thread-workdir-status')).toHaveCount(0)
   await expect(modelTrigger).toBeEnabled()
   const chatWorkspace = await app.page.evaluate(
     () =>

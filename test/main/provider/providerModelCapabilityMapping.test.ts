@@ -486,7 +486,7 @@ describe('ProviderSettings provider model capability mapping', () => {
     ).toBe('anthropic')
   })
 
-  it('marks provider-native search only for the exact official DeepSeek route', async () => {
+  it('does not advertise DeepSeek search without a native provider implementation', async () => {
     const { ProviderSettings } = await loadProviderSettings()
     const provider = {
       id: 'deepseek',
@@ -514,10 +514,7 @@ describe('ProviderSettings provider model capability mapping', () => {
         providerId: 'deepseek',
         modelId: 'deepseek-v4-flash'
       })
-    ).toMatchObject({
-      supportsSearch: true,
-      searchExecution: 'provider'
-    })
+    ).toMatchObject({ supportsSearch: false })
 
     provider.baseUrl = 'https://relay.example.com/v1'
     expect(

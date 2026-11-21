@@ -32,6 +32,7 @@
           <template v-else>
             <DcButton
               v-if="!isAssistant && !isEditMode && !isReadOnly"
+              :disabled="isInGeneratingThread"
               variant="ghost"
               size="icon-sm"
               icon="lucide:refresh-cw"
@@ -108,6 +109,7 @@
             </DcButton>
             <DcButton
               v-if="isAssistant && !isReadOnly"
+              :disabled="isInGeneratingThread"
               variant="ghost"
               size="icon-sm"
               icon="lucide:refresh-cw"

@@ -909,7 +909,7 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
     expect(wrapper.get('[data-testid="new-thread-project-trigger"]').text()).toContain(
       'chat.sidebar.chats'
     )
-    expect(wrapper.find('[data-testid="new-thread-acp-workdir-status"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="new-thread-workdir-status"]').exists()).toBe(false)
     expect(projectStore.selectedProject).toBeNull()
     expect(projectStore.defaultProjectPath).toBe('/custom-default')
     expect(sessionClient.ensureAcpDraftSession).toHaveBeenCalledWith({
@@ -943,7 +943,7 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
     await flushPromises()
     expect(projectStore.ensureChatWorkspace).toHaveBeenCalledOnce()
     expect(projectStore.defaultChatWorkspacePath).toBe('/tmp/chats')
-    expect(wrapper.find('[data-testid="new-thread-acp-workdir-status"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="new-thread-workdir-status"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="new-thread-chat-workspace-retry"]').exists()).toBe(false)
   })
 
@@ -955,7 +955,7 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
 
     const retry = wrapper.get('[data-testid="new-thread-chat-workspace-retry"]')
     expect(retry.attributes('label')).toContain('Workspace is read-only')
-    expect(wrapper.find('[data-testid="new-thread-acp-workdir-status"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="new-thread-workdir-status"]').exists()).toBe(false)
     expect(wrapper.get('[data-testid="chat-input-box"]').attributes('data-submit-disabled')).toBe(
       'true'
     )
@@ -1133,7 +1133,7 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
     expect(wrapper.find('[data-testid="chat-input-box"]').attributes('data-submit-disabled')).toBe(
       'true'
     )
-    expect(wrapper.get('[data-testid="new-thread-acp-workdir-status"]').attributes('role')).toBe(
+    expect(wrapper.get('[data-testid="new-thread-workdir-status"]').attributes('role')).toBe(
       'status'
     )
     expect(sessionClient.ensureAcpDraftSession).not.toHaveBeenCalled()
@@ -1146,10 +1146,12 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
     expect(sessionStore.sendMessage).not.toHaveBeenCalled()
   })
 
-  it('shows the same invalid-directory warning for DeepChat without blocking send', async () => {
-    const { wrapper, sessionStore, agentStore, modelStore, draftStore } = await setup({
-      isDirectory: false
-    })
+  it('keeps a DeepChat draft when its folder is gone and submits after selecting a valid folder', async () => {
+    const { wrapper, sessionStore, agentStore, modelStore, draftStore, projectStore } = await setup(
+      {
+        isDirectory: (path) => path === '/tmp/valid-workspace'
+      }
+    )
 
     agentStore.selectedAgentId = 'deepchat'
     await flushPromises()
@@ -1165,9 +1167,24 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
 
     expect(wrapper.find('[data-testid="new-thread-project-missing-warning"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="chat-input-box"]').attributes('data-submit-disabled')).toBe(
-      'false'
+      'true'
     )
 
+    await (wrapper.vm as any).onSubmit()
+    await flushPromises()
+    expect(sessionStore.createSession).not.toHaveBeenCalled()
+    expect((wrapper.vm as any).message).toBe('hello deepchat invalid workdir')
+
+    const replaceFolder = wrapper.get('[data-testid="new-thread-replace-folder"]')
+    await replaceFolder.trigger('click')
+    expect(projectStore.openFolderPicker).toHaveBeenCalledOnce()
+    expect((wrapper.vm as any).message).toBe('hello deepchat invalid workdir')
+    projectStore.openFolderPicker.mockImplementationOnce(async () => {
+      projectStore.selectProject('/tmp/valid-workspace')
+    })
+    await replaceFolder.trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="new-thread-workdir-status"]').exists()).toBe(false)
     await (wrapper.vm as any).onSubmit()
     await flushPromises()
 
@@ -1175,7 +1192,7 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
       expect.objectContaining({
         message: 'hello deepchat invalid workdir',
         agentId: 'deepchat',
-        projectDir: '/tmp/workspace'
+        projectDir: '/tmp/valid-workspace'
       })
     )
   })
@@ -1195,7 +1212,7 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
     await flushPromises()
 
     expect(wrapper.find('[data-testid="new-thread-project-missing-warning"]').exists()).toBe(false)
-    expect(wrapper.find('[data-testid="new-thread-acp-workdir-status"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="new-thread-workdir-status"]').exists()).toBe(false)
     expect(sessionClient.ensureAcpDraftSession).toHaveBeenCalledWith({
       agentId: 'acp-agent',
       projectDir: '/tmp/valid-workspace',

@@ -5,6 +5,29 @@ import { HTML_RENDER_MAX_PANEL_BYTES } from '@shared/agentHtmlRenderTool'
 describe('AgentHtmlRenderTool', () => {
   const tool = new AgentHtmlRenderTool()
 
+  it('awaits Native panel content and counts concurrent accepted sections', async () => {
+    const native = new AgentHtmlRenderTool()
+    const panels = {
+      measurePanel: async () => ({ shellBytes: 10, sectionBytes: new Map<string, number>() })
+    }
+    const results = await Promise.allSettled(
+      ['a', 'b', 'c', 'd', 'e'].map((sectionId) =>
+        native.callSection(
+          { panelId: 'p', sectionId, html: 'x'.repeat(500_000) },
+          'session',
+          panels
+        )
+      )
+    )
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(4)
+    expect(results[4]).toMatchObject({ status: 'rejected', reason: expect.any(Error) })
+    await expect(
+      native.callSection({ panelId: 'missing', sectionId: 's', html: '<p>x</p>' }, 'session', {
+        measurePanel: async () => null
+      })
+    ).rejects.toThrow(/No panel missing/)
+  })
+
   it('gives each shell a panelId that sections must reference', () => {
     const result = tool.call({ title: 'Report', html: '<main data-dc-sections></main>' })
     const panelId = result.rawData.htmlRender?.panelId

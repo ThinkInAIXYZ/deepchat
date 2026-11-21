@@ -796,7 +796,7 @@ async function exportSupportTrace(): Promise<void> {
     const timestamp = new Date(result.trace.exportedAt).toISOString().replace(/[:.]/gu, '-')
     downloadBlob(
       new Blob([`${JSON.stringify(result.trace, null, 2)}\n`], { type: 'application/json' }),
-      `tape-inspector-${safeSessionId}-${timestamp}.json`
+      `timeline-inspector-${safeSessionId}-${timestamp}.json`
     )
   } catch (error) {
     if (

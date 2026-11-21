@@ -20,6 +20,7 @@ import {
 } from '@shared/contracts/syncReplica'
 import {
   SYNC_UNITS,
+  SYNC_NATIVE_SESSION_TABLES,
   quoteIdentifier as q,
   sessionIdForRow,
   type SyncTable,
@@ -40,7 +41,8 @@ export interface SyncReplicaStoreDeps {
   database(): Database.Database
   directory: string
   canApply(kind: string, id: string): boolean
-  guard?(units: SyncUnit[], operation: () => boolean): Promise<boolean>
+  nativeProfiles?: boolean
+  guard?(units: SyncUnit[], operation: () => boolean | Promise<boolean>): Promise<boolean>
   applied(kind: string, id: string, deleted: boolean): void
 }
 
@@ -99,6 +101,9 @@ export class SyncReplicaStore {
       CREATE TABLE IF NOT EXISTS _sync_receipts (
         replica TEXT PRIMARY KEY, cursor INTEGER NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS _sync_native_receipts (
+        token TEXT PRIMARY KEY, replica TEXT NOT NULL, through INTEGER NOT NULL
+      );
     `)
     const prior = db.prepare('SELECT replica FROM _sync_state WHERE singleton=1').get() as
       | { replica: string }
@@ -110,7 +115,11 @@ export class SyncReplicaStore {
         db.prepare('INSERT INTO _sync_state(singleton,replica) VALUES(1,?)').run(this.replicaId)
       })()
     }
-    this.definitions = SYNC_UNITS.flatMap((definition) => {
+    this.definitions = SYNC_UNITS.flatMap((base) => {
+      const definition =
+        this.deps.nativeProfiles && base.kind === 'session'
+          ? { ...base, tables: [...base.tables, ...SYNC_NATIVE_SESSION_TABLES] }
+          : base
       const columns = new Map<string, string[]>()
       for (const table of definition.tables) {
         const info = db.prepare(`PRAGMA table_info(${q(table.table)})`).all() as { name: string }[]
@@ -340,30 +349,55 @@ export class SyncReplicaStore {
     })()
   }
 
-  async apply(input: SyncBatch, authorized: () => boolean = () => true): Promise<boolean> {
+  async apply(
+    input: SyncBatch,
+    authorized: () => boolean = () => true,
+    admission?: (winners: SyncUnit[], commit: (nativeToken?: string) => boolean) => Promise<boolean>
+  ): Promise<boolean> {
     this.database()
     const batch = SyncBatchSchema.parse(input)
     for (const unit of batch.units) this.validateUnit(unit)
-    const commit = () => {
-      if (!authorized()) throw new Error('sync.tunnel.error.cancelled')
-      return this.applyCommitted(batch)
-    }
-    return this.deps.guard
-      ? this.deps.guard(
-          batch.units.filter((unit) => {
-            const local = this.change(this.database(), unit.kind, unit.id)
-            return (
-              !local ||
-              local.modified_at < unit.modifiedAt ||
-              (local.modified_at === unit.modifiedAt && local.origin < unit.origin)
-            )
-          }),
-          commit
+    if (batch.replicaId === this.replicaId || batch.through < batch.after)
+      throw new Error('Invalid sync batch')
+    const initialCursor = this.cursor(batch.replicaId)
+    if (batch.through <= initialCursor) return true
+    if (batch.after > initialCursor) throw new Error('Sync cursor gap')
+    const winners = () =>
+      batch.units.filter((unit) => {
+        const local = this.change(this.database(), unit.kind, unit.id)
+        return (
+          !local ||
+          local.modified_at < unit.modifiedAt ||
+          (local.modified_at === unit.modifiedAt && local.origin < unit.origin)
         )
-      : commit()
+      })
+    const expected = winners()
+    const unchanged = () => {
+      const current = winners()
+      return (
+        current.length === expected.length &&
+        current.every((unit, index) => unit === expected[index])
+      )
+    }
+    const commit = (nativeToken?: string) => {
+      if (!authorized()) throw new Error('sync.tunnel.error.cancelled')
+      // Native preparation awaited IO. A changed winner set requires retry before either
+      // side's cursor advances, including a unit newly winning outside the held locks.
+      return (
+        unchanged() &&
+        this.cursor(batch.replicaId) === initialCursor &&
+        this.applyCommitted(batch, nativeToken)
+      )
+    }
+    const operation = async () => {
+      if (!authorized()) throw new Error('sync.tunnel.error.cancelled')
+      if (!unchanged()) return false
+      return admission ? admission(expected, commit) : commit()
+    }
+    return this.deps.guard ? this.deps.guard(expected, operation) : operation()
   }
 
-  private applyCommitted(batch: SyncBatch): boolean {
+  private applyCommitted(batch: SyncBatch, nativeToken?: string): boolean {
     if (batch.replicaId === this.replicaId || batch.through < batch.after)
       throw new Error('Invalid sync batch')
     const db = this.database()
@@ -417,6 +451,12 @@ export class SyncReplicaStore {
         batch.replicaId,
         batch.through
       )
+      if (nativeToken)
+        db.prepare('INSERT INTO _sync_native_receipts(token,replica,through) VALUES(?,?,?)').run(
+          nativeToken,
+          batch.replicaId,
+          batch.through
+        )
       return true
     })()
     for (const unit of applied) {
@@ -520,7 +560,18 @@ export class SyncReplicaStore {
       }
     }
     if (unit.kind === 'session') {
+      if (
+        (db.prepare('PRAGMA table_info(dim_timeline_inspector_facts)').all() as { name: string }[])
+          .length
+      )
+        db.prepare(
+          'DELETE FROM dim_timeline_inspector_facts WHERE head_id IN (SELECT id FROM dim_timeline_inspector_heads WHERE session_id=?)'
+        ).run(unit.id)
       for (const table of [
+        'dim_input_projection',
+        'dim_input_intents',
+        'dim_scope_changes',
+        'dim_timeline_inspector_heads',
         'deepchat_transcript_projection_meta',
         'deepchat_search_documents',
         'deepchat_tape_search_projection',

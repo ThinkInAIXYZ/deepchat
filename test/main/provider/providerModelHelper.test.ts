@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ModelConfig } from '@shared/types/provider'
+import type { MODEL_META, ModelConfig } from '@shared/types/provider'
 import { ApiEndpointType, ModelType } from '../../../src/shared/model'
 
 const storeStates = vi.hoisted(
@@ -38,7 +38,7 @@ vi.mock('electron-store', () => ({
         data,
         get: vi.fn((key: string) => data[key]),
         set: vi.fn((key: string, value: unknown) => {
-          data[key] = value
+          data[key] = value as MODEL_META[]
         }),
         clear: vi.fn(() => {
           Object.keys(data).forEach((key) => {
@@ -548,7 +548,8 @@ describe('ProviderModelHelper cache', () => {
       type: ModelType.Chat,
       ownedBy: undefined
     })
-    expect(getProviderModel).toHaveBeenCalledOnce()
+    expect(getProviderModel).toHaveBeenCalledTimes(2)
+    expect(getProviderModel).toHaveBeenCalledWith('custom', 'kimi-k3')
     expect(getProviderModel).toHaveBeenCalledWith('provider', 'kimi-k3')
     expect(listModels).not.toHaveBeenCalled()
     expect(
@@ -678,6 +679,63 @@ describe('ProviderModelHelper cache', () => {
     })
   })
 
+  it.each([false, true])(
+    'preserves custom facts after catalog refresh (targeted=%s)',
+    async (targeted) => {
+      const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
+      const helper = new ProviderModelHelper({
+        userDataPath: 'C:/mock-user-data',
+        setModelStatus: vi.fn(),
+        deleteModelStatus: vi.fn(),
+        publishEvent: publishDeepchatEventMock
+      })
+      const provider = createBaseModel('new-api', 'same-model')
+      const custom = {
+        ...provider,
+        isCustom: true,
+        contextLength: 32000,
+        maxTokens: 8000,
+        endpointType: 'anthropic' as const,
+        ownedBy: 'custom-owner'
+      }
+      const data: Record<string, MODEL_META[]> = { models: [provider], custom_models: [custom] }
+      helper.setStoreFactory(() => ({
+        store: data,
+        get<TValue = unknown>(key: string, fallback?: TValue): TValue | undefined {
+          return (data[key] as TValue | undefined) ?? fallback
+        },
+        set: (key, value) => {
+          data[key] = value as MODEL_META[]
+        },
+        delete: vi.fn(),
+        ...(targeted
+          ? {
+              getProviderModel: (source: 'provider' | 'custom', id: string) =>
+                (source === 'custom' ? data.custom_models : data.models).find(
+                  (model) => model.id === id
+                )
+            }
+          : {})
+      }))
+      for (const warm of [false, true]) {
+        if (warm) helper.getProviderModels('new-api')
+        expect(helper.getProviderModel('new-api', custom.id)).toMatchObject(custom)
+        expect(helper.getProviderModelRouteMetadata('new-api', custom.id)).toMatchObject({
+          endpointType: 'anthropic',
+          ownedBy: 'custom-owner'
+        })
+      }
+      helper.setProviderModels('new-api', [{ ...provider, contextLength: 16000 }])
+      helper.getProviderModels('new-api')
+      expect(helper.getProviderModel('new-api', custom.id)).toMatchObject({
+        contextLength: 32000,
+        maxTokens: 8000
+      })
+      helper.setCustomModels('new-api', [])
+      expect(helper.getProviderModel('new-api', custom.id)?.isCustom).not.toBe(true)
+    }
+  )
+
   it('checks targeted provider and custom rows after a fresh-cache miss', async () => {
     const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
     const helper = new ProviderModelHelper({
@@ -711,9 +769,8 @@ describe('ProviderModelHelper cache', () => {
     expect(helper.getProviderModelRouteMetadata('new-api', customModel.id)).toMatchObject({
       ownedBy: 'moonshot'
     })
-    expect(getProviderModel).toHaveBeenCalledTimes(2)
-    expect(getProviderModel).toHaveBeenNthCalledWith(1, 'provider', customModel.id)
-    expect(getProviderModel).toHaveBeenNthCalledWith(2, 'custom', customModel.id)
+    expect(getProviderModel).toHaveBeenCalledOnce()
+    expect(getProviderModel).toHaveBeenCalledWith('custom', customModel.id)
   })
 
   it('finds a provider row inserted after a provider-list snapshot was cached', async () => {

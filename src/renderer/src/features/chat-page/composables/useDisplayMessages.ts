@@ -53,6 +53,7 @@ export function useDisplayMessages(options: UseDisplayMessagesOptions) {
     baselineAssistantMessageIds: Set<string>
     baselineMessageOrderSeq: number
     baselineCreatedAt: number
+    retry?: { reply: DisplayMessage; messages: DisplayMessage[] }
   } | null>(null)
   const assistantRenderKeyByMessageId = ref<Record<string, string>>({})
   let pendingAssistantPlaceholderSeq = 0
@@ -257,16 +258,23 @@ export function useDisplayMessages(options: UseDisplayMessagesOptions) {
     return firstBlock
   })
 
-  const hasNewAssistantMessageAfterPendingPlaceholder = computed(() => {
+  const newAssistantMessageAfterPendingPlaceholder = computed(() => {
     const pending = pendingAssistantPlaceholder.value
-    if (!pending || pending.sessionId !== currentSessionId()) return false
+    if (!pending || pending.sessionId !== currentSessionId()) return
 
-    return messageStore.messages.some(
-      (message) =>
-        message.role === 'assistant' &&
-        !pending.baselineAssistantMessageIds.has(message.id) &&
-        isMessageAfterPendingAssistantBaseline(message, pending)
-    )
+    return messageStore.messages.find((message) => {
+      if (
+        message.role !== 'assistant' ||
+        pending.baselineAssistantMessageIds.has(message.id) ||
+        !isMessageAfterPendingAssistantBaseline(message, pending)
+      )
+        return false
+      return (
+        !pending.retry ||
+        message.status !== 'pending' ||
+        hasRenderableAssistantBlocks(messageStore.getAssistantMessageBlocks(message))
+      )
+    })
   })
 
   const shouldShowPendingAssistantPlaceholder = computed(() => {
@@ -274,10 +282,16 @@ export function useDisplayMessages(options: UseDisplayMessagesOptions) {
     return Boolean(
       pending &&
       pending.sessionId === currentSessionId() &&
+      !regeneratingMessageId.value &&
       !hasFirstStreamingContent.value &&
-      !hasNewAssistantMessageAfterPendingPlaceholder.value &&
+      !newAssistantMessageAfterPendingPlaceholder.value &&
       !ephemeralRateLimitBlock.value
     )
+  })
+
+  const regeneratingMessageId = computed(() => {
+    const pending = pendingAssistantPlaceholder.value
+    return pending?.sessionId === currentSessionId() ? (pending.retry?.reply.id ?? null) : null
   })
 
   const hasPendingAssistantMessage = computed(() =>
@@ -289,14 +303,43 @@ export function useDisplayMessages(options: UseDisplayMessagesOptions) {
   const shouldShowGeneratingAssistantPlaceholder = computed(
     () =>
       isGenerating.value &&
-      !shouldShowPendingAssistantPlaceholder.value &&
+      !pendingAssistantPlaceholder.value &&
       !hasFirstStreamingContent.value &&
       !hasPendingAssistantMessage.value &&
       !ephemeralRateLimitBlock.value
   )
 
+  // Raw turn activity; compaction inside the regenerated turn keeps it active.
+  const isSessionTurnActive = computed(
+    () =>
+      (sessionStore.activeSession?.id === currentSessionId() &&
+        sessionStore.activeSession.status === 'working') ||
+      isCurrentSessionStreaming.value
+  )
+  let startedRetryPlaceholderId: string | null = null
+
+  // A regenerated turn can stop, fail or be cancelled before any replacement reply exists.
+  // Release the frozen snapshot when that turn ends, never before it has started.
+  watch(isSessionTurnActive, (active) => {
+    const pending = pendingAssistantPlaceholder.value
+    if (!pending?.retry || pending.sessionId !== currentSessionId()) return
+    if (active) {
+      startedRetryPlaceholderId = pending.id
+      return
+    }
+    if (
+      startedRetryPlaceholderId === pending.id &&
+      !newAssistantMessageAfterPendingPlaceholder.value
+    )
+      pendingAssistantPlaceholder.value = null
+  })
+
   watch(
-    () => hasFirstStreamingContent.value || hasNewAssistantMessageAfterPendingPlaceholder.value,
+    () =>
+      Boolean(
+        newAssistantMessageAfterPendingPlaceholder.value ||
+        (!regeneratingMessageId.value && hasFirstStreamingContent.value)
+      ),
     (shouldClearPendingAssistant) => {
       if (shouldClearPendingAssistant) {
         bindPendingAssistantRenderKey()
@@ -305,7 +348,10 @@ export function useDisplayMessages(options: UseDisplayMessagesOptions) {
     }
   )
 
-  function createPendingAssistantPlaceholder(sessionId: string): string {
+  function createPendingAssistantPlaceholder(
+    sessionId: string,
+    retryTargetMessageId?: string
+  ): string {
     const id = `__pending_assistant_${Date.now()}_${++pendingAssistantPlaceholderSeq}`
     const loadedMessages = messageStore.messages
     const baselineAssistantMessageIds = new Set(
@@ -317,12 +363,25 @@ export function useDisplayMessages(options: UseDisplayMessagesOptions) {
         Number.isFinite(message.orderSeq) ? message.orderSeq : Number.NEGATIVE_INFINITY
       )
     )
+    const targetIndex = retryTargetMessageId
+      ? loadedMessages.findIndex((message) => message.id === retryTargetMessageId)
+      : -1
+    const target = loadedMessages[targetIndex]
+    const replacement =
+      target?.role === 'assistant'
+        ? target
+        : target?.role === 'user' && loadedMessages[targetIndex + 1]?.role === 'assistant'
+          ? loadedMessages[targetIndex + 1]
+          : undefined
     pendingAssistantPlaceholder.value = {
       id,
       sessionId,
       baselineAssistantMessageIds,
-      baselineMessageOrderSeq,
-      baselineCreatedAt: Date.now()
+      baselineMessageOrderSeq: replacement ? replacement.orderSeq - 1 : baselineMessageOrderSeq,
+      baselineCreatedAt: Date.now(),
+      ...(replacement
+        ? { retry: { reply: toDisplayMessage(replacement), messages: displayMessages.value } }
+        : {})
     }
     return id
   }
@@ -346,19 +405,19 @@ export function useDisplayMessages(options: UseDisplayMessagesOptions) {
 
   function bindPendingAssistantRenderKey(): void {
     const pending = pendingAssistantPlaceholder.value
-    const streamMessageId = messageStore.currentStreamMessageId
-    if (
-      !pending ||
-      pending.sessionId !== currentSessionId() ||
-      !streamMessageId ||
-      !hasInlineStreamingTarget.value ||
-      assistantRenderKeyByMessageId.value[streamMessageId] === pending.id
-    ) {
+    const messageId =
+      newAssistantMessageAfterPendingPlaceholder.value?.id ??
+      (!pending?.retry && hasInlineStreamingTarget.value
+        ? messageStore.currentStreamMessageId
+        : null)
+    if (!pending || pending.sessionId !== currentSessionId() || !messageId) {
       return
     }
+    const renderKey = pending.retry?.reply.renderKey ?? pending.retry?.reply.id ?? pending.id
+    if (assistantRenderKeyByMessageId.value[messageId] === renderKey) return
     assistantRenderKeyByMessageId.value = {
       ...assistantRenderKeyByMessageId.value,
-      [streamMessageId]: pending.id
+      [messageId]: renderKey
     }
   }
 
@@ -378,6 +437,15 @@ export function useDisplayMessages(options: UseDisplayMessagesOptions) {
     if (!isSessionViewCommitted.value) {
       return []
     }
+
+    const pending = pendingAssistantPlaceholder.value
+    // Keep the transcript layout frozen while the native history replacement is in flight.
+    if (
+      pending?.sessionId === currentSessionId() &&
+      pending.retry &&
+      !newAssistantMessageAfterPendingPlaceholder.value
+    )
+      return pending.retry.messages
 
     const messages: DisplayMessage[] = []
     const activeMessageIds = new Set<string>()
@@ -436,8 +504,8 @@ export function useDisplayMessages(options: UseDisplayMessagesOptions) {
       )
     }
 
-    if (shouldShowPendingAssistantPlaceholder.value && pendingAssistantPlaceholder.value) {
-      messages.push(toStreamingMessage([], pendingAssistantPlaceholder.value.id))
+    if (shouldShowPendingAssistantPlaceholder.value && pending) {
+      messages.push(toStreamingMessage([], pending.id))
     } else if (shouldShowGeneratingAssistantPlaceholder.value) {
       messages.push(toStreamingMessage([], `__pending_assistant_generating_${currentSessionId()}`))
     }
@@ -458,6 +526,7 @@ export function useDisplayMessages(options: UseDisplayMessagesOptions) {
     hasFirstStreamingContent,
     hasInlineStreamingTarget,
     pendingAssistantPlaceholder,
+    regeneratingMessageId,
     createPendingAssistantPlaceholder,
     clearPendingAssistantPlaceholder,
     resetForSessionChange

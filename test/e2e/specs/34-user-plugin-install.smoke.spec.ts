@@ -263,7 +263,7 @@ test('reviewed hooks reach provider requests and HTTP MCP uses host-owned creden
     await expect.poll(() => authenticatedRequests).toBeGreaterThan(previousRequests)
     const sessionId = await app.page.evaluate(async (baseUrl) => {
       const providerId = `custom-${crypto.randomUUID()}`
-      const { provider } = await window.deepchat.invoke('providers.add', {
+      await window.deepchat.invoke('providers.add', {
         provider: {
           id: providerId,
           name: 'Plugin fixture',
@@ -271,31 +271,34 @@ test('reviewed hooks reach provider requests and HTTP MCP uses host-owned creden
           baseUrl: `${baseUrl}/v1`,
           apiKey: 'fixture-key',
           enable: true,
-          custom: true,
-          customModels: [
-            {
-              id: 'fixture-model',
-              name: 'Fixture',
-              providerId,
-              group: 'fixture',
-              enabled: true,
-              isCustom: true,
-              vision: false,
-              functionCall: false,
-              reasoning: false,
-              contextLength: 32000,
-              maxTokens: 1000
-            }
-          ]
+          custom: true
         }
       })
-      const { agents } = await window.deepchat.invoke('sessions.getAgents', {})
-      const { session } = await window.deepchat.invoke('sessions.create', {
-        agentId: agents[0].id,
+      await window.deepchat.invoke('models.addCustom', {
+        providerId,
+        model: {
+          id: 'fixture-model',
+          name: 'Fixture',
+          enabled: true,
+          vision: false,
+          functionCall: false,
+          reasoning: false,
+          contextLength: 32000,
+          maxTokens: 1000
+        }
+      })
+      await window.deepchat.invoke('models.setStatus', {
+        providerId,
+        modelId: 'fixture-model',
+        enabled: true
+      })
+      const { session, initialTurn } = await window.deepchat.invoke('sessions.create', {
+        agentId: 'deepchat',
         message: 'first-input',
-        providerId: provider.id,
+        providerId,
         modelId: 'fixture-model'
       })
+      if (!initialTurn) throw new Error('Plugin fixture did not start its first turn')
       return session.id
     }, baseUrl)
     await expect

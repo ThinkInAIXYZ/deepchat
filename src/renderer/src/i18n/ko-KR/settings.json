@@ -392,46 +392,6 @@
       },
       "applyFailed": "가져오기 실패: {message}"
     },
-    "databaseEncryption": {
-      "title": "SQLite 데이터베이스 암호화",
-      "description": "agent.db를 SQLCipher로 암호화하고 시스템 잠금 해제를 사용할 수 없을 때 SQLite 비밀번호를 요구합니다.",
-      "enabled": "사용 중",
-      "disabled": "사용 안 함",
-      "cipher": "암호 방식",
-      "systemUnlock": "시스템 잠금 해제",
-      "startupUnlock": "시작 시 잠금 해제",
-      "lastMigration": "마지막 마이그레이션",
-      "loading": "불러오는 중",
-      "never": "없음",
-      "notRequired": "필요 없음",
-      "systemUnlockAvailable": "사용 가능",
-      "systemUnlockUnavailable": "사용 불가",
-      "systemUnlockMode": "시스템 잠금 해제",
-      "manualUnlock": "수동 비밀번호",
-      "currentPassword": "현재 비밀번호",
-      "newPassword": "새 SQLite 비밀번호",
-      "confirmPassword": "비밀번호 확인",
-      "passwordMismatch": "비밀번호가 일치하지 않습니다",
-      "systemCredentialStore": "시스템 보안 저장소를 사용할 수 있으면 DeepChat은 SQLite 비밀번호를 암호화해 OS 자격 증명 저장소(macOS Keychain, Windows Credential Vault 또는 Linux secret store)에 저장합니다. 한 번 잠금 해제에 성공하면 이후 시작은 일반적으로 자동으로 열립니다. 데이터 마이그레이션 후, OS 자격 증명이 없거나 복호화할 수 없을 때, 또는 보안 저장소를 사용할 수 없을 때만 암호화 키를 다시 입력해야 합니다.",
-      "safeStorageUnavailable": "이 시스템에서는 Electron safeStorage를 사용할 수 없습니다. 암호화를 활성화하면 시작할 때마다 비밀번호를 입력해야 합니다.",
-      "enableButton": "암호화 활성화",
-      "changeButton": "비밀번호 변경",
-      "disableButton": "암호화 비활성화",
-      "enabledTitle": "데이터베이스 암호화가 활성화되었습니다",
-      "changedTitle": "SQLite 비밀번호가 변경되었습니다",
-      "disabledTitle": "데이터베이스 암호화가 비활성화되었습니다",
-      "failedTitle": "데이터베이스 암호화 실패",
-      "failedDescription": "비밀번호를 확인하고 다시 시도하세요.",
-      "setPasswordButton": "비밀번호 설정",
-      "enableDialogTitle": "SQLite 비밀번호 설정",
-      "changeDialogTitle": "SQLite 비밀번호 변경",
-      "disableDialogTitle": "데이터베이스 암호화 비활성화",
-      "enableDialogDescription": "암호화된 SQLite 데이터베이스를 만들고 현재 로컬 데이터를 그 안으로 마이그레이션합니다.",
-      "changeDialogDescription": "현재 암호화된 데이터베이스를 새 비밀번호를 사용하는 새 암호화 데이터베이스로 마이그레이션합니다.",
-      "disableDialogDescription": "현재 암호화된 데이터베이스를 로컬 평문 데이터베이스로 되돌립니다.",
-      "cancelButton": "취소",
-      "unknown": "알 수 없음"
-    },
     "cloudSync": {
       "title": "클라우드 동기화 (S3 호환)",
       "description": "백업을 Cloudflare R2 같은 S3 호환 스토리지에 업로드하고, 다른 기기에서 최신 백업을 가져옵니다.",
@@ -472,7 +432,8 @@
       "saveAndTest": "저장 및 테스트",
       "saveOnly": "저장만",
       "saveAndTestFirst": "먼저 클라우드 설정을 저장하고 테스트하세요."
-    }
+    },
+    "legacyBackupPassword": "이전 암호화 백업 비밀번호 (선택 사항)"
   },
   "dashboard": {
     "badge": "사용 대시보드",
@@ -637,10 +598,6 @@
       "reasoningToggle": {
         "description": "이 모델에서 추론을 기본으로 활성화할지 제어합니다",
         "label": "추론 활성화"
-      },
-      "interleavedThinking": {
-        "label": "Interleaved Thinking",
-        "description": "이 모델이 reasoning 및 tool-call 메시지를 Interleaved Thinking 방식으로 처리할지 제어합니다. provider 기본값이 있으면 자동으로 적용됩니다."
       },
       "thinkingBudget": {
         "label": "사고 예산",
@@ -2832,7 +2789,6 @@
     "thinkingBudget": "사고 예산",
     "reasoningEffort": "추론 강도",
     "verbosity": "응답 상세도",
-    "interleaved": "인터리브드 사고 호환 강제",
     "systemPrompt": "기본 시스템 프롬프트",
     "systemPromptPlaceholder": "빈 시스템 프롬프트를 쓰려면 비워 두세요",
     "defaultProjectPath": "기본 디렉터리(선택)",
@@ -2842,7 +2798,6 @@
     "permissionDefault": "기본 권한",
     "defaultToolMode": "기본 모드",
     "defaultToolModeModelDefaultDesc": "현재 모델이 결정합니다. 대부분의 모델은 Agent를 사용합니다.",
-    "defaultToolModeCodePermissionHint": "Code 모드를 사용하려면 기본 권한을 \"{permission}\"(으)로 설정해야 합니다. 그렇지 않으면 코드 호출이 실패합니다.",
     "toolsTitle": "내장 도구",
     "outputLimitsTitle": "고급 출력 제한",
     "outputLimitsDescription": "이 에이전트에서 인라인으로 유지할 도구 출력의 양을 설정합니다.",

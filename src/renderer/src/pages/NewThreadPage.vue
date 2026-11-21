@@ -49,7 +49,7 @@
             :supports-vision="composerSupportsVision"
             :editable="!isSubmittingInput"
             :submit-disabled="
-              isAcpWorkdirUnavailable ||
+              isWorkdirUnavailable ||
               isSubmittingInput ||
               isAcpAuthRequired ||
               isResolvingSessionReferences
@@ -73,7 +73,7 @@
                 :search-enabled="isSearchEnabled"
                 :has-input="hasDraftInput"
                 :send-disabled="
-                  isAcpWorkdirUnavailable ||
+                  isWorkdirUnavailable ||
                   isSubmittingInput ||
                   isAcpAuthRequired ||
                   isResolvingSessionReferences ||
@@ -254,14 +254,27 @@
               @click="prepareChatWorkspace"
             />
           </div>
-          <p
-            v-if="isAcpWorkdirInvalid"
-            data-testid="new-thread-acp-workdir-status"
-            role="status"
-            class="mt-1 px-2.5 text-xs text-muted-foreground break-words"
+          <div
+            v-if="selectedProjectDirectoryInvalid"
+            class="mt-1 flex flex-wrap items-center gap-x-2 px-2.5 text-xs"
           >
-            {{ selectedProjectUnavailableTooltip }}
-          </p>
+            <p
+              data-testid="new-thread-workdir-status"
+              role="status"
+              class="min-w-0 break-all text-muted-foreground"
+            >
+              {{ selectedProjectUnavailableTooltip }}
+            </p>
+            <DcButton
+              data-testid="new-thread-replace-folder"
+              variant="link"
+              size="sm"
+              class="h-auto px-0 text-xs"
+              @click="handleOpenFolderPicker"
+            >
+              {{ t('common.project.openFolder') }}
+            </DcButton>
+          </div>
         </div>
       </div>
 
@@ -754,20 +767,11 @@ const isAcpWorkdirMissing = computed(() => {
   }
   return !composerWorkspacePath.value
 })
-const isAcpWorkdirInvalid = computed(
+const isWorkdirUnavailable = computed(
   () =>
-    isAcpSelectedAgent.value &&
-    Boolean(composerWorkspacePath.value) &&
-    selectedProjectDirectoryInvalid.value
-)
-const isAcpWorkdirChecking = computed(
-  () =>
-    isAcpSelectedAgent.value &&
-    Boolean(composerWorkspacePath.value) &&
+    isAcpWorkdirMissing.value ||
+    selectedProjectDirectoryInvalid.value ||
     selectedProjectDirectoryStatus.value === 'checking'
-)
-const isAcpWorkdirUnavailable = computed(
-  () => isAcpWorkdirMissing.value || isAcpWorkdirInvalid.value || isAcpWorkdirChecking.value
 )
 
 const syncGuideTargets = () => {
@@ -1191,7 +1195,7 @@ const applyStartDeeplink = async (payload: StartDeeplinkPayload) => {
 
 async function onSubmit() {
   if (isResolvingSessionReferences.value) return
-  if (isAcpWorkdirUnavailable.value || isSubmittingInput.value) return
+  if (isWorkdirUnavailable.value || isSubmittingInput.value) return
   const text = message.value.trim()
   if (!hasDraftInput.value) return
   if (shouldIgnoreManualCompactionDraft(text)) return
@@ -1240,7 +1244,7 @@ async function onSubmit() {
 
 async function onCommandSubmit(command: string) {
   if (isResolvingSessionReferences.value) return
-  if (isAcpWorkdirUnavailable.value || isSubmittingInput.value) return
+  if (isWorkdirUnavailable.value || isSubmittingInput.value) return
   const text = command.trim()
   if (!text) return
   if (shouldIgnoreManualCompactionDraft(text)) return
@@ -1302,7 +1306,7 @@ async function submitText(
     !submission.draft.inlineItems.some((item) => item.type === 'session')
   )
     return false
-  if (isAcpWorkdirUnavailable.value) return false
+  if (isWorkdirUnavailable.value) return false
   const isAcp = isAcpSelectedAgent.value
   if (isAcp && !text.trim()) return false
 
@@ -1493,7 +1497,6 @@ const applyDraftDefaultsForSelectedAgent = async (requestSeq: number): Promise<v
   draftStore.reasoningEffort = undefined
   draftStore.reasoningVisibility = undefined
   draftStore.verbosity = undefined
-  draftStore.forceInterleavedThinkingCompat = undefined
   draftStore.imageGeneration = undefined
   draftStore.videoGeneration = undefined
 
