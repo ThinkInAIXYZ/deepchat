@@ -12,18 +12,10 @@
         {{ label }}
       </span>
       <Icon
-        v-if="thinking && !expanded"
-        icon="lucide:ellipsis"
-        class="w-3.5 h-3.5 shrink-0 animate-[pulse_1s_ease-in-out_infinite] motion-reduce:animate-none"
-        aria-hidden="true"
-      />
-      <Icon
-        v-else-if="expanded"
-        icon="lucide:chevron-down"
+        :icon="expanded ? 'lucide:chevron-down' : 'lucide:chevron-right'"
         class="w-3.5 h-3.5 shrink-0"
         aria-hidden="true"
       />
-      <Icon v-else icon="lucide:chevron-right" class="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
     </button>
 
     <Transition
@@ -46,12 +38,6 @@
               :smooth-streaming="false"
               :code-block-stream="thinking"
               :code-block-props="thinkingCodeBlockProps"
-            />
-            <Icon
-              v-if="thinking"
-              icon="lucide:ellipsis"
-              class="w-3.5 h-3.5 animate-[pulse_1s_ease-in-out_infinite] motion-reduce:animate-none"
-              aria-hidden="true"
             />
           </div>
         </div>

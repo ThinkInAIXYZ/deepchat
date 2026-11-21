@@ -264,6 +264,19 @@ export function projectDimEvent(
   const blocks = JSON.parse(original.content) as AssistantMessageBlock[]
   const metadata = JSON.parse(original.metadata) as MessageMetadata
   let changed = false
+  const settleModelOutput = (status: 'success' | 'error' = 'success') => {
+    for (const block of blocks) {
+      if (
+        block.status !== 'loading' ||
+        (block.type !== 'content' && block.type !== 'reasoning_content')
+      )
+        continue
+      block.status = status
+      if (block.type === 'reasoning_content')
+        block.reasoning_time = { start: block.timestamp, end: Math.max(block.timestamp, now) }
+      changed = true
+    }
+  }
   if (key === 'approval/request' && typeof event.data.approval_id === 'string') {
     const raw = event.data.call
     const call = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : undefined
@@ -303,6 +316,7 @@ export function projectDimEvent(
           )
         : null
     if (media && nativeMediaReference(media[2])) {
+      settleModelOutput()
       blocks.push({
         id: event.id,
         type: 'image',
@@ -310,16 +324,23 @@ export function projectDimEvent(
         timestamp: now,
         image_data: { data: media[2], mimeType: media[1] }
       })
-      message.content = JSON.stringify(blocks)
-      messages.push(message)
-      return result
+    } else {
+      const last = blocks.at(-1)
+      if (last?.type === type && last.status === 'loading') {
+        last.content = (last.content ?? '') + delta
+      } else {
+        settleModelOutput()
+        blocks.push({ id: event.id, type, content: delta, status: 'loading', timestamp: now })
+      }
     }
-    const last = blocks.at(-1)
-    if (last?.type === type && last.status === 'loading')
-      last.content = (last.content ?? '') + delta
-    else blocks.push({ id: event.id, type, content: delta, status: 'loading', timestamp: now })
     changed = true
+  } else if (key === 'step/tool-use-start' || key === 'step/tool-use') {
+    settleModelOutput()
+  } else if (key === 'step/model-output-end') {
+    const status = event.data.status
+    settleModelOutput(status === 'failed' || status === 'cancelled' ? 'error' : 'success')
   } else if (key === 'step/tool-call' && Array.isArray(event.data.calls)) {
+    settleModelOutput()
     for (const value of event.data.calls) {
       if (!value || typeof value !== 'object' || Array.isArray(value)) continue
       const label = toolLabel(event, `deepchat:mcp-call:${value.name}:`)
@@ -481,6 +502,7 @@ export function projectDimEvent(
   } else if (key === 'turn/end') {
     const error = typeof event.data.error === 'string' ? event.data.error : undefined
     const cancelled = event.data.status === 'cancelled'
+    settleModelOutput(error || cancelled ? 'error' : 'success')
     for (const block of blocks)
       if (block.status === 'loading') block.status = error || cancelled ? 'error' : 'success'
       else if (block.type === 'action' && block.status === 'pending') {

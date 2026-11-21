@@ -20,22 +20,14 @@
       :aria-controls="detailsId"
       @click="toggleExpanded"
     >
-      <span
-        v-if="statusVariant === 'running' || statusVariant === 'reviewing'"
-        data-testid="tool-call-running-indicator"
-        :data-status-variant="statusVariant"
-        :class="[
-          'tool-call-status-ring shrink-0',
-          statusVariant === 'reviewing' ? 'tool-call-status-ring-reviewing' : ''
-        ]"
-        aria-hidden="true"
-      />
       <Icon
-        v-else
         :icon="statusIconName"
         :class="['w-4 h-4 shrink-0', statusIconClass]"
         aria-hidden="true"
       />
+      <span v-if="statusVariant === 'running' || statusVariant === 'reviewing'" class="sr-only">
+        {{ t(statusVariant === 'running' ? 'toolCall.response' : 'toolCall.permission') }}
+      </span>
       <span class="tool-call-labels flex min-w-0 items-baseline gap-1.5">
         <span
           data-testid="tool-call-name"
@@ -659,6 +651,7 @@ const toggleExpanded = () => {
 
 const statusIconName = computed(() => {
   if (statusVariant.value === 'error') return 'lucide:circle-alert'
+  if (statusVariant.value === 'reviewing') return 'lucide:shield'
   if (matchesToolContractName(rawToolName.value, LEGACY_UPDATE_PLAN_TOOL_NAME))
     return 'lucide:list-todo'
   if (
@@ -889,32 +882,6 @@ function getSubagentStatusLabel(status: string): string {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.tool-call-status-ring {
-  width: 1rem;
-  height: 1rem;
-  border-radius: 9999px;
-  box-sizing: border-box;
-  border: 1.5px solid currentColor;
-  border-right-color: transparent;
-  animation: tool-call-spin 1s linear infinite;
-}
-
-.tool-call-status-ring-reviewing {
-  color: var(--muted-foreground);
-}
-
-@keyframes tool-call-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .tool-call-status-ring {
-    animation: none;
-  }
 }
 
 pre {
