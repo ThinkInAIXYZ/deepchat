@@ -208,6 +208,7 @@
     "electron": "43.8.3",
     "electron-builder": "26.15.3",
     "electron-vite": "5.0.0",
+    "ghostty-web": "0.4.0",
     "jsdom": "^26.1.0",
     "katex": "^0.18.7",
     "markstream-vue": "2.0.24",
