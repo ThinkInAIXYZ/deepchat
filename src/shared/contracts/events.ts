@@ -6,6 +6,7 @@ export * from './events/acp-extensions.events'
 import type { z } from 'zod'
 import type { EventContract } from './common'
 import { acpAuthOutputEvent, acpAuthStateChangedEvent } from './events/acp-auth.events'
+import { terminalExitEvent, terminalOutputEvent } from './events/terminal.events'
 import { approvalClosedEvent, approvalRequestedEvent } from './events/approvals.events'
 import {
   appRuntimeAccessibilityChangedEvent,
@@ -155,6 +156,7 @@ import {
 export * from './events/browser.events'
 export * from './events/computerUse.events'
 export * from './events/acp-auth.events'
+export * from './events/terminal.events'
 export * from './events/approvals.events'
 export * from './events/app-runtime.events'
 export * from './events/chat.events'
@@ -208,6 +210,8 @@ export const DEEPCHAT_EVENT_CATALOG = {
   [acpElicitationChangedEvent.name]: acpElicitationChangedEvent,
   [acpAuthOutputEvent.name]: acpAuthOutputEvent,
   [acpAuthStateChangedEvent.name]: acpAuthStateChangedEvent,
+  [terminalOutputEvent.name]: terminalOutputEvent,
+  [terminalExitEvent.name]: terminalExitEvent,
   [appRuntimeStartDeeplinkRequestedEvent.name]: appRuntimeStartDeeplinkRequestedEvent,
   [appRuntimeMcpInstallRequestedEvent.name]: appRuntimeMcpInstallRequestedEvent,
   [appRuntimeGuidedOnboardingStartRequestedEvent.name]:

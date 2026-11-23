@@ -37,6 +37,13 @@ import {
   acpAuthStatusRoute
 } from './routes/acp-auth.routes'
 import {
+  terminalAttachRoute,
+  terminalInputRoute,
+  terminalKillRoute,
+  terminalResizeRoute,
+  terminalRestartRoute
+} from './routes/terminal.routes'
+import {
   browserAttachCurrentWindowRoute,
   browserFocusContentRoute,
   browserApplyImportRoute,
@@ -694,6 +701,7 @@ export * from './routes/artifacts.routes'
 export * from './routes/audio.routes'
 export * from './routes/computerUse.routes'
 export * from './routes/acp-auth.routes'
+export * from './routes/terminal.routes'
 export * from './routes/chat.routes'
 export * from './routes/config.routes'
 export * from './routes/database-security.routes'
@@ -755,6 +763,11 @@ const DEEPCHAT_ROUTE_CATALOG_PART_1 = {
   [acpAuthInputRoute.name]: acpAuthInputRoute,
   [acpAuthCancelRoute.name]: acpAuthCancelRoute,
   [acpAuthStatusRoute.name]: acpAuthStatusRoute,
+  [terminalAttachRoute.name]: terminalAttachRoute,
+  [terminalRestartRoute.name]: terminalRestartRoute,
+  [terminalInputRoute.name]: terminalInputRoute,
+  [terminalResizeRoute.name]: terminalResizeRoute,
+  [terminalKillRoute.name]: terminalKillRoute,
   [shortcutRegisterRoute.name]: shortcutRegisterRoute,
   [shortcutUnregisterRoute.name]: shortcutUnregisterRoute,
   [shortcutDestroyRoute.name]: shortcutDestroyRoute,
