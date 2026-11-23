@@ -1338,6 +1338,18 @@ describe('ChatStatusBar model and session panels', () => {
     expect(wrapper.text()).not.toContain('gpt-5-codex')
   })
 
+  it('shows no model for a session whose model is no longer enabled', async () => {
+    const { wrapper } = await setup({
+      hasActiveSession: true,
+      activeProviderId: 'openai',
+      activeModelId: 'gpt-5-codex'
+    })
+
+    expect((wrapper.vm as any).displayModelText).toBe('common.selectModel')
+    expect((wrapper.vm as any).displayIconId).not.toBe('anthropic')
+    expect(wrapper.text()).not.toContain('gpt-5-codex')
+  })
+
   it('keeps the model picker limited to search and model selection', async () => {
     const { wrapper } = await setup({
       agentId: 'deepchat',

@@ -955,6 +955,9 @@ export class ProviderSettings implements ProviderSettingsPort {
         providers.map((provider) => {
           if (!legacyMode(provider)) return provider
           const next = { ...provider } as LLM_PROVIDER & { openaiAuthMode?: unknown }
+          // Without an API key the API mode left behind cannot run; existing sessions on it must
+          // not look runnable.
+          if (next.openaiAuthMode === 'chatgpt' && !next.apiKey?.trim()) next.enable = false
           delete next.openaiAuthMode
           return next
         })

@@ -46,8 +46,11 @@ export interface ChatGPTAuthOptions {
   publishEvent: DeepchatEventPublisher
   /** Persisted outside the account: whether the retired-Codex notice is still owed. */
   codexRetiredNotice?: { pending(): boolean; dismiss(): void }
-  /** The signed-in account changed; the provider catalog belongs to the previous one. */
-  onAccountChanged?: (signedIn: boolean) => void
+  /**
+   * The signed-in account changed; the provider catalog belongs to the previous one. `accountKey`
+   * is an opaque digest of the signed-in identity, stable across sign-ins of the same account.
+   */
+  onAccountChanged?: (signedIn: boolean, accountKey?: string) => void
   fetch?: Fetch
   openExternal?: (url: string) => Promise<void>
   now?: () => number
@@ -423,7 +426,16 @@ export class ChatGPTAuth {
       if (pending.cancelled) return
       this.pending = null
       pending.callback.close()
-      this.options.onAccountChanged?.(true)
+      const state = this.store.load()
+      const registration = state ? this.active(state) : undefined
+      this.options.onAccountChanged?.(
+        true,
+        registration
+          ? createHash('sha256')
+              .update(`${registration.issuer}\n${registration.subject}`)
+              .digest('hex')
+          : undefined
+      )
     } catch (error) {
       if (pending.cancelled || this.pending !== pending) return
       this.failPending(error)

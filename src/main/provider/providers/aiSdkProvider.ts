@@ -612,7 +612,7 @@ export class AiSdkProvider extends BaseLLMProvider {
         typeof payload !== 'object' ||
         !Array.isArray((payload as { models?: unknown }).models)
       ) {
-        throw new Error('Invalid ChatGPT model list response')
+        throw new Error('Invalid ChatGPT model list JSON response')
       }
       const list = (payload as { models: unknown[] }).models
       // One malformed entry must not hide the account's other models.

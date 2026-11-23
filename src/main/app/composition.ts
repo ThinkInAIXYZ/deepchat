@@ -345,7 +345,7 @@ import {
   systemNotificationClock
 } from '@shared/notifications'
 
-/** Settings value: the ChatGPT account (email) whose default models were already enabled. */
+/** Settings value: opaque keys of the ChatGPT accounts whose default models were enabled. */
 const CHATGPT_DEFAULT_MODELS_APPLIED_KEY = 'chatgptDefaultModelsApplied'
 
 type ApplicationDatabaseMaintenancePort = SyncImportDatabasePort &
@@ -887,7 +887,7 @@ export async function createMainProcessControl(dependencies: {
       },
       // The catalog belongs to the signed-in account: enable and refresh on sign-in, empty on
       // sign-out so no other account's models remain selectable.
-      onAccountChanged: (signedIn) => {
+      onAccountChanged: (signedIn, accountKey) => {
         const provider = providerSettings.getProviderById(CHATGPT_PROVIDER_ID)
         if (!provider) return
         if (!signedIn) {
@@ -905,11 +905,14 @@ export async function createMainProcessControl(dependencies: {
             // An account's first sign-in should be ready to chat: enable its leading models, in
             // server order. This happens once per account; later sign-ins of the same account
             // keep the user's choices, including disabling every model.
-            const account = (await oauthService.getChatGPTStatus()).email ?? ''
+            const account = accountKey ?? ''
             const applied = dependencies.settingsStore.get<unknown>(
               CHATGPT_DEFAULT_MODELS_APPLIED_KEY
             )
-            if (applied === account || (applied === true && !account)) return
+            const appliedAccounts = Array.isArray(applied)
+              ? applied.filter((entry): entry is string => typeof entry === 'string')
+              : []
+            if (appliedAccounts.includes(account) || (applied === true && !account)) return
             const models = providerSettings.getProviderModels(CHATGPT_PROVIDER_ID)
             if (models.length === 0) return
             const statuses = providerSettings.getBatchModelStatus(
@@ -922,7 +925,10 @@ export async function createMainProcessControl(dependencies: {
                 Object.fromEntries(models.slice(0, 3).map((model) => [model.id, true]))
               )
             }
-            dependencies.settingsStore.set(CHATGPT_DEFAULT_MODELS_APPLIED_KEY, account)
+            dependencies.settingsStore.set(CHATGPT_DEFAULT_MODELS_APPLIED_KEY, [
+              ...appliedAccounts,
+              account
+            ])
           })
           .catch((error) => {
             logger.warn('[ChatGPT] Model refresh after sign-in failed:', error)

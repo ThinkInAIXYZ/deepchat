@@ -1645,14 +1645,20 @@ const showModelPopover = computed(
 const activeSessionSelection = computed<ModelSelection | null>(() => {
   const active = sessionStore.activeSession
   if (!active?.providerId || !active?.modelId) return null
-  // A session whose provider was retired (for example OpenAI Codex) has no model until the user
-  // chooses one; showing the stale model would suggest it can still run.
-  if (
-    providerStore.initialized &&
-    active.providerId !== 'acp' &&
-    !providerStore.providers.some((provider) => provider.id === active.providerId)
-  )
-    return null
+  // A session whose provider was retired (for example OpenAI Codex) or whose model is no longer
+  // enabled has no model until the user chooses one; showing it would suggest it can still run.
+  if (active.providerId !== 'acp') {
+    if (
+      providerStore.initialized &&
+      !providerStore.providers.some((provider) => provider.id === active.providerId)
+    )
+      return null
+    if (
+      modelStore.initialized &&
+      !modelStore.findChatSelectableModel(active.providerId, active.modelId)
+    )
+      return null
+  }
   return {
     providerId: active.providerId,
     modelId: active.modelId
@@ -1832,7 +1838,7 @@ const resolveModelIconId = (providerId?: string | null, modelId?: string | null)
   // ModelIcon accepts registry keys as well as provider and Agent IDs.
   const modelIcon = resolveModelIconKey(modelId?.split('/').at(-1))
   if (modelIcon) return modelIcon
-  return providerId || 'anthropic'
+  return providerId || ''
 }
 
 const {

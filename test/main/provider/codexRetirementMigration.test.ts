@@ -52,7 +52,7 @@ describe('retireOpenAICodex', () => {
     const result = run([
       provider('openai', { apiKey: 'sk-keep', openaiAuthMode: 'chatgpt', enable: true })
     ])
-    expect(result.providers()[0]).toMatchObject({ id: 'openai', apiKey: 'sk-keep' })
+    expect(result.providers()[0]).toMatchObject({ id: 'openai', apiKey: 'sk-keep', enable: true })
     expect(result.providers()[0]).not.toHaveProperty('openaiAuthMode')
     expect(result.values[CODEX_RETIRED_NOTICE_PENDING_KEY]).toBe(true)
     expect(fs.rmSync).toHaveBeenCalledWith('/user-data/openai-codex-auth', {
@@ -69,6 +69,13 @@ describe('retireOpenAICodex', () => {
     expect(Object.fromEntries(retired.store)).toEqual({ assistantModel: other })
     const apiKey = run([provider('openai', { openaiAuthMode: 'apiKey' })], {}, stored)
     expect(Object.fromEntries(apiKey.store)).toEqual(stored)
+  })
+
+  it('disables OpenAI when the retired ChatGPT mode leaves no API key', () => {
+    const result = run([provider('openai', { openaiAuthMode: 'chatgpt', enable: true })])
+    expect(result.providers()[0]).toMatchObject({ id: 'openai', enable: false })
+    const apiKey = run([provider('openai', { openaiAuthMode: 'apiKey', enable: true })])
+    expect(apiKey.providers()[0]).toMatchObject({ id: 'openai', enable: true })
   })
 
   it('owes the notice for an enabled Codex provider or leftover credentials only', () => {
