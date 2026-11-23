@@ -1,5 +1,11 @@
 import type { QuestionOption } from './types/agent-interface'
 
+export const staleDimInteractionMessages = {
+  wrongSession: 'Native interaction does not belong to this session',
+  replacedScope: 'Native interaction belongs to a replaced session scope',
+  noLongerPending: 'Native interaction is no longer pending'
+} as const
+
 export interface DimQuestion {
   id: string
   header?: string

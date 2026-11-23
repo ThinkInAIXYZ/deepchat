@@ -268,6 +268,30 @@ if (commandCurrent !== commandExpected)
 const cliFile = 'crates/dim-app-server/src/cli.rs'
 const azureDriversFile = 'crates/dim-app-server/src/provider/drivers.rs'
 const aimuxDriverFile = 'crates/dim-agent-aimux/src/driver.rs'
+const waitFile = 'crates/dim-agent-capabilities/src/wait.rs'
+const waitOriginal = git(['show', `HEAD:${waitFile}`]) + '\n'
+let waitExpected = waitOriginal
+for (const [before, after] of [
+  [
+    'const DEFAULT_TIMEOUT_MS: u64 = 300_000;',
+    'const DEFAULT_TIMEOUT_MS: u64 = 300_000;\nconst MAX_TIMEOUT_MS: u64 = 3_600_000;'
+  ],
+  ['"maximum": DEFAULT_TIMEOUT_MS', '"maximum": MAX_TIMEOUT_MS'],
+  [
+    '"Wait timeout in milliseconds, from 1 through 300000 inclusive. Default: 300000. This limits the wait call, not the background task."',
+    'format!("Wait timeout in milliseconds, from 1 through {MAX_TIMEOUT_MS} inclusive. Default: {DEFAULT_TIMEOUT_MS}. This limits the wait call, not the background task.")'
+  ],
+  ['ms <= DEFAULT_TIMEOUT_MS as f64', 'ms <= MAX_TIMEOUT_MS as f64'],
+  ['ms > DEFAULT_TIMEOUT_MS as f64', 'ms > MAX_TIMEOUT_MS as f64'],
+  ['equal to {DEFAULT_TIMEOUT_MS}.', 'equal to {MAX_TIMEOUT_MS}.']
+]) {
+  if (waitExpected.split(before).length !== 2) throw new Error('Native wait timeout seam changed')
+  waitExpected = waitExpected.replace(before, after)
+}
+const waitCurrent = await readFile(path.join(directory, waitFile), 'utf8')
+if (waitCurrent !== waitOriginal && waitCurrent !== waitExpected)
+  throw new Error('Pinned native wait source has unexpected changes')
+if (waitCurrent !== waitExpected) await writeFile(path.join(directory, waitFile), waitExpected)
 git([
   'diff',
   '--exit-code',
@@ -290,7 +314,8 @@ git([
   `:!${commandFile}`,
   `:!${historyFile}`,
   `:!${googleOptionsFile}`,
-  `:!${usageFile}`
+  `:!${usageFile}`,
+  `:!${waitFile}`
 ])
 if (current !== expected) await writeFile(path.join(directory, filename), expected)
 // Add an explicit host-value replacement to the builder's assembly API. It changes no
@@ -691,6 +716,7 @@ export const nativeSource = {
     { path: googleOptionsFile, sha256: digest(googleOptionsExpected) },
     { path: usageFile, sha256: digest(usageExpected) },
     { path: cliFile, sha256: digest(cliExpected) },
-    ...endpointPatches
+    ...endpointPatches,
+    { path: waitFile, sha256: digest(waitExpected) }
   ]
 }

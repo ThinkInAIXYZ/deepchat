@@ -79,6 +79,10 @@
     {
       "path": "crates/dim-agent-aimux/src/driver.rs",
       "sha256": "2ece177481d069f6039fd710ffaf3f8e460ab451b4fae1b754062ac8fad3e527"
+    },
+    {
+      "path": "crates/dim-agent-capabilities/src/wait.rs",
+      "sha256": "c68f0b9302e4f852fd02c78fcea8c3a051290736cee99e56cf3e46e31c2eadd6"
     }
   ]
 }

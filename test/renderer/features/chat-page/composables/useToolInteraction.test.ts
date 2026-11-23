@@ -1,12 +1,13 @@
-import { effectScope, ref } from 'vue'
+import { effectScope, nextTick, ref } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useToolInteraction } from '@/features/chat-page/composables/useToolInteraction'
 import { createDeferred } from '../../../utils/deferred'
 
-function createAssistantMessage(id: string, blocks: unknown[]) {
+function createAssistantMessage(id: string, blocks: unknown[], status = 'pending') {
   return {
     id,
     role: 'assistant',
+    status,
     content: JSON.stringify(blocks)
   }
 }
@@ -190,9 +191,9 @@ describe('useToolInteraction', () => {
       createAssistantMessage('m1', [
         {
           type: 'action',
-          action_type: 'question_request',
+          action_type: 'tool_call_permission',
           status: 'pending',
-          tool_call: { id: 'tool-1', name: 'question', params: '{}' }
+          tool_call: { id: 'tool-1', name: 'write_file', params: '{}' }
         }
       ])
     ])
@@ -215,6 +216,99 @@ describe('useToolInteraction', () => {
     expect(harness.toolInteraction.activePendingInteraction.value).toBeNull()
     expect(harness.toolInteraction.isHandlingInteraction.value).toBe(false)
     expect(consoleError).toHaveBeenCalledWith('[ChatPage] respond tool interaction failed:', error)
+    consoleError.mockRestore()
+    harness.stop()
+  })
+
+  it('keeps a rejected answer retryable and advances through sibling questions after acceptance', async () => {
+    const error = new Error('answer was not accepted')
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const onResponseFailed = vi.fn()
+    const pendingQuestion = {
+      type: 'action',
+      action_type: 'question_request',
+      status: 'pending',
+      extra: { dimRequestId: 'request-1' },
+      tool_call: { id: 'tool-1', name: 'ask_user', params: '{}' }
+    }
+    const sibling = {
+      ...pendingQuestion,
+      tool_call: { ...pendingQuestion.tool_call, id: 'tool-2' }
+    }
+    const harness = createHarness(
+      [createAssistantMessage('m1', [pendingQuestion, sibling])],
+      onResponseFailed
+    )
+    const response = { kind: 'question_option', optionLabel: 'Yes' } as const
+    harness.chatClient.respondToolInteraction
+      .mockRejectedValueOnce(error)
+      .mockResolvedValueOnce({ resumed: true })
+
+    await harness.toolInteraction.onToolInteractionRespond(response)
+    expect(onResponseFailed).toHaveBeenCalledWith(
+      expect.objectContaining({ actionType: 'question_request' }),
+      error
+    )
+    expect(harness.toolInteraction.activePendingInteraction.value?.toolCallId).toBe('tool-1')
+    expect(harness.toolInteraction.isHandlingInteraction.value).toBe(false)
+
+    await harness.toolInteraction.onToolInteractionRespond(response)
+    expect(harness.toolInteraction.activePendingInteraction.value?.toolCallId).toBe('tool-2')
+    expect(harness.toolInteraction.isHandlingInteraction.value).toBe(false)
+    await harness.toolInteraction.onToolInteractionRespond(response)
+    expect(harness.chatClient.respondToolInteraction).toHaveBeenCalledTimes(3)
+    expect(harness.chatClient.respondToolInteraction).toHaveBeenLastCalledWith(
+      expect.objectContaining({ toolCallId: 'tool-2', response })
+    )
+    expect(harness.toolInteraction.activePendingInteraction.value).toBeNull()
+    expect(harness.chatClient.dismissToolInteraction).not.toHaveBeenCalled()
+
+    harness.messageRecords.value = [
+      createAssistantMessage(
+        'm1',
+        [pendingQuestion, sibling].map((block) => ({ ...block, status: 'success' })),
+        'sent'
+      )
+    ]
+    await nextTick()
+    consoleError.mockRestore()
+    harness.stop()
+  })
+
+  it('releases a native question from a replaced scope without declining on the host', async () => {
+    const error = new Error(
+      "Error invoking remote method 'deepchat:route:invoke': Error: Native interaction belongs to a replaced session scope"
+    )
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const onResponseFailed = vi.fn()
+    const harness = createHarness(
+      [
+        createAssistantMessage('m1', [
+          {
+            type: 'action',
+            action_type: 'question_request',
+            status: 'pending',
+            extra: { dimRequestId: 'replaced-request' },
+            tool_call: { id: 'tool-1', name: 'ask_user', params: '{}' }
+          }
+        ])
+      ],
+      onResponseFailed
+    )
+    harness.chatClient.respondToolInteraction.mockRejectedValueOnce(error)
+
+    await harness.toolInteraction.onToolInteractionRespond({
+      kind: 'question_option',
+      optionLabel: 'Yes'
+    })
+
+    expect(onResponseFailed).toHaveBeenCalledWith(
+      expect.objectContaining({ actionType: 'question_request' }),
+      error
+    )
+    expect(harness.toolInteraction.activePendingInteraction.value).toBeNull()
+    expect(harness.toolInteraction.isHandlingInteraction.value).toBe(false)
+    expect(harness.chatClient.dismissToolInteraction).not.toHaveBeenCalled()
     consoleError.mockRestore()
     harness.stop()
   })

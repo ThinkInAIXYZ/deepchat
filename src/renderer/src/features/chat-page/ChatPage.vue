@@ -1392,11 +1392,15 @@ const {
   applyRestoredSessionSummary,
   currentRestoreRequestId,
   canWriteSessionView,
-  onResponseFailed: () => {
+  onResponseFailed: (interaction) => {
     notifyRenderer({
       kind: 'error',
       code: 'chat.toolInteraction.responseFailed',
-      title: t('components.messageBlockPermissionRequest.title'),
+      title: t(
+        interaction.actionType === 'question_request'
+          ? 'components.messageBlockQuestionRequest.title'
+          : 'components.messageBlockPermissionRequest.title'
+      ),
       description: t('common.error.operationFailed')
     })
   }
