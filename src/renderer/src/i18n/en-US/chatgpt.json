@@ -1,0 +1,42 @@
+{
+  "continue": "Continue with ChatGPT",
+  "opening": "Opening ChatGPT…",
+  "connected": "Connected to ChatGPT",
+  "connectedAs": "Connected as {email}",
+  "planEnabled": "ChatGPT plan usage is enabled",
+  "manageUsage": "Manage usage",
+  "signOut": "Sign out",
+  "offerTitle": "Use your ChatGPT plan",
+  "offerDescription": "Complete eligible AI requests in DeepChat with usage included in your ChatGPT plan or credits balance. This is separate from API key billing.",
+  "planDisabled": "Signed in, but ChatGPT plan use isn't enabled. Continue with ChatGPT to allow DeepChat to use your plan.",
+  "reauthRequired": "Your ChatGPT sign-in expired. Continue with ChatGPT to reconnect.",
+  "waiting": "Waiting for authorization in your browser…",
+  "reopenBrowser": "Reopen browser",
+  "revocationUnconfirmed": "Signed out locally. Remote revocation wasn't confirmed; disconnect DeepChat in ChatGPT settings.",
+  "startChatting": "Start chatting",
+  "signInFailed": "Couldn't sign in with ChatGPT. Try again.",
+  "welcomeHint": "Use your ChatGPT plan. No API key needed.",
+  "orAddProvider": "or add a provider",
+  "welcomeTitle": "You're using your ChatGPT plan",
+  "welcomeDescription": "Eligible usage in DeepChat uses your ChatGPT plan. Manage usage in your ChatGPT settings.",
+  "codexRetiredTitle": "OpenAI Codex sign-in has been retired",
+  "codexRetiredDescription": "DeepChat now supports the official Sign in with ChatGPT. Reconnect to keep using your ChatGPT plan. Your chats are kept.",
+  "gotIt": "Got it",
+  "later": "Later",
+  "usingPlan": "Using ChatGPT plan",
+  "reconnect": "Reconnect ChatGPT",
+  "recovery": {
+    "usageLimit": {
+      "title": "Usage limit reached",
+      "description": "Review your plan or DeepChat's limit in ChatGPT settings."
+    },
+    "notEligible": {
+      "title": "ChatGPT plan use unavailable",
+      "description": "ChatGPT plan use isn't available for this account or workspace."
+    },
+    "reconnect": {
+      "title": "Sign in again",
+      "description": "Reconnect ChatGPT to continue this chat."
+    }
+  }
+}

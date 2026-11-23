@@ -1,0 +1,42 @@
+{
+  "continue": "Fortsæt med ChatGPT",
+  "opening": "Åbner ChatGPT…",
+  "connected": "Forbundet til ChatGPT",
+  "connectedAs": "Forbundet som {email}",
+  "planEnabled": "Brug af ChatGPT-abonnement er aktiveret",
+  "manageUsage": "Administrer forbrug",
+  "signOut": "Log ud",
+  "offerTitle": "Brug dit ChatGPT-abonnement",
+  "offerDescription": "Kvalificerede AI-forespørgsler i DeepChat bruger det forbrug, der er inkluderet i dit ChatGPT-abonnement eller din kreditsaldo. Det er adskilt fra fakturering via API-nøgle.",
+  "planDisabled": "Logget ind, men brug af ChatGPT-abonnementet er ikke tilladt. Fortsæt med ChatGPT for at give DeepChat lov til at bruge dit abonnement.",
+  "reauthRequired": "Dit ChatGPT-login er udløbet. Fortsæt med ChatGPT for at oprette forbindelse igen.",
+  "waiting": "Venter på godkendelse i browseren…",
+  "reopenBrowser": "Åbn browseren igen",
+  "revocationUnconfirmed": "Logget ud lokalt. Tilbagekaldelse på serveren blev ikke bekræftet; afbryd DeepChat i ChatGPT-indstillingerne.",
+  "startChatting": "Start chat",
+  "signInFailed": "Kunne ikke logge ind med ChatGPT. Prøv igen.",
+  "welcomeHint": "Brug dit ChatGPT-abonnement. Ingen API-nøgle nødvendig.",
+  "orAddProvider": "eller tilføj en udbyder",
+  "welcomeTitle": "Du bruger dit ChatGPT-abonnement",
+  "welcomeDescription": "Kvalificeret forbrug i DeepChat trækkes fra dit ChatGPT-abonnement. Administrer forbruget i ChatGPT-indstillingerne.",
+  "codexRetiredTitle": "OpenAI Codex-login er udfaset",
+  "codexRetiredDescription": "DeepChat understøtter nu det officielle Sign in with ChatGPT. Opret forbindelse igen for at fortsætte med at bruge dit ChatGPT-abonnement. Dine chats bevares.",
+  "gotIt": "Forstået",
+  "later": "Senere",
+  "usingPlan": "Bruger ChatGPT-abonnement",
+  "reconnect": "Forbind ChatGPT igen",
+  "recovery": {
+    "usageLimit": {
+      "title": "Forbrugsgrænse nået",
+      "description": "Gennemgå dit abonnement eller DeepChats grænse i ChatGPT-indstillingerne."
+    },
+    "notEligible": {
+      "title": "ChatGPT-abonnement utilgængeligt",
+      "description": "Brug af ChatGPT-abonnementet er ikke tilgængelig for denne konto eller dette arbejdsområde."
+    },
+    "reconnect": {
+      "title": "Log ind igen",
+      "description": "Forbind ChatGPT igen for at fortsætte denne chat."
+    }
+  }
+}

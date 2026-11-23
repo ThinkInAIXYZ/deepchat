@@ -223,13 +223,13 @@ describe('ProviderModelHelper cache', () => {
       deleteModelStatus: vi.fn(),
       publishEvent: publishDeepchatEventMock
     })
-    const store = helper.getProviderModelStore('openai-codex')
+    const store = helper.getProviderModelStore('chatgpt')
     store.set('models', [
       {
         id: 'gpt-5.6-sol',
         name: 'GPT-5.6 Sol',
-        group: 'Codex',
-        providerId: 'openai-codex',
+        group: 'ChatGPT',
+        providerId: 'chatgpt',
         isCustom: false,
         contextLength: 16000,
         maxTokens: 4096,
@@ -240,17 +240,17 @@ describe('ProviderModelHelper cache', () => {
         selectableEndpointTypes: ['openai']
       }
     ])
-    const storeState = storeStates.get('models_openai-codex')!
+    const storeState = storeStates.get('models_chatgpt')!
     storeState.set.mockClear()
 
-    const models = helper.getProviderModels('openai-codex')
+    const models = helper.getProviderModels('chatgpt')
 
     expect(models).toEqual([
       {
         id: 'gpt-5.6-sol',
         name: 'GPT-5.6 Sol',
-        group: 'Codex',
-        providerId: 'openai-codex',
+        group: 'ChatGPT',
+        providerId: 'chatgpt',
         isCustom: false
       }
     ])

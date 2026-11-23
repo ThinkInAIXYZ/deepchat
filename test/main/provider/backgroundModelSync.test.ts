@@ -254,7 +254,7 @@ describe('ProviderRuntime background model sync', () => {
     expect(fetchCatalogSpy).toHaveBeenCalledTimes(1)
   })
 
-  it('skips OpenAI Codex when provider-db updates in the background', async () => {
+  it('skips ChatGPT when provider-db updates in the background', async () => {
     const fetchCatalogSpy = vi
       .spyOn(BaseLLMProvider.prototype, 'fetchCatalog')
       .mockResolvedValue([])
@@ -262,10 +262,10 @@ describe('ProviderRuntime background model sync', () => {
     const presenter = createProviderRuntime(
       createProviderSettings(
         createProvider({
-          id: 'openai-codex',
-          name: 'OpenAI Codex',
-          apiType: 'openai-codex',
-          baseUrl: 'https://chatgpt.com/backend-api/codex'
+          id: 'chatgpt',
+          name: 'ChatGPT',
+          apiType: 'chatgpt',
+          baseUrl: 'https://api.openai.com/v1'
         })
       )
     )
@@ -276,7 +276,7 @@ describe('ProviderRuntime background model sync', () => {
     await notifyProviderDbUpdated(presenter)
 
     expect(fetchCatalogSpy).not.toHaveBeenCalled()
-    expect(presenter.getProviderCatalog('openai-codex').revision).toBe(1)
+    expect(presenter.getProviderCatalog('chatgpt').revision).toBe(1)
   })
 
   it('ignores provider-db updates for providers that do not use the provider DB catalog', async () => {
@@ -333,7 +333,7 @@ describe('ProviderRuntime background model sync', () => {
   it.each([
     'doubao',
     'kimi-for-coding',
-    'openai-codex',
+    'chatgpt',
     'xiaomi-token-plan-cn',
     'xiaomi-token-plan-sgp',
     'xiaomi-token-plan-ams'

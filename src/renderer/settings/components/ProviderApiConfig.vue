@@ -1,33 +1,7 @@
 <template>
   <div class="flex flex-col gap-4">
-    <div v-if="provider.id === 'openai'" class="flex flex-col gap-2">
-      <Label>{{ t('settings.provider.openaiAuthMethod') }}</Label>
-      <div class="flex flex-wrap gap-2">
-        <DcButton
-          data-testid="openai-api-key-mode-button"
-          :variant="isOpenAIChatGPTMode ? 'outline' : 'default'"
-          size="sm"
-          :disabled="editorOpen || isSaving"
-          @click="$emit('auth-mode-change', 'api-key')"
-        >
-          {{ t('settings.provider.openaiApiKeyMode') }}
-        </DcButton>
-        <DcButton
-          data-testid="openai-chatgpt-mode-button"
-          :variant="isOpenAIChatGPTMode ? 'default' : 'outline'"
-          size="sm"
-          :disabled="editorOpen || isSaving"
-          @click="$emit('auth-mode-change', 'chatgpt')"
-        >
-          {{ t('settings.provider.openaiChatGPTMode') }}
-        </DcButton>
-      </div>
-      <p v-if="isOpenAIChatGPTMode" class="text-xs leading-5 text-muted-foreground">
-        {{ t('settings.provider.openaiChatGPTBackendNotice') }}
-      </p>
-    </div>
     <div
-      v-if="provider.id === 'openai' && !isOpenAIChatGPTMode"
+      v-if="provider.id === 'openai'"
       class="w-full rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-amber-900"
     >
       <div class="flex items-start gap-2">
@@ -39,7 +13,7 @@
     </div>
 
     <Dialog :open="editorOpen" @update:open="handleEditorOpenChange">
-      <div v-if="!isOpenAIChatGPTMode" class="flex flex-col gap-2">
+      <div v-if="!isChatGPT" class="flex flex-col gap-2">
         <div class="flex flex-wrap items-center justify-between gap-2">
           <span class="text-sm font-medium">API URL</span>
           <div class="flex flex-wrap items-center gap-2">
@@ -211,12 +185,7 @@
       @auth-success="emit('oauth-success')"
       @auth-error="emit('oauth-error', $event)"
     />
-    <OpenAICodexOAuth
-      v-else-if="provider.id === 'openai-codex' || isOpenAIChatGPTMode"
-      :provider="provider"
-      @auth-success="emit('oauth-success')"
-      @auth-error="emit('oauth-error', $event)"
-    />
+    <ChatGPTAuth v-else-if="isChatGPT" :provider="provider" />
     <div v-else class="flex flex-col gap-4">
       <GrokOAuth
         v-if="isGrokOAuthAvailable"
@@ -332,7 +301,7 @@ import {
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { Icon } from '@iconify/vue'
 import GitHubCopilotOAuth from './GitHubCopilotOAuth.vue'
-import OpenAICodexOAuth from './OpenAICodexOAuth.vue'
+import ChatGPTAuth from './ChatGPTAuth.vue'
 import GrokOAuth from './GrokOAuth.vue'
 import { createProviderClient } from '@api/ProviderClient'
 import { useModelCheckStore } from '@/stores/modelCheck'
@@ -356,7 +325,6 @@ const props = defineProps<{
   save: (providerId: string, updates: { apiKey: string; baseUrl: string }) => Promise<void>
 }>()
 const emit = defineEmits<{
-  'auth-mode-change': [value: 'api-key' | 'chatgpt']
   'delete-provider': []
   'oauth-success': []
   'oauth-error': [error: string]
@@ -371,13 +339,8 @@ const saveError = ref('')
 const showRemoveKeyDialog = ref(false)
 const keyStatus = ref<KeyStatus | null>(null)
 const keyStatusError = ref('')
-const isOpenAIChatGPTMode = computed(
-  () => props.provider.id === 'openai' && props.provider.openaiAuthMode === 'chatgpt'
-)
-const usesApiKey = computed(
-  () =>
-    !isOpenAIChatGPTMode.value && !['github-copilot', 'openai-codex'].includes(props.provider.id)
-)
+const isChatGPT = computed(() => props.provider.id === 'chatgpt')
+const usesApiKey = computed(() => !isChatGPT.value && props.provider.id !== 'github-copilot')
 const hasStoredKey = computed(() => Boolean(props.provider.apiKey?.trim()))
 const replacementKey = computed(() => apiKey.value.trim() || props.provider.apiKey || '')
 const isDirty = computed(

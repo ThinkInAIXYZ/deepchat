@@ -104,7 +104,7 @@ const catalogSourceForProvider = (provider: LLM_PROVIDER): ProviderCatalogSource
       return 'provider-db'
     case 'config-db':
       return 'config'
-    case 'openai-codex':
+    case 'chatgpt':
       return 'runtime'
     default:
       return 'remote'

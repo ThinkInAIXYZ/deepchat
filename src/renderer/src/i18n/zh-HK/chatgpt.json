@@ -1,0 +1,42 @@
+{
+  "continue": "使用 ChatGPT 繼續",
+  "opening": "正在開啟 ChatGPT…",
+  "connected": "已連接 ChatGPT",
+  "connectedAs": "已連接：{email}",
+  "planEnabled": "已啟用 ChatGPT 計劃用量",
+  "manageUsage": "管理用量",
+  "signOut": "登出",
+  "offerTitle": "使用你的 ChatGPT 計劃",
+  "offerDescription": "DeepChat 中符合條件的 AI 請求將使用你的 ChatGPT 計劃或點數餘額完成，與 API 金鑰收費互相獨立。",
+  "planDisabled": "已登入，但尚未允許使用 ChatGPT 計劃。請使用 ChatGPT 繼續，授權 DeepChat 使用你的計劃。",
+  "reauthRequired": "ChatGPT 登入已過期，請使用 ChatGPT 繼續以重新連接。",
+  "waiting": "正在等待瀏覽器授權…",
+  "reopenBrowser": "重新開啟瀏覽器",
+  "revocationUnconfirmed": "已在本機登出，但未能確認遠端撤銷；請在 ChatGPT 設定中中斷 DeepChat 的連接。",
+  "startChatting": "開始對話",
+  "signInFailed": "無法使用 ChatGPT 登入，請再試一次。",
+  "welcomeHint": "使用你的 ChatGPT 計劃，毋須 API 金鑰。",
+  "orAddProvider": "或新增服務供應商",
+  "welcomeTitle": "你正在使用 ChatGPT 計劃",
+  "welcomeDescription": "DeepChat 中符合條件的用量會計入你的 ChatGPT 計劃。可在 ChatGPT 設定中管理用量。",
+  "codexRetiredTitle": "OpenAI Codex 登入已停用",
+  "codexRetiredDescription": "DeepChat 現已支援官方的 Sign in with ChatGPT。重新連接即可繼續使用你的 ChatGPT 計劃，現有對話都會保留。",
+  "gotIt": "知道了",
+  "later": "稍後",
+  "usingPlan": "正在使用 ChatGPT 計劃",
+  "reconnect": "重新連接 ChatGPT",
+  "recovery": {
+    "usageLimit": {
+      "title": "已達用量上限",
+      "description": "請在 ChatGPT 設定中查看你的計劃或 DeepChat 的用量限制。"
+    },
+    "notEligible": {
+      "title": "無法使用 ChatGPT 計劃",
+      "description": "此帳戶或工作區不支援使用 ChatGPT 計劃。"
+    },
+    "reconnect": {
+      "title": "請重新登入",
+      "description": "重新連接 ChatGPT 以繼續此對話。"
+    }
+  }
+}

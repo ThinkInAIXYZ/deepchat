@@ -1,0 +1,42 @@
+{
+  "continue": "Lanjutkan dengan ChatGPT",
+  "opening": "Membuka ChatGPT…",
+  "connected": "Terhubung ke ChatGPT",
+  "connectedAs": "Terhubung sebagai {email}",
+  "planEnabled": "Penggunaan paket ChatGPT aktif",
+  "manageUsage": "Kelola penggunaan",
+  "signOut": "Keluar",
+  "offerTitle": "Gunakan paket ChatGPT Anda",
+  "offerDescription": "Permintaan AI yang memenuhi syarat di DeepChat menggunakan kuota dari paket ChatGPT atau saldo kredit Anda. Ini terpisah dari penagihan kunci API.",
+  "planDisabled": "Sudah masuk, tetapi penggunaan paket ChatGPT belum diizinkan. Lanjutkan dengan ChatGPT untuk mengizinkan DeepChat menggunakan paket Anda.",
+  "reauthRequired": "Sesi masuk ChatGPT Anda kedaluwarsa. Lanjutkan dengan ChatGPT untuk menghubungkan kembali.",
+  "waiting": "Menunggu otorisasi di browser…",
+  "reopenBrowser": "Buka ulang browser",
+  "revocationUnconfirmed": "Keluar secara lokal. Pencabutan jarak jauh belum dikonfirmasi; putuskan DeepChat di pengaturan ChatGPT.",
+  "startChatting": "Mulai mengobrol",
+  "signInFailed": "Tidak dapat masuk dengan ChatGPT. Coba lagi.",
+  "welcomeHint": "Gunakan paket ChatGPT Anda. Tanpa kunci API.",
+  "orAddProvider": "atau tambahkan penyedia",
+  "welcomeTitle": "Anda menggunakan paket ChatGPT",
+  "welcomeDescription": "Penggunaan yang memenuhi syarat di DeepChat dihitung dari paket ChatGPT Anda. Kelola penggunaan di pengaturan ChatGPT.",
+  "codexRetiredTitle": "Masuk dengan OpenAI Codex telah dihentikan",
+  "codexRetiredDescription": "DeepChat kini mendukung Sign in with ChatGPT resmi. Hubungkan kembali untuk terus menggunakan paket ChatGPT Anda. Obrolan Anda tetap tersimpan.",
+  "gotIt": "Mengerti",
+  "later": "Nanti",
+  "usingPlan": "Menggunakan paket ChatGPT",
+  "reconnect": "Hubungkan ulang ChatGPT",
+  "recovery": {
+    "usageLimit": {
+      "title": "Batas penggunaan tercapai",
+      "description": "Tinjau paket Anda atau batas DeepChat di pengaturan ChatGPT."
+    },
+    "notEligible": {
+      "title": "Paket ChatGPT tidak tersedia",
+      "description": "Penggunaan paket ChatGPT tidak tersedia untuk akun atau ruang kerja ini."
+    },
+    "reconnect": {
+      "title": "Masuk kembali",
+      "description": "Hubungkan ulang ChatGPT untuk melanjutkan obrolan ini."
+    }
+  }
+}

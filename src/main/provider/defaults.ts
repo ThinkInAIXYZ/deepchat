@@ -468,17 +468,17 @@ const PROVIDER_DEFAULTS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
-    id: 'openai-codex',
-    name: 'OpenAI Codex',
-    apiType: 'openai-codex',
+    id: 'chatgpt',
+    name: 'ChatGPT',
+    apiType: 'chatgpt',
     apiKey: '',
-    baseUrl: 'https://chatgpt.com/backend-api/codex',
+    baseUrl: 'https://api.openai.com/v1',
     enable: false,
     websites: {
-      official: 'https://developers.openai.com/codex',
-      apiKey: 'https://chatgpt.com/codex',
-      docs: 'https://developers.openai.com/codex/auth',
-      models: 'https://developers.openai.com/codex/models'
+      official: 'https://chatgpt.com/',
+      apiKey: 'https://chatgpt.com/settings/usage',
+      docs: 'https://developers.openai.com/siwc',
+      models: 'https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference'
     }
   },
   {

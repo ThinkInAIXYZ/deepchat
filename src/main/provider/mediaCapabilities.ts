@@ -20,9 +20,7 @@ export function resolveMediaSettingsCapabilities(
   }
 
   const openAIImageTransport =
-    providerKind === 'openai-compatible' ||
-    providerKind === 'openai-responses' ||
-    providerKind === 'openai-codex'
+    providerKind === 'openai-compatible' || providerKind === 'openai-responses'
   const openAIVideoTransport =
     providerKind === 'openai-compatible' || providerKind === 'openai-responses'
 

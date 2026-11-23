@@ -12,11 +12,10 @@ const passthrough = (name: string) =>
 const providerApiConfigStub = defineComponent({
   name: 'ProviderApiConfig',
   props: ['provider', 'save'],
-  emits: ['auth-mode-change', 'delete-provider', 'oauth-success', 'oauth-error'],
+  emits: ['delete-provider', 'oauth-success', 'oauth-error'],
   template: `
     <div>
       <button data-testid="save-api-key" @click="save(provider.id, { apiKey: 'updated-key', baseUrl: provider.baseUrl })">save</button>
-      <button data-testid="use-chatgpt" @click="$emit('auth-mode-change', 'chatgpt')">chatgpt</button>
     </div>
   `
 })
@@ -58,7 +57,7 @@ async function setup(options?: { provider?: LLM_PROVIDER; updatedProvider?: LLM_
     }),
     updateProviderConfig: vi.fn().mockResolvedValue({
       requiresRebuild: true,
-      updated: { ...provider, openaiAuthMode: 'chatgpt' }
+      updated: provider
     }),
     checkProvider: vi.fn().mockResolvedValue({ isOk: true }),
     getAzureApiVersion: vi.fn().mockResolvedValue('2024-02-01'),
@@ -221,25 +220,6 @@ describe('ModelProviderSettingsDetail', () => {
     )
     expect(providerStore.validateDraftProvider).not.toHaveBeenCalled()
     expect(wrapper.emitted('provider-configured')).toHaveLength(1)
-  })
-
-  it('persists the OpenAI auth mode and refreshes models from the new backend', async () => {
-    const { wrapper, providerStore, modelStore } = await setup({
-      provider: createProvider({
-        id: 'openai',
-        name: 'OpenAI',
-        apiType: 'openai',
-        baseUrl: 'https://api.openai.com/v1'
-      })
-    })
-
-    await wrapper.get('[data-testid="use-chatgpt"]').trigger('click')
-    await flushPromises()
-
-    expect(providerStore.updateProviderConfig).toHaveBeenCalledWith('openai', {
-      openaiAuthMode: 'chatgpt'
-    })
-    expect(modelStore.refreshProviderCatalog).toHaveBeenCalledWith('openai', 'config')
   })
 
   it('saves a replacement even when the fixed probe model would reject it', async () => {

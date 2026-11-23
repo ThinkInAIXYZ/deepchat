@@ -1,0 +1,42 @@
+{
+  "continue": "Продолжить с ChatGPT",
+  "opening": "Открываем ChatGPT…",
+  "connected": "Подключено к ChatGPT",
+  "connectedAs": "Подключено как {email}",
+  "planEnabled": "Использование тарифа ChatGPT включено",
+  "manageUsage": "Управлять использованием",
+  "signOut": "Выйти",
+  "offerTitle": "Используйте свой тариф ChatGPT",
+  "offerDescription": "Подходящие ИИ-запросы в DeepChat выполняются за счёт лимитов вашего тарифа ChatGPT или баланса кредитов. Это не связано с оплатой по API-ключу.",
+  "planDisabled": "Вход выполнен, но использование тарифа ChatGPT не разрешено. Продолжите с ChatGPT, чтобы разрешить DeepChat использовать ваш тариф.",
+  "reauthRequired": "Срок входа в ChatGPT истёк. Продолжите с ChatGPT, чтобы переподключиться.",
+  "waiting": "Ожидание авторизации в браузере…",
+  "reopenBrowser": "Открыть браузер снова",
+  "revocationUnconfirmed": "Выход выполнен локально. Отзыв на сервере не подтверждён; отключите DeepChat в настройках ChatGPT.",
+  "startChatting": "Начать чат",
+  "signInFailed": "Не удалось войти через ChatGPT. Попробуйте ещё раз.",
+  "welcomeHint": "Используйте свой тариф ChatGPT. API-ключ не нужен.",
+  "orAddProvider": "или добавьте провайдера",
+  "welcomeTitle": "Вы используете тариф ChatGPT",
+  "welcomeDescription": "Подходящее использование в DeepChat списывается с вашего тарифа ChatGPT. Управлять использованием можно в настройках ChatGPT.",
+  "codexRetiredTitle": "Вход через OpenAI Codex прекращён",
+  "codexRetiredDescription": "DeepChat теперь поддерживает официальный Sign in with ChatGPT. Переподключитесь, чтобы и дальше пользоваться тарифом ChatGPT. Ваши чаты сохранятся.",
+  "gotIt": "Понятно",
+  "later": "Позже",
+  "usingPlan": "Используется тариф ChatGPT",
+  "reconnect": "Переподключить ChatGPT",
+  "recovery": {
+    "usageLimit": {
+      "title": "Достигнут лимит использования",
+      "description": "Проверьте свой тариф или лимит DeepChat в настройках ChatGPT."
+    },
+    "notEligible": {
+      "title": "Тариф ChatGPT недоступен",
+      "description": "Использование тарифа ChatGPT недоступно для этой учётной записи или рабочего пространства."
+    },
+    "reconnect": {
+      "title": "Войдите снова",
+      "description": "Переподключите ChatGPT, чтобы продолжить этот чат."
+    }
+  }
+}

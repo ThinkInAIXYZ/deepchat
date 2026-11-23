@@ -451,8 +451,8 @@ describeIfSqlite('ProviderSettingsTable', () => {
     const catalogProjection = {
       id: 'gpt-5.6-sol',
       name: 'GPT-5.6 Sol',
-      group: 'Codex',
-      providerId: 'openai-codex',
+      group: 'ChatGPT',
+      providerId: 'chatgpt',
       isCustom: false,
       contextLength: 16_000,
       maxTokens: 4096,
@@ -472,25 +472,19 @@ describeIfSqlite('ProviderSettingsTable', () => {
       maxTokens: 12_345,
       selectableEndpointTypes: ['openai']
     } as MODEL_META
-    table.replaceProviderModels('openai-codex', 'provider', [catalogProjection])
+    table.replaceProviderModels('chatgpt', 'provider', [catalogProjection])
     table.replaceProviderModels('new-api', 'provider', [remoteFacts])
     const restoreLegacyProjection = db.prepare(
       `UPDATE provider_models
        SET model_json = ?
        WHERE provider_id = ? AND model_id = ? AND source = 'provider'`
     )
-    restoreLegacyProjection.run(
-      JSON.stringify(catalogProjection),
-      'openai-codex',
-      catalogProjection.id
-    )
+    restoreLegacyProjection.run(JSON.stringify(catalogProjection), 'chatgpt', catalogProjection.id)
     restoreLegacyProjection.run(JSON.stringify(remoteFacts), 'new-api', remoteFacts.id)
 
     expect(table.migrateProviderModelsToRawFacts()).toEqual({ scanned: 2, updated: 2 })
-    expect(table.listProviderModels('openai-codex', 'provider')[0]).not.toHaveProperty(
-      'contextLength'
-    )
-    expect(table.listProviderModels('openai-codex', 'provider')[0]).not.toHaveProperty('maxTokens')
+    expect(table.listProviderModels('chatgpt', 'provider')[0]).not.toHaveProperty('contextLength')
+    expect(table.listProviderModels('chatgpt', 'provider')[0]).not.toHaveProperty('maxTokens')
     expect(table.listProviderModels('new-api', 'provider')[0]).toMatchObject({
       contextLength: 123_456,
       maxTokens: 12_345

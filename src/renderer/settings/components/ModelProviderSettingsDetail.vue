@@ -1,11 +1,7 @@
 <template>
   <ProviderSettingsShell
     :title="t(provider.name)"
-    :subtitle="
-      provider.id === 'openai' && provider.openaiAuthMode === 'chatgpt'
-        ? t('settings.provider.openaiChatGPTMode')
-        : provider.baseUrl
-    "
+    :subtitle="provider.id === 'chatgpt' ? t('chatgpt.offerTitle') : provider.baseUrl"
     :enabled-count="enabledModels.length"
     :enabled="provider.enable"
     :enabled-updating="isProviderStatusUpdating"
@@ -17,7 +13,6 @@
         :provider="provider"
         :provider-websites="providerWebsites"
         :save="saveConnection"
-        @auth-mode-change="handleAuthModeChange"
         @delete-provider="showDeleteProviderDialog = true"
         @oauth-success="handleOAuthSuccess"
         @oauth-error="handleOAuthError"
@@ -212,7 +207,6 @@ const unsubscribeCatalogChanged = providerCatalogClient.onCatalogChanged((payloa
 })
 onBeforeUnmount(unsubscribeCatalogChanged)
 const isProviderStatusUpdating = ref(false)
-const isAuthModeUpdating = ref(false)
 const hasInitializedModelList = ref(false)
 
 const modelToDisable = ref<RENDERER_MODEL_META | null>(null)
@@ -426,34 +420,6 @@ const saveConnection = async (providerId: string, updates: { apiKey: string; bas
 
 const saveCustomHeaders = (customHeaders?: ProviderCustomHeaders) =>
   providerStore.saveProviderCustomHeaders(props.provider.id, customHeaders)
-
-const handleAuthModeChange = async (mode: 'api-key' | 'chatgpt') => {
-  if (
-    isAuthModeUpdating.value ||
-    props.provider.id !== 'openai' ||
-    (props.provider.openaiAuthMode || 'api-key') === mode
-  ) {
-    return
-  }
-  isAuthModeUpdating.value = true
-  try {
-    await providerStore.updateProviderConfig(props.provider.id, { openaiAuthMode: mode })
-    const refreshed = await modelStore.refreshProviderCatalog(props.provider.id, 'config')
-    if (!refreshed) {
-      throw new Error('Failed to refresh models after changing the OpenAI authentication mode')
-    }
-  } catch (error) {
-    console.error('Failed to change OpenAI authentication mode:', error)
-    notifyRenderer({
-      kind: 'error',
-      code: 'settings.provider.authModeUpdateFailed',
-      title: t('settings.provider.stagedUpdate.failedTitle'),
-      description: t('settings.provider.stagedUpdate.failedDescription')
-    })
-  } finally {
-    isAuthModeUpdating.value = false
-  }
-}
 
 const MODEL_TOGGLE_PERF_LOG_PREFIX = '[ModelTogglePerf]'
 const getPerfNow = () =>

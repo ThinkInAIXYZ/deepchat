@@ -194,7 +194,6 @@ export const useProviderStore = defineStore('provider', () => {
     const customHeaders = canonicalizeProviderCustomHeaders(provider.customHeaders)
     const material = [
       provider.apiType,
-      provider.openaiAuthMode ?? 'api-key',
       provider.baseUrl ?? '',
       provider.apiKey ? hashString(provider.apiKey) : '',
       provider.oauthToken ? hashString(provider.oauthToken) : '',

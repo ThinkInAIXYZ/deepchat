@@ -1943,53 +1943,49 @@ describe('ChatStatusBar model and session panels', () => {
     expect((wrapper.vm as any).localSettings.thinkingBudget).toBe(512)
   })
 
-  it.each([
-    { providerId: 'openai', providerName: 'OpenAI', apiType: 'openai' },
-    {
-      providerId: 'openai-codex',
-      providerName: 'OpenAI Codex',
-      apiType: 'openai-codex'
+  it.each([{ providerId: 'openai', providerName: 'OpenAI', apiType: 'openai' }])(
+    'uses the dedicated image settings panel for gpt-image-2 on $providerId',
+    async (provider) => {
+      const { wrapper } = await setup({
+        mediaSettings: { image: true, video: false },
+        agentId: 'deepchat',
+        hasActiveSession: false,
+        preferredModel: { providerId: provider.providerId, modelId: 'gpt-image-2' },
+        defaultModel: { providerId: provider.providerId, modelId: 'gpt-image-2' },
+        extraModelGroups: [
+          {
+            providerId: provider.providerId,
+            providerName: provider.providerName,
+            apiType: provider.apiType,
+            models: [{ id: 'gpt-image-2', name: 'GPT Image 2', type: 'imageGeneration' }]
+          }
+        ],
+        modelConfig: {
+          imageGeneration: {
+            size: '1024x1024',
+            quality: 'high'
+          }
+        }
+      })
+
+      await (wrapper.vm as any).selectModel(provider.providerId, 'gpt-image-2')
+      await flushPromises()
+
+      expect((wrapper.vm as any).showOpenAIImageGenerationSettings).toBe(true)
+      expect(wrapper.text()).toContain('settings.model.modelConfig.imageGeneration.size.label')
+      expect(wrapper.text()).toContain('settings.model.modelConfig.timeout.label')
+      expect(wrapper.text()).not.toContain('chat.advancedSettings.contextLength')
+      expect(wrapper.text()).not.toContain('chat.advancedSettings.maxTokens')
+      expect(wrapper.text()).not.toContain('chat.advancedSettings.temperature')
+      expect(wrapper.text()).not.toContain('settings.model.modelConfig.interleavedThinking.label')
+      expect(findNumericInput(wrapper, 'timeout').exists()).toBe(true)
+      expect(findNumericInput(wrapper, 'contextLength').exists()).toBe(false)
+      expect((wrapper.vm as any).localSettings.imageGeneration).toEqual({
+        size: '1024x1024',
+        quality: 'high'
+      })
     }
-  ])('uses the dedicated image settings panel for gpt-image-2 on $providerId', async (provider) => {
-    const { wrapper } = await setup({
-      mediaSettings: { image: true, video: false },
-      agentId: 'deepchat',
-      hasActiveSession: false,
-      preferredModel: { providerId: provider.providerId, modelId: 'gpt-image-2' },
-      defaultModel: { providerId: provider.providerId, modelId: 'gpt-image-2' },
-      extraModelGroups: [
-        {
-          providerId: provider.providerId,
-          providerName: provider.providerName,
-          apiType: provider.apiType,
-          models: [{ id: 'gpt-image-2', name: 'GPT Image 2', type: 'imageGeneration' }]
-        }
-      ],
-      modelConfig: {
-        imageGeneration: {
-          size: '1024x1024',
-          quality: 'high'
-        }
-      }
-    })
-
-    await (wrapper.vm as any).selectModel(provider.providerId, 'gpt-image-2')
-    await flushPromises()
-
-    expect((wrapper.vm as any).showOpenAIImageGenerationSettings).toBe(true)
-    expect(wrapper.text()).toContain('settings.model.modelConfig.imageGeneration.size.label')
-    expect(wrapper.text()).toContain('settings.model.modelConfig.timeout.label')
-    expect(wrapper.text()).not.toContain('chat.advancedSettings.contextLength')
-    expect(wrapper.text()).not.toContain('chat.advancedSettings.maxTokens')
-    expect(wrapper.text()).not.toContain('chat.advancedSettings.temperature')
-    expect(wrapper.text()).not.toContain('settings.model.modelConfig.interleavedThinking.label')
-    expect(findNumericInput(wrapper, 'timeout').exists()).toBe(true)
-    expect(findNumericInput(wrapper, 'contextLength').exists()).toBe(false)
-    expect((wrapper.vm as any).localSettings.imageGeneration).toEqual({
-      size: '1024x1024',
-      quality: 'high'
-    })
-  })
+  )
 
   it('uses the image settings panel for gpt-image-2 on OpenAI-compatible providers', async () => {
     const { wrapper, modelClient } = await setup({

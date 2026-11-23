@@ -1224,25 +1224,32 @@ function createRuntime() {
   const oauthService = {
     startGitHubCopilotLogin: vi.fn().mockResolvedValue(true),
     startGitHubCopilotDeviceFlowLogin: vi.fn().mockResolvedValue(false),
-    getOpenAICodexStatus: vi.fn().mockResolvedValue({
+    getChatGPTStatus: vi.fn().mockResolvedValue({
       state: 'signed-out',
-      authenticated: false,
-      storage: 'safeStorage'
+      planUsageEnabled: false,
+      storage: 'safeStorage',
+      notices: { welcome: false, codexRetired: false }
     }),
-    startOpenAICodexBrowserLogin: vi.fn().mockResolvedValue({
-      state: 'authenticated',
-      authenticated: true,
-      storage: 'safeStorage'
+    startChatGPTLogin: vi.fn().mockResolvedValue({
+      state: 'pending-browser',
+      planUsageEnabled: false,
+      storage: 'safeStorage',
+      notices: { welcome: false, codexRetired: false }
     }),
-    cancelOpenAICodexLogin: vi.fn().mockResolvedValue({
+    cancelChatGPTLogin: vi.fn().mockResolvedValue({
       state: 'signed-out',
-      authenticated: false,
-      storage: 'safeStorage'
+      planUsageEnabled: false,
+      storage: 'safeStorage',
+      notices: { welcome: false, codexRetired: false }
     }),
-    logoutOpenAICodex: vi.fn().mockResolvedValue({
-      state: 'signed-out',
-      authenticated: false,
-      storage: 'safeStorage'
+    logoutChatGPT: vi.fn().mockResolvedValue({
+      status: {
+        state: 'signed-out',
+        planUsageEnabled: false,
+        storage: 'safeStorage',
+        notices: { welcome: false, codexRetired: false }
+      },
+      revocationConfirmed: true
     })
   } as unknown as OAuthServicePort
   const nowledgeMemConfig = {
@@ -3663,43 +3670,39 @@ describe('dispatchDeepchatRoute', () => {
     expect(deviceFlowResult).toEqual({ success: false })
   })
 
-  it('dispatches OpenAI Codex OAuth routes through OAuthService', async () => {
+  it('dispatches ChatGPT OAuth routes through OAuthService', async () => {
     const { runtime, oauthService } = createRuntime()
     const context = createRendererRouteContext(42, 7)
 
     const statusResult = await dispatchDeepchatRoute(
       runtime,
-      'oauth.openaiCodex.getStatus',
+      'oauth.chatgpt.getStatus',
       {},
       context
     )
     const browserResult = await dispatchDeepchatRoute(
       runtime,
-      'oauth.openaiCodex.startBrowserLogin',
+      'oauth.chatgpt.startLogin',
       {},
       context
     )
     const cancelResult = await dispatchDeepchatRoute(
       runtime,
-      'oauth.openaiCodex.cancelLogin',
+      'oauth.chatgpt.cancelLogin',
       {},
       context
     )
-    const logoutResult = await dispatchDeepchatRoute(
-      runtime,
-      'oauth.openaiCodex.logout',
-      {},
-      context
-    )
+    const logoutResult = await dispatchDeepchatRoute(runtime, 'oauth.chatgpt.logout', {}, context)
 
-    expect(oauthService.getOpenAICodexStatus).toHaveBeenCalledTimes(1)
-    expect(oauthService.startOpenAICodexBrowserLogin).toHaveBeenCalledTimes(1)
-    expect(oauthService.cancelOpenAICodexLogin).toHaveBeenCalledTimes(1)
-    expect(oauthService.logoutOpenAICodex).toHaveBeenCalledTimes(1)
+    expect(oauthService.getChatGPTStatus).toHaveBeenCalledTimes(1)
+    expect(oauthService.startChatGPTLogin).toHaveBeenCalledWith({})
+    expect(oauthService.cancelChatGPTLogin).toHaveBeenCalledTimes(1)
+    expect(oauthService.logoutChatGPT).toHaveBeenCalledTimes(1)
     expect(statusResult.status.state).toBe('signed-out')
-    expect(browserResult.status.authenticated).toBe(true)
+    expect(browserResult.status.state).toBe('pending-browser')
     expect(cancelResult.status.state).toBe('signed-out')
     expect(logoutResult.status.state).toBe('signed-out')
+    expect(logoutResult.revocationConfirmed).toBe(true)
   })
 
   it('dispatches database schema repair through MainDatabase', async () => {

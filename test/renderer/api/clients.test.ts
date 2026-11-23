@@ -606,30 +606,34 @@ describe('renderer api clients', () => {
               return { success: true }
             case 'oauth.githubCopilot.startDeviceFlowLogin':
               return { success: false }
-            case 'oauth.openaiCodex.getStatus':
+            case 'oauth.chatgpt.getStatus':
+            case 'oauth.chatgpt.cancelLogin':
               return {
                 status: {
                   state: 'signed-out',
-                  authenticated: false,
-                  storage: 'safeStorage'
+                  planUsageEnabled: false,
+                  storage: 'safeStorage',
+                  notices: { welcome: false, codexRetired: false }
                 }
               }
-            case 'oauth.openaiCodex.startBrowserLogin':
+            case 'oauth.chatgpt.startLogin':
               return {
                 status: {
-                  state: 'authenticated',
-                  authenticated: true,
-                  storage: 'safeStorage'
+                  state: 'pending-browser',
+                  planUsageEnabled: false,
+                  storage: 'safeStorage',
+                  notices: { welcome: false, codexRetired: false }
                 }
               }
-            case 'oauth.openaiCodex.cancelLogin':
-            case 'oauth.openaiCodex.logout':
+            case 'oauth.chatgpt.logout':
               return {
                 status: {
                   state: 'signed-out',
-                  authenticated: false,
-                  storage: 'safeStorage'
-                }
+                  planUsageEnabled: false,
+                  storage: 'safeStorage',
+                  notices: { welcome: false, codexRetired: false }
+                },
+                revocationConfirmed: false
               }
             case 'mcp.addServer':
               return { result: { status: 'duplicate' } }
@@ -2567,26 +2571,29 @@ describe('renderer api clients', () => {
     })
   })
 
-  it('routes OpenAI Codex OAuth calls through the shared registry names', async () => {
+  it('routes ChatGPT OAuth calls through the shared registry names', async () => {
     const bridge = createBridge()
     const oauthClient = createOAuthClient(bridge)
     const listener = vi.fn()
 
-    const status = await oauthClient.getOpenAICodexStatus()
-    const browserStatus = await oauthClient.startOpenAICodexBrowserLogin()
-    const cancelStatus = await oauthClient.cancelOpenAICodexLogin()
-    const logoutStatus = await oauthClient.logoutOpenAICodex()
-    oauthClient.onOpenAICodexStatusChanged(listener)
+    const status = await oauthClient.getChatGPTStatus()
+    const browserStatus = await oauthClient.startChatGPTLogin()
+    const cancelStatus = await oauthClient.cancelChatGPTLogin()
+    const logoutResult = await oauthClient.logoutChatGPT()
+    oauthClient.onChatGPTStatusChanged(listener)
 
     expect(status.state).toBe('signed-out')
-    expect(browserStatus.authenticated).toBe(true)
+    expect(browserStatus.state).toBe('pending-browser')
     expect(cancelStatus.state).toBe('signed-out')
-    expect(logoutStatus.state).toBe('signed-out')
-    expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'oauth.openaiCodex.getStatus', {})
-    expect(bridge.invoke).toHaveBeenNthCalledWith(2, 'oauth.openaiCodex.startBrowserLogin', {})
-    expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'oauth.openaiCodex.cancelLogin', {})
-    expect(bridge.invoke).toHaveBeenNthCalledWith(4, 'oauth.openaiCodex.logout', {})
-    expect(bridge.on).toHaveBeenCalledWith('oauth.openaiCodex.statusChanged', expect.any(Function))
+    expect(logoutResult).toMatchObject({
+      status: { state: 'signed-out' },
+      revocationConfirmed: false
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'oauth.chatgpt.getStatus', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(2, 'oauth.chatgpt.startLogin', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'oauth.chatgpt.cancelLogin', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(4, 'oauth.chatgpt.logout', {})
+    expect(bridge.on).toHaveBeenCalledWith('oauth.chatgpt.statusChanged', expect.any(Function))
   })
 
   it('routes NowledgeMem calls through the shared registry names', async () => {

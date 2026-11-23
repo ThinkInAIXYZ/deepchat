@@ -1,0 +1,42 @@
+{
+  "continue": "Tiếp tục với ChatGPT",
+  "opening": "Đang mở ChatGPT…",
+  "connected": "Đã kết nối ChatGPT",
+  "connectedAs": "Đã kết nối với {email}",
+  "planEnabled": "Đã bật sử dụng gói ChatGPT",
+  "manageUsage": "Quản lý mức sử dụng",
+  "signOut": "Đăng xuất",
+  "offerTitle": "Dùng gói ChatGPT của bạn",
+  "offerDescription": "Các yêu cầu AI đủ điều kiện trong DeepChat sẽ dùng mức sử dụng có trong gói ChatGPT hoặc số dư tín dụng của bạn. Việc này tách biệt với tính phí theo khóa API.",
+  "planDisabled": "Đã đăng nhập nhưng chưa cho phép dùng gói ChatGPT. Hãy tiếp tục với ChatGPT để cho phép DeepChat dùng gói của bạn.",
+  "reauthRequired": "Phiên đăng nhập ChatGPT đã hết hạn. Hãy tiếp tục với ChatGPT để kết nối lại.",
+  "waiting": "Đang chờ cấp quyền trong trình duyệt…",
+  "reopenBrowser": "Mở lại trình duyệt",
+  "revocationUnconfirmed": "Đã đăng xuất cục bộ. Chưa xác nhận được việc thu hồi từ xa; hãy ngắt kết nối DeepChat trong cài đặt ChatGPT.",
+  "startChatting": "Bắt đầu trò chuyện",
+  "signInFailed": "Không thể đăng nhập bằng ChatGPT. Hãy thử lại.",
+  "welcomeHint": "Dùng gói ChatGPT của bạn. Không cần khóa API.",
+  "orAddProvider": "hoặc thêm nhà cung cấp",
+  "welcomeTitle": "Bạn đang dùng gói ChatGPT",
+  "welcomeDescription": "Mức sử dụng đủ điều kiện trong DeepChat được tính vào gói ChatGPT của bạn. Quản lý mức sử dụng trong cài đặt ChatGPT.",
+  "codexRetiredTitle": "Đăng nhập OpenAI Codex đã ngừng hỗ trợ",
+  "codexRetiredDescription": "DeepChat hiện hỗ trợ Sign in with ChatGPT chính thức. Hãy kết nối lại để tiếp tục dùng gói ChatGPT. Các cuộc trò chuyện vẫn được giữ.",
+  "gotIt": "Đã hiểu",
+  "later": "Để sau",
+  "usingPlan": "Đang dùng gói ChatGPT",
+  "reconnect": "Kết nối lại ChatGPT",
+  "recovery": {
+    "usageLimit": {
+      "title": "Đã đạt giới hạn sử dụng",
+      "description": "Xem lại gói của bạn hoặc giới hạn của DeepChat trong cài đặt ChatGPT."
+    },
+    "notEligible": {
+      "title": "Không dùng được gói ChatGPT",
+      "description": "Tài khoản hoặc không gian làm việc này không hỗ trợ dùng gói ChatGPT."
+    },
+    "reconnect": {
+      "title": "Đăng nhập lại",
+      "description": "Kết nối lại ChatGPT để tiếp tục cuộc trò chuyện này."
+    }
+  }
+}

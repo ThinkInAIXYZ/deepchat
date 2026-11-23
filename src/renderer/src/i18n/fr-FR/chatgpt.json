@@ -1,0 +1,42 @@
+{
+  "continue": "Continuer avec ChatGPT",
+  "opening": "Ouverture de ChatGPT…",
+  "connected": "Connecté à ChatGPT",
+  "connectedAs": "Connecté en tant que {email}",
+  "planEnabled": "L'utilisation de l'abonnement ChatGPT est activée",
+  "manageUsage": "Gérer l'utilisation",
+  "signOut": "Se déconnecter",
+  "offerTitle": "Utiliser votre abonnement ChatGPT",
+  "offerDescription": "Les requêtes d'IA éligibles dans DeepChat utilisent l'usage inclus dans votre abonnement ChatGPT ou votre solde de crédits. C'est distinct de la facturation par clé API.",
+  "planDisabled": "Connecté, mais l'utilisation de l'abonnement ChatGPT n'est pas autorisée. Continuez avec ChatGPT pour autoriser DeepChat à utiliser votre abonnement.",
+  "reauthRequired": "Votre connexion ChatGPT a expiré. Continuez avec ChatGPT pour vous reconnecter.",
+  "waiting": "En attente de l'autorisation dans votre navigateur…",
+  "reopenBrowser": "Rouvrir le navigateur",
+  "revocationUnconfirmed": "Déconnecté localement. La révocation à distance n'a pas été confirmée ; déconnectez DeepChat dans les paramètres de ChatGPT.",
+  "startChatting": "Commencer à discuter",
+  "signInFailed": "Impossible de se connecter avec ChatGPT. Réessayez.",
+  "welcomeHint": "Utilisez votre abonnement ChatGPT. Aucune clé API nécessaire.",
+  "orAddProvider": "ou ajouter un fournisseur",
+  "welcomeTitle": "Vous utilisez votre abonnement ChatGPT",
+  "welcomeDescription": "L'usage éligible dans DeepChat est décompté de votre abonnement ChatGPT. Gérez l'utilisation dans les paramètres de ChatGPT.",
+  "codexRetiredTitle": "La connexion OpenAI Codex a été retirée",
+  "codexRetiredDescription": "DeepChat prend désormais en charge le Sign in with ChatGPT officiel. Reconnectez-vous pour continuer à utiliser votre abonnement ChatGPT. Vos conversations sont conservées.",
+  "gotIt": "Compris",
+  "later": "Plus tard",
+  "usingPlan": "Abonnement ChatGPT utilisé",
+  "reconnect": "Reconnecter ChatGPT",
+  "recovery": {
+    "usageLimit": {
+      "title": "Limite d'utilisation atteinte",
+      "description": "Vérifiez votre abonnement ou la limite de DeepChat dans les paramètres de ChatGPT."
+    },
+    "notEligible": {
+      "title": "Abonnement ChatGPT indisponible",
+      "description": "L'utilisation de l'abonnement ChatGPT n'est pas disponible pour ce compte ou cet espace de travail."
+    },
+    "reconnect": {
+      "title": "Reconnectez-vous",
+      "description": "Reconnectez ChatGPT pour poursuivre cette conversation."
+    }
+  }
+}

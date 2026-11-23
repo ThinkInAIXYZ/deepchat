@@ -1,0 +1,42 @@
+{
+  "continue": "ChatGPT로 계속하기",
+  "opening": "ChatGPT 여는 중…",
+  "connected": "ChatGPT에 연결됨",
+  "connectedAs": "{email}(으)로 연결됨",
+  "planEnabled": "ChatGPT 요금제 사용이 활성화됨",
+  "manageUsage": "사용량 관리",
+  "signOut": "로그아웃",
+  "offerTitle": "ChatGPT 요금제 사용",
+  "offerDescription": "DeepChat의 적격 AI 요청을 ChatGPT 요금제 또는 크레딧 잔액에 포함된 사용량으로 처리합니다. API 키 요금과는 별개입니다.",
+  "planDisabled": "로그인했지만 ChatGPT 요금제 사용이 허용되지 않았습니다. ChatGPT로 계속하여 DeepChat이 요금제를 사용하도록 허용하세요.",
+  "reauthRequired": "ChatGPT 로그인이 만료되었습니다. ChatGPT로 계속하여 다시 연결하세요.",
+  "waiting": "브라우저에서 승인을 기다리는 중…",
+  "reopenBrowser": "브라우저 다시 열기",
+  "revocationUnconfirmed": "로컬에서 로그아웃했습니다. 원격 취소를 확인하지 못했습니다. ChatGPT 설정에서 DeepChat 연결을 해제하세요.",
+  "startChatting": "채팅 시작",
+  "signInFailed": "ChatGPT로 로그인하지 못했습니다. 다시 시도하세요.",
+  "welcomeHint": "ChatGPT 요금제를 사용하세요. API 키가 필요 없습니다.",
+  "orAddProvider": "또는 제공자 추가",
+  "welcomeTitle": "ChatGPT 요금제를 사용 중입니다",
+  "welcomeDescription": "DeepChat의 적격 사용량은 ChatGPT 요금제에서 차감됩니다. ChatGPT 설정에서 사용량을 관리하세요.",
+  "codexRetiredTitle": "OpenAI Codex 로그인이 종료되었습니다",
+  "codexRetiredDescription": "DeepChat이 이제 공식 Sign in with ChatGPT를 지원합니다. 다시 연결하면 ChatGPT 요금제를 계속 사용할 수 있으며 채팅은 그대로 유지됩니다.",
+  "gotIt": "확인",
+  "later": "나중에",
+  "usingPlan": "ChatGPT 요금제 사용 중",
+  "reconnect": "ChatGPT 다시 연결",
+  "recovery": {
+    "usageLimit": {
+      "title": "사용량 한도에 도달함",
+      "description": "ChatGPT 설정에서 요금제 또는 DeepChat의 한도를 확인하세요."
+    },
+    "notEligible": {
+      "title": "ChatGPT 요금제를 사용할 수 없음",
+      "description": "이 계정 또는 워크스페이스에서는 ChatGPT 요금제를 사용할 수 없습니다."
+    },
+    "reconnect": {
+      "title": "다시 로그인",
+      "description": "이 채팅을 계속하려면 ChatGPT에 다시 연결하세요."
+    }
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "continue": "המשך עם ChatGPT",
+  "opening": "פותח את ChatGPT…",
+  "connected": "מחובר ל-ChatGPT",
+  "connectedAs": "מחובר בתור {email}",
+  "planEnabled": "השימוש בתוכנית ChatGPT מופעל",
+  "manageUsage": "ניהול שימוש",
+  "signOut": "התנתקות",
+  "offerTitle": "השתמש בתוכנית ChatGPT שלך",
+  "offerDescription": "בקשות AI מתאימות ב-DeepChat ישתמשו במכסה הכלולה בתוכנית ChatGPT או ביתרת הקרדיטים שלך. זה נפרד מחיוב באמצעות מפתח API.",
+  "planDisabled": "מחובר, אך השימוש בתוכנית ChatGPT לא הותר. המשך עם ChatGPT כדי לאפשר ל-DeepChat להשתמש בתוכנית שלך.",
+  "reauthRequired": "פג תוקף ההתחברות ל-ChatGPT. המשך עם ChatGPT כדי להתחבר מחדש.",
+  "waiting": "ממתין לאישור בדפדפן…",
+  "reopenBrowser": "פתח שוב את הדפדפן",
+  "revocationUnconfirmed": "התנתקת מקומית. הביטול המרוחק לא אושר; נתק את DeepChat בהגדרות ChatGPT.",
+  "startChatting": "התחל שיחה",
+  "signInFailed": "לא ניתן להתחבר עם ChatGPT. נסה שוב.",
+  "welcomeHint": "השתמש בתוכנית ChatGPT שלך. ללא צורך במפתח API.",
+  "orAddProvider": "או הוסף ספק",
+  "welcomeTitle": "אתה משתמש בתוכנית ChatGPT שלך",
+  "welcomeDescription": "שימוש מתאים ב-DeepChat נספר מתוכנית ChatGPT שלך. ניהול השימוש מתבצע בהגדרות ChatGPT.",
+  "codexRetiredTitle": "התחברות OpenAI Codex הופסקה",
+  "codexRetiredDescription": "DeepChat תומך כעת ב-Sign in with ChatGPT הרשמי. התחבר מחדש כדי להמשיך להשתמש בתוכנית ChatGPT שלך. השיחות שלך נשמרות.",
+  "gotIt": "הבנתי",
+  "later": "מאוחר יותר",
+  "usingPlan": "משתמש בתוכנית ChatGPT",
+  "reconnect": "חבר מחדש את ChatGPT",
+  "recovery": {
+    "usageLimit": {
+      "title": "הגעת למגבלת השימוש",
+      "description": "בדוק את התוכנית שלך או את המגבלה של DeepChat בהגדרות ChatGPT."
+    },
+    "notEligible": {
+      "title": "תוכנית ChatGPT אינה זמינה",
+      "description": "השימוש בתוכנית ChatGPT אינו זמין לחשבון או לסביבת העבודה הזו."
+    },
+    "reconnect": {
+      "title": "התחבר שוב",
+      "description": "חבר מחדש את ChatGPT כדי להמשיך בשיחה זו."
+    }
+  }
+}

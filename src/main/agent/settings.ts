@@ -35,7 +35,7 @@ import type { AgentLifecycleGatePort } from '@/agent/lifecycleGate'
 const UNIFIED_AGENTS_MIGRATION_VERSION = 3
 const HTML_RENDER_TOOLS_SEEDED_KEY = 'htmlRenderToolsSeeded'
 const PENDING_AGENT_SKILL_CLEANUP_KEY = 'pendingAgentSkillCleanupIds'
-const DEPRECATED_BUILTIN_PROVIDER_IDS = ['qwenlm', 'laoshi'] as const
+const DEPRECATED_BUILTIN_PROVIDER_IDS = ['qwenlm', 'laoshi', 'openai-codex'] as const
 const MEMORY_MAINTENANCE_TRIGGER_CONFIG_KEYS: readonly (keyof DeepChatAgentConfig)[] = [
   'memoryEnabled',
   'memoryEmbedding',

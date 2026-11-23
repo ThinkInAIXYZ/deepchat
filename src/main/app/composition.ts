@@ -73,7 +73,7 @@ import { AgentInvocationAdmission } from '@/agent/invocationAdmission'
 import { ProviderImportService } from '../provider/providerImportService'
 import { ProviderDatabase } from '../provider/data/database'
 import { createProviderRoutes } from '../provider/routes'
-import { ProviderSettings } from '../provider/settings'
+import { CODEX_RETIRED_NOTICE_PENDING_KEY, ProviderSettings } from '../provider/settings'
 import type { SettingsStore } from '../config/settingsStore'
 import type { SecretStore } from '../config/secretStore'
 import { providerDbLoader } from '../provider/providerDbLoader'
@@ -110,6 +110,7 @@ import { TabPresenter } from '../desktop/tab'
 import { DesktopSessionBinding } from '@/desktop/sessionBinding'
 import { TrayPresenter } from '../desktop/tray'
 import { OAuthService } from '../provider/auth'
+import { CHATGPT_PROVIDER_ID } from '../provider/auth/chatgpt/constants'
 import { FloatingButtonPresenter } from '../desktop/floatingButton'
 import { YoBrowserPresenter } from '../desktop/browser/YoBrowserPresenter'
 import { ComputerUsePreviewPresenter } from '@/desktop/computerUse/ComputerUsePreviewPresenter'
@@ -873,7 +874,33 @@ export async function createMainProcessControl(dependencies: {
       setProviderById: (providerId, provider) =>
         providerRuntime.setProviderById(providerId, provider)
     },
-    publishDeepchatEvent
+    publishDeepchatEvent,
+    {
+      codexRetiredNotice: {
+        pending: () =>
+          dependencies.settingsStore.get<boolean>(CODEX_RETIRED_NOTICE_PENDING_KEY) === true,
+        dismiss: () => dependencies.settingsStore.set(CODEX_RETIRED_NOTICE_PENDING_KEY, false)
+      },
+      // The catalog belongs to the signed-in account: enable and refresh on sign-in, empty on
+      // sign-out so no other account's models remain selectable.
+      onAccountChanged: (signedIn) => {
+        const provider = providerSettings.getProviderById(CHATGPT_PROVIDER_ID)
+        if (!provider) return
+        if (!signedIn) {
+          providerRuntime.replaceProviderCatalogFromSource(CHATGPT_PROVIDER_ID, [], 'config')
+          return
+        }
+        if (!provider.enable) {
+          providerRuntime.updateProviderAtomic(CHATGPT_PROVIDER_ID, { enable: true })
+          return
+        }
+        void providerRuntime
+          .refreshProviderCatalog(CHATGPT_PROVIDER_ID, 'config')
+          .catch((error) => {
+            logger.warn('[ChatGPT] Model refresh after sign-in failed:', error)
+          })
+      }
+    }
   )
   const agentSettings = new AgentSettings(
     dependencies.settingsStore,

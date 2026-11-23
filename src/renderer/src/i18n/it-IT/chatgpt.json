@@ -1,0 +1,42 @@
+{
+  "continue": "Continua con ChatGPT",
+  "opening": "Apertura di ChatGPT…",
+  "connected": "Connesso a ChatGPT",
+  "connectedAs": "Connesso come {email}",
+  "planEnabled": "L'uso del piano ChatGPT è attivo",
+  "manageUsage": "Gestisci utilizzo",
+  "signOut": "Esci",
+  "offerTitle": "Usa il tuo piano ChatGPT",
+  "offerDescription": "Le richieste IA idonee in DeepChat usano l'utilizzo incluso nel tuo piano ChatGPT o nel saldo crediti. È separato dalla fatturazione tramite chiave API.",
+  "planDisabled": "Accesso effettuato, ma l'uso del piano ChatGPT non è consentito. Continua con ChatGPT per consentire a DeepChat di usare il tuo piano.",
+  "reauthRequired": "L'accesso a ChatGPT è scaduto. Continua con ChatGPT per riconnetterti.",
+  "waiting": "In attesa dell'autorizzazione nel browser…",
+  "reopenBrowser": "Riapri il browser",
+  "revocationUnconfirmed": "Disconnesso localmente. La revoca remota non è stata confermata; disconnetti DeepChat nelle impostazioni di ChatGPT.",
+  "startChatting": "Inizia a chattare",
+  "signInFailed": "Impossibile accedere con ChatGPT. Riprova.",
+  "welcomeHint": "Usa il tuo piano ChatGPT. Nessuna chiave API richiesta.",
+  "orAddProvider": "oppure aggiungi un provider",
+  "welcomeTitle": "Stai usando il tuo piano ChatGPT",
+  "welcomeDescription": "L'utilizzo idoneo in DeepChat è conteggiato nel tuo piano ChatGPT. Gestisci l'utilizzo nelle impostazioni di ChatGPT.",
+  "codexRetiredTitle": "L'accesso OpenAI Codex è stato ritirato",
+  "codexRetiredDescription": "DeepChat ora supporta il Sign in with ChatGPT ufficiale. Riconnettiti per continuare a usare il tuo piano ChatGPT. Le chat vengono mantenute.",
+  "gotIt": "Ho capito",
+  "later": "Più tardi",
+  "usingPlan": "Piano ChatGPT in uso",
+  "reconnect": "Riconnetti ChatGPT",
+  "recovery": {
+    "usageLimit": {
+      "title": "Limite di utilizzo raggiunto",
+      "description": "Controlla il tuo piano o il limite di DeepChat nelle impostazioni di ChatGPT."
+    },
+    "notEligible": {
+      "title": "Piano ChatGPT non disponibile",
+      "description": "L'uso del piano ChatGPT non è disponibile per questo account o workspace."
+    },
+    "reconnect": {
+      "title": "Accedi di nuovo",
+      "description": "Riconnetti ChatGPT per continuare questa chat."
+    }
+  }
+}
