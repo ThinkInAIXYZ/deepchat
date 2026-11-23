@@ -16,6 +16,7 @@ interface ProviderConnectionPort {
 type ProviderModelCatalogPort = Pick<ProviderSettingsPort, 'getProviderModels' | 'getCustomModels'>
 
 const PROVIDER_QUERY_TIMEOUT_MS = 5_000
+export const PROVIDER_CONNECTION_TIMEOUT_MS = 60_000
 
 export class ProviderService {
   constructor(
@@ -53,10 +54,17 @@ export class ProviderService {
     isOk: boolean
     errorMsg: string | null
   }> {
-    return await this.deps.scheduler.timeout({
-      task: this.deps.providerExecutionPort.testConnection(input.providerId, input.modelId),
-      ms: PROVIDER_QUERY_TIMEOUT_MS,
-      reason: `providers.testConnection:${input.providerId}`
-    })
+    try {
+      return await this.deps.scheduler.timeout({
+        task: this.deps.providerExecutionPort.testConnection(input.providerId, input.modelId),
+        ms: PROVIDER_CONNECTION_TIMEOUT_MS,
+        reason: `providers.testConnection:${input.providerId}`
+      })
+    } catch (error) {
+      if (error instanceof Error && error.name === 'TimeoutError') {
+        return { isOk: false, errorMsg: 'Provider connection timed out' }
+      }
+      throw error
+    }
   }
 }

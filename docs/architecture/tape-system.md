@@ -1,5 +1,9 @@
 # Tape 系统
 
+> 历史合同。新内置会话使用 [dim Rust Timeline](./dim-rust-harness-migration/spec.md)，
+> 不再向 Tape 写入执行事实。以下 schema 与 lineage 约定保留给旧历史 reader、按需转换器及
+> 共享的 ACP 产品兼容路径。当前 Timeline Inspector 通过独立 storage 插件读取 dim。
+
 ## 惰性的 Skill materialization fact
 
 Tape 物理支持 `context` entry。`skill/materialized` 当前 schema 3 是完整 effective Skill content

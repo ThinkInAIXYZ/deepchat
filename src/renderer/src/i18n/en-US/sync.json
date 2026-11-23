@@ -17,7 +17,7 @@
     "importFailed": "Import failed, original data has been restored",
     "importProcess": "An error occurred during the import process",
     "unknown": "Unknown error",
-    "encryptedBackupPasswordMissing": "This backup is encrypted, but the local database key is not available. Unlock the encrypted database first, then import again.",
+    "encryptedBackupPasswordMissing": "The new architecture does not support SQLite encryption, so database encryption is temporarily unavailable. This backup is encrypted and cannot be restored from the cloud directly. Download it to the sync folder, then use Import Data and enter the original database password.",
     "overwriteEncryptionMismatch": "Overwrite import requires the backup and current database to use the same encryption state.",
     "cloudNotConfigured": "Cloud is not configured. Fill in and save the cloud connection first.",
     "cloudNoBackup": "No backup available in the cloud bucket",

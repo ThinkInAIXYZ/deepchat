@@ -121,8 +121,10 @@ export async function getActiveSessionId(page: Page): Promise<string> {
 }
 
 export async function openSessionById(page: Page, sessionId: string): Promise<void> {
+  const sidebar = page.getByTestId('window-sidebar-toggle')
+  if ((await sidebar.getAttribute('aria-expanded')) === 'false') await sidebar.click()
   const sessionItem = page
-    .locator(`[data-testid="sidebar-session-item"][data-session-id="${sessionId}"]`)
+    .locator(`[data-testid="sidebar-session-item"][data-session-id="${sessionId}"]:visible`)
     .first()
   await expect(sessionItem).toBeVisible({ timeout: 30_000 })
   await sessionItem.click()

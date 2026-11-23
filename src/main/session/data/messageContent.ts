@@ -202,7 +202,8 @@ function buildPersistedExtra(block: AssistantMessageBlock): PersistedBlockExtra 
           server_name: block.tool_call.server_name,
           server_icons: block.tool_call.server_icons,
           server_description: block.tool_call.server_description,
-          mcpResult: block.tool_call.mcpResult
+          mcpResult: block.tool_call.mcpResult,
+          htmlRender: block.tool_call.htmlRender
         }
       : undefined,
     reasoningTime: typeof block.reasoning_time === 'number' ? block.reasoning_time : undefined

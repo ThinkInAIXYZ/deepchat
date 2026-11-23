@@ -84,16 +84,13 @@
       },
       "descriptions": {
         "agent": "از مجموعه ابزار استاندارد عامل استفاده کنید.",
-        "code": "ابزارهای فعال را از طریق کد ترکیب کنید. به حالت مجوز دسترسی کامل نیاز دارد.",
+        "code": "ابزارهای فعال را از طریق کد ترکیب کنید.",
         "minimal": "عملیات فایل را ساده می‌کند و سایر ابزارهای فعال را نگه می‌دارد."
       },
       "useModelDefault": "استفاده از پیش‌فرض مدل",
       "saving": "در حال ذخیره حالت...",
       "locked": "پس از پایان این پاسخ می‌توانید حالت را تغییر دهید.",
-      "updateFailed": "حالت ابزار به‌روزرسانی نشد.",
-      "codeEntry": "ورودی کد",
-      "codeCallable": "قابل فراخوانی از کد",
-      "minimalTools": "ابزارهای کدنویسی"
+      "updateFailed": "حالت ابزار به‌روزرسانی نشد."
     },
     "fileUploadFailed": "خطا در پردازش پیوست",
     "fileUploadFailedDesc": "امکان پردازش {count} فایل وجود نداشت: {names}",
@@ -216,8 +213,6 @@
     "maxTokens": "حداکثر توکن",
     "thinkingBudget": "بودجه تفکر",
     "verbosity": "میزان جزئیات پاسخ",
-    "forceInterleavedThinkingCompat": "Interleaved Thinking",
-    "forceInterleavedThinkingCompatDescription": "کنترل می‌کند که این نشست پیام‌های reasoning و tool-call را با منطق Interleaved Thinking پردازش کند یا نه.",
     "verbosityPlaceholder": "سطح جزئیات را انتخاب کنید",
     "currentCustomPrompt": "سفارشی فعلی",
     "useDefault": "استفاده از پیش‌فرض",

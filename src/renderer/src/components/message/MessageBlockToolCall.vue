@@ -20,22 +20,14 @@
       :aria-controls="detailsId"
       @click="toggleExpanded"
     >
-      <span
-        v-if="statusVariant === 'running' || statusVariant === 'reviewing'"
-        data-testid="tool-call-running-indicator"
-        :data-status-variant="statusVariant"
-        :class="[
-          'tool-call-status-ring shrink-0',
-          statusVariant === 'reviewing' ? 'tool-call-status-ring-reviewing' : ''
-        ]"
-        aria-hidden="true"
-      />
       <Icon
-        v-else
         :icon="statusIconName"
         :class="['w-4 h-4 shrink-0', statusIconClass]"
         aria-hidden="true"
       />
+      <span v-if="statusVariant === 'running' || statusVariant === 'reviewing'" class="sr-only">
+        {{ t(statusVariant === 'running' ? 'toolCall.response' : 'toolCall.permission') }}
+      </span>
       <span class="tool-call-labels flex min-w-0 items-baseline gap-1.5">
         <span
           data-testid="tool-call-name"
@@ -91,7 +83,7 @@
 
     <div
       v-if="renderMode !== 'app-only'"
-      class="grid w-full overflow-hidden transition-[grid-template-rows,opacity,margin-top,margin-bottom] duration-[var(--dc-motion-default)] ease-[var(--dc-ease-out-express)] motion-reduce:transition-none"
+      class="grid w-full overflow-clip transition-[grid-template-rows,opacity,margin-top,margin-bottom] duration-[var(--dc-motion-default)] ease-[var(--dc-ease-out-express)] motion-reduce:transition-none"
       :class="
         isExpanded
           ? 'mt-1 mb-2 grid-rows-[1fr] opacity-100'
@@ -100,12 +92,12 @@
       :aria-hidden="!isExpanded"
       :inert="isExpanded ? undefined : true"
     >
-      <div class="min-h-0 overflow-hidden">
+      <div class="min-h-0 overflow-clip">
         <div
           v-if="shouldRenderDetails"
           :id="detailsId"
           :data-testid="isExpanded ? 'tool-call-details' : undefined"
-          class="w-full min-w-0 pl-6 py-1 text-card-foreground overscroll-contain"
+          class="w-full min-w-0 pl-6 py-1 text-card-foreground"
         >
           <div v-if="isSubagentOrchestrator" class="flex flex-col gap-1.5">
             <button
@@ -217,7 +209,7 @@
               </div>
               <div
                 data-testid="tool-call-params"
-                class="dc-overscroll-contain rounded-md bg-muted/50 font-mono text-xs p-2 whitespace-pre-wrap break-words min-h-0 max-h-20 overflow-auto"
+                class="rounded-md bg-muted/50 font-mono text-xs p-2 whitespace-pre-wrap break-words min-h-0 max-h-20 overflow-auto"
               >
                 {{ paramsText }}
               </div>
@@ -239,7 +231,7 @@
                 />
               </div>
               <template v-if="diffData">
-                <div class="markstream-vue dc-overscroll-contain min-h-0 overflow-auto">
+                <div class="markstream-vue min-h-0 overflow-auto">
                   <CodeBlockNode
                     :node="{
                       type: 'code_block',
@@ -266,7 +258,7 @@
               </template>
               <pre
                 v-else
-                class="dc-overscroll-contain rounded-md bg-muted/50 text-xs p-2 whitespace-pre-wrap break-words max-h-64 overflow-auto"
+                class="rounded-md bg-muted/50 text-xs p-2 whitespace-pre-wrap break-words max-h-64 overflow-auto"
                 >{{ responseText }}</pre
               >
             </div>
@@ -293,6 +285,22 @@
       :block-id="appBlockId"
       :tool-input="appToolInput"
     />
+    <HtmlRenderView
+      v-else-if="
+        renderMode !== 'tool-only' &&
+        htmlRender &&
+        block.status === 'success' &&
+        appConversationId &&
+        appMessageId &&
+        appBlockId
+      "
+      :conversation-id="appConversationId"
+      :message-id="appMessageId"
+      :block-id="appBlockId"
+      :title="htmlRender.title"
+      :height="htmlRender.height"
+      :panel-id="htmlRender.panelId"
+    />
   </div>
 </template>
 
@@ -314,10 +322,12 @@ import { getMarkstreamLanguageFromFilename } from '@/lib/markstreamLanguage'
 import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
 import { parseLiveDelegationSpawnBlock } from '@/lib/liveDelegationToolCall'
 import LiveDelegationToolCallCard from './LiveDelegationToolCallCard.vue'
+import { HTML_RENDER_SECTION_TOOL_NAME, HTML_RENDER_TOOL_NAME } from '@shared/agentHtmlRenderTool'
 import MessageBlockToolCallImagePreview from './MessageBlockToolCallImagePreview.vue'
 import { DcCopyButton } from '@dc-ui/components'
 
 const McpAppView = defineAsyncComponent(() => import('@/components/mcp/McpAppView.vue'))
+const HtmlRenderView = defineAsyncComponent(() => import('@/components/mcp/HtmlRenderView.vue'))
 
 const { t } = useI18n()
 
@@ -380,6 +390,8 @@ const statusVariant = computed(() => {
 
 const functionLabel = computed(() => {
   const toolCall = props.block.tool_call
+  if (toolCall?.name?.startsWith('deepchat_mcp_') && props.block.extra?.toolName)
+    return props.block.extra.toolName
   return toolCall?.name ?? ''
 })
 
@@ -444,12 +456,32 @@ const parsedParamsRecord = computed(() =>
 )
 const mcpAppResult = computed(() => props.block.tool_call?.mcpResult)
 const mcpAppDescriptor = computed(() => mcpAppResult.value?.app)
+const htmlRender = computed(() => props.block.tool_call?.htmlRender)
 const appConversationId = computed(() => props.threadId?.trim() ?? '')
 const appMessageId = computed(() => props.messageId?.trim() ?? '')
 const appBlockId = computed(() => props.block.id?.trim() || props.block.tool_call?.id?.trim() || '')
 const appToolInput = computed<Record<string, unknown>>(() => parsedParamsRecord.value ?? {})
 
 const rawToolName = computed(() => props.block.tool_call?.name?.trim().toLowerCase() ?? '')
+const isHtmlRenderTool = computed(
+  () =>
+    rawToolName.value === HTML_RENDER_TOOL_NAME ||
+    rawToolName.value === HTML_RENDER_SECTION_TOOL_NAME
+)
+// Params stream in as partial JSON, so read the label with a pattern instead of JSON.parse.
+const htmlRenderSummary = computed(() => {
+  const raw = paramsText.value
+  const match = /"(?:title|sectionId)"\s*:\s*("(?:[^"\\]|\\.)*")/.exec(raw)
+  let label = ''
+  try {
+    label = match ? (JSON.parse(match[1]) as string) : ''
+  } catch {
+    label = ''
+  }
+  if (props.block.status !== 'loading') return label
+  const size = `${(raw.length / 1024).toFixed(1)} KB`
+  return label ? `${label} · ${size}` : size
+})
 const isSubagentOrchestrator = computed(() => rawToolName.value === 'subagent_orchestrator')
 
 type SubagentProgressTask = {
@@ -531,6 +563,8 @@ const summaryText = computed(() => {
       })
     }
   }
+
+  if (isHtmlRenderTool.value) return htmlRenderSummary.value
 
   const raw = paramsText.value.trim()
   if (!raw) return ''
@@ -617,6 +651,7 @@ const toggleExpanded = () => {
 
 const statusIconName = computed(() => {
   if (statusVariant.value === 'error') return 'lucide:circle-alert'
+  if (statusVariant.value === 'reviewing') return 'lucide:shield'
   if (matchesToolContractName(rawToolName.value, LEGACY_UPDATE_PLAN_TOOL_NAME))
     return 'lucide:list-todo'
   if (
@@ -847,32 +882,6 @@ function getSubagentStatusLabel(status: string): string {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.tool-call-status-ring {
-  width: 1rem;
-  height: 1rem;
-  border-radius: 9999px;
-  box-sizing: border-box;
-  border: 1.5px solid currentColor;
-  border-right-color: transparent;
-  animation: tool-call-spin 1s linear infinite;
-}
-
-.tool-call-status-ring-reviewing {
-  color: var(--muted-foreground);
-}
-
-@keyframes tool-call-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .tool-call-status-ring {
-    animation: none;
-  }
 }
 
 pre {

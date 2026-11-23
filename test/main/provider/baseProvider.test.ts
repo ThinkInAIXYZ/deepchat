@@ -1,9 +1,6 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
+import type { LLM_PROVIDER, MODEL_META } from '@shared/types/provider'
 import { describe, expect, it, vi } from 'vitest'
-import type { LLM_PROVIDER, MODEL_META, ModelConfig } from '@shared/types/provider'
-import { TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/mcp'
-import type { ChatMessage } from '@shared/types/core/chat-message'
-import type { LLMResponse } from '@shared/types/provider'
 import { BaseLLMProvider } from '../../../src/main/provider/baseProvider'
 
 class TestProvider extends BaseLLMProvider {
@@ -25,10 +22,6 @@ class TestProvider extends BaseLLMProvider {
     )
   }
 
-  public renderToolsXml(tools: MCPToolDefinition[]): string {
-    return this.convertToolsToXml(tools)
-  }
-
   public getProviderSnapshot(): LLM_PROVIDER {
     return this.provider
   }
@@ -43,55 +36,12 @@ class TestProvider extends BaseLLMProvider {
     return { isOk: true, errorMsg: null }
   }
 
-  public async summaryTitles(_messages: ChatMessage[], _modelId: string): Promise<string> {
-    return 'summary'
-  }
-
-  public async completions(
-    _messages: ChatMessage[],
-    _modelId: string,
-    _temperature?: number,
-    _maxTokens?: number,
-    _tools?: MCPToolDefinition[]
-  ): Promise<LLMResponse> {
-    return { content: 'ok' }
-  }
-
-  public async summaries(
-    _text: string,
-    _modelId: string,
-    _temperature?: number,
-    _maxTokens?: number
-  ): Promise<LLMResponse> {
-    return { content: 'ok' }
-  }
-
-  public async generateText(
-    _prompt: string,
-    _modelId: string,
-    _temperature?: number,
-    _maxTokens?: number
-  ): Promise<LLMResponse> {
-    return { content: 'ok' }
-  }
-
-  public async *coreStream(
-    _messages: ChatMessage[],
-    _modelId: string,
-    _modelConfig: ModelConfig,
-    _temperature: number,
-    _maxTokens: number,
-    _tools: MCPToolDefinition[]
-  ) {
-    return
-  }
-
   protected async fetchProviderModels(): Promise<MODEL_META[]> {
     return this.modelFetcher()
   }
 }
 
-describe('BaseLLMProvider tool XML conversion', () => {
+describe('BaseLLMProvider metadata and request lifecycle', () => {
   const providerSettings = {
     getProviderModels: vi.fn().mockReturnValue([]),
     getCustomModels: vi.fn().mockReturnValue([]),
@@ -100,114 +50,6 @@ describe('BaseLLMProvider tool XML conversion', () => {
     getModelStatus: vi.fn().mockReturnValue(false),
     updateCustomModel: vi.fn()
   } as unknown as ProviderSettingsPort
-
-  it('normalizes discriminated union tool schemas before building XML', () => {
-    const provider = new TestProvider(providerSettings)
-    const tools: MCPToolDefinition[] = [
-      {
-        execution: TOOL_EXECUTION.write,
-        type: 'function',
-        function: {
-          name: 'skill_manage',
-          description: 'Manage draft skills',
-          parameters: {
-            anyOf: [
-              {
-                type: 'object',
-                properties: {
-                  action: { type: 'string', const: 'create' },
-                  content: { type: 'string', description: 'Draft content' }
-                },
-                required: ['action', 'content'],
-                additionalProperties: false
-              },
-              {
-                type: 'object',
-                properties: {
-                  action: { type: 'string', const: 'edit' },
-                  draftId: { type: 'string', description: 'Draft ID' },
-                  content: { type: 'string', description: 'Draft content' }
-                },
-                required: ['action', 'draftId', 'content'],
-                additionalProperties: false
-              }
-            ]
-          } as unknown as MCPToolDefinition['function']['parameters']
-        },
-        server: {
-          name: 'deepchat',
-          icons: 'tool',
-          description: 'DeepChat tools'
-        }
-      }
-    ]
-
-    const xml = provider.renderToolsXml(tools)
-
-    expect(xml).toContain('<tool name="skill_manage" description="Manage draft skills">')
-    expect(xml).toContain('<parameter name="action" required="true" type="string"></parameter>')
-    expect(xml).toContain(
-      '<parameter name="content" required="true" description="Draft content" type="string"></parameter>'
-    )
-    expect(xml).toContain(
-      '<parameter name="draftId" description="Draft ID" type="string"></parameter>'
-    )
-  })
-
-  it('keeps tools without properties renderable', () => {
-    const provider = new TestProvider(providerSettings)
-    const xml = provider.renderToolsXml([
-      {
-        execution: TOOL_EXECUTION.write,
-        type: 'function',
-        function: {
-          name: 'noop',
-          description: 'No arguments tool',
-          parameters: {
-            type: 'object',
-            properties: {}
-          }
-        },
-        server: {
-          name: 'deepchat',
-          icons: 'tool',
-          description: 'DeepChat tools'
-        }
-      }
-    ])
-
-    expect(xml).toContain('<tool name="noop" description="No arguments tool"></tool>')
-  })
-
-  it('escapes XML-sensitive characters in parameter descriptions', () => {
-    const provider = new TestProvider(providerSettings)
-    const xml = provider.renderToolsXml([
-      {
-        execution: TOOL_EXECUTION.write,
-        type: 'function',
-        function: {
-          name: 'escape_test',
-          description: 'Escape test',
-          parameters: {
-            type: 'object',
-            properties: {
-              query: {
-                type: 'string',
-                description: 'He said "hi" & used <tag> > output'
-              }
-            }
-          }
-        },
-        server: {
-          name: 'deepchat',
-          icons: 'tool',
-          description: 'DeepChat tools'
-        }
-      }
-    ])
-
-    expect(xml).toContain('description="He said &quot;hi&quot; &amp; used &lt;tag&gt; &gt; output"')
-  })
 
   it('updates the provider config through the default implementation', () => {
     const provider = new TestProvider(providerSettings)

@@ -29,7 +29,7 @@ export type BuildAssistantRenderItemsOptions = {
   messageId: string
   messageUpdatedAt: number
   shouldGroup: boolean
-  expandedBlockKeys?: ReadonlySet<string>
+  standaloneActivityExpansion?: ReadonlyMap<string, boolean>
 }
 
 export type ActivityDurationLabels = {
@@ -43,6 +43,12 @@ type BufferedActivityBlock = {
   block: DisplayAssistantMessageBlock
   key: string
 }
+
+export const hasInlineView = (block: DisplayAssistantMessageBlock): boolean =>
+  block.type === 'tool_call' &&
+  Boolean(
+    block.tool_call?.mcpResult?.app || (block.tool_call?.htmlRender && block.status === 'success')
+  )
 
 const ACTIVITY_BLOCK_TYPES = new Set<DisplayAssistantMessageBlock['type']>([
   'reasoning_content',
@@ -124,9 +130,7 @@ const buildActivityGroupItem = (
     kind: 'activity-group',
     key: `activity:${buffer[0].key}:${buffer[buffer.length - 1].key}`,
     blocks,
-    blockKeys: buffer.map(({ block, key }) =>
-      block.type === 'tool_call' && block.tool_call?.mcpResult?.app ? `${key}:tool` : key
-    ),
+    blockKeys: buffer.map(({ block, key }) => (hasInlineView(block) ? `${key}:tool` : key)),
     startedAt,
     endedAt,
     durationMs: endedAt - startedAt,
@@ -140,14 +144,14 @@ export const buildAssistantRenderItems = ({
   messageId,
   messageUpdatedAt,
   shouldGroup,
-  expandedBlockKeys
+  standaloneActivityExpansion
 }: BuildAssistantRenderItemsOptions): AssistantRenderItem[] => {
   const items: AssistantRenderItem[] = []
   const keyOccurrences = new Map<string, number>()
   let activityBuffer: BufferedActivityBlock[] = []
 
   const pushStandaloneBlock = (block: DisplayAssistantMessageBlock, key: string) => {
-    const hasMcpApp = block.type === 'tool_call' && Boolean(block.tool_call?.mcpResult?.app)
+    const hasMcpApp = hasInlineView(block)
     items.push({
       kind: 'block',
       key: hasMcpApp ? `${key}:tool` : key,
@@ -179,7 +183,7 @@ export const buildAssistantRenderItems = ({
       items.push(group)
     }
     for (const { block, key } of activityBuffer) {
-      if (block.type === 'tool_call' && block.tool_call?.mcpResult?.app) {
+      if (hasInlineView(block)) {
         items.push({
           kind: 'mcp-app',
           key: `${key}:app`,
@@ -206,8 +210,12 @@ export const buildAssistantRenderItems = ({
       return
     }
 
-    const standaloneKey = block.tool_call?.mcpResult?.app ? `${blockKey}:tool` : blockKey
-    if (shouldGroup && isCompletedActivityBlock(block) && !expandedBlockKeys?.has(standaloneKey)) {
+    const standaloneKey = hasInlineView(block) ? `${blockKey}:tool` : blockKey
+    if (
+      shouldGroup &&
+      isCompletedActivityBlock(block) &&
+      !standaloneActivityExpansion?.has(standaloneKey)
+    ) {
       activityBuffer.push({ block, key: blockKey })
       return
     }

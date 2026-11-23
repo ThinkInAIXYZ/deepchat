@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import type { HostViewKind } from '../hostViews'
 import type { FileItem } from './file'
 import type {
   McpServerLifecycleStatus,
@@ -267,6 +268,7 @@ export interface MCPToolResponse {
   toolResult?: unknown
   outputOffloadPath?: string
   imagePreviews?: import('./core/mcp').ToolCallImagePreview[]
+  htmlRender?: import('./core/mcp').HtmlRenderDescriptor
   requiresPermission?: boolean
   permissionRequest?: {
     toolName: string
@@ -317,6 +319,15 @@ export interface McpAppPreparedView {
   permissions?: McpAppPermissions
   prefersBorder?: boolean
   advisoryDomain?: string
+  expiresAt: number
+}
+
+export interface McpHostPreparedView {
+  instanceId: string
+  sandboxUrl: string
+  html: string
+  sandbox: string
+  csp?: McpAppCsp
   expiresAt: number
 }
 
@@ -416,6 +427,19 @@ export interface McpAppHostPort {
     },
     context: { webContentsId: number; windowId: number | null }
   ): Promise<McpAppPreparedView>
+  prepareHostView(
+    input: { kind: HostViewKind },
+    context: { webContentsId: number; windowId: number | null }
+  ): Promise<McpHostPreparedView>
+  prepareHtmlRenderView(
+    input: { conversationId: string; messageId: string; blockId: string },
+    context: { webContentsId: number; windowId: number | null }
+  ): Promise<McpHostPreparedView>
+  readHtmlRenderSections(input: {
+    conversationId: string
+    messageId: string
+    blockId: string
+  }): Promise<Array<{ id: string; html: string }>>
   releaseView(
     instanceId: string,
     context: { webContentsId: number; windowId: number | null }

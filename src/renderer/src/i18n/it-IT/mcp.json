@@ -319,6 +319,8 @@
     "title": "App MCP",
     "interactiveContent": "Contenuto interattivo da un server MCP",
     "loadError": "Impossibile caricare questa app MCP.",
+    "pageLoadError": "Impossibile visualizzare questa pagina.",
+    "pageScriptError": "Parte di questa pagina non è stata eseguita.",
     "retry": "Riprova",
     "fullscreen": "Apri a schermo intero",
     "pictureInPicture": "Apri in modalità Picture-in-Picture",

@@ -329,9 +329,7 @@ describe('MessageBlockToolCall', () => {
       }
     })
 
-    const indicator = wrapper.get('[data-testid="tool-call-running-indicator"]')
-    expect(indicator.attributes('data-status-variant')).toBe('reviewing')
-    expect(indicator.classes()).toContain('tool-call-status-ring-reviewing')
+    expect(wrapper.get('[data-testid="tool-call-trigger"]').text()).toContain('toolCall.permission')
   })
 
   it('keeps terminal error status ahead of a stale auto approve review marker', () => {
@@ -347,7 +345,9 @@ describe('MessageBlockToolCall', () => {
       }
     })
 
-    expect(wrapper.find('[data-testid="tool-call-running-indicator"]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="tool-call-trigger"]').text()).not.toContain(
+      'toolCall.permission'
+    )
     expect(wrapper.find('.text-destructive').exists()).toBe(true)
   })
 
@@ -733,6 +733,20 @@ describe('MessageBlockToolCall', () => {
     expect(wrapper.get('[data-testid="tool-call-name"]').attributes('title')).toBe('search')
   })
 
+  it('shows the pinned MCP identity on the executed tool card', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: { name: 'deepchat_mcp_abc', response: 'Done' },
+          extra: { toolName: 'Computer Use / click' }
+        })
+      }
+    })
+    expect(wrapper.get('[data-testid="tool-call-name"]').text()).toBe('Computer Use / click')
+    await wrapper.get('[aria-expanded="false"]').trigger('click')
+    expect(wrapper.text()).not.toContain('deepchat_mcp_abc')
+  })
+
   it('stringifies nested first parameter values into a single-line summary', () => {
     const wrapper = mount(MessageBlockToolCall, {
       props: {
@@ -878,7 +892,7 @@ describe('MessageBlockToolCall', () => {
     expect(paramsPanel).toContain('"command":"pnpm run dev"')
   })
 
-  it('renders a dedicated running ring instead of the legacy pulse icon', () => {
+  it('exposes a running exec tool status through its accessible name', () => {
     const wrapper = mount(MessageBlockToolCall, {
       props: {
         block: createBlock({
@@ -891,8 +905,9 @@ describe('MessageBlockToolCall', () => {
       }
     })
 
-    expect(wrapper.find('[data-testid="tool-call-running-indicator"]').exists()).toBe(true)
-    expect(wrapper.html()).not.toContain('animate-pulse')
+    const trigger = wrapper.get('[data-testid="tool-call-trigger"]')
+    expect(trigger.get('.sr-only').text()).toBe('toolCall.response')
+    expect(trigger.text()).toContain('pnpm run dev')
   })
 
   it('auto expands process tool calls while loading and collapses them when finished', async () => {

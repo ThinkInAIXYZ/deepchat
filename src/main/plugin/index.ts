@@ -9,11 +9,6 @@ import { ToolchainService } from '@/toolchains'
 import { createMinimalProcessEnvironment } from '@/mcp/processEnvironment'
 import { UserPlugins, type UserPluginRecord } from './userPlugins'
 import { UserPluginHooks } from './userPluginHooks'
-import type {
-  TapeAnchorWriter,
-  TapeNonContextEntryReader,
-  TapeIncarnationReader
-} from '@/tape/ports/capabilities'
 import { PLUGIN_INSTALL_DIRECTORY } from '@shared/pluginPaths'
 import type {
   UserPluginSource,
@@ -93,7 +88,6 @@ export interface PluginSettingsWindowPort {
 type PluginServiceDeps = {
   nowledgeMem?: NowledgeMemConnections
   exportNowledgeSession?: (input: NowledgeExportInput) => Promise<{ threadId: string }>
-  contextTape?: TapeAnchorWriter & TapeNonContextEntryReader & TapeIncarnationReader
   mcpSettings: McpSettings
   mcpService: Pick<McpServicePort, 'isReady' | 'isServerRunning' | 'getServerLastError'> & {
     checkPluginRuntimePermissions(serverName: string): Promise<unknown>
@@ -226,27 +220,25 @@ export class PluginService implements PluginServicePort {
     this.isPackaged = deps.isPackaged ?? app.isPackaged
     this.resourcesPath = deps.resourcesPath ?? process.resourcesPath ?? ''
     this.runtimeSupervisor.attachSafetyStore(this.runtimeSafetyStore)
-    if (deps.contextTape) {
-      this.contextHooks = new UserPluginHooks(deps.contextTape, () =>
-        ToolchainService.getInstance().prependResolvedToEnv(
-          createMinimalProcessEnvironment(process.env, process.platform)
-        )
+    this.contextHooks = new UserPluginHooks(() =>
+      ToolchainService.getInstance().prependResolvedToEnv(
+        createMinimalProcessEnvironment(process.env, process.platform)
       )
-      this.userPlugins = new UserPlugins({
-        root: this.getPluginInstallRoot(),
-        hooks: this.contextHooks,
-        store: {
-          read: () => this.store.get('userInstallations') ?? [],
-          write: (records) => this.store.set('userInstallations', records),
-          pending: () => this.store.get('userPluginPending') ?? null,
-          writePending: (operation) => this.store.set('userPluginPending', operation)
-        },
-        skillService: this.skillService,
-        mcpSettings: this.mcpSettings,
-        mcpService: this.mcpService,
-        supervisor: this.runtimeSupervisor
-      })
-    }
+    )
+    this.userPlugins = new UserPlugins({
+      root: this.getPluginInstallRoot(),
+      hooks: this.contextHooks,
+      store: {
+        read: () => this.store.get('userInstallations') ?? [],
+        write: (records) => this.store.set('userInstallations', records),
+        pending: () => this.store.get('userPluginPending') ?? null,
+        writePending: (operation) => this.store.set('userPluginPending', operation)
+      },
+      skillService: this.skillService,
+      mcpSettings: this.mcpSettings,
+      mcpService: this.mcpService,
+      supervisor: this.runtimeSupervisor
+    })
   }
 
   async initialize(): Promise<void> {

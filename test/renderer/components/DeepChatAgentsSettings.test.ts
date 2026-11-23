@@ -706,8 +706,7 @@ describe('DeepChatAgentsSettings', () => {
           maxTokens: 8192,
           thinkingBudget: 2048,
           reasoningEffort: 'high',
-          verbosity: 'high',
-          forceInterleavedThinkingCompat: true
+          verbosity: 'high'
         },
         assistantModel: { providerId: 'anthropic', modelId: 'claude-3-5-sonnet' },
         visionModel: { providerId: 'openai', modelId: 'gpt-4.1-vision' },

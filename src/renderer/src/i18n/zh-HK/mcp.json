@@ -319,6 +319,8 @@
     "title": "MCP App",
     "interactiveContent": "來自 MCP 伺服器的互動內容",
     "loadError": "無法載入此 MCP App。",
+    "pageLoadError": "無法顯示此頁面。",
+    "pageScriptError": "頁面中的部分腳本執行出錯。",
     "retry": "重試",
     "fullscreen": "全螢幕開啟",
     "pictureInPicture": "子母畫面開啟",

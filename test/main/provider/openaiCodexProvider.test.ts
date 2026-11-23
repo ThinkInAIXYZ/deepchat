@@ -1,15 +1,17 @@
 import path from 'path'
 import { describe, expect, it, vi } from 'vitest'
 
+import { checkRequiresRebuild } from '@shared/provider-operations'
+import type { LLM_PROVIDER } from '@shared/types/provider'
 import { DEFAULT_PROVIDERS } from '../../../src/main/provider/defaults'
 import { providerDbLoader } from '../../../src/main/provider/providerDbLoader'
-import { AiSdkProvider } from '../../../src/main/provider/providers/aiSdkProvider'
 import { resolveAiSdkProviderDefinition } from '../../../src/main/provider/providerRegistry'
-import { createAiSdkProviderContext } from '../../../src/main/provider/aiSdk/providerFactory'
-import type { LLM_PROVIDER } from '@shared/types/provider'
-import { checkRequiresRebuild } from '@shared/provider-operations'
+import { AiSdkProvider } from '../../../src/main/provider/providers/aiSdkProvider'
 
 const CODEX_RESOURCE_MODEL_IDS = [
+  'gpt-6.2-sol',
+  'gpt-6.2-astra',
+  'gpt-6.1-terra',
   'gpt-6.1-sol',
   'gpt-6-astra',
   'gpt-6-sol',
@@ -33,7 +35,7 @@ describe('OpenAI Codex provider registration', () => {
     expect(codex?.apiKey).toBe('')
   })
 
-  it('resolves Codex through a dedicated AI SDK runtime branch', () => {
+  it('resolves Codex through a dedicated native connection kind', () => {
     const provider: LLM_PROVIDER = {
       id: 'openai-codex',
       name: 'OpenAI Codex',
@@ -73,18 +75,6 @@ describe('OpenAI Codex provider registration', () => {
     }
     const definition = resolveAiSdkProviderDefinition(provider)
     expect(definition?.runtimeKind).toBe('openai-codex')
-
-    const context = createAiSdkProviderContext({
-      providerKind: definition!.runtimeKind,
-      provider,
-      providerSettings: { getAzureApiVersion: () => undefined } as any,
-      defaultHeaders: {},
-      modelId: 'gpt-5.6-luna',
-      wrapThinkReasoning: false
-    })
-
-    expect(context.apiType).toBe('openai_responses')
-    expect(context.endpoint).toBe('https://chatgpt.com/backend-api/codex/responses')
   })
 
   it('has curated Codex models in the bundled OpenAI provider database', async () => {
@@ -117,7 +107,15 @@ describe('OpenAI Codex provider registration', () => {
       id: 'openai',
       name: 'OpenAI',
       models: [
-        ...['gpt-6.1-sol', 'gpt-6-astra', 'gpt-6-sol', 'gpt-6-luna'].map((id) => ({
+        ...[
+          'gpt-6.2-sol',
+          'gpt-6.2-astra',
+          'gpt-6.1-terra',
+          'gpt-6.1-sol',
+          'gpt-6-astra',
+          'gpt-6-sol',
+          'gpt-6-luna'
+        ].map((id) => ({
           id,
           display_name: id,
           modalities: { input: ['text', 'image'], output: ['text'] },
@@ -214,6 +212,9 @@ describe('OpenAI Codex provider registration', () => {
     providerDbSpy.mockRestore()
 
     expect(models.map((model) => model.id)).toEqual([
+      'gpt-6.2-sol',
+      'gpt-6.2-astra',
+      'gpt-6.1-terra',
       'gpt-6.1-sol',
       'gpt-6-astra',
       'gpt-6-sol',

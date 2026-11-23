@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import type { HtmlRenderSource } from '@/htmlRender/source'
 import { shell } from 'electron'
 import type { PermissionMode } from '@shared/types/agent-interface'
 import type {
@@ -9,6 +10,7 @@ import type {
   McpAppPermissions,
   McpAppPreparedView,
   McpAppDescriptor,
+  McpHostPreparedView,
   McpAppServerPromptListResult,
   McpAppServerResourceListResult,
   McpAppServerResourceTemplateListResult,
@@ -27,8 +29,15 @@ import type {
   McpAppRouteContext
 } from './sandboxRegistry'
 import { MCP_APP_SCHEME } from './sandboxRegistry'
+import { getHostView } from './hostViews'
 import { assertBoundedMcpJson } from '../schemaValidation'
+import {
+  HTML_RENDER_CSP,
+  HTML_RENDER_LIBRARIES,
+  buildHtmlRenderDocument
+} from '@/htmlRender/document'
 import { resolvePluginToolPolicy } from '@/plugin/toolPolicyStore'
+import type { HostViewKind } from '@shared/hostViews'
 
 const MCP_APP_RESOURCE_MIME_TYPE = 'text/html;profile=mcp-app'
 const MAX_APP_HTML_BYTES = 2 * 1024 * 1024
@@ -180,6 +189,8 @@ const createErrorToolResult = (message: string): ToolCallResult => ({
   content: [{ type: 'text', text: message }]
 })
 
+type McpBackedInstance = McpAppSandboxInstance & { descriptor: McpAppDescriptor }
+
 type BoundServer = {
   serverName: string
   client: NonNullable<ReturnType<ServerManager['getClient']>>
@@ -201,6 +212,15 @@ export class McpAppHost implements McpAppHostPort {
         blockId: string
         toolInput: Record<string, unknown>
       }): boolean
+      readHtmlRenderSource(input: {
+        conversationId: string
+        messageId: string
+        blockId: string
+      }): HtmlRenderSource | null | Promise<HtmlRenderSource | null>
+      listHtmlRenderSections(
+        conversationId: string,
+        panelId: string
+      ): Array<{ id: string; html: string }> | Promise<Array<{ id: string; html: string }>>
       persistModelContext(
         messageId: string,
         blockId: string,
@@ -262,6 +282,7 @@ export class McpAppHost implements McpAppHostPort {
       messageId: input.messageId,
       blockId: input.blockId,
       descriptor: { ...input.descriptor, serverName: bound.serverName },
+      title: input.descriptor.toolName,
       toolInput: input.toolInput,
       html,
       csp: normalizeCsp(uiMeta?.csp),
@@ -283,6 +304,84 @@ export class McpAppHost implements McpAppHostPort {
       advisoryDomain: instance.advisoryDomain,
       expiresAt: instance.expiresAt
     }
+  }
+
+  async prepareHostView(
+    input: { kind: HostViewKind },
+    context: McpAppRouteContext
+  ): Promise<McpHostPreparedView> {
+    const view = getHostView(input.kind)
+    const instance = this.deps.registry.create({
+      context,
+      conversationId: '',
+      messageId: '',
+      blockId: '',
+      descriptor: null,
+      title: view.title,
+      toolInput: {},
+      html: view.document,
+      csp: view.csp,
+      libraries: view.libraries,
+      validateLive: () => true
+    })
+    return {
+      instanceId: instance.instanceId,
+      sandboxUrl: `${MCP_APP_SCHEME}://${instance.instanceId}/sandbox.html`,
+      html: instance.html,
+      sandbox: 'allow-scripts allow-same-origin',
+      csp: instance.csp,
+      expiresAt: instance.expiresAt
+    }
+  }
+
+  async prepareHtmlRenderView(
+    input: { conversationId: string; messageId: string; blockId: string },
+    context: McpAppRouteContext
+  ): Promise<McpHostPreparedView> {
+    const source = await this.deps.readHtmlRenderSource(input)
+    if (!source) {
+      throw new Error('The rendered page is no longer available')
+    }
+    const instance = this.deps.registry.create({
+      context,
+      conversationId: input.conversationId,
+      messageId: input.messageId,
+      blockId: input.blockId,
+      descriptor: null,
+      title: source.title,
+      toolInput: {},
+      html: buildHtmlRenderDocument(source.html),
+      csp: HTML_RENDER_CSP,
+      libraries: HTML_RENDER_LIBRARIES,
+      validateLive:
+        source.isCurrent ??
+        (() => {
+          const current = this.deps.readHtmlRenderSource(input)
+          return !(current instanceof Promise) && current !== null
+        })
+    })
+    return {
+      instanceId: instance.instanceId,
+      sandboxUrl: `${MCP_APP_SCHEME}://${instance.instanceId}/sandbox.html`,
+      html: instance.html,
+      sandbox: 'allow-scripts allow-same-origin',
+      csp: instance.csp,
+      expiresAt: instance.expiresAt
+    }
+  }
+
+  async readHtmlRenderSections(input: {
+    conversationId: string
+    messageId: string
+    blockId: string
+  }): Promise<Array<{ id: string; html: string }>> {
+    const source = await this.deps.readHtmlRenderSource(input)
+    if (!source) {
+      throw new Error('The rendered page is no longer available')
+    }
+    return source.panelId
+      ? this.deps.listHtmlRenderSections(input.conversationId, source.panelId)
+      : []
   }
 
   async releaseView(instanceId: string, context: McpAppRouteContext): Promise<void> {
@@ -679,11 +778,11 @@ export class McpAppHost implements McpAppHostPort {
     }
   }
 
-  private assertLiveInstance(
-    instanceId: string,
-    context: McpAppRouteContext
-  ): McpAppSandboxInstance {
+  private assertLiveInstance(instanceId: string, context: McpAppRouteContext): McpBackedInstance {
     const instance = this.deps.registry.assertOwned(instanceId, context)
+    if (!instance.descriptor) {
+      throw new Error('This view has no MCP server')
+    }
     if (
       !this.deps.validateSource({
         descriptor: instance.descriptor,
@@ -696,7 +795,7 @@ export class McpAppHost implements McpAppHostPort {
       this.deps.registry.revoke(instanceId)
       throw new Error('The MCP App source no longer matches the saved tool result')
     }
-    return instance
+    return instance as McpBackedInstance
   }
 
   private isToolAllowedByPluginPolicy(serverName: string, toolName: string): boolean {

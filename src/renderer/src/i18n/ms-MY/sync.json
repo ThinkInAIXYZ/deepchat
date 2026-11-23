@@ -17,7 +17,7 @@
     "importFailed": "Import gagal, data asal dipulihkan",
     "importProcess": "Ralat semasa import",
     "unknown": "ralat yang tidak diketahui",
-    "encryptedBackupPasswordMissing": "Sandaran disulitkan, tetapi kunci pangkalan data tempatan tidak tersedia. Sila buka kunci pangkalan data yang disulitkan dahulu dan kemudian importnya semula.",
+    "encryptedBackupPasswordMissing": "Seni bina baharu tidak menyokong penyulitan SQLite, jadi penyulitan pangkalan data tidak tersedia buat sementara waktu. Sandaran ini disulitkan dan tidak boleh dipulihkan terus daripada awan. Muat turun ke folder penyegerakan, kemudian gunakan Import data dan masukkan kata laluan asal pangkalan data.",
     "overwriteEncryptionMismatch": "Import ganti ganti memerlukan pangkalan data sandaran dan semasa berada dalam keadaan penyulitan yang sama.",
     "cloudNotConfigured": "Cloud is not configured. Fill in and save the cloud connection first.",
     "cloudNoBackup": "No backup available in the cloud bucket",

@@ -446,6 +446,36 @@ DeepChatはメッセージアプリからリモート操作できるため、デ
       <img src="./src/renderer/src/assets/llm-icons/wally-color.svg" width="50" height="50" alt="Wally Icon"><br/>
       <a href="https://www.runwally.com/">Wally</a>
     </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/trustedrouter.svg" width="50" height="50" alt="TrustedRouter Icon"><br/>
+      <a href="https://trustedrouter.com/">TrustedRouter</a>
+    </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/standardcompute.svg" width="50" height="50" alt="Standard Compute Icon"><br/>
+      <a href="https://standardcompute.com/">Standard Compute</a>
+    </td>
+  </tr>
+  <tr align="center">
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/uberllm-color.svg" width="50" height="50" alt="UberLLM Icon"><br/>
+      <a href="https://uberllm.dev/">UberLLM</a>
+    </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/openllm.svg" width="50" height="50" alt="OpenLLM Icon"><br/>
+      <a href="https://www.openllm.sh/">OpenLLM</a>
+    </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/wiro.svg" width="50" height="50" alt="Wiro AI Icon"><br/>
+      <a href="https://wiro.ai/">Wiro AI</a>
+    </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/worldrouter.svg" width="50" height="50" alt="WorldRouter Icon"><br/>
+      <a href="https://www.worldrouter.ai/">WorldRouter</a>
+    </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/aigrow.svg" width="50" height="50" alt="AIGROW Icon"><br/>
+      <a href="https://aigrow.gg/ai-api">AIGROW</a>
+    </td>
   </tr>
 
 </table>
@@ -487,6 +517,11 @@ $ pip install setuptools
 ```bash
 $ pnpm run dev
 ```
+
+開発には Rust 1.98.1（rustup 経由、Windows では Visual Studio C++ Build Tools も）が必要です。
+`pnpm dev` は固定バージョンの Node/dim、プラグインランタイム、ネイティブホストを準備してから
+Electron を起動します。初回はネットワーク接続とビルドが必要です。以後はソースやロックの変更まで
+検証済みのローカル資産を再利用します。配布アプリにはランタイムが同梱され、Rust は不要です。
 
 ### ビルド
 

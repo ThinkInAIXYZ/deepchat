@@ -17,7 +17,7 @@
     "importFailed": "Importazione non riuscita, dati originali ripristinati",
     "importProcess": "Errore durante l'importazione",
     "unknown": "Errore sconosciuto",
-    "encryptedBackupPasswordMissing": "Questo backup è cifrato, ma la chiave del database locale non è disponibile. Sblocca prima il database cifrato, poi importa di nuovo.",
+    "encryptedBackupPasswordMissing": "La nuova architettura non supporta la cifratura SQLite, quindi la cifratura del database è temporaneamente non disponibile. Questo backup è cifrato e non può essere ripristinato direttamente dal cloud. Scaricalo nella cartella di sincronizzazione, quindi usa «Importa dati» e inserisci la password originale del database.",
     "overwriteEncryptionMismatch": "L'importazione con sovrascrittura richiede che backup e database corrente abbiano lo stesso stato di cifratura.",
     "cloudNotConfigured": "Cloud is not configured. Fill in and save the cloud connection first.",
     "cloudNoBackup": "No backup available in the cloud bucket",

@@ -52,11 +52,16 @@ import openrouterColorIcon from '@/assets/llm-icons/openrouter.svg?url'
 import atlascloudIcon from '@/assets/llm-icons/atlascloud.svg?url'
 import requestyColorIcon from '@/assets/llm-icons/requesty.png?url'
 import litellmColorIcon from '@/assets/llm-icons/litellm.svg?url'
+import openllmIcon from '@/assets/llm-icons/openllm.svg?url'
 import opperColorIcon from '@/assets/llm-icons/opper.svg?url'
+import trustedrouterIcon from '@/assets/llm-icons/trustedrouter.svg?url'
+import standardcomputeIcon from '@/assets/llm-icons/standardcompute.svg?url'
 import aistupidlevelIcon from '@/assets/llm-icons/aistupidlevel.svg?url'
 import runcrateIcon from '@/assets/llm-icons/runcrate.svg?url'
 import cloudgpuIcon from '@/assets/llm-icons/cloudgpu.svg?url'
 import wallyColorIcon from '@/assets/llm-icons/wally-color.svg?url'
+import uberllmColorIcon from '@/assets/llm-icons/uberllm-color.svg?url'
+import wiroIcon from '@/assets/llm-icons/wiro.svg?url'
 import cheapaimodelIcon from '@/assets/llm-icons/cheapaimodel.svg?url'
 import obscurifyIcon from '@/assets/llm-icons/obscurify.svg?url'
 import demonrouteColorIcon from '@/assets/llm-icons/demonroute.svg?url'
@@ -106,6 +111,8 @@ import atmorouterIcon from '@/assets/llm-icons/atmorouter.svg?url'
 import yapiIcon from '@/assets/llm-icons/yapi.svg?url'
 import xxapiIcon from '@/assets/llm-icons/xxapi.svg?url'
 import llmbuzzIcon from '@/assets/llm-icons/llmbuzz.svg?url'
+import worldrouterIcon from '@/assets/llm-icons/worldrouter.svg?url'
+import aigrowIcon from '@/assets/llm-icons/aigrow.svg?url'
 import apimodelsIcon from '@/assets/llm-icons/apimodels.png?url'
 import anonrouterIcon from '@/assets/llm-icons/anonrouter.svg?url'
 import typesafeIcon from '@/assets/llm-icons/typesafe.png?url'
@@ -164,6 +171,8 @@ export const modelIcons = {
   yapi: yapiIcon,
   xxapi: xxapiIcon,
   llmbuzz: llmbuzzIcon,
+  worldrouter: worldrouterIcon,
+  aigrow: aigrowIcon,
   apimodels: apimodelsIcon,
   zeabur: zeaburColorIcon,
   zeroone: zerooneColorIcon,
@@ -207,11 +216,16 @@ export const modelIcons = {
   atlascloud: atlascloudIcon,
   requesty: requestyColorIcon,
   litellm: litellmColorIcon,
+  openllm: openllmIcon,
   opper: opperColorIcon,
+  trustedrouter: trustedrouterIcon,
+  standardcompute: standardcomputeIcon,
   aistupidlevel: aistupidlevelIcon,
   runcrate: runcrateIcon,
   cloudgpu: cloudgpuIcon,
   wally: wallyColorIcon,
+  uberllm: uberllmColorIcon,
+  wiro: wiroIcon,
   cheapaimodel: cheapaimodelIcon,
   obscurify: obscurifyIcon,
   demonroute: demonrouteColorIcon,
@@ -294,12 +308,18 @@ const monoIconUrls = new Set<string>([
   moonshotColorIcon,
   openrouterColorIcon,
   atlascloudIcon,
+  openllmIcon,
   opperColorIcon,
+  trustedrouterIcon,
+  standardcomputeIcon,
   aistupidlevelIcon,
   runcrateIcon,
   cloudgpuIcon,
+  wiroIcon,
   xxapiIcon,
   llmbuzzIcon,
+  worldrouterIcon,
+  aigrowIcon,
   obscurifyIcon,
   demonrouteColorIcon,
   githubColorIcon,

@@ -36,6 +36,36 @@ describe('provider onboarding readiness', () => {
     ).toBe(true)
   })
 
+  it('accepts a keyless local OpenLLM daemon but requires a key for the hosted endpoint', () => {
+    const openllm = (overrides: Partial<LLM_PROVIDER>) =>
+      provider({
+        id: 'openllm',
+        name: 'OpenLLM',
+        apiType: 'openai-completions',
+        baseUrl: 'http://127.0.0.1:8787/v1',
+        ...overrides
+      })
+
+    expect(isProviderReadyForOnboarding(openllm({}))).toBe(true)
+    expect(isProviderReadyForOnboarding(openllm({ baseUrl: 'http://localhost:8787/v1' }))).toBe(
+      true
+    )
+    expect(isProviderReadyForOnboarding(openllm({ enable: false }))).toBe(false)
+    expect(isProviderReadyForOnboarding(openllm({ baseUrl: 'https://api.openllm.sh/v1' }))).toBe(
+      false
+    )
+    expect(
+      isProviderReadyForOnboarding(
+        openllm({ baseUrl: 'https://api.openllm.sh/v1', apiKey: 'sk-openllm' })
+      )
+    ).toBe(true)
+    expect(
+      isProviderReadyForOnboarding(
+        provider({ id: 'litellm', apiType: 'openai-completions', baseUrl: 'http://127.0.0.1:4000' })
+      )
+    ).toBe(false)
+  })
+
   it('recognizes Bedrock profiles and complete Vertex service-account credentials', () => {
     expect(
       isProviderReadyForOnboarding(

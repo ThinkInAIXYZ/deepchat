@@ -363,6 +363,7 @@ export async function signMacHelper({
   appPath,
   entitlementsPath,
   purpose,
+  label = 'CUA helper',
   cwd = process.cwd(),
   env = process.env
 }) {
@@ -370,7 +371,7 @@ export async function signMacHelper({
   if (resolvedPurpose !== 'distribution') {
     await signHelperAdHoc({ appPath, entitlementsPath })
     await verifyHelperSignature(appPath)
-    console.info(`Signed CUA helper for ${resolvedPurpose}: ${appPath}`)
+    console.info(`Signed ${label} for ${resolvedPurpose}: ${appPath}`)
     return {
       purpose: resolvedPurpose,
       signature: 'ad-hoc'
@@ -409,7 +410,7 @@ export async function signMacHelper({
   if (signingError) {
     throw signingError
   }
-  console.info(`Signed CUA helper for distribution: ${appPath}`)
+  console.info(`Signed ${label} for distribution: ${appPath}`)
   return {
     purpose: resolvedPurpose,
     signature: 'developer-id'

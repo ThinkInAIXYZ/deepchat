@@ -1,5 +1,5 @@
 {
-  "title": "Tape Inspector",
+  "title": "Timeline Inspector",
   "actions": {
     "apply": "Appliquer",
     "expand": "Développer",
@@ -9,8 +9,8 @@
     "loadMore": "Charger plus",
     "loadEvidence": "Charger plus de requêtes de modèle",
     "loadMatchingEntries": "Charger les entrées correspondantes",
-    "openSession": "Ouvrir Tape Inspector",
-    "openMessage": "Ouvrir dans Tape Inspector",
+    "openSession": "Ouvrir Timeline Inspector",
+    "openMessage": "Ouvrir dans Timeline Inspector",
     "pause": "Suspendre les mises à jour en direct",
     "resume": "Reprendre les mises à jour en direct"
   },

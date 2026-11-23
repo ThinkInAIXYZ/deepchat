@@ -1,9 +1,9 @@
+import type { ChatMessageRecord } from '@shared/types/agent-interface'
 import { beforeEach, vi } from 'vitest'
 import {
   describe,
   expect,
   it,
-  buildContext,
   toAppSessionId,
   SessionTape,
   appendMessageRecordToTape,
@@ -636,35 +636,13 @@ describe('SessionTape reconciliation and facts', () => {
       deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
     } as any)
 
-    const legacyContext = buildContext(
-      's1',
-      { text: 'next', files: [] },
-      'System',
-      10000,
-      4096,
-      legacyMessageStore as any
-    )
     const tapeReady = service.ensureSessionTapeReady('s1', legacyMessageStore as any)
-    const tapeOnlyStore = {
-      getMessages: vi.fn(() => {
-        throw new Error('buildContext must use provided tape history records')
-      })
-    }
-    const tapeContext = buildContext(
-      's1',
-      { text: 'next', files: [] },
-      'System',
-      10000,
-      4096,
-      tapeOnlyStore as any,
-      false,
-      {
-        historyRecords: tapeReady.historyRecords
-      }
-    )
-
-    expect(tapeContext).toEqual(legacyContext)
-    expect(tapeOnlyStore.getMessages).not.toHaveBeenCalled()
+    const visible = (record: ChatMessageRecord) => ({
+      id: record.id,
+      role: record.role,
+      content: record.content
+    })
+    expect(tapeReady.historyRecords.map(visible)).toEqual(records.map(visible))
   })
 
   it('rejects handoff anchors without a non-empty summary before writing Tape state', () => {

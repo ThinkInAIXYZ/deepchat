@@ -105,6 +105,7 @@
         :is-edit-mode="isEditMode"
         :is-capturing-image="false"
         :is-read-only="effectiveReadOnly"
+        :is-in-generating-thread="isInGeneratingThread"
         :copy-text="copyText"
         @retry="onRetryAction"
         @delete="handleAction('delete')"
@@ -160,6 +161,7 @@ const { t } = useI18n()
 const props = defineProps<{
   message: DisplayUserMessage
   isReadOnly?: boolean
+  isInGeneratingThread?: boolean
   saveEdit?: (payload: UserMessageEdit) => Promise<boolean>
 }>()
 
@@ -318,7 +320,7 @@ const submitEdit = async () => {
 }
 
 const onRetryAction = () => {
-  if (effectiveReadOnly.value) {
+  if (effectiveReadOnly.value || props.isInGeneratingThread) {
     return
   }
   emit('retry', props.message.id)

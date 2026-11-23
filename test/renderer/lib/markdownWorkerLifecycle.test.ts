@@ -5,6 +5,7 @@ const markstreamVue = vi.hoisted(() => ({
   clearKaTeXWorker: vi.fn(),
   setMermaidWorker: vi.fn(),
   clearMermaidWorker: vi.fn(),
+  setCustomComponents: vi.fn(),
   terminateWorker: vi.fn(),
   setStreamDiffsWorkerPool: vi.fn(),
   terminateStreamDiffsWorkerPool: vi.fn()

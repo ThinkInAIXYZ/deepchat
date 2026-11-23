@@ -1,3 +1,4 @@
+import { materializeNativeMedia } from '@/platform/nativeMediaCache'
 import { app } from 'electron'
 import crypto from 'node:crypto'
 import fs from 'node:fs/promises'
@@ -191,6 +192,7 @@ const resolveGeneratedImageContent = async (
   }
 
   if (normalizedSource.startsWith(IMGCACHE_URL_PREFIX)) {
+    await materializeNativeMedia(normalizedSource)
     const imagePath = resolveCachedImagePath(normalizedSource)
     return {
       data: await fs.readFile(imagePath),

@@ -1,5 +1,7 @@
 # Agent 系统
 
+> 内置执行已切换到 dim Rust，旧 TypeScript Harness/loop/instance 已退役。以下原生 DeepChat 部分是历史合同；当前实现及迁移进度见 [dim Rust 方案](dim-rust-harness-migration/spec.md) 与 [实施记录](dim-rust-harness-migration/plan.md)。ACP 继续由独立桌面 client 控制。
+
 本文描述 `2026-08-07` 的当前合同。历史迁移方案、Presenter 拆分过程和已完成的分阶段
 SDD 已删除；需要时从 Git 历史查询。
 

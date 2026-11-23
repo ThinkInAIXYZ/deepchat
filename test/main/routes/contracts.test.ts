@@ -1787,8 +1787,7 @@ describe('main kernel contracts', () => {
           requestPolicy: {
             temperature: { mode: 'passthrough' },
             topP: { mode: 'passthrough' },
-            reasoning: { mode: 'passthrough' },
-            legacyThinking: { mode: 'passthrough' }
+            reasoning: { mode: 'passthrough' }
           },
           supportsReasoning: true,
           reasoningPortrait: null,
@@ -1816,8 +1815,7 @@ describe('main kernel contracts', () => {
         requestPolicy: {
           temperature: { mode: 'passthrough' },
           topP: { mode: 'passthrough' },
-          reasoning: { mode: 'passthrough' },
-          legacyThinking: { mode: 'passthrough' }
+          reasoning: { mode: 'passthrough' }
         },
         supportsReasoning: true,
         reasoningPortrait: null,
@@ -1871,8 +1869,7 @@ describe('main kernel contracts', () => {
           maxTokens: 4000,
           thinkingBudget: 2048,
           reasoningEffort: 'medium',
-          verbosity: 'medium',
-          forceInterleavedThinkingCompat: true
+          verbosity: 'medium'
         },
         assistantModel: null,
         visionModel: null,

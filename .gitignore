@@ -28,3 +28,7 @@ test-results/
 
 # tsc incremental build info
 *.tsbuildinfo
+
+# Native dim plugin host build outputs
+native/**/target/
+native/dim-source/

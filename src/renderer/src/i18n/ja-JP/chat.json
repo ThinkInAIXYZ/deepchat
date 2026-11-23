@@ -84,16 +84,13 @@
       },
       "descriptions": {
         "agent": "標準の Agent ツールセットを使用します。",
-        "code": "有効なツールをコードで組み合わせます。フルアクセス権限モードが必要です。",
+        "code": "JavaScript で有効なツールを組み合わせます。各ツールの権限は個別に確認されます。",
         "minimal": "ファイル操作を簡素化し、その他の有効なツールは保持します。"
       },
       "useModelDefault": "モデルの既定値を使用",
       "saving": "モードを保存中...",
       "locked": "この応答の完了後にモードを切り替えられます。",
-      "updateFailed": "ツールモードを更新できませんでした。",
-      "codeEntry": "コード入口",
-      "codeCallable": "コードから呼び出し可能",
-      "minimalTools": "コーディングツール"
+      "updateFailed": "ツールモードを更新できませんでした。"
     },
     "fileUploadFailed": "添付ファイルの処理に失敗しました",
     "fileUploadFailedDesc": "次の {count} 件のファイルを処理できませんでした: {names}",
@@ -216,8 +213,6 @@
     "maxTokens": "最大トークン",
     "thinkingBudget": "思考予算",
     "verbosity": "回答の詳しさ",
-    "forceInterleavedThinkingCompat": "Interleaved Thinking",
-    "forceInterleavedThinkingCompatDescription": "このセッションで reasoning と tool-call メッセージを Interleaved Thinking として処理するかを制御します。",
     "verbosityPlaceholder": "詳しさを選択",
     "currentCustomPrompt": "現在のカスタム",
     "useDefault": "デフォルトを使用",

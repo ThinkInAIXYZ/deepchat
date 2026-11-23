@@ -268,7 +268,7 @@ describeIfSqlite('NewSessionsTable', () => {
     })
   })
 
-  it('persists and clears the nullable Tool Mode override', () => {
+  it('persists native Code Mode and available overrides', () => {
     table.create('session-1', 'deepchat', 'Session', null, { toolModeOverride: 'code' })
     const createdRevision = table.get('session-1')?.revision ?? 0
 

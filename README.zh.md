@@ -446,6 +446,36 @@ DeepChat 可以通过聊天软件远程控制，让你离开桌面后也能继�
       <img src="./src/renderer/src/assets/llm-icons/wally-color.svg" width="50" height="50" alt="Wally Icon"><br/>
       <a href="https://www.runwally.com/">Wally</a>
     </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/trustedrouter.svg" width="50" height="50" alt="TrustedRouter Icon"><br/>
+      <a href="https://trustedrouter.com/">TrustedRouter</a>
+    </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/standardcompute.svg" width="50" height="50" alt="Standard Compute Icon"><br/>
+      <a href="https://standardcompute.com/">Standard Compute</a>
+    </td>
+  </tr>
+  <tr align="center">
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/uberllm-color.svg" width="50" height="50" alt="UberLLM Icon"><br/>
+      <a href="https://uberllm.dev/">UberLLM</a>
+    </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/openllm.svg" width="50" height="50" alt="OpenLLM Icon"><br/>
+      <a href="https://www.openllm.sh/">OpenLLM</a>
+    </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/wiro.svg" width="50" height="50" alt="Wiro AI Icon"><br/>
+      <a href="https://wiro.ai/">Wiro AI</a>
+    </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/worldrouter.svg" width="50" height="50" alt="WorldRouter Icon"><br/>
+      <a href="https://www.worldrouter.ai/">WorldRouter</a>
+    </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/aigrow.svg" width="50" height="50" alt="AIGROW Icon"><br/>
+      <a href="https://aigrow.gg/ai-api">AIGROW</a>
+    </td>
   </tr>
 
 </table>
@@ -487,6 +517,11 @@ $ pip install setuptools
 ```bash
 $ pnpm run dev
 ```
+
+开发需要 Rust 1.98.1（通过 rustup 安装；Windows 还需 Visual Studio C++ Build Tools）。
+`pnpm dev` 会先准备锁定版本的 Node/dim release、插件运行时和原生宿主，再启动 Electron。
+首次需要网络并构建宿主；之后复用已验证的本地资源，直到 runtime 源码或版本锁发生变化。
+详见[快速入门](docs/guides/getting-started.md)。正式安装包内置这些 runtime，用户无需安装 Rust。
 
 ### 构建
 

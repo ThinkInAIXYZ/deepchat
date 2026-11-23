@@ -30,13 +30,6 @@
         <div class="flex min-w-0 flex-col w-full space-y-1.5">
           <MessageInfo :name="currentMessage.model_name" :timestamp="currentMessage.timestamp" />
           <div class="flex flex-col w-full gap-1.5" data-message-content="true">
-            <Spinner
-              v-if="
-                currentContent.length === 0 &&
-                (currentMessage?.status ?? message.status) === 'pending'
-              "
-              class="size-3 text-muted-foreground"
-            />
             <template v-for="item in currentRenderItems" :key="item.key">
               <MessageBlockActivityGroup
                 v-if="item.kind === 'activity-group'"
@@ -79,10 +72,10 @@
                 "
                 :block="item.block"
                 :usage="currentMessage.usage"
-                :initially-expanded="manuallyExpandedBlockKeys.has(item.key) || undefined"
+                :initially-expanded="standaloneActivityExpansion.get(item.key)"
                 :data-activity-key="item.key"
                 @toggle-collapse="handleCollapseToggle"
-                @manual-toggle="handleManualActivityToggle(item.key, $event)"
+                @manual-toggle="standaloneActivityExpansion.set(item.key, $event)"
               />
               <MessageBlockSearch
                 v-else-if="isProviderSearchBlock(item.block)"
@@ -95,15 +88,15 @@
                 :message-id="currentMessage.id"
                 :thread-id="currentThreadId"
                 :read-only="isReadOnly"
-                :render-mode="item.block.tool_call?.mcpResult?.app ? 'tool-only' : 'full'"
-                :initially-expanded="manuallyExpandedBlockKeys.has(item.key)"
+                :render-mode="hasInlineView(item.block) ? 'tool-only' : 'full'"
+                :initially-expanded="standaloneActivityExpansion.get(item.key)"
                 :permission-status="
                   item.block.tool_call?.id
                     ? permissionStatusByToolCallId[item.block.tool_call.id]
                     : undefined
                 "
                 :data-activity-key="item.key"
-                @manual-toggle="handleManualActivityToggle(item.key, $event)"
+                @manual-toggle="standaloneActivityExpansion.set(item.key, $event)"
               />
               <MessageBlockQuestionRequest
                 v-else-if="
@@ -148,9 +141,21 @@
               :allow-continue="allowGuardStopContinue !== false"
               @continue="handleGuardStopContinue"
             />
+            <div
+              v-if="currentMessage.status === 'pending' || isRegenerating"
+              class="flex h-4 items-center self-start"
+              data-testid="message-activity-indicator"
+              aria-hidden="true"
+            >
+              <span class="block h-1 w-10 rounded-full bg-black/10 dark:bg-white/10">
+                <span
+                  class="message-activity-marker block h-full w-3 rounded-full bg-black/65 dark:bg-white/65"
+                />
+              </span>
+            </div>
           </div>
           <MessageToolbar
-            :loading="message.status === 'pending'"
+            :loading="message.status === 'pending' || isRegenerating"
             :usage="message.usage"
             :is-assistant="true"
             :current-variant-index="currentVariantIndex"
@@ -199,7 +204,11 @@
         <ContextMenuItem @select="handleAction('copy')">
           {{ t('thread.toolbar.copy') }}
         </ContextMenuItem>
-        <ContextMenuItem v-if="!isReadOnly" @select="handleAction('retry')">
+        <ContextMenuItem
+          v-if="!isReadOnly"
+          :disabled="resolvedIsInGeneratingThread"
+          @select="handleAction('retry')"
+        >
           {{ t('thread.toolbar.retry') }}
         </ContextMenuItem>
         <ContextMenuItem
@@ -239,7 +248,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
 import {
   type DisplayAssistantMessage,
   type DisplayAssistantMessageBlock,
@@ -258,7 +267,6 @@ import MessageToolbar from './MessageToolbar.vue'
 import MessageInfo from './MessageInfo.vue'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
-import { Spinner } from '@shadcn/components/ui/spinner'
 import MessageBlockAction from './MessageBlockAction.vue'
 import { useI18n } from 'vue-i18n'
 import MessageBlockImage from './MessageBlockImage.vue'
@@ -266,7 +274,11 @@ import MessageBlockAudio from './MessageBlockAudio.vue'
 import MessageBlockVideo from './MessageBlockVideo.vue'
 import MessageBlockActivityGroup from './MessageBlockActivityGroup.vue'
 import MessageBlockSearch from './MessageBlockSearch.vue'
-import { buildAssistantRenderItems, isProviderSearchBlock } from './messageActivityGroups'
+import {
+  buildAssistantRenderItems,
+  hasInlineView,
+  isProviderSearchBlock
+} from './messageActivityGroups'
 
 import {
   Dialog,
@@ -294,6 +306,7 @@ const props = defineProps<{
   useLegacyActions?: boolean
   isInGeneratingThread?: boolean
   isStreamingMessage?: boolean
+  isRegenerating?: boolean
   showTrace?: boolean
   isReadOnly?: boolean
   disableMarkdownVirtualization?: boolean
@@ -489,37 +502,15 @@ const shouldGroupActivity = computed(() => {
   return currentMessage.value.status !== 'pending'
 })
 
-const manuallyExpandedBlockKeys = ref(new Set<string>())
+// Keep a manually toggled row in place when a stream finishes and when it closes.
+const standaloneActivityExpansion = ref(new Map<string, boolean>())
 // Disclosure inside an existing group must not change that group's membership.
 const groupedActivityExpansion = ref(new Map<string, boolean>())
-
-const handleManualActivityToggle = (key: string, expanded: boolean) => {
-  const focusedElement = document.activeElement as HTMLElement | null
-  const restoreFocus =
-    focusedElement?.closest<HTMLElement>('[data-activity-key]')?.dataset.activityKey === key
-  if (expanded) {
-    manuallyExpandedBlockKeys.value.add(key)
-  } else {
-    manuallyExpandedBlockKeys.value.delete(key)
-  }
-  if (restoreFocus) {
-    void nextTick(() => {
-      if (focusedElement?.isConnected || document.activeElement !== document.body) return
-      const group = currentRenderItems.value.find(
-        (item) => item.kind === 'activity-group' && item.blockKeys.includes(key)
-      )
-      const target = Array.from(
-        rootRef.value?.querySelectorAll<HTMLElement>('[data-activity-key]') ?? []
-      ).find((element) => element.dataset.activityKey === (group?.key ?? key))
-      target?.querySelector('button')?.focus({ preventScroll: true })
-    })
-  }
-}
 
 watch(
   () => currentMessage.value.id,
   () => {
-    manuallyExpandedBlockKeys.value.clear()
+    standaloneActivityExpansion.value.clear()
     groupedActivityExpansion.value.clear()
   }
 )
@@ -550,7 +541,7 @@ const currentRenderItems = computed(() =>
     messageId: currentMessage.value.id,
     messageUpdatedAt: currentMessage.value.updatedAt,
     shouldGroup: shouldGroupActivity.value,
-    expandedBlockKeys: manuallyExpandedBlockKeys.value
+    standaloneActivityExpansion: standaloneActivityExpansion.value
   })
 )
 
@@ -753,6 +744,7 @@ const handleAction = (action: HandleActionType) => {
   }
 
   if (action === 'retry') {
+    if (resolvedIsInGeneratingThread.value) return
     emit('retry', currentMessage.value.id)
   } else if (action === 'delete') {
     emit('delete', currentMessage.value.id)
@@ -805,3 +797,25 @@ defineExpose({
   handleAction
 })
 </script>
+
+<style scoped>
+.message-activity-marker {
+  transform: translateX(0.875rem);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .message-activity-marker {
+    animation: message-activity-sweep 1.1s ease-in-out infinite alternate;
+  }
+}
+
+@keyframes message-activity-sweep {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(1.75rem);
+  }
+}
+</style>

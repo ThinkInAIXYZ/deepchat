@@ -231,7 +231,6 @@
     "thinkingBudget": "Fikirkan tentang bajet",
     "reasoningEffort": "Kekuatan penaakulan",
     "verbosity": "Tahap terperinci",
-    "interleaved": "Keserasian paksa dan pemikiran bersilang",
     "systemPrompt": "Kata gesaan sistem lalai",
     "systemPromptPlaceholder": "Biarkan kosong untuk menggunakan kata gesaan sistem kosong",
     "defaultProjectPath": "Direktori lalai (pilihan)",
@@ -241,7 +240,6 @@
     "permissionDefault": "Keizinan lalai",
     "defaultToolMode": "Mod lalai",
     "defaultToolModeModelDefaultDesc": "Ditentukan oleh model semasa. Kebanyakan model menggunakan Agent.",
-    "defaultToolModeCodePermissionHint": "Mod Code memerlukan keizinan lalai ditetapkan kepada \"{permission}\", jika tidak panggilan kod akan gagal.",
     "subagentsTitle": "subagent",
     "subagentsDescription": "Benarkan Agent ini mewakilkan subtugas bebas. Model menentukan masa slot yang dikonfigurasi digunakan; pewakilan menggunakan token, masa dan sumber sistem tambahan.",
     "subagentsEnabled": "Benarkan Agent ini mewakilkan subtugas",
@@ -617,46 +615,6 @@
         "type-mismatch": "Jenis lajur tidak padan"
       }
     },
-    "databaseEncryption": {
-      "title": "penyulitan pangkalan data SQLite",
-      "description": "Gunakan SQLCipher untuk menyulitkan agent.db; kata laluan SQLite diperlukan apabila buka kunci sistem tidak tersedia.",
-      "enabled": "Didayakan",
-      "disabled": "Tidak didayakan",
-      "cipher": "Kaedah penyulitan",
-      "systemUnlock": "Buka kunci sistem",
-      "startupUnlock": "Mula Buka Kunci",
-      "lastMigration": "Penghijrahan terakhir",
-      "loading": "memuatkan",
-      "never": "tidak pernah",
-      "notRequired": "tidak perlu",
-      "systemUnlockAvailable": "Tersedia",
-      "systemUnlockUnavailable": "Tidak tersedia",
-      "systemUnlockMode": "Buka kunci sistem",
-      "manualUnlock": "Masukkan kata laluan secara manual",
-      "currentPassword": "Kata Laluan Semasa",
-      "newPassword": "Kata laluan SQLite baharu",
-      "confirmPassword": "Sahkan Kata Laluan",
-      "passwordMismatch": "Kata laluan yang dimasukkan dua kali tidak konsisten",
-      "systemCredentialStore": "Apabila storan selamat sistem tersedia, DeepChat menyimpan kata laluan SQLite yang disulitkan ke stor bukti kelayakan sistem (seperti macOS Keychain, Windows Credential Vault atau Linux secret store). Selepas buka kunci awal berjaya, pelancaran berikutnya biasanya dibuka secara automatik; anda hanya perlu memasukkan kunci penyulitan semula apabila data dipindahkan, bukti kelayakan sistem hilang atau tidak boleh dinyahsulit, dan storan selamat tidak tersedia.",
-      "safeStorageUnavailable": "Electron safeStorage tidak tersedia pada sistem semasa. Setelah didayakan, anda perlu memasukkan kata laluan secara manual setiap kali anda bermula.",
-      "enableButton": "Dayakan penyulitan",
-      "changeButton": "Tukar kata laluan",
-      "disableButton": "Matikan penyulitan",
-      "enabledTitle": "Penyulitan pangkalan data didayakan",
-      "changedTitle": "Kata laluan SQLite telah ditukar",
-      "disabledTitle": "Penyulitan pangkalan data dimatikan",
-      "failedTitle": "Operasi penyulitan pangkalan data gagal",
-      "failedDescription": "Sila semak kata laluan anda dan cuba lagi.",
-      "setPasswordButton": "Tetapkan kata laluan",
-      "enableDialogTitle": "Tetapkan kata laluan SQLite",
-      "changeDialogTitle": "Tukar kata laluan SQLite",
-      "disableDialogTitle": "Matikan penyulitan pangkalan data",
-      "enableDialogDescription": "Cipta pangkalan data SQLite yang disulitkan dan pindahkan data tempatan semasa ke dalamnya.",
-      "changeDialogDescription": "Pindahkan pangkalan data yang disulitkan semasa ke pangkalan data yang disulitkan baharu dengan kata laluan baharu.",
-      "disableDialogDescription": "Pindahkan pangkalan data yang disulitkan semasa kembali ke pangkalan data teks jelas setempat.",
-      "cancelButton": "Batal",
-      "unknown": "tidak diketahui"
-    },
     "modelConfigUpdate": {
       "title": "Kemas kini konfigurasi model",
       "descriptionPrefix": "daripada",
@@ -847,7 +805,8 @@
       "saveAndTest": "Simpan dan uji",
       "saveOnly": "Simpan sahaja",
       "saveAndTestFirst": "Simpan dan uji konfigurasi awan dahulu."
-    }
+    },
+    "legacyBackupPassword": "Kata laluan sandaran tersulit lama (pilihan)"
   },
   "dashboard": {
     "badge": "Gunakan Kanban",
@@ -1024,10 +983,6 @@
       "reasoningToggle": {
         "label": "Dayakan inferens",
         "description": "Mengawal sama ada model mendayakan inferens secara lalai"
-      },
-      "interleavedThinking": {
-        "label": "Interleaved Thinking",
-        "description": "Mengawal sama ada model mengendalikan mesej reasoning dan tool-call dengan cara yang sama seperti Interleaved Thinking. Jika provider telah mengisytiharkan sokongan, ia akan didayakan secara automatik secara lalai."
       },
       "thinkingBudget": {
         "label": "Fikirkan tentang bajet",

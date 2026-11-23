@@ -261,6 +261,8 @@ function expandGroupAncestors(
   return path.reverse()
 }
 
+const semanticName = (record: TapeInspectorFactRecord) => record.dim?.semanticName ?? record.name
+
 function factStatus(record: TapeInspectorFactRecord): string | null {
   if (record.facts?.isError === true) return 'error'
   if (record.facts?.isError === false) return 'success'
@@ -276,7 +278,9 @@ function providerAttemptGroupStatus(
   group: TapeInspectorGroupDescriptor,
   matching: readonly TapeInspectorFactRecord[]
 ): string | null {
-  const attempts = matching.filter((record) => record.name === 'provider/attempt_completed')
+  const attempts = matching.filter(
+    (record) => semanticName(record) === 'provider/attempt_completed'
+  )
   if (group.kind === 'attempt') return uniqueStatus(attempts.map(factStatus))
   const numberedAttempts = attempts.filter(
     (record): record is TapeInspectorFactRecord & { physicalAttempt: number } =>
@@ -294,11 +298,11 @@ function groupStatus(
   matching: readonly TapeInspectorFactRecord[]
 ): string | null {
   if (group.kind === 'run') {
-    const terminal = matching.filter((record) => record.name === 'execution/run_terminal')
+    const terminal = matching.filter((record) => semanticName(record) === 'execution/run_terminal')
     return terminal.length === 1 ? factStatus(terminal[0]) : null
   }
   if (group.kind === 'tool') {
-    const outcomes = matching.filter((record) => record.name === 'execution/tool_outcome')
+    const outcomes = matching.filter((record) => semanticName(record) === 'execution/tool_outcome')
     return outcomes.length === 1
       ? outcomes[0].facts?.isError === true
         ? 'error'
@@ -355,7 +359,7 @@ function groupStartAt(
 ): number | null {
   if (group.kind !== 'run' && group.kind !== 'tool') return null
   const startName = group.kind === 'run' ? 'execution/run_started' : 'execution/dispatch_committed'
-  const starts = matching.filter((record) => record.name === startName)
+  const starts = matching.filter((record) => semanticName(record) === startName)
   return starts.length === 1 ? starts[0].createdAt : null
 }
 
@@ -366,8 +370,8 @@ function groupTiming(
   if (group.kind !== 'run' && group.kind !== 'tool') return null
   const startName = group.kind === 'run' ? 'execution/run_started' : 'execution/dispatch_committed'
   const endName = group.kind === 'run' ? 'execution/run_terminal' : 'execution/tool_outcome'
-  const starts = matching.filter((record) => record.name === startName)
-  const ends = matching.filter((record) => record.name === endName)
+  const starts = matching.filter((record) => semanticName(record) === startName)
+  const ends = matching.filter((record) => semanticName(record) === endName)
   if (starts.length !== 1 || ends.length !== 1 || ends[0].createdAt < starts[0].createdAt) {
     return null
   }
@@ -390,8 +394,8 @@ function groupIncompleteReason(input: {
   const startName =
     input.group.kind === 'run' ? 'execution/run_started' : 'execution/dispatch_committed'
   const endName = input.group.kind === 'run' ? 'execution/run_terminal' : 'execution/tool_outcome'
-  const starts = input.matching.filter((record) => record.name === startName)
-  const ends = input.matching.filter((record) => record.name === endName)
+  const starts = input.matching.filter((record) => semanticName(record) === startName)
+  const ends = input.matching.filter((record) => semanticName(record) === endName)
   if (
     starts.length > 1 ||
     ends.length > 1 ||
@@ -984,6 +988,7 @@ export function getTapeInspectorDetailCapabilities(
   }
   if (row.recordType === 'fact') {
     const payload =
+      row.record.dim !== undefined ||
       row.record.family === 'journal' ||
       row.record.family === 'attempt' ||
       row.record.family === 'anchor' ||
@@ -996,8 +1001,8 @@ export function getTapeInspectorDetailCapabilities(
       timing: true,
       provenance: true,
       integrity: row.record.integrity !== undefined,
-      raw: false,
-      messageDiagnostics: Boolean(row.record.messageId)
+      raw: row.record.dim !== undefined,
+      messageDiagnostics: !row.record.dim && Boolean(row.record.messageId)
     }
   }
   return {

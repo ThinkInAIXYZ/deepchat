@@ -27,6 +27,8 @@ The remaining application-owned duplicate is the Node/uv archive table in `catal
 - The installer derives supported platform/architecture sets from manifest Node targets and checks
   the exact target pair. Default installation includes uv and cloudflared where official artifacts
   exist (uv only on Windows ARM64). Explicit Node installation remains available.
+- Windows packaging verifies the pinned uv ZIP checksum and extracts the two expected root
+  executables, `uv.exe` and `uvx.exe`.
 - Archive checksums verify compressed downloads; executable checksums verify installed Node.
   They are not interchangeable. Extraction, activation and persistence are unchanged.
 
@@ -35,7 +37,7 @@ The remaining application-owned duplicate is the Node/uv archive table in `catal
 ```text
 runtime-versions.json
   ├── toolchains/catalog.ts → managed downloader
-  ├── install-runtime.mjs → tiny-runtime-injector → executable verification
+  ├── install-runtime.mjs → tiny-runtime-injector or pinned Windows uv ZIP
   └── afterPack.js → OCR package selection / executable verification
 
 Vitest contract → manifest targets ↔ package contract ↔ workflow matrices

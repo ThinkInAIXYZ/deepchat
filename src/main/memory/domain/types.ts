@@ -1,4 +1,5 @@
 import type {
+  AgentMemorySource,
   AgentMemoryCategory,
   AgentMemoryEmbeddingState,
   AgentMemoryHealthCategory,
@@ -358,7 +359,7 @@ export type AgentMemoryInsertInput = {
   provenanceKey?: string | null
   isAnchor?: boolean
   createdAt?: number
-  sourceEntryIds?: number[] | null
+  sourceEntryIds?: AgentMemorySource[] | null
   temporal?: MemoryTemporalMetadata
   conflictWith?: string | null
   personaState?: AgentMemoryPersonaState | null
@@ -459,7 +460,7 @@ export interface WriteMemoriesOptions {
   agentId: string
   sourceSession?: string | null
   scope?: MemoryScope
-  sourceEntryIds?: number[] | null
+  sourceEntryIds?: AgentMemorySource[] | null
 }
 
 export type MemoryWriteOutcome =
@@ -486,7 +487,7 @@ export interface MemoryRecallItem {
   sources?: { vec?: boolean; fts?: boolean }
   similarity?: number
   sourceSession?: string | null
-  sourceEntryIds?: number[] | null
+  sourceEntryIds?: AgentMemorySource[] | null
   temporal?: MemoryTemporalMetadata
   temporalAnnotation?: string
   breakdown?: {
@@ -588,17 +589,18 @@ export interface MemoryUpdateContext {
 }
 
 export interface MemoryExtractionEvidence {
-  sourceEntryId: number
+  sourceEntryId: AgentMemorySource
   text: string
 }
 
 export interface MemoryExtractionInput {
+  signal?: AbortSignal
   agentId: string
   spanText: string
   model: MemoryModelRef
   scope?: MemoryScope
   sourceSession?: string | null
-  sourceEntryIds?: number[] | null
+  sourceEntryIds?: AgentMemorySource[] | null
   evidence?: readonly MemoryExtractionEvidence[]
 }
 

@@ -231,7 +231,6 @@
     "thinkingBudget": "Denkbudget",
     "reasoningEffort": "Reasoning-Stärke",
     "verbosity": "Detailgrad",
-    "interleaved": "Interleaved Thinking-Kompatibilität erzwingen",
     "systemPrompt": "Standard-System-prompt",
     "systemPromptPlaceholder": "Leer lassen, um einen leeren System-prompt zu verwenden",
     "defaultProjectPath": "Standardverzeichnis (optional)",
@@ -241,7 +240,6 @@
     "permissionDefault": "Standardberechtigung",
     "defaultToolMode": "Standardmodus",
     "defaultToolModeModelDefaultDesc": "Wird vom aktuellen Modell bestimmt. Die meisten Modelle verwenden Agent.",
-    "defaultToolModeCodePermissionHint": "Der Code-Modus erfordert die Standardberechtigung „{permission}“, sonst schlagen Codeaufrufe fehl.",
     "subagentsTitle": "subagent",
     "subagentsDescription": "Erlaubt diesem Agenten, unabhängige Teilaufgaben zu delegieren. Das Modell entscheidet, wann konfigurierte Slots verwendet werden; Delegation benötigt zusätzliche Tokens, Zeit und Systemressourcen.",
     "subagentsEnabled": "Diesem Agenten das Delegieren von Teilaufgaben erlauben",
@@ -617,46 +615,6 @@
         "type-mismatch": "Spaltentyp stimmt nicht überein"
       }
     },
-    "databaseEncryption": {
-      "title": "SQLite-Datenbankverschlüsselung",
-      "description": "agent.db mit SQLCipher verschlüsseln; wenn Systementsperrung nicht verfügbar ist, muss ein SQLite-Passwort eingegeben werden.",
-      "enabled": "Aktiviert",
-      "disabled": "Nicht aktiviert",
-      "cipher": "Verschlüsselungsmethode",
-      "systemUnlock": "Systementsperrung",
-      "startupUnlock": "Entsperrung beim Start",
-      "lastMigration": "Letzte Migration",
-      "loading": "Wird geladen",
-      "never": "Nie",
-      "notRequired": "Nicht erforderlich",
-      "systemUnlockAvailable": "Verfügbar",
-      "systemUnlockUnavailable": "Nicht verfügbar",
-      "systemUnlockMode": "Systementsperrung",
-      "manualUnlock": "Passwort manuell eingeben",
-      "currentPassword": "Aktuelles Passwort",
-      "newPassword": "Neues SQLite-Passwort",
-      "confirmPassword": "Passwort bestätigen",
-      "passwordMismatch": "Die beiden Passwörter stimmen nicht überein",
-      "systemCredentialStore": "Wenn der sichere Systemspeicher verfügbar ist, speichert DeepChat das SQLite-Passwort verschlüsselt im Anmeldeinformationsspeicher des Systems (z. B. macOS Keychain, Windows-Anmeldeinformationsverwaltung oder Linux secret store). Nach einer erfolgreichen Entsperrung öffnen spätere Starts normalerweise automatisch; nur nach Datenmigration, fehlenden oder nicht entschlüsselbaren Systemanmeldeinformationen oder nicht verfügbarer sicherer Speicherung muss der Verschlüsselungsschlüssel erneut eingegeben werden.",
-      "safeStorageUnavailable": "Electron safeStorage ist auf diesem System nicht verfügbar. Nach Aktivierung muss das Passwort bei jedem Start manuell eingegeben werden.",
-      "enableButton": "Verschlüsselung aktivieren",
-      "changeButton": "Passwort ändern",
-      "disableButton": "Verschlüsselung deaktivieren",
-      "enabledTitle": "Datenbankverschlüsselung aktiviert",
-      "changedTitle": "SQLite-Passwort geändert",
-      "disabledTitle": "Datenbankverschlüsselung deaktiviert",
-      "failedTitle": "Datenbankverschlüsselung fehlgeschlagen",
-      "failedDescription": "Bitte Passwort prüfen und erneut versuchen.",
-      "setPasswordButton": "Passwort festlegen",
-      "enableDialogTitle": "SQLite-Passwort festlegen",
-      "changeDialogTitle": "SQLite-Passwort ändern",
-      "disableDialogTitle": "Datenbankverschlüsselung deaktivieren",
-      "enableDialogDescription": "Eine verschlüsselte SQLite-Datenbank erstellen und die aktuellen lokalen Daten dorthin migrieren.",
-      "changeDialogDescription": "Die aktuelle verschlüsselte Datenbank in eine neue verschlüsselte Datenbank mit neuem Passwort migrieren.",
-      "disableDialogDescription": "Die aktuelle verschlüsselte Datenbank zurück in eine lokale Klartextdatenbank migrieren.",
-      "cancelButton": "Abbrechen",
-      "unknown": "Unbekannt"
-    },
     "modelConfigUpdate": {
       "title": "Modellkonfiguration aktualisieren",
       "descriptionPrefix": "Modelldaten aus ",
@@ -847,7 +805,8 @@
       "saveAndTest": "Speichern und testen",
       "saveOnly": "Nur speichern",
       "saveAndTestFirst": "Speichere und teste zuerst die Cloud-Konfiguration."
-    }
+    },
+    "legacyBackupPassword": "Passwort des alten verschlüsselten Backups (optional)"
   },
   "dashboard": {
     "badge": "Nutzungsübersicht",
@@ -1024,10 +983,6 @@
       "reasoningToggle": {
         "label": "Reasoning aktivieren",
         "description": "Steuert, ob Reasoning für dieses Modell standardmäßig aktiviert ist"
-      },
-      "interleavedThinking": {
-        "label": "Interleaved Thinking",
-        "description": "Steuert, ob dieses Modell reasoning- und tool-call-Nachrichten mit Interleaved Thinking verarbeitet. Wenn der provider Unterstützung deklariert, wird dies standardmäßig automatisch aktiviert."
       },
       "thinkingBudget": {
         "label": "Denkbudget",

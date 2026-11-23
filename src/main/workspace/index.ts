@@ -98,6 +98,26 @@ const getInvalidationPriority = (kind: WorkspaceInvalidationKind): number => {
   }
 }
 
+const isSameOrDescendantPath = (targetPath: string, basePath: string): boolean => {
+  const relative = path.relative(basePath, targetPath)
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
+}
+
+// Git metadata usually lives in `<repo>/.git`, but linked worktrees, submodules and separate git
+// dirs keep it outside the working tree. Watch the directory that contains all metadata paths
+// instead of the whole repository, and never a filesystem root.
+const getGitWatchRoot = (metadataPaths: string[]): string | null => {
+  const commonDir = metadataPaths
+    .map((metadataPath) => path.dirname(metadataPath))
+    .reduce((current, dir) => {
+      while (!isSameOrDescendantPath(dir, current) && path.dirname(current) !== current) {
+        current = path.dirname(current)
+      }
+      return current
+    })
+  return path.dirname(commonDir) === commonDir ? null : commonDir
+}
+
 /**
  * Workspace lifecycle contract:
  * - Main process owns workspace invalidation production.
@@ -440,7 +460,7 @@ export class WorkspaceService implements WorkspaceServicePort {
       return null
     }
 
-    return { repoRoot, watchRoot: repoRoot, paths }
+    return { repoRoot, watchRoot: getGitWatchRoot(paths) ?? repoRoot, paths }
   }
 
   private async resolveGitPath(workspacePath: string, key: string): Promise<string | null> {

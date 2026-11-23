@@ -134,6 +134,64 @@ describe('DEFAULT_PROVIDERS', () => {
     )
   })
 
+  it('includes TrustedRouter as a disabled built-in OpenAI-compatible provider', () => {
+    expect(DEFAULT_PROVIDERS).toContainEqual(
+      expect.objectContaining({
+        id: 'trustedrouter',
+        name: 'TrustedRouter',
+        apiType: 'openai-completions',
+        baseUrl: 'https://api.trustedrouter.com/v1',
+        enable: false,
+        websites: expect.objectContaining({
+          official: 'https://trustedrouter.com/',
+          apiKey: 'https://trustedrouter.com/keys',
+          docs: 'https://trustedrouter.com/docs',
+          models: 'https://trustedrouter.com/models',
+          defaultBaseUrl: 'https://api.trustedrouter.com/v1'
+        })
+      })
+    )
+  })
+
+  it('includes Standard Compute as a disabled built-in OpenAI-compatible provider', () => {
+    expect(DEFAULT_PROVIDERS).toContainEqual(
+      expect.objectContaining({
+        id: 'standardcompute',
+        name: 'Standard Compute',
+        apiType: 'openai-completions',
+        baseUrl: 'https://api.stdcmpt.com/v1',
+        enable: false,
+        websites: expect.objectContaining({
+          official: 'https://standardcompute.com/',
+          apiKey: 'https://standardcompute.com/dashboard/api-keys',
+          docs: 'https://docs.standardcompute.com/',
+          models: 'https://standardcompute.com/models',
+          defaultBaseUrl: 'https://api.stdcmpt.com/v1'
+        })
+      })
+    )
+  })
+
+  it('includes OpenLLM as a disabled built-in provider pointing at the local daemon', () => {
+    expect(DEFAULT_PROVIDERS).toContainEqual(
+      expect.objectContaining({
+        id: 'openllm',
+        name: 'OpenLLM',
+        apiType: 'openai-completions',
+        apiKey: '',
+        baseUrl: 'http://127.0.0.1:8787/v1',
+        enable: false,
+        websites: expect.objectContaining({
+          official: 'https://www.openllm.sh',
+          apiKey: 'https://www.openllm.sh/sign-in',
+          docs: 'https://docs.openllm.sh',
+          models: 'https://docs.openllm.sh/routing',
+          defaultBaseUrl: 'http://127.0.0.1:8787/v1'
+        })
+      })
+    )
+  })
+
   it('includes Runcrate as a disabled built-in OpenAI-compatible provider', () => {
     expect(DEFAULT_PROVIDERS).toContainEqual(
       expect.objectContaining({
@@ -184,6 +242,44 @@ describe('DEFAULT_PROVIDERS', () => {
           docs: 'https://docs.runanywhere.ai/wally-cloud/api',
           models: 'https://www.runwally.com/pricing',
           defaultBaseUrl: 'https://inference.runanywhere.ai/v1'
+        })
+      })
+    )
+  })
+
+  it('includes UberLLM as a disabled built-in OpenAI-compatible provider', () => {
+    expect(DEFAULT_PROVIDERS).toContainEqual(
+      expect.objectContaining({
+        id: 'uberllm',
+        name: 'UberLLM',
+        apiType: 'openai-completions',
+        baseUrl: 'https://api.uberllm.dev/v1',
+        enable: false,
+        websites: expect.objectContaining({
+          official: 'https://uberllm.dev/',
+          apiKey: 'https://uberllm.dev/dashboard/keys',
+          docs: 'https://uberllm.dev/docs/quickstart',
+          models: 'https://uberllm.dev/models',
+          defaultBaseUrl: 'https://api.uberllm.dev/v1'
+        })
+      })
+    )
+  })
+
+  it('includes Wiro AI as a disabled built-in OpenAI-compatible provider', () => {
+    expect(DEFAULT_PROVIDERS).toContainEqual(
+      expect.objectContaining({
+        id: 'wiro',
+        name: 'Wiro AI',
+        apiType: 'openai-completions',
+        baseUrl: 'https://llm.wiro.ai/v1',
+        enable: false,
+        websites: expect.objectContaining({
+          official: 'https://wiro.ai/',
+          apiKey: 'https://wiro.ai/panel/project/new',
+          docs: 'https://wiro.ai/docs/completions-api',
+          models: 'https://wiro.ai/models?categories=llm-tool-call',
+          defaultBaseUrl: 'https://llm.wiro.ai/v1'
         })
       })
     )
@@ -354,6 +450,44 @@ describe('DEFAULT_PROVIDERS', () => {
           docs: 'https://docs.xxapi.ai/getting-started',
           models: 'https://xxapi.ai/pricing',
           defaultBaseUrl: 'https://xxapi.ai/v1'
+        })
+      })
+    )
+  })
+
+  it('includes WorldRouter as a disabled built-in OpenAI-compatible provider', () => {
+    expect(DEFAULT_PROVIDERS).toContainEqual(
+      expect.objectContaining({
+        id: 'worldrouter',
+        name: 'WorldRouter',
+        apiType: 'openai-completions',
+        baseUrl: 'https://inference-api.worldrouter.ai/v1',
+        enable: false,
+        websites: expect.objectContaining({
+          official: 'https://www.worldrouter.ai/',
+          apiKey: 'https://www.worldrouter.ai/',
+          docs: 'https://www.worldrouter.ai/docs/quickstart',
+          models: 'https://www.worldrouter.ai/models',
+          defaultBaseUrl: 'https://inference-api.worldrouter.ai/v1'
+        })
+      })
+    )
+  })
+
+  it('includes AIGROW as a disabled built-in OpenAI-compatible provider', () => {
+    expect(DEFAULT_PROVIDERS).toContainEqual(
+      expect.objectContaining({
+        id: 'aigrow',
+        name: 'AIGROW',
+        apiType: 'openai-completions',
+        baseUrl: 'https://aigrow.gg/v1',
+        enable: false,
+        websites: expect.objectContaining({
+          official: 'https://aigrow.gg/ai-api',
+          apiKey: 'https://aigrow.gg/dashboard/api',
+          docs: 'https://aigrow.gg/ai-api/guide',
+          models: 'https://aigrow.gg/ai-api',
+          defaultBaseUrl: 'https://aigrow.gg/v1'
         })
       })
     )

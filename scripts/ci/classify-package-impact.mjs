@@ -22,6 +22,12 @@ const sharedPackagePaths = new Set([
   'resources/runtime-versions.json',
   'scripts/afterPack.js',
   'scripts/build-cli.mjs',
+  'scripts/build-dim-host.mjs',
+  'scripts/dim-native-contract.mjs',
+  'scripts/install-dim.mjs',
+  'scripts/package-dim-runtime.mjs',
+  'scripts/prepare-dim-source.mjs',
+  'scripts/smoke-dim-runtime.mjs',
   'scripts/build-cua-plugin-runtime.mjs',
   'scripts/compare-light-ocr-package-size.mjs',
   'scripts/install-runtime.mjs',
@@ -48,7 +54,8 @@ const windowsPackagePaths = new Set([
   'build/icon.ico',
   'build/nsis-installer.nsh',
   'resources/icon.ico',
-  'resources/win_tray.ico'
+  'resources/win_tray.ico',
+  'scripts/install-uv.mjs'
 ])
 
 const linuxPackagePaths = new Set([
@@ -62,6 +69,7 @@ const macosPackagePaths = new Set([
   'build/dmg-background.png',
   'build/dmg-background@2x.png',
   'build/entitlements.mac.plist',
+  'build/entitlements.dim.plist',
   'build/icon.icns',
   'resources/macTrayTemplate.png',
   'scripts/apple-notarization.js',
@@ -80,6 +88,9 @@ const packageImpactRules = Object.freeze([
     matches: (changedPath) =>
       sharedPackagePaths.has(changedPath) ||
       changedPath.startsWith('.github/actions/light-ocr-package-size/') ||
+      changedPath.startsWith('.github/actions/setup-dim/') ||
+      changedPath.startsWith('native/dim-host/') ||
+      changedPath.startsWith('resources/dim-') ||
       changedPath.startsWith('plugins/')
   },
   {

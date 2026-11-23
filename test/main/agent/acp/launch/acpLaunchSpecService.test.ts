@@ -1,6 +1,7 @@
 import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
+import { execFileSync } from 'child_process'
 import { createHash } from 'crypto'
 import { zipSync } from 'fflate'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -153,6 +154,137 @@ describe('AcpLaunchSpecService', () => {
 
     expect(state.status).toBe('installed')
     expect(fs.readFileSync(path.join(state.installDir!, 'codex-acp'), 'utf-8')).toBe('binary')
+    if (process.platform !== 'win32') {
+      expect(fs.statSync(path.join(state.installDir!, 'codex-acp')).mode & 0o777).toBe(0o755)
+    }
+  })
+
+  it.skipIf(process.platform === 'win32')(
+    'preserves executable helpers and resource permissions on install and repair',
+    async () => {
+      const service = createService()
+      const platformKey = getCurrentPlatformKey()
+      const rawZip = Buffer.from(
+        zipSync({
+          agent: [
+            Buffer.from('#!/bin/sh\nexec "${0%/*}/helpers/辅助程序"\n'),
+            { os: 3, attrs: 0o100755 << 16 }
+          ],
+          'helpers/辅助程序': [
+            Buffer.from('#!/bin/sh\nprintf helper-ok\n'),
+            { os: 19, attrs: 0o100555 << 16 }
+          ],
+          'resources/config.json': [Buffer.from('{}'), { os: 3, attrs: 0o100640 << 16 }],
+          'resources/untyped.txt': [Buffer.from('plain'), { os: 3, attrs: 0o100000 << 16 }]
+        })
+      )
+      const archiveComment = Buffer.from('ACP permissions')
+      rawZip.writeUInt16LE(archiveComment.length, rawZip.length - 2)
+      const archive = Buffer.concat([rawZip, archiveComment, Buffer.from('trailing-bytes')])
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => new Response(archive))
+      )
+      const agent = {
+        id: 'permission-agent',
+        name: 'Permission Agent',
+        version: '1.0.0',
+        distribution: {
+          binary: {
+            [platformKey]: {
+              archive: 'https://example.com/agent.zip',
+              cmd: './agent'
+            }
+          }
+        },
+        source: 'registry' as const,
+        enabled: false
+      }
+      const verifyInstallation = (installDir: string) => {
+        expect(fs.statSync(path.join(installDir, 'agent')).mode & 0o777).toBe(0o755)
+        expect(fs.statSync(path.join(installDir, 'helpers/辅助程序')).mode & 0o777).toBe(0o555)
+        expect(fs.statSync(path.join(installDir, 'resources/config.json')).mode & 0o777).toBe(0o640)
+        expect(fs.statSync(path.join(installDir, 'resources/untyped.txt')).mode & 0o400).toBe(0o400)
+        expect(fs.readFileSync(path.join(installDir, 'resources/untyped.txt'), 'utf-8')).toBe(
+          'plain'
+        )
+        expect(execFileSync(path.join(installDir, 'agent'), { encoding: 'utf-8' })).toBe(
+          'helper-ok'
+        )
+      }
+
+      const installed = await service.ensureRegistryAgentInstalled(agent, null)
+      expect(installed.status).toBe('installed')
+      verifyInstallation(installed.installDir!)
+
+      fs.chmodSync(path.join(installed.installDir!, 'helpers/辅助程序'), 0o644)
+      const repaired = await service.ensureRegistryAgentInstalled(agent, installed, {
+        repair: true
+      })
+      expect(repaired.status).toBe('installed')
+      verifyInstallation(repaired.installDir!)
+    }
+  )
+
+  it('preserves permissions when the ZIP directory uses ZIP64 records', async () => {
+    const service = createService()
+    const platformKey = getCurrentPlatformKey()
+    const zip = Buffer.from(
+      zipSync({
+        agent: [Buffer.from('#!/bin/sh\nprintf zip64-ok\n'), { os: 3, attrs: 0o100555 << 16 }]
+      })
+    )
+    const endOffset = zip.length - 22
+    const zip64 = Buffer.alloc(56)
+    zip64.writeUInt32LE(0x06064b50)
+    zip64.writeBigUInt64LE(44n, 4)
+    zip64.writeUInt16LE(45, 12)
+    zip64.writeUInt16LE(45, 14)
+    zip64.writeBigUInt64LE(1n, 24)
+    zip64.writeBigUInt64LE(1n, 32)
+    zip64.writeBigUInt64LE(BigInt(zip.readUInt32LE(endOffset + 12)), 40)
+    zip64.writeBigUInt64LE(BigInt(zip.readUInt32LE(endOffset + 16)), 48)
+    const locator = Buffer.alloc(20)
+    locator.writeUInt32LE(0x07064b50)
+    locator.writeBigUInt64LE(BigInt(endOffset), 8)
+    locator.writeUInt32LE(1, 16)
+    const end = Buffer.from(zip.subarray(endOffset))
+    end.writeUInt16LE(0xffff, 8)
+    end.writeUInt16LE(0xffff, 10)
+    end.writeUInt32LE(0xffffffff, 12)
+    end.writeUInt32LE(0xffffffff, 16)
+    const archive = Buffer.concat([zip.subarray(0, endOffset), zip64, locator, end])
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(archive))
+    )
+
+    const state = await service.ensureRegistryAgentInstalled(
+      {
+        id: 'zip64-agent',
+        name: 'ZIP64 Agent',
+        version: '1.0.0',
+        distribution: {
+          binary: {
+            [platformKey]: {
+              archive: 'https://example.com/agent.zip',
+              cmd: './agent'
+            }
+          }
+        },
+        source: 'registry',
+        enabled: false
+      },
+      null
+    )
+
+    expect(state.status).toBe('installed')
+    const command = path.join(state.installDir!, 'agent')
+    expect(fs.readFileSync(command, 'utf-8')).toBe('#!/bin/sh\nprintf zip64-ok\n')
+    if (process.platform !== 'win32') {
+      expect(fs.statSync(command).mode & 0o777).toBe(0o555)
+      expect(execFileSync(command, { encoding: 'utf-8' })).toBe('zip64-ok')
+    }
   })
 
   it('rejects a registry binary with a mismatched checksum', async () => {

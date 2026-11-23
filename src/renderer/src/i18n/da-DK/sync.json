@@ -17,7 +17,7 @@
     "importFailed": "Import mislykkedes, de oprindelige data er gendannet",
     "importProcess": "Der opstod en fejl under importen",
     "unknown": "Ukendt fejl",
-    "encryptedBackupPasswordMissing": "Denne backup er krypteret, men den lokale databasenøgle er ikke tilgængelig. Lås først den krypterede database op, og importér derefter igen.",
+    "encryptedBackupPasswordMissing": "Den nye arkitektur understøtter ikke SQLite-kryptering, så databasekryptering er midlertidigt utilgængelig. Denne backup er krypteret og kan ikke gendannes direkte fra skyen. Download den til synkroniseringsmappen, brug derefter Importér data, og indtast den oprindelige databaseadgangskode.",
     "overwriteEncryptionMismatch": "Overskrivningsimport kræver, at backup og aktuel database har samme krypteringstilstand.",
     "cloudNotConfigured": "Cloud is not configured. Fill in and save the cloud connection first.",
     "cloudNoBackup": "No backup available in the cloud bucket",

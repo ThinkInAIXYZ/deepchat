@@ -1,19 +1,19 @@
 import {
   resolveNewApiEndpointTypeFromRoute,
-  type NewApiRouteMeta,
-  type NewApiEndpointType
+  type NewApiEndpointType,
+  type NewApiRouteMeta
 } from '@shared/model'
 import type { LLM_PROVIDER } from '@shared/types/provider'
-import type { AiSdkProviderKind } from './aiSdk/providerFactory'
-import type { AiSdkProviderDefinition } from './providerRegistry'
 import { isApimartResponsesRoute, isOpenCodeGoAnthropicRoute } from './capabilityIdentity'
+import type { ProviderTransportKind } from './providerEndpoints'
+import type { AiSdkProviderDefinition } from './providerRegistry'
 
 export function resolveProviderTransport(
   definition: AiSdkProviderDefinition,
   provider: LLM_PROVIDER,
   modelId: string,
   route: NewApiRouteMeta | null
-): { providerKind: AiSdkProviderKind; endpointType?: NewApiEndpointType } {
+): { providerKind: ProviderTransportKind; endpointType?: NewApiEndpointType } {
   const strategy = definition.routeStrategy
   if (strategy === 'opencode-go' && isOpenCodeGoAnthropicRoute(provider.id, modelId)) {
     return { providerKind: 'anthropic' }

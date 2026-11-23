@@ -392,46 +392,6 @@
       },
       "applyFailed": "Falha na importação: {message}"
     },
-    "databaseEncryption": {
-      "title": "Criptografia do banco SQLite",
-      "description": "Criptografa agent.db com SQLCipher e exige uma senha SQLite quando o desbloqueio do sistema não puder ser usado.",
-      "enabled": "Ativada",
-      "disabled": "Desativada",
-      "cipher": "Cifra",
-      "systemUnlock": "Desbloqueio do sistema",
-      "startupUnlock": "Desbloqueio na inicialização",
-      "lastMigration": "Última migração",
-      "loading": "Carregando",
-      "never": "Nunca",
-      "notRequired": "Não necessário",
-      "systemUnlockAvailable": "Disponível",
-      "systemUnlockUnavailable": "Indisponível",
-      "systemUnlockMode": "Desbloqueio do sistema",
-      "manualUnlock": "Senha manual",
-      "currentPassword": "Senha atual",
-      "newPassword": "Nova senha SQLite",
-      "confirmPassword": "Confirmar senha",
-      "passwordMismatch": "As senhas não coincidem",
-      "systemCredentialStore": "Quando o armazenamento seguro do sistema está disponível, o DeepChat salva a senha SQLite criptografada no cofre de credenciais do sistema operacional (macOS Keychain, Windows Credential Vault ou um Linux secret store). Depois de um desbloqueio bem-sucedido, as próximas inicializações normalmente abrem automaticamente; você só precisará informar a chave de criptografia novamente após migração de dados, quando a credencial do sistema estiver ausente ou não puder ser descriptografada, ou quando o armazenamento seguro estiver indisponível.",
-      "safeStorageUnavailable": "O Electron safeStorage não está disponível neste sistema. Depois de ativar a criptografia, será necessário informar a senha em toda inicialização.",
-      "enableButton": "Ativar criptografia",
-      "changeButton": "Alterar senha",
-      "disableButton": "Desativar criptografia",
-      "enabledTitle": "Criptografia do banco ativada",
-      "changedTitle": "Senha SQLite alterada",
-      "disabledTitle": "Criptografia do banco desativada",
-      "failedTitle": "Falha na criptografia do banco",
-      "failedDescription": "Confira a senha e tente novamente.",
-      "setPasswordButton": "Definir senha",
-      "enableDialogTitle": "Definir senha SQLite",
-      "changeDialogTitle": "Alterar senha SQLite",
-      "disableDialogTitle": "Desativar criptografia do banco",
-      "enableDialogDescription": "Cria um banco SQLite criptografado e migra os dados locais atuais para ele.",
-      "changeDialogDescription": "Migra o banco criptografado atual para um novo banco criptografado com a nova senha.",
-      "disableDialogDescription": "Migra o banco criptografado atual de volta para um banco local em texto puro.",
-      "cancelButton": "Cancelar",
-      "unknown": "Desconhecido"
-    },
     "cloudSync": {
       "title": "Sincronização em nuvem (compatível com S3)",
       "description": "Envie backups para um armazenamento compatível com S3, como Cloudflare R2, e recupere o backup mais recente em outro dispositivo.",
@@ -472,7 +432,8 @@
       "saveAndTest": "Salvar e testar",
       "saveOnly": "Apenas salvar",
       "saveAndTestFirst": "Salve e teste a configuração da nuvem primeiro."
-    }
+    },
+    "legacyBackupPassword": "Senha do backup criptografado antigo (opcional)"
   },
   "dashboard": {
     "badge": "Painel de uso",
@@ -637,10 +598,6 @@
       "reasoningToggle": {
         "description": "Controla se o raciocínio fica ativado por padrão para este modelo",
         "label": "Ativar raciocínio"
-      },
-      "interleavedThinking": {
-        "label": "Interleaved Thinking",
-        "description": "Controla se este modelo trata mensagens de raciocínio e tool-call com Interleaved Thinking. Os padrões do provedor são aplicados automaticamente."
       },
       "thinkingBudget": {
         "label": "Orçamento de Pensamento",
@@ -2832,7 +2789,6 @@
     "thinkingBudget": "Orçamento de raciocínio",
     "reasoningEffort": "Nível de raciocínio",
     "verbosity": "Nível de detalhamento",
-    "interleaved": "Forçar compatibilidade com raciocínio intercalado",
     "systemPrompt": "Prompt de sistema padrão",
     "systemPromptPlaceholder": "Deixe em branco para usar um prompt de sistema vazio",
     "defaultProjectPath": "Diretório padrão (opcional)",
@@ -2842,7 +2798,6 @@
     "permissionDefault": "Permissão padrão",
     "defaultToolMode": "Modo padrão",
     "defaultToolModeModelDefaultDesc": "Definido pelo modelo atual. A maioria dos modelos usa Agent.",
-    "defaultToolModeCodePermissionHint": "O modo Code exige que a permissão padrão seja \"{permission}\"; caso contrário, as chamadas de código falharão.",
     "toolsTitle": "Ferramentas internas",
     "outputLimitsTitle": "Limites avançados de saída",
     "outputLimitsDescription": "Controle quanto da saída das ferramentas permanece inline para este agente.",

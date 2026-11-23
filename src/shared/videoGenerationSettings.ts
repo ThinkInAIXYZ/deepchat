@@ -289,3 +289,64 @@ export function normalizeVideoGenerationOptions(
 
   return Object.keys(normalized).length > 0 ? normalized : undefined
 }
+
+const PROMPT_VIDEO_DURATION_EN_PATTERN =
+  /(^|[^0-9a-z])(?<duration>\d{1,2})\s*(?:s|sec|secs|second|seconds)\b/i
+const PROMPT_VIDEO_DURATION_ZH_PATTERN = /(?<duration>\d{1,2})\s*秒/u
+
+function supportsPromptDerivedVideoDuration(modelId: string, duration: number): boolean {
+  const normalizedModelId = modelId.trim().toLowerCase()
+
+  if (normalizedModelId.startsWith('doubao-seedance-')) {
+    return duration >= 4 && duration <= 15
+  }
+
+  return true
+}
+
+function resolvePromptVideoDuration(prompt: string, modelId: string): number | undefined {
+  const normalizedPrompt = prompt.trim()
+  if (!normalizedPrompt) {
+    return undefined
+  }
+
+  const matchedDuration =
+    normalizedPrompt.match(PROMPT_VIDEO_DURATION_EN_PATTERN)?.groups?.duration ||
+    normalizedPrompt.match(PROMPT_VIDEO_DURATION_ZH_PATTERN)?.groups?.duration
+
+  if (!matchedDuration) {
+    return undefined
+  }
+
+  const parsed = Number.parseInt(matchedDuration, 10)
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return undefined
+  }
+
+  return supportsPromptDerivedVideoDuration(modelId, parsed) ? parsed : undefined
+}
+
+export function resolveVideoGenerationRequestOptions(
+  prompt: string,
+  modelId: string,
+  options: VideoGenerationOptions | undefined
+): VideoGenerationOptions | undefined {
+  const normalizedOptions = normalizeVideoGenerationOptions(options)
+
+  if (
+    typeof normalizedOptions?.duration === 'number' ||
+    (typeof normalizedOptions?.seconds === 'string' && normalizedOptions.seconds.trim().length > 0)
+  ) {
+    return normalizedOptions
+  }
+
+  const promptDuration = resolvePromptVideoDuration(prompt, modelId)
+  if (promptDuration === undefined) {
+    return normalizedOptions
+  }
+
+  return normalizeVideoGenerationOptions({
+    ...normalizedOptions,
+    duration: promptDuration
+  })
+}

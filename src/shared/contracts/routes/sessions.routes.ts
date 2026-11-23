@@ -168,6 +168,20 @@ const TapeInspectorFactsSchema = z.object({
     .optional()
 })
 const TapeInspectorFactRecordSchema = z.object({
+  dim: z
+    .object({
+      sessionId: TapeInspectorIdentitySchema,
+      branchId: TapeInspectorIdentitySchema,
+      eventId: TapeInspectorIdentitySchema,
+      sequence: z
+        .string()
+        .regex(/^(0|[1-9]\d*)$/)
+        .refine((value) => BigInt(value) <= 18446744073709551615n),
+      requestId: TapeInspectorIdentitySchema.optional(),
+      semanticName: TapeInspectorListTextSchema.optional(),
+      ordinal: z.number().int().nonnegative()
+    })
+    .optional(),
   recordType: z.literal('fact'),
   key: z.custom<`entry:${number}`>(
     (value) => typeof value === 'string' && value.length <= 32 && /^entry:[1-9]\d*$/u.test(value)

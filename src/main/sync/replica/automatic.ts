@@ -9,9 +9,11 @@ import {
   SYNC_MIN_INTERVAL_MS,
   SYNC_MAX_WAIT_MS,
   SYNC_PART_BYTES,
+  SYNC_MAX_BATCH_BYTES,
   type SyncAutomaticStatus
 } from '@shared/contracts/syncReplica'
 import { SyncBatchFiles } from './batches'
+import { SyncNativeBatches, type SyncReplicaNativePort } from './nativeBatches'
 import type { SyncReplicaStore } from './store'
 
 const Saved = z.object({ enabled: z.boolean(), lastSuccessAt: z.number().nullable() })
@@ -40,6 +42,7 @@ export class AutomaticSync {
   private lastChange = 0
   private disposed = false
   private readonly unsubscribe: () => void
+  private readonly native: SyncNativeBatches
   private readonly outgoing: SyncBatchFiles
   private readonly incoming: SyncBatchFiles
   private saveChain: Promise<void> = Promise.resolve()
@@ -49,6 +52,7 @@ export class AutomaticSync {
     private readonly deps: {
       directory: string
       store: SyncReplicaStore
+      native?: SyncReplicaNativePort
       connection(): Promise<SyncConnection | null>
       available(): boolean
       isEncrypted?(): boolean
@@ -56,6 +60,7 @@ export class AutomaticSync {
       fetch?: typeof fetch
     }
   ) {
+    this.native = new SyncNativeBatches(path.join(deps.directory, 'replica-native'), deps.native)
     this.outgoing = new SyncBatchFiles(path.join(deps.directory, 'outgoing'))
     this.incoming = new SyncBatchFiles(path.join(deps.directory, 'incoming'))
     this.unsubscribe = deps.store.subscribe(() => this.request())
@@ -270,6 +275,7 @@ export class AutomaticSync {
     this.deps.store.started(Date.now())
     this.update('syncing')
     try {
+      await this.native.prune(new Set())
       const info = SyncReplicaInfoSchema.parse(await this.json(connection, '/status', signal))
       if (info.hostId !== connection.hostId || !info.writable)
         throw new Error('sync.tunnel.error.writeConsentRequired')
@@ -288,8 +294,10 @@ export class AutomaticSync {
         const { batch: outgoing, blocked } = this.deps.store.exportWithStatus(cursor)
         outgoingThrough = outgoing.through
         if (outgoing.units.length) {
-          const manifest = await this.outgoing.prepare(outgoing)
-          const { missing } = z
+          const manifest = await this.native.attach(outgoing, await this.outgoing.prepare(outgoing))
+          if (manifest.nativeProfile && info.nativeProfiles !== 1)
+            throw new Error('sync.tunnel.error.automaticUnsupported')
+          const { missing, nativeMissing } = z
             .object({
               missing: z.array(
                 z
@@ -297,18 +305,38 @@ export class AutomaticSync {
                   .int()
                   .min(0)
                   .max(manifest.parts - 1)
-              )
+              ),
+              nativeMissing: z
+                .array(
+                  z.object({
+                    file: z.number().int().nonnegative().safe(),
+                    part: z.number().int().nonnegative().safe()
+                  })
+                )
+                .max(200000)
+                .default([])
             })
             .parse(await this.json(connection, '/upload', signal, manifest))
           for (const part of missing) {
             const data = await this.outgoing.part(manifest.id, part)
             await this.requestHttp(connection, `/part?id=${manifest.id}&part=${part}`, signal, data)
           }
+          for (const { file, part } of nativeMissing) {
+            if (!manifest.nativeProfile) throw new Error('Invalid Native manifest')
+            const data = await this.native.files.part(manifest.nativeProfile, file, part)
+            await this.requestHttp(
+              connection,
+              `/native-part?id=${manifest.id}&file=${file}&part=${part}`,
+              signal,
+              data
+            )
+          }
           const committed = z
             .object({ cursor: z.number().int().nonnegative().safe() })
             .parse(await this.json(connection, `/commit?id=${manifest.id}`, signal, {}))
           if (committed.cursor < outgoing.through) throw new Error('Invalid acknowledgement')
           await this.outgoing.discard(manifest.id)
+          await this.native.discard(manifest)
         }
         if (blocked) uploadFailure = new Error('sync.tunnel.error.busy')
       } catch (error) {
@@ -331,10 +359,34 @@ export class AutomaticSync {
         )
         await this.incoming.receive(manifest, part, await this.bytes(response, SYNC_PART_BYTES))
       }
+      if (manifest.nativeProfile) {
+        if (!this.deps.native) throw new Error('sync.tunnel.error.automaticUnsupported')
+        for (const { file, part } of await this.native.files.missing(manifest.nativeProfile)) {
+          const response = await this.requestHttp(
+            connection,
+            `/native-part?id=${manifest.id}&file=${file}&part=${part}`,
+            signal
+          )
+          await this.native.files.receive(
+            manifest.nativeProfile,
+            file,
+            part,
+            await this.bytes(response, SYNC_PART_BYTES)
+          )
+        }
+      }
       const batch = await this.incoming.assemble(manifest)
-      if (!(await this.deps.store.apply(batch, () => !signal.aborted && this.state.enabled)))
+      if (
+        !(await this.native.apply(
+          this.deps.store,
+          batch,
+          manifest,
+          () => !signal.aborted && this.state.enabled
+        ))
+      )
         throw new Error('sync.tunnel.error.busy')
       await this.incoming.discard(manifest.id)
+      await this.native.discard(manifest)
       if (uploadFailure) throw uploadFailure
       if (batch.through < info.revision) {
         this.update('waiting')
@@ -459,7 +511,12 @@ export class AutomaticSync {
     body?: object
   ): Promise<unknown> {
     return JSON.parse(
-      (await this.bytes(await this.requestHttp(connection, route, signal, body), 65536)).toString()
+      (
+        await this.bytes(
+          await this.requestHttp(connection, route, signal, body),
+          SYNC_MAX_BATCH_BYTES
+        )
+      ).toString()
     )
   }
 

@@ -18,7 +18,7 @@ import { RAW_PROVIDER_MODEL_FACTS_MIGRATION_ID } from '@/provider/providerModelF
 import { encodeLegacyModelStatusKey, encodeModelStatusKey } from '@/provider/modelStatusKey'
 import { openSQLiteDatabase } from '../data/databaseConnection'
 
-export const CURRENT_SYNC_BACKUP_VERSION = 2
+export const CURRENT_SYNC_BACKUP_VERSION = 3
 export const CURRENT_SYNC_CONFIG_SCHEMA_VERSION = 1
 
 export type SyncBackupManifest = {
@@ -29,6 +29,7 @@ export type SyncBackupManifest = {
   configSchemaVersion?: number
   databaseEncrypted?: boolean
   databaseCipher?: 'sqlcipher' | string
+  nativeProfile?: string
 }
 
 export type SyncConfigImportMode = 'increment' | 'overwrite'

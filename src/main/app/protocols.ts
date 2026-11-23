@@ -1,3 +1,4 @@
+import { materializeNativeMedia } from '@/platform/nativeMediaCache'
 import logger from '@shared/logger'
 /**
  * Protocol handlers used by the main process
@@ -53,6 +54,24 @@ const getMimeTypeForPath = (filePath: string): string => {
       return 'image/x-icon'
     case '.avif':
       return 'image/avif'
+    case '.mp3':
+      return 'audio/mpeg'
+    case '.wav':
+      return 'audio/wav'
+    case '.ogg':
+      return 'audio/ogg'
+    case '.opus':
+      return 'audio/opus'
+    case '.aac':
+      return 'audio/aac'
+    case '.flac':
+      return 'audio/flac'
+    case '.mp4':
+      return 'video/mp4'
+    case '.webm':
+      return 'video/webm'
+    case '.mov':
+      return 'video/quicktime'
     case '.woff':
       return 'font/woff'
     case '.woff2':
@@ -146,6 +165,17 @@ const findDeepCdnResourcesDir = async (candidates: string[]): Promise<string> =>
   return candidates[0]
 }
 
+const resolveCdnDir = async (): Promise<string> => {
+  const candidates = is.dev
+    ? [path.join(app.getAppPath(), 'resources')]
+    : [
+        path.join(process.resourcesPath, 'app.asar.unpacked', 'resources'),
+        path.join(process.resourcesPath, 'resources'),
+        process.resourcesPath
+      ]
+  return path.join(await findDeepCdnResourcesDir(candidates), 'cdn')
+}
+
 export async function registerProtocols(
   mcpAppSandboxRegistry: McpAppSandboxRegistry
 ): Promise<void> {
@@ -155,16 +185,7 @@ export async function registerProtocols(
   protocol.handle('deepcdn', async (request) => {
     try {
       const filePath = request.url.slice('deepcdn://'.length)
-      // Determine resource path based on dev/production environment
-      const candidates = is.dev
-        ? [path.join(app.getAppPath(), 'resources')]
-        : [
-            path.join(process.resourcesPath, 'app.asar.unpacked', 'resources'),
-            path.join(process.resourcesPath, 'resources'),
-            process.resourcesPath
-          ]
-      const baseResourcesDir = await findDeepCdnResourcesDir(candidates)
-      const fullPath = resolvePathInsideRoot(path.join(baseResourcesDir, 'cdn'), filePath)
+      const fullPath = resolvePathInsideRoot(await resolveCdnDir(), filePath)
       if (!fullPath) {
         return new Response('Forbidden', {
           status: 403,
@@ -217,6 +238,7 @@ export async function registerProtocols(
     }
 
     try {
+      await materializeNativeMedia(request.url)
       const stat = await fsp.stat(fullPath)
       if (stat.isDirectory()) {
         console.warn(`registerProtocols: imgcache handler: Image file not found: ${fullPath}`)
@@ -298,7 +320,9 @@ export async function registerProtocols(
     }
   })
 
-  registerMcpAppProtocol(mcpAppSandboxRegistry)
+  registerMcpAppProtocol(mcpAppSandboxRegistry, async (fileName) =>
+    path.join(await resolveCdnDir(), fileName)
+  )
 
   logger.info('registerProtocols: Application protocols registered successfully')
 }

@@ -1,5 +1,5 @@
 <template>
-  <div class="min-w-0 text-xs leading-4 text-foreground/60 flex flex-col gap-1.5">
+  <div class="min-w-0 text-xs leading-4 text-foreground/60 flex flex-col">
     <button
       type="button"
       class="inline-flex max-w-full min-w-0 min-h-7 items-center gap-2 py-1 text-sm leading-5 select-none self-start rounded-sm transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 motion-reduce:transition-none"
@@ -12,50 +12,44 @@
         {{ label }}
       </span>
       <Icon
-        v-if="thinking && !expanded"
-        icon="lucide:ellipsis"
-        class="w-3.5 h-3.5 shrink-0 animate-[pulse_1s_ease-in-out_infinite] motion-reduce:animate-none"
-        aria-hidden="true"
-      />
-      <Icon
-        v-else-if="expanded"
-        icon="lucide:chevron-down"
+        :icon="expanded ? 'lucide:chevron-down' : 'lucide:chevron-right'"
         class="w-3.5 h-3.5 shrink-0"
         aria-hidden="true"
       />
-      <Icon v-else icon="lucide:chevron-right" class="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
     </button>
 
-    <div v-if="expanded" :id="contentId" class="w-full min-w-0 pl-6 relative">
-      <NodeRenderer
-        v-if="sanitizedContent"
-        class="think-prose w-full max-w-full"
-        :isDark="themeStore.isDark"
-        :content="sanitizedContent"
-        :deferNodesUntilVisible="true"
-        :maxLiveNodes="120"
-        :liveNodeBuffer="30"
-        :customId="customId"
-        :final="!thinking"
-        :smooth-streaming="false"
-        :code-block-stream="thinking"
-        :code-block-props="thinkingCodeBlockProps"
-      />
-    </div>
-
-    <Icon
-      v-if="thinking && expanded"
-      icon="lucide:ellipsis"
-      class="ml-6 w-3.5 h-3.5 animate-[pulse_1s_ease-in-out_infinite] motion-reduce:animate-none"
-      aria-hidden="true"
-    />
+    <Transition
+      name="thinking-disclosure"
+      @before-leave="(el) => ((el as HTMLElement).inert = true)"
+    >
+      <div v-if="expanded" :id="contentId" class="grid grid-rows-[1fr]">
+        <div class="min-h-0 min-w-0 overflow-clip">
+          <div class="flex min-w-0 flex-col gap-1.5 pl-6 pt-1.5">
+            <NodeRenderer
+              v-if="sanitizedContent"
+              class="think-prose w-full max-w-full"
+              :isDark="themeStore.isDark"
+              :content="sanitizedContent"
+              :deferNodesUntilVisible="true"
+              :maxLiveNodes="120"
+              :liveNodeBuffer="30"
+              :customId="customId"
+              :final="!thinking"
+              :smooth-streaming="false"
+              :code-block-stream="thinking"
+              :code-block-props="thinkingCodeBlockProps"
+            />
+          </div>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
 <script setup lang="ts">
 import { useThemeStore } from '@/stores/theme'
 import { Icon } from '@iconify/vue'
-import { h, computed, onMounted, useId, watch } from 'vue'
+import { h, computed, onMounted, useId } from 'vue'
 import NodeRenderer, { setCustomComponents, PreCodeNode } from 'markstream-vue'
 import { ensureMarkdownWorkers } from '@/lib/markdownWorkerLifecycle'
 
@@ -85,7 +79,6 @@ const thinkingCodeBlockProps = {
   showPreviewButton: false,
   showFontSizeButtons: false
 } as const
-const propsWatchSource = () => [props.label, props.expanded, props.thinking, props.content] as const
 
 onMounted(() => {
   ensureMarkdownWorkers().catch((error) => {
@@ -93,7 +86,6 @@ onMounted(() => {
   })
 })
 
-watch(propsWatchSource, () => {}, { immediate: true })
 setCustomComponents(customId, {
   mermaid: (_props) =>
     h(PreCodeNode, {
@@ -104,6 +96,18 @@ setCustomComponents(customId, {
 
 <style scoped>
 @reference '../../assets/style.css';
+
+@media (prefers-reduced-motion: no-preference) {
+  .thinking-disclosure-enter-active,
+  .thinking-disclosure-leave-active {
+    transition: grid-template-rows var(--dc-motion-default) var(--dc-ease-out-express);
+  }
+
+  .thinking-disclosure-enter-from,
+  .thinking-disclosure-leave-to {
+    grid-template-rows: 0fr;
+  }
+}
 
 .think-prose {
   --ms-text-body: calc(0.75rem * var(--dc-font-scale));

@@ -101,6 +101,13 @@ const createHarness = () => {
     requestAppDecision: vi.fn().mockResolvedValue({ allowed: true })
   }
   const validateSource = vi.fn(() => true)
+  const readHtmlRenderSource = vi.fn<
+    (input: { conversationId: string; messageId: string; blockId: string }) => {
+      title: string
+      html: string
+      panelId: string
+    } | null
+  >(() => ({ title: 'Revenue', html: '<main>Revenue</main>', panelId: 'panel-1' }))
   const host = new McpAppHost({
     settings: {
       getMcpServers
@@ -113,6 +120,8 @@ const createHarness = () => {
     ensureServerRunning: vi.fn(),
     getPermissionMode: vi.fn().mockResolvedValue('default'),
     validateSource,
+    readHtmlRenderSource,
+    listHtmlRenderSections: vi.fn(() => []),
     persistModelContext: vi.fn(() => true)
   })
 
@@ -122,6 +131,7 @@ const createHarness = () => {
     permissionBroker,
     registry,
     validateSource,
+    readHtmlRenderSource,
     setConfig: (config: typeof currentConfig) => {
       currentConfig = config
     }
@@ -129,6 +139,42 @@ const createHarness = () => {
 }
 
 describe('MCP App host', () => {
+  it('prepares an html_render page only from its saved block, with no remote hosts in its CSP', async () => {
+    const { host, registry, readHtmlRenderSource } = createHarness()
+    const input = {
+      conversationId: 'conversation-id',
+      messageId: 'message-id',
+      blockId: 'block-id'
+    }
+
+    const prepared = await host.prepareHtmlRenderView(input, context)
+
+    expect(readHtmlRenderSource).toHaveBeenCalledWith(input)
+    expect(registry.create).toHaveBeenCalledWith(
+      expect.objectContaining({ descriptor: null, title: 'Revenue' })
+    )
+    expect(prepared.html).toContain('<main>Revenue</main>')
+    expect(prepared.html).toContain("'ui/initialize'")
+    expect(prepared.csp).toEqual({})
+
+    readHtmlRenderSource.mockReturnValueOnce(null)
+    await expect(host.prepareHtmlRenderView(input, context)).rejects.toThrow()
+  })
+
+  it('denies MCP server actions and links to an html_render page', async () => {
+    const { client, host, registry } = createHarness()
+    registry.assertOwned.mockReturnValue({
+      ...registry.assertOwned(),
+      descriptor: null,
+      title: 'Revenue'
+    } as never)
+
+    await expect(host.callTool('instance-id', 'render_chart', {}, context)).rejects.toThrow()
+    await expect(host.listTools('instance-id', undefined, context)).rejects.toThrow()
+    expect(client.callTool).not.toHaveBeenCalled()
+    await expect(host.openLink('instance-id', 'https://example.com/', context)).rejects.toThrow()
+  })
+
   it('hydrates an exact saved App binding and finds metadata on later resource pages', async () => {
     const { client, host, registry } = createHarness()
 

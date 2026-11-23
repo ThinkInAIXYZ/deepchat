@@ -7,6 +7,7 @@ import {
   ProviderModel,
   sanitizeAggregate
 } from '@shared/types/model-db'
+import { OPENAI_CODEX_RECOMMENDED_MODEL_IDS } from './openaiCodexAdapter'
 import { resolveProviderId } from './providerId'
 
 const DEFAULT_PROVIDER_DB_URL =
@@ -78,6 +79,7 @@ export type ProviderDbCatalogListener = (change: ProviderDbCatalogChange) => voi
 
 export class ProviderDbLoader {
   private cache: ProviderAggregate | null = null
+  private bundledOpenAI?: ProviderEntry | null
   private userDataDir: string
   private cacheDir: string
   private cacheFilePath: string
@@ -108,8 +110,7 @@ export class ProviderDbLoader {
 
   // Public: initialize on app start (non-blocking refresh)
   async initialize(): Promise<void> {
-    // Load from cache or built-in
-    this.cache = this.loadFromCache() ?? this.loadFromBuiltIn()
+    this.cache = this.loadDb()
     if (this.cache) {
       this.notifyCatalogChanged({
         reason: 'loaded',
@@ -134,9 +135,7 @@ export class ProviderDbLoader {
   }
 
   getDb(): ProviderAggregate | null {
-    if (this.cache) return this.cache
-    // Lazy try again if not initialized yet
-    this.cache = this.loadFromCache() ?? this.loadFromBuiltIn()
+    this.cache ??= this.loadDb()
     return this.cache
   }
 
@@ -155,6 +154,34 @@ export class ProviderDbLoader {
 
   getSourceUrl(): string {
     return this.readMeta()?.sourceUrl?.trim() || this.getProviderDbUrl()
+  }
+
+  private loadDb(): ProviderAggregate | null {
+    const cached = this.loadFromCache()
+    return cached ? this.withBundledCodexModels(cached) : this.loadFromBuiltIn()
+  }
+
+  private withBundledCodexModels(db: ProviderAggregate): ProviderAggregate {
+    if (this.bundledOpenAI === undefined) {
+      this.bundledOpenAI = this.loadFromBuiltIn()?.providers.openai ?? null
+    }
+    if (!this.bundledOpenAI) return db
+
+    const openai = db.providers.openai
+    const cachedModels = openai?.models ?? []
+    const cachedIds = new Set(cachedModels.map((model) => model.id))
+    const missing = this.bundledOpenAI.models.filter(
+      (model) => OPENAI_CODEX_RECOMMENDED_MODEL_IDS.includes(model.id) && !cachedIds.has(model.id)
+    )
+    if (missing.length === 0) return db
+
+    // Discovery and capability lookup share this view. The disk cache stays a remote snapshot.
+    return {
+      providers: {
+        ...db.providers,
+        openai: { ...(openai ?? this.bundledOpenAI), models: [...cachedModels, ...missing] }
+      }
+    }
   }
 
   private loadFromCache(): ProviderAggregate | null {
@@ -354,7 +381,7 @@ export class ProviderDbLoader {
       // Write cache atomically and update in-memory
       this.writeCacheAtomically(sanitized)
       this.writeMeta(meta)
-      this.cache = sanitized
+      this.cache = this.withBundledCodexModels(sanitized)
       this.notifyCatalogChanged({
         reason: 'updated',
         providersCount: Object.keys(this.cache.providers || {}).length,

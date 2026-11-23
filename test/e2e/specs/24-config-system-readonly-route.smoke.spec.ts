@@ -10,6 +10,14 @@ test('config system read-only routes expose proxy sync update and model defaults
   const settingsPage = await openSettings(app)
   await openSettingsTab(settingsPage, 'settings-tab-about')
   await expect(settingsPage.getByTestId('settings-about-page')).toBeVisible({ timeout: 30_000 })
+  const channelSelector = settingsPage
+    .getByTestId('settings-about-page')
+    .getByRole('combobox', { name: 'Update Channel' })
+  await expect(channelSelector).toBeEnabled()
+  await channelSelector.click()
+  await expect(settingsPage.getByRole('option', { name: 'Stable' })).toBeVisible()
+  await expect(settingsPage.getByRole('option', { name: 'Beta' })).toBeVisible()
+  await settingsPage.keyboard.press('Escape')
 
   const snapshot = await settingsPage.evaluate(async () => {
     type ModelSelection = {
@@ -54,9 +62,6 @@ test('config system read-only routes expose proxy sync update and model defaults
       value == null || (typeof value.providerId === 'string' && typeof value.modelId === 'string')
 
     return {
-      aboutPageHasChannelOptions:
-        document.body.textContent?.includes('stable') ||
-        document.body.textContent?.includes('beta'),
       assistantModelValid: isModelSelection(entries.values?.assistantModel),
       customProxyUrlType: typeof proxy.customProxyUrl,
       defaultModelValid: isModelSelection(entries.values?.defaultModel),
@@ -81,7 +86,6 @@ test('config system read-only routes expose proxy sync update and model defaults
     }
   })
 
-  expect(snapshot.aboutPageHasChannelOptions).toBe(true)
   expect(['system', 'none', 'custom']).toContain(snapshot.proxyMode)
   expect(snapshot.customProxyUrlType).toBe('string')
   expect(['stable', 'beta']).toContain(snapshot.updateChannel)

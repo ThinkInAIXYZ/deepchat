@@ -319,6 +319,8 @@
     "title": "Aplikasi MCP",
     "interactiveContent": "Konten interaktif dari server MCP",
     "loadError": "Aplikasi MCP ini tidak dapat dimuat.",
+    "pageLoadError": "Tidak dapat menampilkan halaman ini.",
+    "pageScriptError": "Sebagian halaman ini gagal dijalankan.",
     "retry": "Coba lagi",
     "fullscreen": "Buka layar penuh",
     "pictureInPicture": "Buka gambar-dalam-gambar",

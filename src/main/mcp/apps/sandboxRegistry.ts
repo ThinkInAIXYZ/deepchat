@@ -34,13 +34,16 @@ export type McpAppSandboxInstance = {
   conversationId: string
   messageId: string
   blockId: string
-  descriptor: McpAppDescriptor
+  // null marks a host-owned view, which has no MCP server behind it.
+  descriptor: McpAppDescriptor | null
+  title: string
   toolInput: Record<string, unknown>
   html: string
   csp?: McpAppCsp
   permissions?: McpAppPermissions
   prefersBorder?: boolean
   advisoryDomain?: string
+  libraries?: ReadonlyMap<string, string>
   expiresAt: number
   toolAccessSuspended: boolean
 }
@@ -147,13 +150,15 @@ export class McpAppSandboxRegistry {
     conversationId: string
     messageId: string
     blockId: string
-    descriptor: McpAppDescriptor
+    descriptor: McpAppDescriptor | null
+    title: string
     toolInput: Record<string, unknown>
     html: string
     csp?: McpAppCsp
     permissions?: McpAppPermissions
     prefersBorder?: boolean
     advisoryDomain?: string
+    libraries?: ReadonlyMap<string, string>
     validateLive(): boolean
   }): McpAppSandboxInstance {
     this.pruneExpired()
@@ -175,12 +180,14 @@ export class McpAppSandboxRegistry {
       messageId: input.messageId,
       blockId: input.blockId,
       descriptor: input.descriptor,
+      title: input.title,
       toolInput: input.toolInput,
       html: input.html,
       csp: input.csp,
       permissions: input.permissions,
       prefersBorder: input.prefersBorder,
       advisoryDomain: input.advisoryDomain,
+      libraries: input.libraries,
       expiresAt: Date.now() + DEFAULT_INSTANCE_TTL_MS,
       toolAccessSuspended: false
     }
@@ -256,7 +263,7 @@ export class McpAppSandboxRegistry {
 
   revokeByServer(serverId: string): void {
     for (const instance of this.instances.values()) {
-      if (instance.descriptor.serverId === serverId) {
+      if (instance.descriptor?.serverId === serverId) {
         this.revoke(instance.instanceId)
       }
     }
@@ -331,7 +338,7 @@ export class McpAppSandboxRegistry {
         request: {
           requestId,
           kind: input.kind,
-          serverName: instance.descriptor.serverName,
+          serverName: instance.descriptor?.serverName ?? instance.title,
           title: input.title,
           detail: input.detail,
           argumentsPreview: input.argumentsPreview,
@@ -408,7 +415,7 @@ export class McpAppSandboxRegistry {
           this.requestConsent(instance, {
             kind,
             title: kind,
-            detail: instance.descriptor.toolName
+            detail: instance.title
           })
         )
       )

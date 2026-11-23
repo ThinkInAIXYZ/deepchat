@@ -1,3 +1,4 @@
+import { materializeNativeMedia } from '@/platform/nativeMediaCache'
 import logger from '@shared/logger'
 import { app, clipboard, dialog, nativeImage, net } from 'electron'
 import fs from 'fs/promises'
@@ -411,6 +412,7 @@ export class FileService implements FileServicePort {
   }
 
   private async resolveCachedImage(source: string): Promise<ResolvedImageData> {
+    await materializeNativeMedia(source)
     const cacheDir = path.join(app.getPath('userData'), 'images')
     const rawCachePath = source.slice('imgcache://'.length)
     const cachePath = this.safeDecodePath(rawCachePath)

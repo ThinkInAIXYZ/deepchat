@@ -67,9 +67,6 @@ import {
   chatStopStreamRoute
 } from './routes/chat.routes'
 import {
-  databaseSecurityChangePasswordRoute,
-  databaseSecurityDisableRoute,
-  databaseSecurityEnableRoute,
   databaseSecurityGetStatusRoute,
   databaseSecurityRepairSchemaRoute
 } from './routes/database-security.routes'
@@ -246,6 +243,9 @@ import {
   mcpAppsListToolsRoute,
   mcpAppsOpenLinkRoute,
   mcpAppsPrepareViewRoute,
+  mcpAppsPrepareHostViewRoute,
+  mcpAppsPrepareHtmlRenderRoute,
+  mcpAppsReadHtmlRenderSectionsRoute,
   mcpAppsReadResourceRoute,
   mcpAppsReleaseViewRoute,
   mcpAppsRetryToolAccessRoute,
@@ -1157,9 +1157,6 @@ const DEEPCHAT_ROUTE_CATALOG_PART_5 = {
   [chatRespondToolInteractionRoute.name]: chatRespondToolInteractionRoute,
   [chatDismissToolInteractionRoute.name]: chatDismissToolInteractionRoute,
   [databaseSecurityGetStatusRoute.name]: databaseSecurityGetStatusRoute,
-  [databaseSecurityEnableRoute.name]: databaseSecurityEnableRoute,
-  [databaseSecurityChangePasswordRoute.name]: databaseSecurityChangePasswordRoute,
-  [databaseSecurityDisableRoute.name]: databaseSecurityDisableRoute,
   [databaseSecurityRepairSchemaRoute.name]: databaseSecurityRepairSchemaRoute,
   [memoryPageRoute.name]: memoryPageRoute,
   [memorySearchRoute.name]: memorySearchRoute,
@@ -1286,6 +1283,9 @@ const DEEPCHAT_ROUTE_CATALOG_PART_5 = {
   [mcpSubmitElicitationDecisionRoute.name]: mcpSubmitElicitationDecisionRoute,
   [mcpCancelElicitationRequestRoute.name]: mcpCancelElicitationRequestRoute,
   [mcpAppsPrepareViewRoute.name]: mcpAppsPrepareViewRoute,
+  [mcpAppsPrepareHostViewRoute.name]: mcpAppsPrepareHostViewRoute,
+  [mcpAppsPrepareHtmlRenderRoute.name]: mcpAppsPrepareHtmlRenderRoute,
+  [mcpAppsReadHtmlRenderSectionsRoute.name]: mcpAppsReadHtmlRenderSectionsRoute,
   [mcpAppsReleaseViewRoute.name]: mcpAppsReleaseViewRoute,
   [mcpAppsCallToolRoute.name]: mcpAppsCallToolRoute,
   [mcpAppsListToolsRoute.name]: mcpAppsListToolsRoute,

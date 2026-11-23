@@ -372,7 +372,8 @@ describe('CLI argument grammar', () => {
       readStdin: true
     })
     expect(parseCliArguments(['provider', 'test', '--provider', 'provider-1'], {})).toMatchObject({
-      contract: { name: 'providers.testPublicConnection' }
+      contract: { name: 'providers.testPublicConnection' },
+      timeoutMs: DEFAULT_COMPUTE_TIMEOUT_MS
     })
     expect(() =>
       parseCliArguments(

@@ -60,37 +60,6 @@ export const databaseSecurityGetStatusRoute = defineRouteContract({
   })
 })
 
-export const databaseSecurityEnableRoute = defineRouteContract({
-  name: 'databaseSecurity.enable',
-  input: z.object({
-    password: z.string().min(1)
-  }),
-  output: z.object({
-    status: DatabaseSecurityStatusSchema
-  })
-})
-
-export const databaseSecurityChangePasswordRoute = defineRouteContract({
-  name: 'databaseSecurity.changePassword',
-  input: z.object({
-    currentPassword: z.string().min(1),
-    newPassword: z.string().min(1)
-  }),
-  output: z.object({
-    status: DatabaseSecurityStatusSchema
-  })
-})
-
-export const databaseSecurityDisableRoute = defineRouteContract({
-  name: 'databaseSecurity.disable',
-  input: z.object({
-    currentPassword: z.string().min(1)
-  }),
-  output: z.object({
-    status: DatabaseSecurityStatusSchema
-  })
-})
-
 export const databaseSecurityRepairSchemaRoute = defineRouteContract({
   name: 'databaseSecurity.repairSchema',
   input: z.object({}).default({}),

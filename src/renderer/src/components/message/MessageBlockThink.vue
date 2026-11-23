@@ -2,7 +2,7 @@
   <ThinkContent
     :label="headerText"
     :expanded="!collapse"
-    :thinking="block.status === 'loading'"
+    :thinking="isThinking"
     :content="block.content"
     @toggle="toggleExpanded"
   />
@@ -11,10 +11,9 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { ThinkContent } from '@/components/think-content'
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { createConfigClient } from '@api/ConfigClient'
 import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
-import { useThrottleFn } from '@vueuse/core'
 const props = withDefaults(
   defineProps<{
     block: DisplayAssistantMessageBlock
@@ -35,9 +34,7 @@ const { t } = useI18n()
 
 const configClient = createConfigClient()
 
-// kept for potential future scroll anchoring; currently unused
-
-const collapse = ref(props.initiallyExpanded === false)
+const collapse = ref(props.initiallyExpanded !== true)
 let hasManualToggle = props.initiallyExpanded !== undefined
 
 const toggleExpanded = () => {
@@ -47,72 +44,32 @@ const toggleExpanded = () => {
   emit('manual-toggle', !collapse.value)
 }
 
-const displayedSeconds = ref(0)
-const UPDATE_INTERVAL = 1000
-const UPDATE_OFFSET = 80
-let updateTimer: ReturnType<typeof setTimeout> | null = null
-
-type ReasoningTimeRange = {
-  start: number
-  end: number
-}
-
-const toReasoningTimeRange = (
-  value: DisplayAssistantMessageBlock['reasoning_time']
-): ReasoningTimeRange | null => {
-  if (!value || typeof value !== 'object') {
-    return null
-  }
-
-  return typeof value.start === 'number' && typeof value.end === 'number'
-    ? { start: value.start, end: value.end }
-    : null
-}
-
-const reasoningTimeRange = computed(() => toReasoningTimeRange(props.block.reasoning_time))
-
-const reasoningDuration = computed(() => {
-  let duration = 0
-  const range = reasoningTimeRange.value
-  if (range) {
-    duration = (range.end - range.start) / 1000
-  } else {
-    duration = (props.usage.reasoning_end_time - props.usage.reasoning_start_time) / 1000
-  }
-  return duration
+const isThinking = computed(() => props.block.status === 'loading')
+const now = ref(Date.now())
+const displayedSeconds = computed(() => {
+  const time = props.block.reasoning_time
+  const range =
+    time && typeof time === 'object' && Number.isFinite(time.start) && Number.isFinite(time.end)
+      ? time
+      : undefined
+  const start = range?.start ?? props.block.timestamp
+  const duration = range
+    ? range.end - range.start
+    : props.usage.reasoning_end_time - props.usage.reasoning_start_time
+  const elapsed = isThinking.value ? Math.max(duration, now.value - start) : duration
+  return Number.isFinite(elapsed) ? Math.max(0, Math.floor(elapsed / 1000)) : 0
 })
 
-const updateDisplayedSeconds = () => {
-  const normalized = Number.isFinite(reasoningDuration.value) ? reasoningDuration.value : 0
-  const value = Math.max(0, Math.floor(normalized))
-  displayedSeconds.value = value
-}
-
-const stopTimer = () => {
-  if (updateTimer !== null) {
-    clearTimeout(updateTimer)
-    updateTimer = null
-  }
-}
-
-const scheduleNextUpdate = () => {
-  stopTimer()
-  if (props.block.status !== 'loading') return
-
-  const fallbackDuration = Number.isFinite(reasoningDuration.value)
-    ? reasoningDuration.value * 1000
-    : 0
-  const startTimestamp = reasoningTimeRange.value?.start ?? Date.now() - fallbackDuration
-  const now = Date.now()
-  const elapsed = Math.max(0, now - startTimestamp)
-  const remainder = elapsed % UPDATE_INTERVAL
-  const delay = Math.max(UPDATE_INTERVAL - remainder, 0) + UPDATE_OFFSET
-
-  updateTimer = setTimeout(() => {
-    updateDisplayedSeconds()
-    scheduleNextUpdate()
-  }, delay)
-}
+watch(
+  isThinking,
+  (thinking, _, onCleanup) => {
+    if (!thinking) return
+    now.value = Date.now()
+    const timer = setInterval(() => (now.value = Date.now()), 1000)
+    onCleanup(() => clearInterval(timer))
+  },
+  { immediate: true }
+)
 
 const isModeChange = computed(() => {
   return props.block.extra?.mode_change !== undefined
@@ -127,8 +84,10 @@ const headerText = computed(() => {
     return t('chat.features.modeChanged', { mode: modeChangeId.value })
   }
   const seconds = displayedSeconds.value
-  if (props.block.status === 'loading') {
-    return t('chat.features.thoughtForSecondsLoading', { seconds })
+  if (isThinking.value) {
+    return seconds === 0
+      ? t('chat.messages.thinking')
+      : t('chat.features.thoughtForSecondsLoading', { seconds })
   }
   return seconds === 0
     ? t('chat.features.thoughtForLessThanOneSecond')
@@ -142,46 +101,8 @@ watch(
   }
 )
 
-const statusWatchSource = () =>
-  [props.block.status, reasoningTimeRange.value?.start, reasoningTimeRange.value?.end] as const
-
-const handleStatusChange = useThrottleFn(
-  () => {
-    updateDisplayedSeconds()
-    if (props.block.status === 'loading') {
-      scheduleNextUpdate()
-    } else {
-      stopTimer()
-    }
-  },
-  500,
-  true,
-  true
-)
-
-watch(
-  statusWatchSource,
-  () => {
-    handleStatusChange()
-  },
-  { immediate: true }
-)
-
-watch(
-  () => reasoningDuration.value,
-  () => {
-    // Always update displayed seconds when reasoning duration changes
-    // This ensures real-time updates during streaming
-    updateDisplayedSeconds()
-  }
-)
-
 onMounted(async () => {
   const savedCollapse = Boolean(await configClient.getSetting('think_collapse'))
   if (!hasManualToggle) collapse.value = savedCollapse
-})
-
-onBeforeUnmount(() => {
-  stopTimer()
 })
 </script>

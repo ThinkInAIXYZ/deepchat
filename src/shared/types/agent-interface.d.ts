@@ -1,7 +1,7 @@
 import type { ReasoningEffort, ReasoningVisibility, Verbosity } from './model-db'
 import type { ImageGenerationOptions } from '../imageGenerationSettings'
 import type { VideoGenerationOptions } from '../videoGenerationSettings'
-import type { PersistedMcpToolResult, ToolCallImagePreview } from './core/mcp'
+import type { HtmlRenderDescriptor, PersistedMcpToolResult, ToolCallImagePreview } from './core/mcp'
 import type { LegacyAgentPlanMetadata } from './legacy-agent-plan'
 import type { DeepChatTapeViewManifestRecord } from './tape-view-manifest'
 import type {
@@ -42,6 +42,14 @@ export interface SessionCompactionSnapshot {
   state: SessionCompactionState
   emitSeq: number
   latestAnchorEntryId: number | null
+  timeline?: DimTimelinePosition
+}
+
+export interface DimTimelinePosition {
+  sessionId: string
+  branchId: string
+  sequence: string
+  eventId?: string
 }
 
 export type SessionContextOccupancyFreshness = 'current' | 'stale' | 'unavailable'
@@ -53,10 +61,11 @@ export type SessionContextOccupancySnapshot =
       source: SessionContextOccupancySource
       occupiedTokens: number
       contextWindowTokens: number
-      requestSeq: number
-      manifestEntryId: number
+      requestSeq: number | null
+      manifestEntryId: number | null
       providerAttemptEntryId: number | null
       measuredAt: number
+      timeline?: DimTimelinePosition
     }
   | {
       freshness: 'unavailable'
@@ -80,7 +89,6 @@ export interface SessionGenerationSettings {
   reasoningEffort?: ReasoningEffort
   reasoningVisibility?: ReasoningVisibility
   verbosity?: Verbosity
-  forceInterleavedThinkingCompat?: boolean
   imageGeneration?: ImageGenerationOptions
   videoGeneration?: VideoGenerationOptions
 }
@@ -208,6 +216,8 @@ export interface QueuePendingInputOptions {
   source?: PendingInputEnqueueSource
   projectDir?: string | null
   signal?: AbortSignal
+  submissionId?: string
+  maxProviderRounds?: number
 }
 
 export interface SessionAgentContextUpdate {
@@ -339,6 +349,7 @@ export interface ToolCallBlockData {
   server_icons?: string
   server_description?: string
   mcpResult?: PersistedMcpToolResult
+  htmlRender?: HtmlRenderDescriptor
 }
 
 export interface QuestionOption {
@@ -417,6 +428,17 @@ export interface AgentNoProgressToolLoopMetadata {
 export type InteractionResolution = 'cancelled' | 'follow_up' | 'error' | 'pending_input'
 
 export interface MessageMetadata {
+  dim?: {
+    sessionId: string
+    branchId: string
+    eventId: string
+    sequence: string
+    submissionId?: string
+    revision?: number
+    turnId?: string
+    imported?: boolean
+    source?: DimTimelinePosition
+  }
   acp?: { remoteSessionId: string; turnId?: string; historyDigest?: string }
   runId?: string
   runOutcome?: 'completed' | 'paused' | 'aborted' | 'error'
@@ -599,7 +621,6 @@ export interface DeepChatAgentModelPreset extends DeepChatAgentModelSelection {
   thinkingBudget?: number
   reasoningEffort?: SessionGenerationSettings['reasoningEffort']
   verbosity?: SessionGenerationSettings['verbosity']
-  forceInterleavedThinkingCompat?: boolean
 }
 
 export interface DeepChatSubagentSlot {
@@ -827,6 +848,7 @@ export type ToolInteractionResponse =
   | {
       kind: 'question_option'
       optionLabel: string
+      answers?: import('../dimQuestions').DimQuestionAnswer[]
     }
   | {
       kind: 'question_custom'

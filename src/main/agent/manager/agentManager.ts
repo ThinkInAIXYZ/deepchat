@@ -51,6 +51,11 @@ export class AgentCapabilityUnavailableError extends Error {
   }
 }
 
+export interface AgentManagerOptions {
+  /** Old built-in sessions may name an ACP agent through the provider/model selection. */
+  compatibilityAcpAgent?(sessionId: AppSessionId): string | undefined
+}
+
 export interface AgentBackendSet {
   readonly deepchat: DeepChatAgentBackend
   readonly acp: DirectAcpSessionBackend
@@ -88,7 +93,8 @@ export class AgentManager implements AgentManagerGenerationPort {
   constructor(
     private readonly catalog: ExecutableAgentCatalog,
     private readonly appSessions: AppSessionLookupPort,
-    private readonly backends: AgentBackendSet
+    private readonly backends: AgentBackendSet,
+    private readonly options: AgentManagerOptions = {}
   ) {}
 
   resolveBackend(agentId: string): ResolvedAgentBackend {
@@ -98,14 +104,23 @@ export class AgentManager implements AgentManagerGenerationPort {
       : { kind: descriptor.kind, descriptor, backend: this.backends.acp }
   }
 
-  resolveSessionBackend(sessionId: AppSessionId): ResolvedAgentBackend {
+  resolveSessionBackend(sessionId: AppSessionId, initialAcpAgentId?: string): ResolvedAgentBackend {
     const session = this.appSessions.get(sessionId)
     if (!session) throw new AppSessionNotFoundError(sessionId)
-    return this.resolveBackend(session.agentId)
+    const owner = this.resolveBackend(session.agentId)
+    const target =
+      owner.kind === 'deepchat'
+        ? (initialAcpAgentId ?? this.options.compatibilityAcpAgent?.(sessionId))
+        : undefined
+    if (!target) return owner
+    const client = this.resolveBackend(target)
+    if (client.kind !== 'acp')
+      throw new Error('ACP compatibility target must be an ACP client agent')
+    return client
   }
 
-  resolveSessionHandle(sessionId: AppSessionId): ResolvedAgentSession {
-    const resolved = this.resolveSessionBackend(sessionId)
+  resolveSessionHandle(sessionId: AppSessionId, initialAcpAgentId?: string): ResolvedAgentSession {
+    const resolved = this.resolveSessionBackend(sessionId, initialAcpAgentId)
     if (resolved.kind === 'deepchat') {
       return {
         kind: resolved.kind,

@@ -13,8 +13,7 @@ const createValidCapabilities = () => ({
   requestPolicy: {
     temperature: { mode: 'passthrough' as const },
     topP: { mode: 'passthrough' as const },
-    reasoning: { mode: 'passthrough' as const },
-    legacyThinking: { mode: 'passthrough' as const }
+    reasoning: { mode: 'passthrough' as const }
   },
   supportsAudioInput: false,
   supportsReasoning: true,

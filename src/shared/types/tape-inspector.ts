@@ -60,7 +60,19 @@ export interface TapeInspectorFacts {
   usage?: TapeInspectorUsageFacts
 }
 
+export interface DimInspectorPosition {
+  sessionId: string
+  branchId: string
+  eventId: string
+  sequence: string
+  requestId?: string
+  semanticName?: string
+  ordinal: number
+}
+
 export interface TapeInspectorFactRecord {
+  /** Native position; entryId and requestSeq are local display ordinals, never native cursors. */
+  dim?: DimInspectorPosition
   recordType: 'fact'
   key: `entry:${number}`
   entryId: number

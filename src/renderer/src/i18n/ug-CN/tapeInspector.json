@@ -5,7 +5,7 @@
     "expand": "يېيىش",
     "collapse": "يىغىش",
     "refresh": "يېڭىلاش",
-    "loadOlder": "بالدۇرراق Tape Entry",
+    "loadOlder": "بالدۇرراق timeline event",
     "loadMore": "تېخىمۇ كۆپ يۈكلىدى",
     "loadEvidence": "تېخىمۇ كۆپ مودېل ئىلتىماسىنى يۈكلەش",
     "loadMatchingEntries": "مۇناسىپ Entry",
@@ -23,8 +23,8 @@
     "waterfall": "شارقىراتما خەرىتىسى"
   },
   "search": {
-    "loadedLabel": "يۈكلەنگەن Tape Entry ۋە مودېل ئىلتىماسىنى ئىزدەش پروگراممىسى",
-    "loadedPlaceholder": "يۈكلەنگەن Tape Entry ۋە مودېل ئىلتىماسىنى ئىزدەش پروگراممىسى",
+    "loadedLabel": "يۈكلەنگەن timeline event ۋە مودېل ئىلتىماسىنى ئىزدەش پروگراممىسى",
+    "loadedPlaceholder": "يۈكلەنگەن timeline event ۋە مودېل ئىلتىماسىنى ئىزدەش پروگراممىسى",
     "loadedScope": "ئىزدەش پەقەت قاچىلانغان دائىرىنىلا قاپلايدۇ"
   },
   "filters": {
@@ -104,11 +104,11 @@
     "timingNotRecorded": "بۇ خاتىرە بىر ۋاقىت چەكلىرىنى بىرلىكتە ساقلىمايدۇ",
     "timingInconsistent": "خاتىرىلەنگەن ۋاقىت چەكلىرى ماس كەلمەيدۇ",
     "notApplicable": "بۇ تۈر قوللىنىشچان ئەمەس",
-    "empty": "ماس كېلىدىغان Tape Entry ياكى مودېل ئىلتىماسى يوق",
-    "loadedCounts": "{entries} تال Tape Entry · {evidence} تال مودېل ئىلتىماسى",
-    "pageLoaded": "{count} تال Tape Entry يۈكلەندى. ھازىرقى ئورۇن ساقلانغان، داۋاملىق تەكشۈرۈش ئۈچۈن ئاستا سۈرىڭ.",
-    "pageLoadedComplete": "{count} تال Tape Entry يۈكلەندى، ھازىرقى ئورۇن Tape باشلىنىشىغا يەتتى.",
-    "pageNoMatches": "كەلگۈسى چەكلىك دائىرىنى سۈرەندى، ئەمما ھازىرقى شەرتكە ماس Tape Entry يوق.",
+    "empty": "ماس كېلىدىغان timeline event ياكى مودېل ئىلتىماسى يوق",
+    "loadedCounts": "{entries} تال timeline event · {evidence} تال مودېل ئىلتىماسى",
+    "pageLoaded": "{count} تال timeline event يۈكلەندى. ھازىرقى ئورۇن ساقلانغان، داۋاملىق تەكشۈرۈش ئۈچۈن ئاستا سۈرىڭ.",
+    "pageLoadedComplete": "{count} تال timeline event يۈكلەندى، ھازىرقى ئورۇن Tape باشلىنىشىغا يەتتى.",
+    "pageNoMatches": "كەلگۈسى چەكلىك دائىرىنى سۈرەندى، ئەمما ھازىرقى شەرتكە ماس timeline event يوق.",
     "pageNoMatchesComplete": "Tape باشلىنىشىغا يەتتى، بۇندىن بۇرۇنقى ھازىرقى شەرتكە ماس Entry يوق.",
     "matchingEntriesUnavailable": "Tape تەرەتىپنى ئىشلىتىپ، Entry تاللاشنى تازىلىغاندىن كېيىن ماس تارىخنى يۈكلەڭ",
     "live": "ھەقىقىي ۋاقىت",
@@ -129,7 +129,7 @@
     "duration": "ۋاقىت ئارىلىقى",
     "point": "ۋاقىت نۇقتىسى",
     "error": "خاتالىق",
-    "earlierNotLoaded": "ئىلگىرىكى Tape Entry يۈكلەنمىگەن"
+    "earlierNotLoaded": "ئىلگىرىكى timeline event يۈكلەنمىگەن"
   },
   "detail": {
     "title": "تەپسىلات",

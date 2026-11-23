@@ -16,7 +16,7 @@ workflow rather than a local command that rebuilds a developer's native dependen
 | Job | Required behavior |
 | --- | --- |
 | `static` | Lint, formatting, i18n parity, renderer architecture baseline, icon generation, and type checking |
-| `test-main` | Complete main suite, then `test:harness:node` against the production dependency closure |
+| `test-main` | Complete main suite, then `test:harness:node` against the actual pinned dim Rust host and injected plugins |
 | `test-renderer` | Complete renderer suite with the committed worker and heap settings |
 | `test-native-memory` | DuckDB/VSS preparation, portable Memory, encrypted SQLite smoke, Native Tape/OCR/Memory, retrieval evaluation, performance bounds, and report upload |
 | `build` | Canonical `pnpm run build`, including its prebuild refresh and local build checks |

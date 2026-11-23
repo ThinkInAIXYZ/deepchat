@@ -392,46 +392,6 @@
       },
       "applyFailed": "匯入失敗：{message}"
     },
-    "databaseEncryption": {
-      "title": "SQLite 資料庫加密",
-      "description": "使用 SQLCipher 加密 agent.db；系統解鎖不可用時需要輸入 SQLite 密碼。",
-      "enabled": "已啟用",
-      "disabled": "未啟用",
-      "cipher": "加密方式",
-      "systemUnlock": "系統解鎖",
-      "startupUnlock": "啟動解鎖",
-      "lastMigration": "上次遷移",
-      "loading": "載入中",
-      "never": "從未",
-      "notRequired": "不需要",
-      "systemUnlockAvailable": "可用",
-      "systemUnlockUnavailable": "不可用",
-      "systemUnlockMode": "系統解鎖",
-      "manualUnlock": "手動輸入密碼",
-      "currentPassword": "目前密碼",
-      "newPassword": "新的 SQLite 密碼",
-      "confirmPassword": "確認密碼",
-      "passwordMismatch": "兩次輸入的密碼不一致",
-      "systemCredentialStore": "系統安全儲存可用時，DeepChat 會把 SQLite 密碼加密儲存到系統憑證庫（例如 macOS Keychain、Windows 認證保險箱或 Linux secret store）。首次解鎖成功後，後續啟動通常會自動開啟；只有遷移資料、系統憑證遺失或無法解密，以及安全儲存不可用時，才需要再次輸入加密密鑰。",
-      "safeStorageUnavailable": "目前系統無法使用 Electron safeStorage。啟用後每次啟動都需要手動輸入密碼。",
-      "enableButton": "啟用加密",
-      "changeButton": "修改密碼",
-      "disableButton": "關閉加密",
-      "enabledTitle": "資料庫加密已啟用",
-      "changedTitle": "SQLite 密碼已修改",
-      "disabledTitle": "資料庫加密已關閉",
-      "failedTitle": "資料庫加密操作失敗",
-      "failedDescription": "請檢查密碼後重試。",
-      "setPasswordButton": "設定密碼",
-      "enableDialogTitle": "設定 SQLite 密碼",
-      "changeDialogTitle": "修改 SQLite 密碼",
-      "disableDialogTitle": "關閉資料庫加密",
-      "enableDialogDescription": "建立加密 SQLite 資料庫，並將目前本機資料遷移進去。",
-      "changeDialogDescription": "將目前加密資料庫遷移為使用新密碼的新加密資料庫。",
-      "disableDialogDescription": "將目前加密資料庫遷移回本機明文資料庫。",
-      "cancelButton": "取消",
-      "unknown": "未知"
-    },
     "cloudSync": {
       "title": "雲端同步 (S3 兼容)",
       "description": "將備份上載到 Cloudflare R2 等 S3 兼容儲存，並在另一部裝置拉取最新備份。",
@@ -472,7 +432,8 @@
       "saveAndTest": "儲存並測試",
       "saveOnly": "僅儲存",
       "saveAndTestFirst": "請先儲存並測試雲端設定。"
-    }
+    },
+    "legacyBackupPassword": "舊加密備份密碼（選填）"
   },
   "dashboard": {
     "badge": "使用看板",
@@ -637,10 +598,6 @@
       "reasoningToggle": {
         "description": "控制該模型預設是否啟用推理",
         "label": "啟用推理"
-      },
-      "interleavedThinking": {
-        "label": "Interleaved Thinking",
-        "description": "控制此模型是否以 Interleaved Thinking 方式處理 reasoning 與 tool-call 訊息。若 provider 已宣告支援，會自動預設啟用。"
       },
       "thinkingBudget": {
         "label": "思考預算",
@@ -2832,7 +2789,6 @@
     "thinkingBudget": "思考預算",
     "reasoningEffort": "推理強度",
     "verbosity": "詳細程度",
-    "interleaved": "強制相容交錯思考",
     "systemPrompt": "預設系統提示詞",
     "systemPromptPlaceholder": "留空即使用空白系統提示詞",
     "defaultProjectPath": "預設目錄（可選）",
@@ -2842,7 +2798,6 @@
     "permissionDefault": "預設權限",
     "defaultToolMode": "預設模式",
     "defaultToolModeModelDefaultDesc": "由目前模型決定，大部分模型為 Agent。",
-    "defaultToolModeCodePermissionHint": "Code 模式需要將預設權限設為「{permission}」，否則程式碼呼叫會失敗。",
     "toolsTitle": "內建工具",
     "outputLimitsTitle": "進階輸出限制",
     "outputLimitsDescription": "控制此 Agent 在上下文中保留多少工具輸出。",

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 
@@ -6,10 +6,6 @@ vi.mock('vue-i18n', () => ({
   useI18n: () => ({
     t: (key: string, params?: Record<string, unknown>) => `${key}:${params?.seconds ?? ''}`
   })
-}))
-
-vi.mock('@vueuse/core', () => ({
-  useThrottleFn: (fn: () => void) => fn
 }))
 
 const configClient = {
@@ -37,9 +33,13 @@ vi.mock('@/components/think-content', () => ({
 import MessageBlockThink from '@/components/message/MessageBlockThink.vue'
 
 describe('MessageBlockThink', () => {
+  afterEach(() => vi.useRealTimers())
+
   it.each([0, 1, 999, 1_000])(
     'preserves running labels and summarizes %i ms after completion',
     async (duration) => {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      vi.setSystemTime(1_000 + duration)
       const wrapper = mount(MessageBlockThink, {
         props: {
           block: {
@@ -56,9 +56,7 @@ describe('MessageBlockThink', () => {
       await flushPromises()
 
       expect(wrapper.text()).toBe(
-        duration < 1_000
-          ? 'chat.features.thoughtForSecondsLoading:0'
-          : 'chat.features.thoughtForSecondsLoading:1'
+        duration < 1_000 ? 'chat.messages.thinking:' : 'chat.features.thoughtForSecondsLoading:1'
       )
 
       await wrapper.setProps({ block: { ...wrapper.props('block'), status: 'success' } })
@@ -71,6 +69,37 @@ describe('MessageBlockThink', () => {
       wrapper.unmount()
     }
   )
+
+  it('advances without new deltas and settles at the projected end time', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(1_000)
+    const wrapper = mount(MessageBlockThink, {
+      props: {
+        block: {
+          type: 'reasoning_content',
+          content: 'thinking',
+          status: 'loading',
+          timestamp: 1_000
+        },
+        usage: { reasoning_start_time: 0, reasoning_end_time: 0 }
+      }
+    })
+
+    expect(wrapper.text()).toBe('chat.messages.thinking:')
+    await vi.advanceTimersByTimeAsync(3_000)
+    expect(wrapper.text()).toBe('chat.features.thoughtForSecondsLoading:3')
+
+    await wrapper.setProps({
+      block: {
+        ...wrapper.props('block'),
+        status: 'success',
+        reasoning_time: { start: 1_000, end: 3_500 }
+      }
+    })
+    await vi.advanceTimersByTimeAsync(2_000)
+    expect(wrapper.text()).toBe('chat.features.thoughtForSeconds:2')
+    wrapper.unmount()
+  })
 
   it('preserves manual expansion when the saved preference arrives after user interaction', async () => {
     let resolveSetting!: (value: boolean) => void
@@ -87,13 +116,13 @@ describe('MessageBlockThink', () => {
     })
     const content = wrapper.findComponent({ name: 'ThinkContent' })
 
-    content.vm.$emit('toggle')
+    expect(content.props('expanded')).toBe(false)
     content.vm.$emit('toggle')
     resolveSetting(true)
     await flushPromises()
 
     expect(content.props('expanded')).toBe(true)
-    expect(wrapper.emitted('manual-toggle')).toEqual([[false], [true]])
+    expect(wrapper.emitted('manual-toggle')).toEqual([[true]])
   })
 
   it('renders seconds from block.reasoning_time when present', async () => {

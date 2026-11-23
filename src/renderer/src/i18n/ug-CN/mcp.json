@@ -319,6 +319,8 @@
     "title": "MCP ئەپى",
     "interactiveContent": "MCP سېرۋېرىدىن ئالاقىلاشقان مەزمۇن",
     "loadError": "بۇ MCP App يۈكلەش مەمكىن ئەمەس",
+    "pageLoadError": "بۇ بەتنى كۆرسىتەلمىدى.",
+    "pageScriptError": "بۇ بەتنىڭ بىر قىسمى ئىجرا بولمىدى.",
     "retry": "قايتا سىناش",
     "fullscreen": "تولۇق ئېكراندا ئېچىش",
     "pictureInPicture": "رەسىم ئىچىدە رەسىم ئېچىش",

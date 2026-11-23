@@ -17,7 +17,7 @@
     "importFailed": "Impor gagal, data asli dipulihkan",
     "importProcess": "Kesalahan saat mengimpor",
     "unknown": "kesalahan yang tidak diketahui",
-    "encryptedBackupPasswordMissing": "Cadangan dienkripsi, namun kunci database lokal tidak tersedia. Harap buka kunci basis data terenkripsi terlebih dahulu lalu impor lagi.",
+    "encryptedBackupPasswordMissing": "Arsitektur baru tidak mendukung enkripsi SQLite, sehingga enkripsi database untuk sementara tidak tersedia. Cadangan ini terenkripsi dan tidak dapat dipulihkan langsung dari cloud. Unduh ke folder sinkronisasi, lalu gunakan Impor data dan masukkan kata sandi database asli.",
     "overwriteEncryptionMismatch": "Impor penimpaan mengharuskan database cadangan dan database saat ini berada dalam status enkripsi yang sama.",
     "cloudNotConfigured": "Cloud belum dikonfigurasi. Isi dan simpan koneksi cloud terlebih dahulu.",
     "cloudNoBackup": "Tidak ada cadangan yang tersedia di bucket cloud",

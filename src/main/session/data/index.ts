@@ -11,11 +11,6 @@ import {
   SessionTape,
   type SessionTapeCapabilities
 } from '@/tape/application/sessionTape'
-import { ExecutionJournalService } from '@/tape/application/executionJournalService'
-import type {
-  ExecutionJournalWriter,
-  NestedExecutionJournalWriter
-} from '@/tape/ports/capabilities'
 import { SessionTranscript } from './transcript'
 import { SessionDatabase } from './database'
 import { SessionReferences } from './sessionReferences'
@@ -42,15 +37,6 @@ export function createSessionDataFromDatabase(
   // call its direct read helpers, while everything handed out reaches Tape only through ports.
   const sessionTape = new SessionTape(database)
   const tapeStore: SessionTapeCapabilities = sessionTape
-  const programmaticJournalService = new ExecutionJournalService(
-    () => database.deepchatExecutionJournalStore
-  )
-  const programmaticExecutionJournal: Pick<ExecutionJournalWriter, 'commitToolOutcome'> &
-    NestedExecutionJournalWriter = Object.freeze({
-    commitToolOutcome: (input) => programmaticJournalService.commitToolOutcome(input),
-    commitNestedDispatch: (input) => programmaticJournalService.commitNestedDispatch(input),
-    commitNestedToolOutcome: (input) => programmaticJournalService.commitNestedToolOutcome(input)
-  })
   const transcript = new SessionTranscript(database, tapeStore, tapeStore, tapeStore)
   const pendingInputStore = new SessionPendingInputStore(database)
   const ensureTape = (sessionId: string) =>
@@ -89,11 +75,9 @@ export function createSessionDataFromDatabase(
       return Promise.resolve(toTapeAnchor(sessionTape.handoff(sessionId, name, state)))
     },
     listMessageViewManifests(sessionId, messageId) {
-      ensureTape(sessionId)
       return Promise.resolve(sessionTape.listViewManifestsByMessage(sessionId, messageId))
     },
     listNestedExecutionAuditForMessage(sessionId, messageId) {
-      ensureTape(sessionId)
       return Promise.resolve(sessionTape.listNestedExecutionAuditForMessage(sessionId, messageId))
     },
     // Inspector reads must not bootstrap or write Tape state. Incarnation mismatches are returned
@@ -121,21 +105,14 @@ export function createSessionDataFromDatabase(
   const pendingInputs = new SessionPendingInputs(pendingInputStore, transcript, events)
   return {
     database,
+    legacyTape: database.legacyTape,
     settings,
-    runtime: {
-      sessionSettings: settings,
-      transcript,
-      pendingInputs,
-      tape: tapeStore,
-      programmaticExecutionJournal
-    },
     transcript,
     tape,
     tapeStore,
     sessionReferences: new SessionReferences(database, sessionTape, (sessionId) =>
       tape.getTapeInfo(sessionId)
     ),
-    programmaticExecutionJournal,
     pendingInputs
   }
 }

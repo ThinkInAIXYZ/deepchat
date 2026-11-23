@@ -665,6 +665,20 @@ const PROVIDER_DEFAULTS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'openllm',
+    name: 'OpenLLM',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'http://127.0.0.1:8787/v1',
+    enable: false,
+    websites: {
+      official: 'https://www.openllm.sh',
+      apiKey: 'https://www.openllm.sh/sign-in',
+      docs: 'https://docs.openllm.sh',
+      models: 'https://docs.openllm.sh/routing'
+    }
+  },
+  {
     id: 'opper',
     name: 'Opper',
     apiType: 'openai-completions',
@@ -676,6 +690,34 @@ const PROVIDER_DEFAULTS: LLM_PROVIDER_BASE[] = [
       apiKey: 'https://platform.opper.ai',
       docs: 'https://docs.opper.ai',
       models: 'https://opper.ai/models'
+    }
+  },
+  {
+    id: 'trustedrouter',
+    name: 'TrustedRouter',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://api.trustedrouter.com/v1',
+    enable: false,
+    websites: {
+      official: 'https://trustedrouter.com/',
+      apiKey: 'https://trustedrouter.com/keys',
+      docs: 'https://trustedrouter.com/docs',
+      models: 'https://trustedrouter.com/models'
+    }
+  },
+  {
+    id: 'standardcompute',
+    name: 'Standard Compute',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://api.stdcmpt.com/v1',
+    enable: false,
+    websites: {
+      official: 'https://standardcompute.com/',
+      apiKey: 'https://standardcompute.com/dashboard/api-keys',
+      docs: 'https://docs.standardcompute.com/',
+      models: 'https://standardcompute.com/models'
     }
   },
   {
@@ -718,6 +760,34 @@ const PROVIDER_DEFAULTS: LLM_PROVIDER_BASE[] = [
       apiKey: 'https://console.runanywhere.ai/',
       docs: 'https://docs.runanywhere.ai/wally-cloud/api',
       models: 'https://www.runwally.com/pricing'
+    }
+  },
+  {
+    id: 'uberllm',
+    name: 'UberLLM',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://api.uberllm.dev/v1',
+    enable: false,
+    websites: {
+      official: 'https://uberllm.dev/',
+      apiKey: 'https://uberllm.dev/dashboard/keys',
+      docs: 'https://uberllm.dev/docs/quickstart',
+      models: 'https://uberllm.dev/models'
+    }
+  },
+  {
+    id: 'wiro',
+    name: 'Wiro AI',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://llm.wiro.ai/v1',
+    enable: false,
+    websites: {
+      official: 'https://wiro.ai/',
+      apiKey: 'https://wiro.ai/panel/project/new',
+      docs: 'https://wiro.ai/docs/completions-api',
+      models: 'https://wiro.ai/models?categories=llm-tool-call'
     }
   },
   {
@@ -1517,6 +1587,34 @@ const PROVIDER_DEFAULTS: LLM_PROVIDER_BASE[] = [
       apiKey: 'https://astraflow.ucloud.cn/modelverse/api-keys',
       docs: 'https://astraflow.ucloud.cn/docs',
       models: 'https://astraflow.ucloud.cn/modelverse/playground'
+    }
+  },
+  {
+    id: 'worldrouter',
+    name: 'WorldRouter',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://inference-api.worldrouter.ai/v1',
+    enable: false,
+    websites: {
+      official: 'https://www.worldrouter.ai/',
+      apiKey: 'https://www.worldrouter.ai/',
+      docs: 'https://www.worldrouter.ai/docs/quickstart',
+      models: 'https://www.worldrouter.ai/models'
+    }
+  },
+  {
+    id: 'aigrow',
+    name: 'AIGROW',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://aigrow.gg/v1',
+    enable: false,
+    websites: {
+      official: 'https://aigrow.gg/ai-api',
+      apiKey: 'https://aigrow.gg/dashboard/api',
+      docs: 'https://aigrow.gg/ai-api/guide',
+      models: 'https://aigrow.gg/ai-api'
     }
   }
 ]

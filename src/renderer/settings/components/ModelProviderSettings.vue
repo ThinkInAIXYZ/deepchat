@@ -1,6 +1,6 @@
 <template>
   <div v-if="showProviderSkeleton" class="flex h-full w-full flex-row">
-    <div class="flex h-full w-80 flex-col gap-3 border-r p-4">
+    <div class="flex h-full w-80 max-w-[40%] flex-col gap-3 border-e p-4">
       <Skeleton class="h-9 rounded-md bg-muted/60" />
       <Skeleton
         v-for="index in 8"
@@ -27,7 +27,7 @@
     data-testid="settings-provider-page"
     class="w-full h-full flex flex-row"
   >
-    <ScrollArea class="w-80 border-r h-full">
+    <ScrollArea class="h-full w-80 max-w-[40%] border-e">
       <div class="flex flex-col gap-4 p-4">
         <div class="flex flex-col gap-1">
           <h1 class="text-lg font-semibold">{{ t('settings.provider.center.title') }}</h1>

@@ -211,28 +211,28 @@ export class DeviceService implements DeviceServicePort {
 
       switch (resetType) {
         case 'chat': {
-          // 删除聊天数据
           logger.info('Resetting chat data...')
           const appDbPath = path.join(userDataPath, 'app_db')
-          const mainDbFile = path.join(appDbPath, 'agent.db')
-          try {
-            removeFile(mainDbFile)
-            logger.info('Removed chat database file')
-          } catch (error) {
-            console.warn('Failed to remove chat database file:', error)
-          }
-          const auxiliaryFiles = ['agent.db-wal', 'agent.db-shm']
-          auxiliaryFiles.forEach((fileName) => {
-            const filePath = path.join(appDbPath, fileName)
-            if (fs.existsSync(filePath)) {
-              try {
-                removeFile(filePath)
-                logger.info('Cleaned up auxiliary file:', fileName)
-              } catch (error) {
-                console.warn('Failed to clean auxiliary file:', fileName, error)
-              }
+          if (fs.existsSync(appDbPath)) {
+            for (const name of fs.readdirSync(appDbPath)) {
+              if (
+                /^(?:agent|chat)\.db(?:$|-(?:wal|shm|journal)$|\.(?:legacy-encrypted\.|migration-))/.test(
+                  name
+                )
+              )
+                fs.rmSync(path.join(appDbPath, name), { force: true })
             }
-          })
+          }
+          for (const name of fs.readdirSync(userDataPath)) {
+            if (name === 'dim' || /^\.(?:dim-restore|sync-import)-[a-zA-Z0-9]+$/.test(name))
+              fs.rmSync(path.join(userDataPath, name), { recursive: true, force: true })
+          }
+          for (const name of [
+            'database-security.json',
+            'sync-import-recovery.json',
+            '.dim-replica-import.json'
+          ])
+            fs.rmSync(path.join(userDataPath, name), { force: true })
           break
         }
 

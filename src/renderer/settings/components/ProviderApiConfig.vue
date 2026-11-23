@@ -42,7 +42,7 @@
       <div v-if="!isOpenAIChatGPTMode" class="flex flex-col gap-2">
         <div class="flex flex-wrap items-center justify-between gap-2">
           <span class="text-sm font-medium">API URL</span>
-          <div class="flex items-center gap-2">
+          <div class="flex flex-wrap items-center gap-2">
             <DcButton
               v-if="provider.custom"
               variant="ghost"
@@ -243,7 +243,7 @@
         <div
           v-if="hasStoredKey"
           data-testid="provider-api-key-summary"
-          class="group flex min-h-8 items-center gap-2"
+          class="group flex min-h-8 flex-wrap items-center gap-2"
         >
           <span class="font-mono text-sm text-muted-foreground">{{ maskedApiKey }}</span>
           <DcCopyButton

@@ -1,5 +1,5 @@
 import type { LLM_PROVIDER } from '@shared/types/provider'
-import type { AiSdkProviderKind } from './aiSdk/providerFactory'
+import type { ProviderTransportKind } from './providerEndpoints'
 
 export type AiSdkBehaviorPreset =
   | 'openai'
@@ -15,6 +15,7 @@ export type AiSdkModelSourceStrategy =
   | 'runcrate'
   | 'cloudgpu'
   | 'obscurify'
+  | 'wiro'
   | 'apimart'
   | 'openai-codex'
   | 'opencode-go'
@@ -29,6 +30,7 @@ export type AiSdkModelSourceStrategy =
   | 'openrouter'
   | 'requesty'
   | 'litellm'
+  | 'openllm'
   | 'demonroute'
   | 'ppio'
   | 'groq'
@@ -47,6 +49,7 @@ export type AiSdkKeyStatusStrategy =
   | '302ai'
   | 'cherryin'
   | 'modelscope'
+  | 'uberllm'
 
 export type AiSdkCheckStrategy = 'fetch-models' | 'key-status' | 'generate-text'
 
@@ -57,7 +60,7 @@ export type AiSdkRouteStrategy = 'none' | 'apimart' | 'grok' | 'new-api' | 'open
 export type AiSdkEmbeddingStrategy = 'none' | 'openai' | 'google' | 'new-api' | 'zenmux'
 
 export interface AiSdkProviderDefinition {
-  runtimeKind: AiSdkProviderKind
+  runtimeKind: ProviderTransportKind
   behaviorPreset: AiSdkBehaviorPreset
   modelSource: AiSdkModelSourceStrategy
   checkStrategy: AiSdkCheckStrategy
@@ -359,6 +362,22 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
     })
   ],
   [
+    'worldrouter',
+    createDefinition({
+      ...OPENAI_BASE,
+      credentialStrategy: 'api-key',
+      embeddingStrategy: 'none'
+    })
+  ],
+  [
+    'aigrow',
+    createDefinition({
+      ...OPENAI_BASE,
+      credentialStrategy: 'api-key',
+      embeddingStrategy: 'none'
+    })
+  ],
+  [
     'llmbuzz',
     createDefinition({
       ...OPENAI_BASE,
@@ -639,6 +658,34 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
     })
   ],
   [
+    'trustedrouter',
+    // The public /v1/models catalog answers without a key, so check with a chat request.
+    createDefinition({
+      ...OPENAI_BASE,
+      checkStrategy: 'generate-text',
+      credentialStrategy: 'api-key',
+      embeddingStrategy: 'none',
+      checkModelId: 'trustedrouter/auto',
+      checkPrompt: 'Hello',
+      checkTemperature: 0.2,
+      checkMaxTokens: 16
+    })
+  ],
+  [
+    'standardcompute',
+    // The public /v1/models catalog answers without a key, so check with a chat request.
+    createDefinition({
+      ...OPENAI_BASE,
+      checkStrategy: 'generate-text',
+      credentialStrategy: 'api-key',
+      embeddingStrategy: 'none',
+      checkModelId: 'StandardCompute',
+      checkPrompt: 'Hello',
+      checkTemperature: 0.2,
+      checkMaxTokens: 16
+    })
+  ],
+  [
     'runcrate',
     createDefinition({
       ...OPENAI_BASE,
@@ -676,6 +723,26 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
       checkPrompt: 'Hello',
       checkTemperature: 0.2,
       checkMaxTokens: 16
+    })
+  ],
+  [
+    'uberllm',
+    createDefinition({
+      ...OPENAI_BASE,
+      checkStrategy: 'key-status',
+      credentialStrategy: 'api-key',
+      keyStatusStrategy: 'uberllm',
+      embeddingStrategy: 'none'
+    })
+  ],
+  [
+    'wiro',
+    // /v1/models needs the key, so listing models also checks the credential.
+    createDefinition({
+      ...OPENAI_BASE,
+      modelSource: 'wiro',
+      credentialStrategy: 'api-key',
+      embeddingStrategy: 'none'
     })
   ],
   [
@@ -722,6 +789,15 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
       ...OPENAI_BASE,
       modelSource: 'litellm',
       keyStatusStrategy: 'litellm'
+    })
+  ],
+  [
+    'openllm',
+    // Local daemon at 127.0.0.1: the key is optional and the daemon uses the saved login.
+    createDefinition({
+      ...OPENAI_BASE,
+      modelSource: 'openllm',
+      embeddingStrategy: 'none'
     })
   ],
   [

@@ -1,4 +1,5 @@
 import { protocol } from 'electron'
+import { readFile } from 'node:fs/promises'
 import type { McpAppCsp, McpAppPermissions } from '@shared/types/mcp'
 import { MCP_APP_SCHEME, type McpAppSandboxRegistry } from './sandboxRegistry'
 
@@ -195,20 +196,29 @@ export function registerMcpAppScheme(): void {
   schemeRegistered = true
 }
 
-export function registerMcpAppProtocol(registry: McpAppSandboxRegistry): void {
-  protocol.handle(MCP_APP_SCHEME, (request) => {
+const notFound = (): Response =>
+  new Response('Not found', {
+    status: 404,
+    headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+  })
+
+export function registerMcpAppProtocol(
+  registry: McpAppSandboxRegistry,
+  resolveLibraryPath: (fileName: string) => Promise<string>
+): void {
+  protocol.handle(MCP_APP_SCHEME, async (request) => {
     let instanceId = ''
+    let pathname = ''
     try {
       const url = new URL(request.url)
       instanceId = url.hostname
-      if (url.pathname !== '/sandbox.html') {
-        throw new Error('Unknown MCP App sandbox path')
-      }
+      pathname = url.pathname
     } catch {
-      return new Response('Not found', {
-        status: 404,
-        headers: { 'Content-Type': 'text/plain; charset=utf-8' }
-      })
+      return notFound()
+    }
+    const libraryName = pathname.startsWith('/lib/') ? pathname.slice('/lib/'.length) : null
+    if (pathname !== '/sandbox.html' && !libraryName) {
+      return notFound()
     }
 
     const instance = registry.getForProtocol(instanceId)
@@ -220,6 +230,23 @@ export function registerMcpAppProtocol(registry: McpAppSandboxRegistry): void {
           'Content-Type': 'text/plain; charset=utf-8'
         }
       })
+    }
+
+    if (libraryName) {
+      const libraryFile = instance.libraries?.get(libraryName)
+      if (!libraryFile) {
+        return notFound()
+      }
+      try {
+        return new Response(await readFile(await resolveLibraryPath(libraryFile)), {
+          headers: {
+            'Content-Type': 'text/javascript; charset=utf-8',
+            'X-Content-Type-Options': 'nosniff'
+          }
+        })
+      } catch {
+        return notFound()
+      }
     }
 
     return new Response(createSandboxProxyHtml(), {

@@ -203,7 +203,7 @@ describe('SessionAssignmentPolicy', () => {
         generationSettings: { systemPrompt: 'parent prompt', temperature: 0.2 },
         disabledAgentTools: ['exec'],
         activeSkills: ['skill-a', 'skill-b'],
-        toolModeOverride: 'code'
+        toolModeOverride: null
       })
     ).resolves.toEqual({
       agentId: 'deepchat',
@@ -214,7 +214,7 @@ describe('SessionAssignmentPolicy', () => {
       generationSettings: { systemPrompt: 'parent prompt', temperature: 0.2 },
       disabledAgentTools: ['exec'],
       activeSkills: ['skill-a', 'skill-b'],
-      toolModeOverride: 'code'
+      toolModeOverride: null
     })
   })
 

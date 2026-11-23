@@ -7,6 +7,7 @@ const browserWindowOptions = vi.hoisted(() => [] as Record<string, unknown>[])
 const mockIpcMain = vi.hoisted(() => ({
   on: vi.fn()
 }))
+const showMessageBox = vi.hoisted(() => vi.fn().mockResolvedValue({ response: 0 }))
 const splashLoadMocks = vi.hoisted(() => ({
   loadURL: undefined as ((url: string) => Promise<void>) | undefined,
   loadFile: undefined as ((filePath: string) => Promise<void>) | undefined
@@ -110,6 +111,8 @@ class MockBrowserWindow {
 
 vi.mock('electron', () => ({
   app: {
+    getName: () => 'DeepChat',
+    getLocale: () => 'zh-CN',
     setActivationPolicy: vi.fn(),
     focus: vi.fn(),
     dock: {
@@ -117,6 +120,7 @@ vi.mock('electron', () => ({
     }
   },
   BrowserWindow: MockBrowserWindow,
+  dialog: { showMessageBox },
   ipcMain: mockIpcMain,
   nativeImage: {
     createFromPath: vi.fn(() => ({}))
@@ -182,6 +186,29 @@ describe('SplashWindow display gating', () => {
       transparent: true,
       backgroundColor: '#00000000'
     })
+  })
+
+  it('shows the legacy database migration notice as a native startup dialog', async () => {
+    const { SplashWindow } = await import('../../../src/main/app/splashWindow')
+    manager = new SplashWindow()
+    await manager.create()
+    const splash = createdWindows[0]
+    splash.emit('ready-to-show')
+
+    const directory = path.resolve('profiles', '$&', 'app_db')
+    await manager.showDatabaseMigrationNotice(path.join(directory, 'agent.db'))
+
+    expect(splash.visible).toBe(true)
+    expect(showMessageBox).toHaveBeenCalledWith(
+      splash,
+      expect.objectContaining({
+        type: 'warning',
+        detail: expect.stringContaining(`\n${directory}\n`),
+        buttons: ['继续', '退出'],
+        cancelId: 1
+      })
+    )
+    expect(showMessageBox.mock.lastCall?.[1].detail).toContain('agent.db.legacy-encrypted.')
   })
 
   it('waits 200ms before showing the splash window', async () => {

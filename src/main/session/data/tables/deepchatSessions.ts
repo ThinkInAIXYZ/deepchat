@@ -29,7 +29,6 @@ type DeepChatSessionGenerationSettings = Pick<
   | 'reasoningEffort'
   | 'reasoningVisibility'
   | 'verbosity'
-  | 'forceInterleavedThinkingCompat'
   | 'imageGeneration'
   | 'videoGeneration'
 >
@@ -125,6 +124,7 @@ export class DeepChatSessionsTable extends BaseTable {
       )
     }
 
+    // Retain the retired harness column for legacy databases; current settings never read/write it.
     if (version >= 19) {
       columns.push('force_interleaved_thinking_compat INTEGER')
     }
@@ -333,14 +333,13 @@ export class DeepChatSessionsTable extends BaseTable {
            reasoning_effort,
            reasoning_visibility,
            verbosity,
-           force_interleaved_thinking_compat,
            image_generation_options_json,
            video_generation_options_json,
            summary_text,
            summary_cursor_order_seq,
            summary_updated_at
          )
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         id,
@@ -357,11 +356,6 @@ export class DeepChatSessionsTable extends BaseTable {
         generationSettings?.reasoningEffort ?? null,
         generationSettings?.reasoningVisibility ?? null,
         generationSettings?.verbosity ?? null,
-        generationSettings?.forceInterleavedThinkingCompat === undefined
-          ? null
-          : generationSettings.forceInterleavedThinkingCompat
-            ? 1
-            : 0,
         this.serializeImageGenerationOptions(generationSettings?.imageGeneration),
         this.serializeVideoGenerationOptions(generationSettings?.videoGeneration),
         null,
@@ -419,9 +413,6 @@ export class DeepChatSessionsTable extends BaseTable {
     }
     if (row.verbosity !== null && isVerbosity(row.verbosity)) {
       settings.verbosity = row.verbosity
-    }
-    if (typeof row.force_interleaved_thinking_compat === 'number') {
-      settings.forceInterleavedThinkingCompat = row.force_interleaved_thinking_compat === 1
     }
     const imageGeneration = this.parseImageGenerationOptions(row.image_generation_options_json)
     if (imageGeneration) {
@@ -488,16 +479,6 @@ export class DeepChatSessionsTable extends BaseTable {
     if (Object.prototype.hasOwnProperty.call(settings, 'verbosity')) {
       updates.push('verbosity = ?')
       params.push(settings.verbosity ?? null)
-    }
-    if (Object.prototype.hasOwnProperty.call(settings, 'forceInterleavedThinkingCompat')) {
-      updates.push('force_interleaved_thinking_compat = ?')
-      params.push(
-        settings.forceInterleavedThinkingCompat === undefined
-          ? null
-          : settings.forceInterleavedThinkingCompat
-            ? 1
-            : 0
-      )
     }
     if (Object.prototype.hasOwnProperty.call(settings, 'imageGeneration')) {
       updates.push('image_generation_options_json = ?')

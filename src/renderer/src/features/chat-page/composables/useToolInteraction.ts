@@ -1,10 +1,15 @@
-import { computed, ref } from 'vue'
+import { computed, ref, shallowReactive, watch } from 'vue'
 import { projectPendingInteraction } from '@shared/chat/pendingInteraction'
+import { DEEPCHAT_ROUTE_INVOKE_CHANNEL } from '@shared/contracts/channels'
+import { staleDimInteractionMessages } from '@shared/dimQuestions'
 import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
 import type { useMessageStore } from '@/stores/ui/message'
 import type { ToolInteractionResponse, ToolInteractionResult } from '@shared/types/agent-interface'
 
 type MessageStore = ReturnType<typeof useMessageStore>
+
+// Answers may still be awaiting their batch result when the chat page is remounted.
+const answeredNativeQuestions = shallowReactive(new Map<string, Set<string>>())
 
 type PendingInteractionView = {
   sessionId: string
@@ -50,10 +55,7 @@ type UseToolInteractionOptions = {
   applyRestoredSessionSummary: (session: unknown) => void
   currentRestoreRequestId: () => number
   canWriteSessionView: (sessionId: string, requestId: number) => boolean
-  /**
-   * Reports a response the main process refused to accept. The failure must be visible: releasing
-   * the approval afterwards closes it without a decision, which is not something the user chose.
-   */
+  /** Reports a response the main process refused to accept. */
   onResponseFailed?: (interaction: PendingInteractionView, error: unknown) => void
 }
 
@@ -70,6 +72,14 @@ function parseSubagentProgress(value: unknown): SubagentProgressPayload | null {
   }
 }
 
+function isStaleDimInteraction(error: unknown): boolean {
+  if (!(error instanceof Error)) return false
+  const prefix = `Error invoking remote method '${DEEPCHAT_ROUTE_INVOKE_CHANNEL}': Error: `
+  return Object.values(staleDimInteractionMessages).some(
+    (message) => error.message === message || error.message === prefix + message
+  )
+}
+
 /**
  * Owns pending tool/question interaction discovery and response submission.
  * It preserves the page's current-session refresh semantics after a response,
@@ -78,19 +88,27 @@ function parseSubagentProgress(value: unknown): SubagentProgressPayload | null {
 export function useToolInteraction(options: UseToolInteractionOptions) {
   const isHandlingInteraction = ref(false)
 
+  watch(
+    () => options.messageStore.messages,
+    (messages) => {
+      if (answeredNativeQuestions.size === 0) return
+      for (const message of messages) {
+        if (message.status !== 'pending') answeredNativeQuestions.delete(message.id)
+      }
+    },
+    { immediate: true }
+  )
+
   // Interactions the main process could not resolve (their backing run is gone,
   // the session was replaced mid-response, or the subagent session vanished).
   // Keeping them in the list would trap the approval UI on an interaction that
   // can never close and block access to newer pending approvals.
   const staleInteractionKeys = ref<Set<string>>(new Set())
 
-  const interactionKey = (interaction: {
-    sessionId: string
-    messageId: string
-    toolCallId: string
-  }) => `${interaction.sessionId}:${interaction.messageId}:${interaction.toolCallId}`
+  const interactionKey = ({ sessionId, messageId, toolCallId, block }: PendingInteractionView) =>
+    `${sessionId}:${messageId}:${toolCallId}:${block.extra?.dimRequestId ?? ''}`
 
-  const markStale = (interaction: { sessionId: string; messageId: string; toolCallId: string }) => {
+  const markStale = (interaction: PendingInteractionView) => {
     const key = interactionKey(interaction)
     if (staleInteractionKeys.value.has(key)) return
     staleInteractionKeys.value = new Set(staleInteractionKeys.value).add(key)
@@ -144,12 +162,13 @@ export function useToolInteraction(options: UseToolInteractionOptions) {
       }
     }
 
-    if (staleInteractionKeys.value.size === 0) {
-      return list
-    }
-
-    const stale = staleInteractionKeys.value
-    return list.filter((entry) => !stale.has(interactionKey(entry)))
+    return list.filter((entry) => {
+      const key = interactionKey(entry)
+      return (
+        !staleInteractionKeys.value.has(key) &&
+        !answeredNativeQuestions.get(entry.messageId)?.has(key)
+      )
+    })
   })
 
   const activePendingInteraction = computed(() => pendingInteractions.value[0] ?? null)
@@ -162,6 +181,9 @@ export function useToolInteraction(options: UseToolInteractionOptions) {
 
     const sessionId = options.sessionId()
     const requestId = options.currentRestoreRequestId()
+    const isNativeQuestion =
+      interaction.actionType === 'question_request' &&
+      typeof interaction.block.extra?.dimRequestId === 'string'
     isHandlingInteraction.value = true
     const isCurrentView = () => options.canWriteSessionView(sessionId, requestId)
     const refreshAfterResponse = async () => {
@@ -197,6 +219,15 @@ export function useToolInteraction(options: UseToolInteractionOptions) {
         toolCallId: interaction.toolCallId,
         response
       })
+      if (isNativeQuestion) {
+        // The batch result can be blocked on a sibling question that the dock must show next.
+        if (!isCurrentView() || isStillPending()) {
+          const { messageId } = interaction
+          const keys = new Set(answeredNativeQuestions.get(messageId))
+          answeredNativeQuestions.set(messageId, keys.add(interactionKey(interaction)))
+        }
+        return
+      }
       const refreshed = await refreshAfterResponse()
       if (!refreshed || result.handledInline || result.waitingForUserMessage) {
         return
@@ -209,6 +240,10 @@ export function useToolInteraction(options: UseToolInteractionOptions) {
     } catch (error) {
       console.error('[ChatPage] respond tool interaction failed:', error)
       options.onResponseFailed?.(interaction, error)
+      if (isNativeQuestion) {
+        if (isStaleDimInteraction(error)) markStale(interaction)
+        return
+      }
       // A rejected respond is itself a strong staleness signal (a resolvable
       // interaction would not be rejected). Reload once and, if the interaction
       // is still pending, release the UI from the uncloseable approval.

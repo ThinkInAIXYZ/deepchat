@@ -1,0 +1,378 @@
+//! Custom desktop providers retain their UUID identity. Only their media vendor
+//! name is adapted; execution, connections, files and task recovery belong to dim.
+use crate::video_compat;
+use dim_agent_capabilities::host::ModalityConnection;
+use dim_agent_capabilities::methods::{Interruption, MethodDecl, RpcError, params, reply};
+use dim_agent_runtime::{AgentBuilder, Names};
+use dim_agent_types::ModelId;
+use dim_app_server::{methods::ManagementMethods, provider::ProviderService};
+use dim_modality::{
+    AdapterError, AdapterFuture, AdapterOperation, AdapterOutput, Job, ModalityAdapter,
+    ModalityAdapterService, ProgressSink, RealtimeEvent, RealtimeFrame, RealtimeOpened,
+    RemoteCancel, Submitted,
+};
+use dim_modality_aimux::{MediaAdapter, vendor};
+use rutis::Ctx;
+use rutis::host::{BoxFuture, CtxHost, DynPlugin, Effect, Key, TypeKey};
+use serde::Deserialize;
+use serde_json::{Value, json};
+use std::{
+    collections::HashMap,
+    sync::{Arc, RwLock},
+};
+use tokio_util::sync::CancellationToken;
+
+#[derive(Clone)]
+struct VendorModel {
+    vendor: String,
+    config: Value,
+}
+type Aliases = HashMap<(String, String), VendorModel>;
+#[derive(Default)]
+pub(crate) struct MediaCatalog {
+    aliases: RwLock<Aliases>,
+    conversations: RwLock<HashMap<(String, String), Value>>,
+}
+impl MediaCatalog {
+    pub(crate) fn conversation(&self, model: &ModelId) -> Option<Value> {
+        self.conversations
+            .read()
+            .unwrap()
+            .get(&(model.provider_id.clone(), model.model_id.clone()))
+            .cloned()
+    }
+}
+
+fn supported(name: &str) -> bool {
+    vendor::vendor(name).is_some() || crate::media_compat::supports(name)
+}
+pub struct TasksReady;
+pub fn install(builder: &mut AgentBuilder) {
+    dim_agent_runtime::names::register::<MediaCatalog>(builder.catalog_mut(), None);
+    dim_agent_runtime::names::register::<ModalityAdapterService>(builder.catalog_mut(), None);
+    dim_agent_runtime::names::register::<TasksReady>(builder.catalog_mut(), None);
+    builder.plugin(|names| Ok(Box::new(Media::new(names)?)));
+}
+/// Native startup recovery must see the product adapter and its restored aliases.
+/// The SDK plugin reads this optional binding without declaring a dependency;
+/// compose its public plugin with that dependency instead of changing recovery.
+pub fn install_tasks(builder: &mut AgentBuilder, options: dim_modality::InstallOptions) {
+    builder.optional_plugin(move |names| {
+        Ok(Box::new(OrderedModality {
+            native: dim_modality::ModalityPlugin::new(names, options.clone())?,
+            adapter: names.key()?,
+        }) as Box<dyn DynPlugin>)
+    });
+}
+struct OrderedModality {
+    native: dim_modality::ModalityPlugin,
+    adapter: Key<ModalityAdapterService>,
+}
+impl DynPlugin for OrderedModality {
+    fn name(&self) -> &str {
+        "Modality"
+    }
+    fn injects(&self) -> Vec<TypeKey> {
+        let mut keys = self.native.injects();
+        keys.push(self.adapter.erase());
+        keys
+    }
+    fn apply<'a>(&'a self, ctx: &'a Ctx) -> BoxFuture<'a, rutis::Result<Effect>> {
+        Box::pin(async move {
+            let effect = self.native.apply(ctx).await?;
+            ctx.provide(TasksReady)?;
+            Ok(effect)
+        })
+    }
+}
+struct Media {
+    providers: Key<ProviderService>,
+    methods: Key<ManagementMethods>,
+}
+impl Media {
+    fn new(names: &Names<'_>) -> rutis::Result<Self> {
+        Ok(Self {
+            providers: names.key()?,
+            methods: names.key()?,
+        })
+    }
+}
+impl DynPlugin for Media {
+    fn name(&self) -> &str {
+        "DeepChatMediaProviders"
+    }
+    fn injects(&self) -> Vec<TypeKey> {
+        vec![self.providers.erase(), self.methods.erase()]
+    }
+    fn apply<'a>(&'a self, ctx: &'a Ctx) -> BoxFuture<'a, rutis::Result<Effect>> {
+        Box::pin(async move {
+            let providers = ctx.require_at(&self.providers)?;
+            let methods = ctx.require_at(&self.methods)?;
+            let catalog = Arc::new(MediaCatalog::default());
+            let adapter = Arc::new(DesktopMedia {
+                native: MediaAdapter::new(),
+                catalog: catalog.clone(),
+            });
+            ctx.provide_as::<MediaCatalog>(catalog)?;
+            let cancel = ctx.cancellation_token();
+            let ids = providers.list(&cancel).await.map_err(|_| {
+                rutis::host::ErrorKind::PluginFailed(
+                    "Cannot read native media provider identities".into(),
+                )
+            })?;
+            for provider in ids.providers {
+                // Bundled vendors already use dim's own identity and need no mapping.
+                if provider.source == "custom" && vendor::vendor(&provider.provider_id).is_none() {
+                    // A broken provider stays unavailable without preventing other native
+                    // providers or history readers from starting. Explicit admission reports it.
+                    let _ = refresh(&providers, &adapter, &provider.provider_id, &cancel).await;
+                }
+            }
+            ctx.provide(ModalityAdapterService(adapter.clone()))?;
+            let lane = Arc::new(tokio::sync::Mutex::new(()));
+            methods.register(
+                ctx,
+                "deepchat.native_media",
+                vec![MethodDecl::new(
+                    "deepchat.native_media.refresh",
+                    false,
+                    Interruption::Report,
+                )],
+                Arc::new(move |call, cancel, _| {
+                    let (providers, adapter, lane) =
+                        (providers.clone(), adapter.clone(), lane.clone());
+                    Box::pin(async move {
+                        #[derive(Deserialize)]
+                        #[serde(rename_all = "camelCase", deny_unknown_fields)]
+                        struct Target {
+                            provider_id: String,
+                        }
+                        let target: Target = params(call.params)?;
+                        let _guard = lane.lock().await;
+                        let count =
+                            refresh(&providers, &adapter, &target.provider_id, &cancel).await?;
+                        reply(json!({"models":count}))
+                    })
+                }),
+            )?;
+            Ok(Effect::Done)
+        })
+    }
+}
+async fn refresh(
+    providers: &Arc<ProviderService>,
+    adapter: &DesktopMedia,
+    id: &str,
+    cancel: &CancellationToken,
+) -> Result<usize, RpcError> {
+    // Public safe management view: no credential, private store or model request is read here.
+    let view = providers
+        .management(Some(id.into()), cancel)
+        .await
+        .map_err(|_| {
+            RpcError::service(
+                "media_provider_unavailable",
+                "Native media provider is unavailable",
+            )
+        })?;
+    if !view.errors.is_empty() {
+        return Err(RpcError::service(
+            "media_provider_unavailable",
+            "Native media provider cannot be read",
+        ));
+    }
+    let mut aliases = Aliases::new();
+    let mut conversations = HashMap::new();
+    for provider in view.providers {
+        if provider.provider_id != id {
+            continue;
+        }
+        for model in provider.models.unwrap_or_default() {
+            if let Some(conversation) = model
+                .model
+                .metadata
+                .as_ref()
+                .and_then(|meta| meta.raw.get("deepchatMediaConversation"))
+            {
+                conversations.insert(
+                    (id.to_owned(), model.model.model_id.clone()),
+                    conversation.clone(),
+                );
+            }
+            let explicit = model
+                .model
+                .metadata
+                .as_ref()
+                .and_then(|metadata| metadata.raw.get("deepchatMediaVendors"))
+                .and_then(Value::as_array)
+                .and_then(|names| {
+                    names
+                        .iter()
+                        .filter_map(Value::as_str)
+                        .find(|name| supported(name))
+                });
+            let inferred = provider.connection.as_ref().and_then(|connection| {
+                match connection.driver_kind.as_str() {
+                    "openai-compatible" | "openai-responses" => Some("openai"),
+                    "gemini" => Some("google"),
+                    "xai" | "xai-responses" => Some("xai"),
+                    _ => None,
+                }
+            });
+            if let Some(vendor) = explicit.or(inferred).filter(|name| supported(name)) {
+                let raw = model.model.metadata.as_ref().map(|meta| &meta.raw);
+                aliases.insert(
+                    (id.into(), model.model.model_id),
+                    VendorModel {
+                        vendor: vendor.into(),
+                        config: json!({
+                            "voice": raw.and_then(|raw| raw.get("deepchatVoiceAi")),
+                            "route": raw.and_then(|raw| raw.get("deepchatMediaRoute"))
+                        }),
+                    },
+                );
+            }
+        }
+    }
+    let count = aliases.len();
+    let mut current = adapter.catalog.aliases.write().unwrap();
+    current.retain(|(provider, _), _| provider != id);
+    current.extend(aliases);
+    let mut current = adapter.catalog.conversations.write().unwrap();
+    current.retain(|(provider, _), _| provider != id);
+    current.extend(conversations);
+    Ok(count)
+}
+struct DesktopMedia {
+    native: MediaAdapter,
+    catalog: Arc<MediaCatalog>,
+}
+impl DesktopMedia {
+    fn model(&self, model: &ModelId) -> Option<ModelId> {
+        if vendor::vendor(&model.provider_id).is_some() {
+            return Some(model.clone());
+        }
+        self.catalog
+            .aliases
+            .read()
+            .unwrap()
+            .get(&(model.provider_id.clone(), model.model_id.clone()))
+            .map(|vendor| ModelId {
+                provider_id: vendor.vendor.clone(),
+                model_id: model.model_id.clone(),
+            })
+    }
+}
+impl ModalityAdapter for DesktopMedia {
+    fn available(&self) -> bool {
+        self.native.available()
+    }
+    fn operations(&self, model: &ModelId) -> Vec<AdapterOperation> {
+        let model = self.model(model).unwrap_or_else(|| model.clone());
+        if model.provider_id == "voiceai" {
+            return crate::media_compat::operations("voiceai");
+        }
+        if model.provider_id == "apimart" {
+            let mut operations = self.native.operations(&ModelId {
+                provider_id: "openai".into(),
+                model_id: model.model_id.clone(),
+            });
+            operations.retain(|operation| operation.category == "speech");
+            operations.extend(crate::media_compat::operations("apimart"));
+            return operations;
+        }
+        let mut operations = self.native.operations(&model);
+        if model.provider_id == "openai" && !operations.iter().any(|op| op.category == "video") {
+            operations.push(video_compat::operation());
+        }
+        operations
+    }
+    fn submit(
+        &self,
+        mut job: Job,
+        connection: ModalityConnection,
+        cancel: CancellationToken,
+    ) -> AdapterFuture<'_, Submitted> {
+        Box::pin(async move {
+            let config = self
+                .catalog
+                .aliases
+                .read()
+                .unwrap()
+                .get(&(job.model.provider_id.clone(), job.model.model_id.clone()))
+                .map(|value| value.config.clone())
+                .unwrap_or(Value::Null);
+            job.model = self
+                .model(&job.model)
+                .ok_or_else(|| AdapterError::unavailable("Native media vendor is unavailable"))?;
+            if job.model.provider_id == "voiceai"
+                || (job.model.provider_id == "apimart"
+                    && matches!(job.category.as_str(), "image" | "video"))
+            {
+                return crate::media_compat::submit(job, config, connection, cancel).await;
+            }
+            if job.model.provider_id == "apimart" {
+                job.model.provider_id = "openai".into();
+            }
+            if job.category == "video"
+                && job.operation == "generate"
+                && job.model.provider_id == "openai"
+            {
+                return video_compat::submit(job, connection, cancel).await;
+            }
+            self.native.submit(job, connection, cancel).await
+        })
+    }
+    fn wait(
+        &self,
+        task_id: &str,
+        handle: Option<&str>,
+        connection: ModalityConnection,
+        progress: ProgressSink,
+        cancel: CancellationToken,
+    ) -> AdapterFuture<'_, AdapterOutput> {
+        if crate::media_compat::handles(handle) {
+            let handle = handle.unwrap().to_owned();
+            return Box::pin(async move {
+                crate::media_compat::wait(&handle, connection, cancel).await
+            });
+        }
+        if video_compat::handles(handle) {
+            let handle = handle.unwrap().to_owned();
+            return Box::pin(async move { video_compat::wait(&handle, connection, cancel).await });
+        }
+        self.native
+            .wait(task_id, handle, connection, progress, cancel)
+    }
+    fn cancel_remote(
+        &self,
+        handle: &str,
+        connection: ModalityConnection,
+    ) -> AdapterFuture<'_, RemoteCancel> {
+        if video_compat::handles(Some(handle)) || crate::media_compat::handles(Some(handle)) {
+            return Box::pin(async { Ok(RemoteCancel::Unsupported) });
+        }
+        self.native.cancel_remote(handle, connection)
+    }
+    fn realtime_open(
+        &self,
+        connection: ModalityConnection,
+        params: Value,
+        events: tokio::sync::mpsc::Sender<RealtimeEvent>,
+        cancel: CancellationToken,
+    ) -> AdapterFuture<'_, RealtimeOpened> {
+        self.native
+            .realtime_open(connection, params, events, cancel)
+    }
+    fn realtime_send(
+        &self,
+        channel_id: &str,
+        frame: RealtimeFrame,
+        cancel: CancellationToken,
+    ) -> AdapterFuture<'_, ()> {
+        self.native.realtime_send(channel_id, frame, cancel)
+    }
+    fn realtime_close(&self, channel_id: &str) -> AdapterFuture<'_, ()> {
+        self.native.realtime_close(channel_id)
+    }
+}

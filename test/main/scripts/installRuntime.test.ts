@@ -75,10 +75,15 @@ describe('install-runtime', () => {
     }
   })
 
-  it('installs only available runtimes on Windows arm64', () => {
+  it('installs only the pinned uv archive on Windows arm64', () => {
     const plan = buildRuntimeInstallPlan({ platform: 'win32', arch: 'arm64' })
 
-    expect(plan.map((step) => step.type)).toEqual(['uv'])
+    expect(plan).toHaveLength(1)
+    expect(plan[0]).toMatchObject({
+      type: 'uv',
+      command: process.execPath,
+      args: [expect.stringMatching(/install-uv\.mjs$/), 'win32', 'arm64', expect.any(String)]
+    })
   })
 
   it('rejects missing target pairs even when platform and architecture exist separately', () => {

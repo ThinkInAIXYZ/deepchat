@@ -18,7 +18,7 @@ import {
   type SettingsKey,
   type SettingsSnapshotValues
 } from '@shared/contracts/routes'
-import type { DeepChatDefaults } from '@/agent/deepchat/defaults'
+import type { DeepChatDefaults } from '@/agent/agentDefaults'
 import type { AgentTraceSettingsPort } from '@/agent/traceSettings'
 import type { PrivacySettingsPort } from './privacy'
 import type { DesktopSettings } from '@/desktop/settings'

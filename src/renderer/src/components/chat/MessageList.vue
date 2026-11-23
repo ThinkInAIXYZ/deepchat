@@ -12,6 +12,7 @@
         :key="item.renderKey ?? item.id"
         :item="item"
         :is-generating="isGenerating"
+        :is-regenerating="item.id === regeneratingMessageId"
         :is-streaming-message="item.id === streamingMessageId"
         :show-trace="traceMessageIdSet.has(item.id)"
         :is-capturing="isCapturingValue"
@@ -68,6 +69,7 @@ const props = withDefaults(
     ephemeralRateLimitBlock?: DisplayAssistantMessageBlock | null
     ephemeralRateLimitMessageId?: string | null
     isGenerating?: boolean
+    regeneratingMessageId?: string | null
     streamingMessageId?: string | null
     traceMessageIds?: string[]
     isReadOnly?: boolean

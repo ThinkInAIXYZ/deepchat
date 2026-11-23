@@ -41,6 +41,7 @@ type ChatClientLike = {
 type UseMessageActionsOptions = {
   sessionId: () => string
   isReadOnlySession: ComputedRef<boolean>
+  isGenerating: ComputedRef<boolean>
   hasBlockingInteraction: () => boolean
   messageStore: MessageStore
   selectSession(sessionId: string): Promise<void>
@@ -52,6 +53,8 @@ type UseMessageActionsOptions = {
   currentRestoreRequestId: () => number
   canWriteSessionView: (sessionId: string, requestId: number) => boolean
   openModelPicker: () => void
+  createPendingAssistantPlaceholder?: (sessionId: string, retryTargetMessageId: string) => string
+  clearPendingAssistantPlaceholder?: (id: string) => void
   notify: RendererNotificationNotifier
   t: (key: string) => string
 }
@@ -69,8 +72,12 @@ export function useMessageActions(options: UseMessageActionsOptions) {
   const isRetryingAttachments = computed(() => activeRetrySessionIds.has(options.sessionId()))
   const showDeleteMessageDialog = computed(() => Boolean(pendingDeleteMessageId.value))
 
-  async function refreshAfterRetryFailure(sessionId: string, requestId: number) {
-    const restoredSession = await options.loadMessagesForSession(sessionId)
+  async function refreshAfterRetryFailure(
+    sessionId: string,
+    requestId: number,
+    priorMessageCount: number
+  ) {
+    const restoredSession = await options.loadMessagesForSession(sessionId, priorMessageCount)
     if (!options.canWriteSessionView(sessionId, requestId)) return
     options.applyRestoredSessionSummary(restoredSession)
   }
@@ -91,24 +98,25 @@ export function useMessageActions(options: UseMessageActionsOptions) {
     if (activeRetrySessionIds.has(sessionId)) return
 
     const requestId = options.currentRestoreRequestId()
+    const priorMessageCount = options.messageStore.messageIds.length
+    const optimisticTruncation =
+      options.canWriteSessionView(sessionId, requestId) &&
+      options.sessionStore.activeSession?.providerId === 'acp'
+    const placeholder =
+      !optimisticTruncation && options.canWriteSessionView(sessionId, requestId)
+        ? options.createPendingAssistantPlaceholder?.(sessionId, messageId)
+        : undefined
+    let accepted = false
     try {
       activeRetrySessionIds.add(sessionId)
-      const canUpdateView = options.canWriteSessionView(sessionId, requestId)
-      if (canUpdateView) options.messageStore.clearStreamingState()
-      // The main process truncates from the retried message onward (the user
-      // prompt survives) and re-streams with fresh ids. Mirror that in the UI
-      // BEFORE the IPC: the main starts streaming before the retry IPC resolves,
-      // so an after-await truncation would leave the stale rows visible under
-      // the new stream. When the retried message IS the user prompt, keep it in
-      // place and truncate from the next order sequence instead. The blocked/
-      // failure paths below restore via a reload.
-      const target = canUpdateView ? options.messageStore.messageCache.get(messageId) : undefined
-      // Optimistic truncation shortens messageIds; remember the pre-truncation
-      // window so a blocked retry can restore the full loaded view.
-      const priorMessageCount = options.messageStore.messageIds.length
-      if (target) {
-        const fromOrderSeq = target.role === 'user' ? target.orderSeq + 1 : target.orderSeq
-        options.messageStore.truncateMessagesFromOrderSeq(sessionId, fromOrderSeq)
+      // Native retry publishes its committed truncation before the next turn starts.
+      if (optimisticTruncation) {
+        options.messageStore.clearStreamingState()
+        const target = options.messageStore.messageCache.get(messageId)
+        if (target) {
+          const fromOrderSeq = target.role === 'user' ? target.orderSeq + 1 : target.orderSeq
+          options.messageStore.truncateMessagesFromOrderSeq(sessionId, fromOrderSeq)
+        }
       }
 
       const result = attachmentFallbackPolicy
@@ -121,12 +129,12 @@ export function useMessageActions(options: UseMessageActionsOptions) {
           blockedRetryAttempt.value = { sessionId, messageId }
           retryAttachmentPreparationSummary.value =
             result.attachmentPreparation ?? fallbackPreparationSummary()
-          // A blocked retry did not delete anything; bring the optimistically
-          // removed rows back with the same window that was visible before.
-          await options.loadMessagesForSession(sessionId, priorMessageCount)
+          if (optimisticTruncation)
+            await options.loadMessagesForSession(sessionId, priorMessageCount)
         }
         return
       }
+      accepted = true
       if (blockedRetryAttempt.value?.sessionId === sessionId) {
         blockedRetryAttempt.value = null
         retryAttachmentPreparationSummary.value = null
@@ -134,8 +142,17 @@ export function useMessageActions(options: UseMessageActionsOptions) {
     } catch (error) {
       console.error(errorMessage, error)
       if (!options.canWriteSessionView(sessionId, requestId)) return
-      await refreshAfterRetryFailure(sessionId, requestId)
+      options.notify({
+        kind: 'error',
+        code: 'chat.message.retryFailed',
+        title: options.t('thread.toolbar.retry'),
+        description:
+          error instanceof Error ? error.message : options.t('common.error.requestFailed')
+      })
+      if (optimisticTruncation)
+        await refreshAfterRetryFailure(sessionId, requestId, priorMessageCount)
     } finally {
+      if (!accepted && placeholder) options.clearPendingAssistantPlaceholder?.(placeholder)
       activeRetrySessionIds.delete(sessionId)
     }
   }
@@ -149,6 +166,7 @@ export function useMessageActions(options: UseMessageActionsOptions) {
   }
 
   async function onMessageRetry(messageId: string, sessionId = options.sessionId()) {
+    if (sessionId === options.sessionId() && options.isGenerating.value) return
     await retryMessage(messageId, '[ChatPage] retry message failed:', true, sessionId)
   }
 
@@ -242,6 +260,9 @@ export function useMessageActions(options: UseMessageActionsOptions) {
 
   async function onMessageEditSave(payload: UserMessageEdit): Promise<boolean> {
     if (options.isReadOnlySession.value) return false
+    // The edit commits before its retry, so refuse it up front instead of committing an edit
+    // whose regeneration would be rejected by the running turn or a pending interaction.
+    if (options.isGenerating.value || options.hasBlockingInteraction()) return false
     const messageId = payload?.messageId
     const text = payload.inlineItems ? payload.text : payload.text?.trim()
     if (!messageId || (!payload.inlineItems && !text?.trim())) return false
@@ -254,7 +275,7 @@ export function useMessageActions(options: UseMessageActionsOptions) {
       } else {
         await options.sessionClient.editUserMessage(sessionId, messageId, text)
       }
-      await onMessageRetry(messageId, sessionId)
+      await retryMessage(messageId, '[ChatPage] retry message failed:', true, sessionId)
       return true
     } catch (error) {
       console.error('[ChatPage] edit message failed:', error)

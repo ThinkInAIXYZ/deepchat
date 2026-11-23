@@ -335,15 +335,6 @@ export class AcpProvider extends BaseLLMProvider {
     }
   }
 
-  public async summaries(
-    text: string,
-    modelId: string,
-    temperature: number = 0.6,
-    maxTokens: number = 4096
-  ): Promise<LLMResponse> {
-    return this.completions([{ role: 'user', content: text }], modelId, temperature, maxTokens)
-  }
-
   public async generateText(
     prompt: string,
     modelId: string,

@@ -1,162 +1,69 @@
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
-  findDeepChatHarnessBarrelViolations,
-  findDeepChatRootOwnershipViolations,
-  findMissingDeepChatOwnershipSymbols,
-  isDeepChatHarnessImport,
-  isDeepChatAcpHostImport
+  findAgentBoundaryViolations,
+  findNativeCompositionViolations
 } from '../../../scripts/agent-cleanup-guard.mjs'
+const source = (name: string) => path.resolve('src/main', name)
 
-const repositoryRoot = process.cwd()
-
-describe('agent cleanup guard', () => {
-  it('rejects harness imports from every DeepChat owner directory', () => {
-    const ownerFiles = [
-      'src/main/agent/deepchat/instance/deepChatAgentRuntime.ts',
-      'src/main/agent/deepchat/loop/contextCoordinator.ts',
-      'src/main/agent/deepchat/memory/memoryRuntimeCoordinator.ts',
-      'src/main/agent/deepchat/resources/systemPromptBuilder.ts',
-      'src/main/agent/deepchat/runtime/runLifecycleCoordinator.ts'
-    ]
-
-    for (const ownerFile of ownerFiles) {
-      expect(
-        isDeepChatHarnessImport(path.join(repositoryRoot, ownerFile), '@/agent/deepchat/harness')
-      ).toBe(true)
-      expect(
-        isDeepChatHarnessImport(
-          path.join(repositoryRoot, ownerFile),
-          '@/agent/deepchat/harness/deepChatAgentHarness'
-        )
-      ).toBe(true)
-    }
-  })
-
-  it('recognizes relative harness imports from an owner directory', () => {
-    const ownerFile = path.join(
-      repositoryRoot,
-      'src/main/agent/deepchat/memory/memoryRuntimeCoordinator.ts'
-    )
-
-    expect(isDeepChatHarnessImport(ownerFile, '../harness')).toBe(true)
-    expect(isDeepChatHarnessImport(ownerFile, '../harness/createDeepChatAgentHarness.ts')).toBe(
-      true
-    )
-  })
-
-  it('allows the harness layer itself and adapters outside the DeepChat implementation', () => {
+describe('agent execution boundaries', () => {
+  it('rejects retired executors and both alias and relative imports', () => {
+    for (const [file, code] of [
+      ['app/composition.ts', "import { factory } from '@/agent/deepchat/harness'"],
+      ['agent/dim/backend.ts', "import type { LoopRun } from '../deepchat/loop/loopRun'"],
+      ['app/composition.ts', 'new DeepChatAgentHarness(dependencies)'],
+      ['tool/index.ts', 'new RunCodeRuntimeManager(options)'],
+      ['skill/index.ts', 'new SkillExecutionService(options)'],
+      ['tool/index.ts', 'new CronJobToolHandler(options)'],
+      ['tool/index.ts', 'new LiveDelegationAgentTool(options)'],
+      ['tool/index.ts', "import { Runtime } from './codeMode/runtime'"]
+    ])
+      expect(findAgentBoundaryViolations(code, source(file)).length).toBeGreaterThan(0)
     expect(
-      isDeepChatHarnessImport(
-        path.join(repositoryRoot, 'src/main/agent/deepchat/harness/deepChatAgentHarness.ts'),
-        './createDeepChatAgentHarness'
+      findAgentBoundaryViolations('', source('agent/deepchat/runtime/newLoop.ts'))
+    ).toContainEqual(expect.objectContaining({ kind: 'retired-runtime-source' }))
+  })
+  it('keeps direct ACP independent of dim transport while allowing shared desktop contracts', () => {
+    expect(
+      findAgentBoundaryViolations(
+        "import { Client } from '@/agent/acp/client'",
+        source('agent/dim/transport.ts')
       )
-    ).toBe(false)
+    ).toContainEqual(expect.objectContaining({ kind: 'dim-imports-acp' }))
     expect(
-      isDeepChatHarnessImport(
-        path.join(repositoryRoot, 'src/main/agent/manager/deepChatAgentBackend.ts'),
-        '@/agent/deepchat/harness'
+      findAgentBoundaryViolations(
+        "import { DimContent } from '../../dim/content'",
+        source('agent/acp/client/transport.ts')
       )
-    ).toBe(false)
+    ).toContainEqual(expect.objectContaining({ kind: 'acp-imports-dim' }))
     expect(
-      isDeepChatHarnessImport(
-        path.join(repositoryRoot, 'src/main/app/composition.ts'),
-        '@/agent/deepchat/harness'
+      findAgentBoundaryViolations(
+        "import { SessionResources } from '@/agent/shared/resources/sessionResources'",
+        source('agent/acp/compatibility/dependencies.ts')
       )
-    ).toBe(false)
-  })
-
-  it('keeps ACP host assembly outside the Harness while allowing shared runtime helpers', () => {
-    const harness = path.join(repositoryRoot, 'src/main/agent/deepchat/harness/createDeepChatAgentHarness.ts')
-    expect(isDeepChatAcpHostImport(harness, '@/agent/acp/compatibility/dependencies')).toBe(true)
-    expect(isDeepChatAcpHostImport(harness, '../../acp/instance')).toBe(true)
-    expect(isDeepChatAcpHostImport(harness, '../runtime/generationSettings')).toBe(false)
-    expect(isDeepChatAcpHostImport(path.join(repositoryRoot, 'src/main/app/composition.ts'), '@/agent/acp/instance')).toBe(false)
-  })
-
-  it('accepts only allowlisted harness barrel exports', () => {
-    expect(
-      findDeepChatHarnessBarrelViolations(`
-        export { createDeepChatAgentHarness } from './createDeepChatAgentHarness'
-        export type { DeepChatAgentHarness } from './deepChatAgentHarness'
-        declare const createDeepChatAgentHarness: unknown
-        export default createDeepChatAgentHarness
-      `)
     ).toEqual([])
   })
-
-  it('rejects every declaration and default-export escape from the harness barrel', () => {
-    const violations = [
-      `
-        export enum InternalMode { Default }
-        export namespace RuntimeOwners {}
-        export import InternalHarness = RuntimeOwners
-        const internalOwner = {}
-        export default internalOwner
-        const owners = { hiddenOwner: {} }
-        export const { hiddenOwner } = owners
-      `,
-      'export default {}',
-      'export default function () {}'
-    ].flatMap(findDeepChatHarnessBarrelViolations)
-
-    expect(violations).toEqual(
-      expect.arrayContaining([
-        { kind: 'deepchat-harness-export-surface', detail: 'InternalMode' },
-        { kind: 'deepchat-harness-export-surface', detail: 'RuntimeOwners' },
-        { kind: 'deepchat-harness-export-surface', detail: 'InternalHarness' },
-        { kind: 'deepchat-harness-export-surface', detail: 'internalOwner' },
-        { kind: 'deepchat-harness-export-surface', detail: 'default export' },
-        { kind: 'deepchat-harness-export-surface', detail: 'hiddenOwner' }
-      ])
-    )
-  })
-
-  it('detects protected ownership calls through syntax rather than source text', () => {
+  it('requires production native owners for agents and every inference facade', () => {
+    expect(findNativeCompositionViolations('')).toHaveLength(6)
     expect(
-      findDeepChatRootOwnershipViolations(`
-        class Harness {
-          run() {
-            this.pendingInputs.claimQueuedInput('session', 'item')
-          }
-        }
-      `)
-    ).toContainEqual({
-      kind: 'pending-input-claim-lifecycle',
-      detail: 'claimQueuedInput()'
-    })
-  })
-
-  it('detects session projection implementations reappearing on the harness', () => {
-    const violations = findDeepChatRootOwnershipViolations(`
-      class Harness {
-        async refresh(messageId: string) {
-          await normalizeToolResultContent(this.deps, {})
-          this.transcript.updateAssistantContent(messageId, [])
-        }
-      }
+      findNativeCompositionViolations(`
+      const host = new DimRuntimeSupervisor({ nativePlugins: true })
+      const agent = createDimAgent({ host })
+      provider.setNativeModels(text)
+      provider.setNativeMedia(media)
+      provider.setNativeEmbedding(embedding)
     `)
-
-    expect(violations).toContainEqual({
-      kind: 'session-projection-implementation',
-      detail: 'normalizeToolResultContent()'
-    })
-    expect(violations).toContainEqual({
-      kind: 'session-projection-implementation',
-      detail: 'updateAssistantContent()'
-    })
-  })
-
-  it('ignores protected symbol names that appear only in comments or strings', () => {
-    expect(
-      findDeepChatRootOwnershipViolations(`
-        // this.pendingInputs.claimQueuedInput('session', 'item')
-        const diagnostic = 'tryAcquirePendingQueueDrain()'
-      `)
     ).toEqual([])
   })
-
-  it('keeps every configured ownership symbol anchored to a real owner declaration', async () => {
-    await expect(findMissingDeepChatOwnershipSymbols()).resolves.toEqual([])
+  it('preserves skill and MCP isolation rules', () => {
+    expect(
+      findAgentBoundaryViolations(
+        'presenter.sessionPresenter.getLegacyConversation()',
+        source('skill/index.ts')
+      ).map((item) => item.kind)
+    ).toEqual(['legacy-session-access', 'skill-global-presenter', 'skill-legacy-fallback'])
+    expect(
+      findAgentBoundaryViolations('input_chatMode = next', source('mcp/toolManager.ts'))
+    ).toContainEqual(expect.objectContaining({ kind: 'global-chat-mode' }))
   })
 })

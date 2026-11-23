@@ -17,7 +17,7 @@
     "importFailed": "Import fehlgeschlagen, ursprüngliche Daten wurden wiederhergestellt",
     "importProcess": "Fehler während des Imports",
     "unknown": "Unbekannter Fehler",
-    "encryptedBackupPasswordMissing": "Dieses Backup ist verschlüsselt, aber der lokale Datenbankschlüssel ist nicht verfügbar. Entsperren Sie zuerst die verschlüsselte Datenbank und importieren Sie dann erneut.",
+    "encryptedBackupPasswordMissing": "Die neue Architektur unterstützt keine SQLite-Verschlüsselung, daher ist die Datenbankverschlüsselung vorübergehend nicht verfügbar. Dieses Backup ist verschlüsselt und kann nicht direkt aus der Cloud wiederhergestellt werden. Laden Sie es in den Synchronisierungsordner herunter, verwenden Sie dann „Daten importieren“ und geben Sie das ursprüngliche Datenbankpasswort ein.",
     "overwriteEncryptionMismatch": "Beim überschreibenden Import müssen Backup und aktuelle Datenbank denselben Verschlüsselungsstatus haben.",
     "cloudNotConfigured": "Cloud is not configured. Fill in and save the cloud connection first.",
     "cloudNoBackup": "No backup available in the cloud bucket",

@@ -231,7 +231,6 @@
     "thinkingBudget": "Presupuesto de pensamiento",
     "reasoningEffort": "Esfuerzo de razonamiento",
     "verbosity": "Nivel de detalle",
-    "interleaved": "Forzar compatibilidad con pensamiento intercalado",
     "systemPrompt": "Prompt del sistema predeterminado",
     "systemPromptPlaceholder": "Déjalo en blanco para usar un prompt del sistema vacío",
     "defaultProjectPath": "Directorio predeterminado (opcional)",
@@ -241,7 +240,6 @@
     "permissionDefault": "Permiso predeterminado",
     "defaultToolMode": "Modo predeterminado",
     "defaultToolModeModelDefaultDesc": "Lo decide el modelo actual. La mayoría de los modelos usan Agent.",
-    "defaultToolModeCodePermissionHint": "El modo Code requiere que el permiso predeterminado sea \"{permission}\"; de lo contrario, las llamadas de código fallarán.",
     "subagentsTitle": "Subagents",
     "subagentsDescription": "Permite que este agente delegue subtareas independientes. El modelo decide cuándo usar los espacios configurados; la delegación consume tokens, tiempo y recursos del sistema adicionales.",
     "subagentsEnabled": "Permitir que este agente delegue subtareas",
@@ -617,46 +615,6 @@
         "type-mismatch": "el tipo de columna no coincide"
       }
     },
-    "databaseEncryption": {
-      "title": "SQLite cifrado de base de datos",
-      "description": "Cifre agent.db con SQLCipher y solicite una contraseña SQLite cuando no se pueda utilizar el desbloqueo del sistema.",
-      "enabled": "Habilitado",
-      "disabled": "Discapacitado",
-      "cipher": "cifrar",
-      "systemUnlock": "Desbloqueo del sistema",
-      "startupUnlock": "Desbloqueo de inicio",
-      "lastMigration": "Última migración",
-      "loading": "Cargando",
-      "never": "nunca",
-      "notRequired": "No requerido",
-      "systemUnlockAvailable": "Disponible",
-      "systemUnlockUnavailable": "No disponible",
-      "systemUnlockMode": "Desbloqueo del sistema",
-      "manualUnlock": "Contraseña manual",
-      "currentPassword": "Contraseña actual",
-      "newPassword": "Nueva contraseña SQLite",
-      "confirmPassword": "Confirmar contraseña",
-      "passwordMismatch": "Las contraseñas no coinciden",
-      "systemCredentialStore": "Cuando el almacenamiento seguro del sistema está disponible, DeepChat almacena la contraseña SQLite en la bóveda de credenciales del sistema operativo (macOS Keychain, Windows Credential Vault o Linux secret store). Después de un desbloqueo exitoso, los inicios posteriores generalmente se abren automáticamente; solo necesita ingresar la clave de cifrado nuevamente después de la migración de datos, cuando falta la credencial del sistema operativo o no se puede descifrar, o cuando el almacenamiento seguro no está disponible.",
-      "safeStorageUnavailable": "Electron safeStorage no está disponible en este sistema. Después de habilitar el cifrado, debe ingresar la contraseña en cada inicio.",
-      "enableButton": "Habilitar cifrado",
-      "changeButton": "Cambiar contraseña",
-      "disableButton": "Deshabilitar el cifrado",
-      "enabledTitle": "Cifrado de base de datos habilitado",
-      "changedTitle": "SQLite contraseña cambiada",
-      "disabledTitle": "Cifrado de base de datos deshabilitado",
-      "failedTitle": "Falló el cifrado de la base de datos",
-      "failedDescription": "Verifique la contraseña e inténtelo nuevamente.",
-      "setPasswordButton": "Establecer contraseña",
-      "enableDialogTitle": "Establecer contraseña SQLite",
-      "changeDialogTitle": "Cambiar la contraseña SQLite",
-      "disableDialogTitle": "Deshabilitar el cifrado de la base de datos",
-      "enableDialogDescription": "Cree una base de datos cifrada SQLite y migre los datos locales actuales a ella.",
-      "changeDialogDescription": "Migre la base de datos cifrada actual a una nueva base de datos cifrada con la nueva contraseña.",
-      "disableDialogDescription": "Migre la base de datos cifrada actual nuevamente a una base de datos local de texto sin formato.",
-      "cancelButton": "Cancelar",
-      "unknown": "Desconocido"
-    },
     "modelConfigUpdate": {
       "title": "Actualizar configuración del modelo",
       "descriptionPrefix": "Sincronizar datos del modelo desde",
@@ -847,7 +805,8 @@
       "saveAndTest": "Guardar y probar",
       "saveOnly": "Solo guardar",
       "saveAndTestFirst": "Guarda y prueba primero la configuración de nube."
-    }
+    },
+    "legacyBackupPassword": "Contraseña de la copia cifrada anterior (opcional)"
   },
   "dashboard": {
     "badge": "Panel de uso",
@@ -1024,10 +983,6 @@
       "reasoningToggle": {
         "label": "Habilitar razonamiento",
         "description": "Controla si el razonamiento está habilitado de forma predeterminada para este modelo."
-      },
-      "interleavedThinking": {
-        "label": "Pensamiento entrelazado",
-        "description": "Controla si este modelo maneja mensajes de razonamiento y llamadas de herramientas con pensamiento intercalado. Los valores predeterminados del proveedor se aplican automáticamente."
       },
       "thinkingBudget": {
         "label": "Pensando en el presupuesto",

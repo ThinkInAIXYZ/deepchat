@@ -1,9 +1,14 @@
+import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { describe, expect, it, vi } from 'vitest'
 import { parse } from 'yaml'
 import runtimeVersions from '../../../resources/runtime-versions.json'
 import { buildRuntimeInstallPlan } from '../../../scripts/install-runtime.mjs'
-import { TARGET_DEFINITIONS, TARGET_IDS } from '../../../scripts/ci/package-contract.mjs'
+import {
+  SUPPORTED_ARCHITECTURES,
+  TARGET_DEFINITIONS,
+  TARGET_IDS
+} from '../../../scripts/ci/package-contract.mjs'
 import { resolveToolchainArtifact } from '../../../src/main/toolchains/catalog'
 
 vi.unmock('node:fs')
@@ -48,7 +53,7 @@ describe('runtime delivery contract', () => {
       }
       const jobs = Object.values(workflow.jobs) as {
         uses?: string
-        strategy?: { matrix?: { arch?: string[] } }
+        strategy?: { matrix?: { arch?: string[] | string } }
         with?: { arch?: string }
       }[]
       const targets = jobs
@@ -57,11 +62,17 @@ describe('runtime delivery contract', () => {
           const platform = platforms[job.uses as keyof typeof platforms]
           expect(platform).toBeDefined()
           const matrix = job.strategy?.matrix
-          // Fail closed if include/exclude or expressions change the matrix semantics.
           expect(Object.keys(matrix ?? {})).toEqual(['arch'])
-          expect(Array.isArray(matrix?.arch)).toBe(true)
           expect(job.with?.arch).toBe('${{ matrix.arch }}')
-          return matrix!.arch!.map((arch) => `${platform}-${arch}`)
+          if (name === 'package-regression') {
+            const all = JSON.stringify(SUPPORTED_ARCHITECTURES)
+            expect(matrix?.arch).toBe(
+              `\${{ fromJSON(inputs.arch == 'arm64' && '["arm64"]' || inputs.arch == 'x64' && '["x64"]' || '${all}') }}`
+            )
+            return SUPPORTED_ARCHITECTURES.map((arch) => `${platform}-${arch}`)
+          }
+          assert(Array.isArray(matrix?.arch), `Expected a static arch matrix for ${name}`)
+          return matrix.arch.map((arch) => `${platform}-${arch}`)
         })
       expect(targets.sort()).toEqual([...TARGET_IDS].sort())
     }

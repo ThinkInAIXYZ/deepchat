@@ -51,6 +51,11 @@ export type RENDERER_MODEL_META = {
   ownedBy?: string
 }
 
+export interface ProviderMediaRoute {
+  endpoint: string
+  parameterNames?: string[]
+}
+
 export type MODEL_META = {
   id: string
   name: string
@@ -70,6 +75,7 @@ export type MODEL_META = {
   selectableEndpointTypes?: NewApiEndpointType[]
   endpointType?: NewApiEndpointType
   ownedBy?: string
+  mediaRoute?: ProviderMediaRoute
 }
 
 export type LLM_PROVIDER = {
@@ -166,6 +172,7 @@ export interface AwsBedrockCredential {
   authMode?: 'accessKeys' | 'profile'
   accessKeyId: string
   secretAccessKey: string
+  sessionToken?: string
   region?: string
   profile?: string
 }
@@ -243,11 +250,6 @@ export interface ProviderStreamOptions {
 export interface ProviderRuntimePort {
   getProviders(): LLM_PROVIDER[]
   getProviderById(id: string): LLM_PROVIDER
-  getRuntimeContextLimitTokens(
-    providerId: string,
-    modelId: string,
-    signal?: AbortSignal
-  ): Promise<number | undefined>
   streamChat(
     providerId: string,
     messages: ChatMessage[],
@@ -290,7 +292,6 @@ export interface ProviderRuntimePort {
     maxTokens?: number,
     options?: { signal?: AbortSignal }
   ): Promise<LLMResponse>
-  stopStream(eventId: string): Promise<void>
   check(providerId: string, modelId?: string): Promise<{ isOk: boolean; errorMsg: string | null }>
   getKeyStatus(providerId: string): Promise<KeyStatus | null>
   refreshModels(providerId: string): Promise<void>
@@ -399,7 +400,6 @@ export interface ProviderRuntimePort {
 
 export type ProviderExecutionPort = Pick<
   ProviderRuntimePort,
-  | 'getRuntimeContextLimitTokens'
   | 'streamChat'
   | 'executeWithRateLimit'
   | 'generateCompletionStandalone'
@@ -422,7 +422,6 @@ export interface ModelConfig {
   type: ModelType
   isUserDefined?: boolean
   thinkingBudget?: number
-  forceInterleavedThinkingCompat?: boolean
   reasoningEffort?: ReasoningEffort
   reasoningVisibility?: ReasoningVisibility
   verbosity?: Verbosity

@@ -84,16 +84,13 @@
       },
       "descriptions": {
         "agent": "표준 Agent 도구 모음을 사용합니다.",
-        "code": "활성화된 도구를 코드로 조합합니다. 전체 액세스 권한 모드가 필요합니다.",
+        "code": "JavaScript로 활성화된 도구를 조합합니다. 각 도구의 권한은 개별적으로 확인됩니다.",
         "minimal": "파일 작업은 간소화하고 활성화된 다른 도구는 유지합니다."
       },
       "useModelDefault": "모델 기본값 사용",
       "saving": "모드 저장 중...",
       "locked": "이 응답이 끝나면 모드를 전환할 수 있습니다.",
-      "updateFailed": "도구 모드를 업데이트하지 못했습니다.",
-      "codeEntry": "코드 진입점",
-      "codeCallable": "코드에서 호출 가능",
-      "minimalTools": "코딩 도구"
+      "updateFailed": "도구 모드를 업데이트하지 못했습니다."
     },
     "fileUploadFailed": "첨부 파일 처리 실패",
     "fileUploadFailedDesc": "파일 {count}개를 처리할 수 없습니다: {names}",
@@ -216,8 +213,6 @@
     "maxTokens": "최대 토큰",
     "thinkingBudget": "사고 예산",
     "verbosity": "응답 상세도",
-    "forceInterleavedThinkingCompat": "Interleaved Thinking",
-    "forceInterleavedThinkingCompatDescription": "이 세션에서 reasoning 및 tool-call 메시지를 Interleaved Thinking 방식으로 처리할지 제어합니다.",
     "verbosityPlaceholder": "상세도 선택",
     "currentCustomPrompt": "현재 사용자 지정",
     "useDefault": "기본값 사용",

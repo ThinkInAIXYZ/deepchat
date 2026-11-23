@@ -3,7 +3,7 @@
  */
 
 import path from 'path'
-import { BrowserWindow, ipcMain, nativeImage } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, nativeImage, type MessageBoxOptions } from 'electron'
 import { is } from '@electron-toolkit/utils'
 import icon from '../../../resources/icon.png?asset' // 应用图标 (macOS/Linux)
 import iconWin from '../../../resources/icon.ico?asset' // 应用图标 (Windows)
@@ -24,6 +24,7 @@ import {
 } from '@shared/contracts/databaseSecurity'
 import { activateAppOnMac } from '@/lib/activateApp'
 import { SPLASH_DEBUG_MODE_CHANNEL, type SplashDebugMode } from '@shared/contracts/splash'
+import { databaseMigrationTranslations, getBestMatchTranslation } from '@shared/i18n'
 
 const SPLASH_SHOW_DELAY_MS = 200
 
@@ -199,6 +200,30 @@ export class SplashWindow {
       this.forceShowSplash({ skipDelay: true })
       this.emitDatabaseUnlockState()
     })
+  }
+
+  async showDatabaseMigrationNotice(databasePath: string): Promise<boolean> {
+    this.forceShowSplash({ skipDelay: true })
+    if (!this.isVisible()) await this.splashLoadPromise
+    const labels = getBestMatchTranslation(app.getLocale(), databaseMigrationTranslations)
+    const options: MessageBoxOptions = {
+      type: 'warning',
+      title: app.getName(),
+      message: labels.title,
+      detail: labels.detail.replace(/\{folder\}|\{prefix\}/g, (key) =>
+        key === '{folder}'
+          ? path.dirname(databasePath)
+          : `${path.basename(databasePath)}.legacy-encrypted.`
+      ),
+      buttons: [labels.continue, labels.quit],
+      defaultId: 1,
+      cancelId: 1
+    }
+    const parent = this.splashWindow
+    const result = await (parent && !parent.isDestroyed()
+      ? dialog.showMessageBox(parent, options)
+      : dialog.showMessageBox(options))
+    return result.response === 0
   }
 
   async showDebugScenario(mode: SplashDebugMode): Promise<void> {

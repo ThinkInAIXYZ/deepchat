@@ -272,6 +272,7 @@ export interface ProviderSettingsPort {
     options?: { bumpRevision?: boolean }
   ): ProviderCatalogState
   deleteProviderCatalogState(providerId: string): void
+  getProviderMediaRoute(providerId: string, modelId: string): MODEL_META['mediaRoute']
   getProviderModelRouteMetadata(
     providerId: string,
     modelId: string,
@@ -616,11 +617,7 @@ export class ProviderSettings implements ProviderSettingsPort {
         baseUrl: provider?.baseUrl
       })
     ) {
-      return {
-        ...snapshot,
-        supportsSearch: true,
-        searchExecution: 'provider'
-      }
+      snapshot.supportsSearch = false
     }
 
     return snapshot
@@ -1207,6 +1204,10 @@ export class ProviderSettings implements ProviderSettingsPort {
     return selectableEndpointTypes
       ? { ...modelWithoutStoredProjection, selectableEndpointTypes }
       : modelWithoutStoredProjection
+  }
+
+  getProviderMediaRoute(providerId: string, modelId: string): MODEL_META['mediaRoute'] {
+    return this.providerModelHelper.getProviderModel(providerId, modelId)?.mediaRoute
   }
 
   getProviderModelRouteMetadata(

@@ -24,8 +24,7 @@ import {
 const passthroughPolicy = (): ModelRequestPolicy => ({
   temperature: { mode: 'passthrough' },
   topP: { mode: 'passthrough' },
-  reasoning: { mode: 'passthrough' },
-  legacyThinking: { mode: 'passthrough' }
+  reasoning: { mode: 'passthrough' }
 })
 
 const createCapabilities = (
@@ -335,8 +334,7 @@ describe('useModelCapabilities', () => {
         {
           temperature: { mode: 'omit' },
           topP: { mode: 'omit' },
-          reasoning: { mode: 'fixed', value: true },
-          legacyThinking: { mode: 'omit' }
+          reasoning: { mode: 'fixed', value: true }
         }
       )
     )

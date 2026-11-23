@@ -10,7 +10,7 @@ import type { SessionTranscript } from './data/transcript'
 import { buildEditedUserContent, extractUserMessageInput } from './data/userMessageContent'
 import { parseMessageMetadata } from './usageStats'
 
-import type { SessionTranscriptRuntimePort } from './data/contracts'
+import type { SessionTranscriptRuntimePort, SessionTranscriptMutationPort } from './data/contracts'
 export type { SessionTranscriptRuntimePort } from './data/contracts'
 
 export interface SessionTranscriptMutationDependencies {
@@ -19,12 +19,19 @@ export interface SessionTranscriptMutationDependencies {
   pendingInputs: SessionPendingInputs
   runtime: SessionTranscriptRuntimePort
   runInTransaction<T>(operation: () => T): T
+  native?: {
+    owns(sessionId: string): boolean
+    mutations: Omit<SessionTranscriptMutationPort, 'forkSessionFromMessage'> &
+      Partial<Pick<SessionTranscriptMutationPort, 'forkSessionFromMessage'>>
+  }
 }
 
 export class SessionTranscriptMutations {
   constructor(private readonly dependencies: SessionTranscriptMutationDependencies) {}
 
   async clearMessages(sessionId: string): Promise<void> {
+    if (this.dependencies.native?.owns(sessionId))
+      return this.dependencies.native.mutations.clearMessages(sessionId)
     await this.dependencies.runtime.prepareClearMessages(sessionId)
     this.dependencies.runInTransaction(() => {
       this.dependencies.pendingInputs.deleteBySession(sessionId)
@@ -43,7 +50,10 @@ export class SessionTranscriptMutations {
     sourceOrderSeq: number
     retryFromOrderSeq: number
     sourceMessageId: string | null
+    reuseUserMessage?: { messageId: string; orderSeq: number; createdAt: number }
   }> {
+    if (this.dependencies.native?.owns(sessionId))
+      return this.dependencies.native.mutations.prepareRetryMessage(sessionId, messageId)
     const target = this.requireMessage(sessionId, messageId)
     const sourceUserMessage =
       target.role === 'user'
@@ -84,7 +94,17 @@ export class SessionTranscriptMutations {
     }
   }
 
-  commitRetryMessage(sessionId: string, orderSeq: number): void {
+  commitRetryMessage(
+    sessionId: string,
+    orderSeq: number,
+    reuseUserMessage?: { messageId: string; orderSeq: number; createdAt: number }
+  ): void | Promise<void> {
+    if (this.dependencies.native?.owns(sessionId))
+      return this.dependencies.native.mutations.commitRetryMessage(
+        sessionId,
+        orderSeq,
+        reuseUserMessage
+      )
     this.dependencies.runInTransaction(() => {
       this.dependencies.transcript.deleteFromOrderSeq(sessionId, orderSeq)
     })
@@ -92,6 +112,8 @@ export class SessionTranscriptMutations {
   }
 
   async deleteMessage(sessionId: string, messageId: string): Promise<void> {
+    if (this.dependencies.native?.owns(sessionId))
+      return this.dependencies.native.mutations.deleteMessage(sessionId, messageId)
     this.dependencies.runtime.assertNoActivePendingInputs(sessionId)
     const target = this.requireMessage(sessionId, messageId)
 
@@ -107,6 +129,13 @@ export class SessionTranscriptMutations {
     text: string,
     inlineItems?: UserMessageInlineItem[]
   ): Promise<ChatMessageRecord> {
+    if (this.dependencies.native?.owns(sessionId))
+      return this.dependencies.native.mutations.editUserMessage(
+        sessionId,
+        messageId,
+        text,
+        inlineItems
+      )
     this.dependencies.runtime.assertNoActivePendingInputs(sessionId)
     const target = this.requireMessage(sessionId, messageId)
     if (target.role !== 'user') throw new Error('Only user messages can be edited.')
@@ -137,6 +166,16 @@ export class SessionTranscriptMutations {
     targetSessionId: string,
     targetMessageId: string
   ): Promise<void> {
+    if (this.dependencies.native?.owns(sourceSessionId)) {
+      const fork = this.dependencies.native.mutations.forkSessionFromMessage
+      if (!fork) throw new Error('Native fork owner is unavailable')
+      return fork.call(
+        this.dependencies.native.mutations,
+        sourceSessionId,
+        targetSessionId,
+        targetMessageId
+      )
+    }
     const target = this.requireMessage(sourceSessionId, targetMessageId)
     const clonedMemoryCursorOrderSeq = this.dependencies.transcript.cloneSentMessagesToSession(
       sourceSessionId,

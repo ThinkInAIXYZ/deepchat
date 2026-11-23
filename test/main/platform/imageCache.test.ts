@@ -22,6 +22,8 @@ vi.mock('axios', () => ({ default: axiosMock }))
 
 import { cacheImage, resolveCachedImageDataUrl } from '@/platform/imageCache'
 import { cacheToolCallImagePreviews } from '@/lib/toolCallImagePreviews'
+import { createHash } from 'node:crypto'
+import { materializeNativeMedia, registerNativeMediaCache } from '@/platform/nativeMediaCache'
 
 describe('imageCache', () => {
   const tempDirectories: string[] = []
@@ -35,12 +37,76 @@ describe('imageCache', () => {
   })
 
   afterEach(async () => {
+    registerNativeMediaCache(undefined)
     await Promise.all(
       tempDirectories
         .splice(0)
         .map((directory) => fs.rm(directory, { recursive: true, force: true }))
     )
     vi.mocked(console.error).mockRestore()
+  })
+
+  it('rebuilds a native media cache through its owner once and reads it offline', async () => {
+    const bytes = Buffer.from('native image bytes')
+    const source = 'imgcache://dim_mt_12345678-1234-1234-1234-123456789abc__image.png'
+    const status = vi.fn(async () => ({
+      state: 'succeeded',
+      result: {
+        files: [
+          {
+            name: 'image.png',
+            bytes: bytes.length,
+            sha256: createHash('sha256').update(bytes).digest('hex')
+          }
+        ]
+      }
+    }))
+    const readChunk = vi.fn(async () => bytes)
+    registerNativeMediaCache({ status, readChunk } as unknown as Parameters<
+      typeof registerNativeMediaCache
+    >[0])
+    await Promise.all([materializeNativeMedia(source), materializeNativeMedia(source)])
+    expect(status).toHaveBeenCalledTimes(1)
+    expect(readChunk).toHaveBeenCalledTimes(1)
+    registerNativeMediaCache(undefined)
+    expect(await resolveCachedImageDataUrl(source)).toBe(
+      `data:image/png;base64,${bytes.toString('base64')}`
+    )
+  })
+
+  it('rejects changed native bytes and removes incomplete cache output', async () => {
+    const source = 'imgcache://dim_mt_12345678-1234-1234-1234-123456789abc__image.png'
+    registerNativeMediaCache({
+      status: async () => ({
+        state: 'succeeded',
+        result: { files: [{ name: 'image.png', bytes: 3, sha256: 'a'.repeat(64) }] }
+      }),
+      readChunk: async () => Buffer.from('bad')
+    } as unknown as Parameters<typeof registerNativeMediaCache>[0])
+    await expect(materializeNativeMedia(source)).rejects.toThrow('integrity mismatch')
+    expect(await fs.readdir(path.join(electronMock.userDataPath, 'images'))).toEqual([])
+    await expect(
+      materializeNativeMedia('imgcache://dim_mt_12345678-1234-1234-1234-123456789abc__../x')
+    ).rejects.toThrow('Invalid native media reference')
+  })
+
+  it('reads a Session-owned artifact without a media task or live Agent', async () => {
+    const bytes = Buffer.from('portable native image')
+    const source = 'imgcache://dim_file_12345678-1234-1234-1234-123456789abc__image.png'
+    const describe = vi.fn(async () => ({
+      name: 'image.png',
+      mediaType: 'image/png',
+      bytes: bytes.length,
+      sha256: createHash('sha256').update(bytes).digest('hex')
+    }))
+    const readChunk = vi.fn(async () => bytes)
+    registerNativeMediaCache(undefined, { describe, readChunk })
+    await materializeNativeMedia(source)
+    expect(describe).toHaveBeenCalledWith('12345678-1234-1234-1234-123456789abc')
+    expect(readChunk).toHaveBeenCalledTimes(1)
+    expect(await resolveCachedImageDataUrl(source)).toBe(
+      `data:image/png;base64,${bytes.toString('base64')}`
+    )
   })
 
   it('preserves distinct valid images whose base64 differs only by case', async () => {

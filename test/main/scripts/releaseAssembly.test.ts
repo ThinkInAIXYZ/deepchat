@@ -382,7 +382,7 @@ describe('fail-closed release assembly', () => {
     await expect(assemble()).rejects.toThrow(/exactly the six package artifacts/)
   })
 
-  it('rejects missing, unknown, symlinked, and path-escaping package files', async () => {
+  it('rejects missing, unknown, and path-escaping package files', async () => {
     const windowsRoot = artifactRoot('win32-x64')
     const manifest = JSON.parse(
       await readFile(path.join(windowsRoot, 'manifest.json'), 'utf8')
@@ -396,24 +396,29 @@ describe('fail-closed release assembly', () => {
     await expect(assemble()).rejects.toThrow(/unexpected files entries/)
 
     await resetFixtures()
-    const refreshedRoot = artifactRoot('win32-x64')
-    const refreshedManifest = JSON.parse(
-      await readFile(path.join(refreshedRoot, 'manifest.json'), 'utf8')
-    ) as PackageManifest
-    const refreshedInstaller = refreshedManifest.files.find(
-      ({ role }) => role === 'installer'
-    )!
-    const installerPath = path.join(refreshedRoot, refreshedInstaller.storagePath)
-    await rm(installerPath)
-    await symlink(path.join(refreshedRoot, 'manifest.json'), installerPath)
-    await expect(assemble()).rejects.toThrow(/regular non-symlink file/)
-
-    await resetFixtures()
     await updateManifest('win32-x64', (candidate) => {
       candidate.files.find(({ role }) => role === 'installer')!.storagePath =
         '../outside.exe'
     })
     await expect(assemble()).rejects.toThrow(/storage path mismatch/)
+  })
+
+  it('rejects symlinked package files', async ({ skip }) => {
+    const root = artifactRoot('win32-x64')
+    const manifestPath = path.join(root, 'manifest.json')
+    const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as PackageManifest
+    const installer = manifest.files.find(({ role }) => role === 'installer')!
+    const installerPath = path.join(root, installer.storagePath)
+    await rm(installerPath)
+    try {
+      await symlink(manifestPath, installerPath)
+    } catch (error) {
+      if (process.platform === 'win32' && (error as NodeJS.ErrnoException).code === 'EPERM') {
+        skip('This Windows account cannot create file symlinks')
+      }
+      throw error
+    }
+    await expect(assemble()).rejects.toThrow(/regular non-symlink file/)
   })
 
   it('rejects duplicate names, unknown fields, and verification manifests', async () => {
@@ -597,6 +602,24 @@ async function createOnePackageArtifact(
     })
   )
 
+  const dimSmokeName = `dim-runtime-smoke-${definition.id}.json`
+  const dimSmokePath = path.join(reportsDirectory, dimSmokeName)
+  await writeFile(
+    dimSmokePath,
+    JSON.stringify({
+      target: definition.id,
+      profile: 'release',
+      native: true,
+      hostPlugin: true,
+      storagePlugin: true,
+      modelPlugin: true,
+      agentOwner: true,
+      sourceRevision: sourceSha,
+      sha256: '0'.repeat(64),
+      nodeSha256: '1'.repeat(64)
+    })
+  )
+
   const sizeName = `package-size-${definition.id}.json`
   const sizePath = path.join(reportsDirectory, sizeName)
   const sizePolicy = createDefaultPackageSizePolicy()
@@ -634,6 +657,7 @@ async function createOnePackageArtifact(
   const reports: PackageManifest['reports'] = []
   for (const [name, reportPath] of [
     [smokeName, smokePath],
+    [dimSmokeName, dimSmokePath],
     [sizeName, sizePath]
   ] as const) {
     const inspected = await inspectRegularFile(reportPath, root)

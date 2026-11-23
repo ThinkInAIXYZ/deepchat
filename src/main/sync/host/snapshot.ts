@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
-import { Unzip, UnzipInflate } from 'fflate'
+import { readBackupManifest } from '../backupArchive'
 import type { SyncBackupInfo } from '@shared/types/sync'
 
 export interface SyncHostSnapshot {
@@ -26,18 +26,6 @@ interface CachedDigest {
   databaseEncrypted: boolean
 }
 
-interface BackupManifestShape {
-  version?: unknown
-  databaseEncrypted?: unknown
-}
-
-/**
- * Ceiling on the manifest entry we are willing to buffer. A real manifest is well under a kilobyte;
- * anything larger is a hostile or broken archive, and buffering it would let a small deflate bomb
- * inflate into the main process's heap.
- */
-const MANIFEST_MAX_BYTES = 1024 * 1024
-
 /**
  * Only real backup packages may be served. Every other call site in the sync pipeline validates the
  * name this way (`sync/index.ts`, `cloudStorageService.ts`); without it, any `*.zip` that lands in
@@ -45,100 +33,6 @@ const MANIFEST_MAX_BYTES = 1024 * 1024
  * host's snapshot.
  */
 const BACKUP_FILE_NAME_REGEX = /^backup-\d+\.zip$/
-
-/** Consume unrelated deflate entries without buffering or inflating their contents. */
-class ManifestInflate extends UnzipInflate {
-  constructor(private readonly fileName: string) {
-    super()
-  }
-
-  override push(chunk: Uint8Array, final: boolean): void {
-    if (this.fileName === 'manifest.json') super.push(chunk, final)
-    else this.ondata(null, new Uint8Array(0), final)
-  }
-}
-
-/** Extract only the manifest, bounding compressed input per inflate call as well as output. */
-function readManifestEntry(filePath: string): Promise<BackupManifestShape | null> {
-  return new Promise((resolve) => {
-    let settled = false
-    let manifest: BackupManifestShape | null = null
-    let stream: fs.ReadStream | null = null
-    const done = (value: BackupManifestShape | null): void => {
-      if (settled) return
-      settled = true
-      resolve(value)
-    }
-
-    const unzip = new Unzip((file) => {
-      if (file.name !== 'manifest.json') {
-        file.ondata = () => undefined
-        file.start()
-        return
-      }
-      const chunks: Uint8Array[] = []
-      let buffered = 0
-      file.ondata = (error, data, final) => {
-        if (error) {
-          done(null)
-          stream?.destroy()
-          return
-        }
-        buffered += data.length
-        if (buffered > MANIFEST_MAX_BYTES) {
-          done(null)
-          stream?.destroy()
-          return
-        }
-        chunks.push(data)
-        if (!final) return
-        try {
-          const parsed = JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown
-          manifest = parsed && typeof parsed === 'object' ? (parsed as BackupManifestShape) : null
-        } catch {
-          manifest = null
-        }
-      }
-      if (file.originalSize !== undefined && file.originalSize > MANIFEST_MAX_BYTES) {
-        done(null)
-        stream?.destroy()
-        return
-      }
-      file.start()
-    })
-
-    // fflate only auto-registers stored entries; deflate entries need a codec or `start()` throws.
-    unzip.register(ManifestInflate)
-
-    stream = fs.createReadStream(filePath, { highWaterMark: 1024 * 1024 })
-    stream.on('data', (chunk: string | Buffer) => {
-      const bytes = typeof chunk === 'string' ? Buffer.from(chunk) : chunk
-      // A corrupt or hostile archive must not throw out of a stream handler: that would escape to
-      // the main process and leave the request hanging.
-      try {
-        // A small compressed slice bounds each synchronous inflate allocation, including bombs.
-        for (let offset = 0; offset < bytes.length && !settled; offset += 1024) {
-          unzip.push(bytes.subarray(offset, offset + 1024), false)
-        }
-      } catch {
-        done(null)
-        stream?.destroy()
-      }
-    })
-    stream.on('error', () => done(null))
-    stream.on('end', () => {
-      // The trailing central directory is what finalizes the last entry, so the result is only
-      // known after the final push has been processed.
-      try {
-        unzip.push(new Uint8Array(0), true)
-      } catch {
-        done(null)
-        return
-      }
-      setImmediate(() => done(manifest))
-    })
-  })
-}
 
 async function digestFile(
   filePath: string
@@ -151,7 +45,7 @@ async function digestFile(
     stream.on('end', () => resolve(hash.digest('hex')))
   })
 
-  const manifest = await readManifestEntry(filePath)
+  const manifest = await readBackupManifest(filePath)
 
   const version = manifest?.version
   return {

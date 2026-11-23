@@ -491,16 +491,10 @@ function renderTemplate(
   const output: string[] = []
 
   for (const line of source) {
-    let rendered = line
-
-    for (const [key, value] of Object.entries(replacements)) {
-      const token = `{{${key}}}`
-      if (rendered.includes(token)) {
-        rendered = rendered.split(token).join(value)
-      }
-    }
-
-    rendered = rendered.replace(/{{\w+}}/g, '')
+    // One pass, so a `{{word}}` inside a substituted value stays as written.
+    const rendered = line.replace(/{{(\w+)}}/g, (_token, key: string) =>
+      Object.hasOwn(replacements, key) ? replacements[key] : ''
+    )
     output.push(...rendered.split('\n'))
   }
 

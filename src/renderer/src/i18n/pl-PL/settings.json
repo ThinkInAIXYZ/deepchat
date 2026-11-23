@@ -231,7 +231,6 @@
     "thinkingBudget": "Myślący budżet",
     "reasoningEffort": "Wysiłek rozumowania",
     "verbosity": "Szczegółowość",
-    "interleaved": "Kompatybilność myślenia z przeplataniem siły",
     "systemPrompt": "Domyślny system prompt",
     "systemPromptPlaceholder": "Pozostaw puste dla pustego system prompt",
     "defaultProjectPath": "Katalog domyślny (opcjonalnie)",
@@ -241,7 +240,6 @@
     "permissionDefault": "Domyślne uprawnienie",
     "defaultToolMode": "Tryb domyślny",
     "defaultToolModeModelDefaultDesc": "Określany przez bieżący model. Większość modeli używa trybu Agent.",
-    "defaultToolModeCodePermissionHint": "Tryb Code wymaga ustawienia domyślnego uprawnienia na „{permission}”, w przeciwnym razie wywołania kodu się nie powiodą.",
     "subagentsTitle": "Subagenci",
     "subagentsDescription": "Zezwól temu agentowi na delegowanie niezależnych podzadań. Model decyduje, kiedy użyć skonfigurowanych slotów; delegowanie zużywa dodatkowe tokeny, czas i zasoby systemowe.",
     "subagentsEnabled": "Zezwól temu agentowi na delegowanie podzadań",
@@ -617,46 +615,6 @@
         "type-mismatch": "niezgodność typu kolumny"
       }
     },
-    "databaseEncryption": {
-      "title": "Szyfrowanie bazy danych SQLite",
-      "description": "Zaszyfruj plik agent.db za pomocą SQLCipher i wymagaj hasła SQLite, jeśli nie można użyć odblokowania systemu.",
-      "enabled": "Włączone",
-      "disabled": "Niepełnosprawny",
-      "cipher": "Szyfr",
-      "systemUnlock": "Odblokowanie systemu",
-      "startupUnlock": "Odblokowanie uruchamiania",
-      "lastMigration": "Ostatnia migracja",
-      "loading": "Ładowanie",
-      "never": "Nigdy",
-      "notRequired": "Nie jest wymagane",
-      "systemUnlockAvailable": "Dostępne",
-      "systemUnlockUnavailable": "Niedostępne",
-      "systemUnlockMode": "Odblokowanie systemu",
-      "manualUnlock": "Ręczne hasło",
-      "currentPassword": "Aktualne hasło",
-      "newPassword": "Nowe hasło SQLite",
-      "confirmPassword": "Potwierdź hasło",
-      "passwordMismatch": "Hasła nie pasują",
-      "systemCredentialStore": "Gdy dostępna jest bezpieczna pamięć systemowa, DeepChat przechowuje hasło SQLite w skarbcu danych uwierzytelniających systemu operacyjnego (pęku kluczy macOS, skarbcu danych uwierzytelniających systemu Windows lub tajnym magazynie systemu Linux). Po jednym udanym odblokowaniu późniejsze start-upy zwykle otwierają się automatycznie; wystarczy ponownie wprowadzić klucz szyfrowania po migracji danych, gdy brakuje danych uwierzytelniających systemu operacyjnego lub nie można ich odszyfrować, albo gdy bezpieczne przechowywanie jest niedostępne.",
-      "safeStorageUnavailable": "Rozwiązanie Electron SafeStorage nie jest dostępne w tym systemie. Po włączeniu szyfrowania przy każdym uruchomieniu należy wprowadzić hasło.",
-      "enableButton": "Włącz szyfrowanie",
-      "changeButton": "Zmień hasło",
-      "disableButton": "Wyłącz szyfrowanie",
-      "enabledTitle": "Włączono szyfrowanie bazy danych",
-      "changedTitle": "Hasło SQLite zostało zmienione",
-      "disabledTitle": "Szyfrowanie bazy danych wyłączone",
-      "failedTitle": "Szyfrowanie bazy danych nie powiodło się",
-      "failedDescription": "Sprawdź hasło i spróbuj ponownie.",
-      "setPasswordButton": "Ustaw hasło",
-      "enableDialogTitle": "Ustaw hasło SQLite",
-      "changeDialogTitle": "Zmień hasło SQLite",
-      "disableDialogTitle": "Wyłącz szyfrowanie bazy danych",
-      "enableDialogDescription": "Utwórz zaszyfrowaną bazę danych SQLite i migruj do niej bieżące dane lokalne.",
-      "changeDialogDescription": "Przeprowadź migrację bieżącej zaszyfrowanej bazy danych do nowej zaszyfrowanej bazy danych z nowym hasłem.",
-      "disableDialogDescription": "Przeprowadź migrację bieżącej zaszyfrowanej bazy danych z powrotem do lokalnej bazy danych w postaci zwykłego tekstu.",
-      "cancelButton": "Anuluj",
-      "unknown": "Nieznany"
-    },
     "modelConfigUpdate": {
       "title": "Zaktualizuj konfigurację modelu",
       "descriptionPrefix": "Synchronizuj dane modelu z ",
@@ -847,7 +805,8 @@
       "saveAndTest": "Zapisz i testuj",
       "saveOnly": "Tylko zapisz",
       "saveAndTestFirst": "Najpierw zapisz i przetestuj konfigurację chmury."
-    }
+    },
+    "legacyBackupPassword": "Hasło starej zaszyfrowanej kopii zapasowej (opcjonalne)"
   },
   "dashboard": {
     "badge": "Panel użytkowania",
@@ -1012,10 +971,6 @@
       "reasoningToggle": {
         "description": "Określa, czy dla tego modelu jest domyślnie włączone wnioskowanie",
         "label": "Włącz rozumowanie"
-      },
-      "interleavedThinking": {
-        "label": "Przeplatane myślenie",
-        "description": "Kontroluje, czy ten model obsługuje rozumowanie i komunikaty wywołań narzędzi za pomocą myślenia przeplatanego. Domyślne ustawienia dostawcy są stosowane automatycznie."
       },
       "thinkingBudget": {
         "label": "Myślący budżet",

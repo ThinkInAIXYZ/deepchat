@@ -47,6 +47,13 @@ export class SessionPendingInputStore {
       .map((row) => this.toRecord(row))
   }
 
+  listMigrationInputs(sessionId: string): PendingSessionInputRecord[] {
+    return this.database.deepchatPendingInputsTable.listActiveBySession(sessionId).map((row) => {
+      const record = this.toRecord(row)
+      return record.state === 'claimed' ? { ...record, state: 'retry_required' as const } : record
+    })
+  }
+
   listActiveInputs(): PendingSessionInputRecord[] {
     return this.database.deepchatPendingInputsTable
       .listActive()

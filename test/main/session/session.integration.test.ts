@@ -3835,7 +3835,7 @@ describe('Session application coordinators', () => {
   })
 
   describe('disabled agent tools', () => {
-    it('reads disabled agent tools from session storage', async () => {
+    it('reads session tool preferences using canonical native names', async () => {
       sqlitePresenter.newSessionsTable.get.mockReturnValue({
         id: 's1',
         agent_id: 'deepchat',
@@ -3845,11 +3845,16 @@ describe('Session application coordinators', () => {
         created_at: 1000,
         updated_at: 1000
       })
-      sqlitePresenter.newSessionsTable.getDisabledAgentTools.mockReturnValue(['exec', 'cdp_send'])
+      sqlitePresenter.newSessionsTable.getDisabledAgentTools.mockReturnValue([
+        'exec',
+        'cdp_send',
+        'deepchat_question',
+        'process'
+      ])
 
       const disabledTools = await assignment.getSessionDisabledAgentTools('s1')
 
-      expect(disabledTools).toEqual(['exec', 'cdp_send'])
+      expect(disabledTools).toEqual(['ask_user', 'cdp_send', 'exec', 'exec_stop'])
     })
 
     it('updates disabled agent tools without requiring prompt-cache invalidation', async () => {

@@ -1,15 +1,15 @@
-import * as fs from 'fs'
-import * as path from 'path'
-import { shell } from 'electron'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { XaiGrokAuth, resetGlobalXaiGrokAuthForTests } from '@/provider/auth/xaiGrok'
-import { XaiGrokCredentialStore } from '@/provider/auth/xaiGrok/credentialStore'
 import {
   XAI_GROK_OAUTH_CLIENT_ID,
   isTrustedXaiApiEndpoint,
   isTrustedXaiOAuthEndpoint
 } from '@/provider/auth/xaiGrok/constants'
-import { createXaiGrokFetch, shouldUseXaiGrokOAuthFetch } from '@/provider/xaiGrokAuthAdapter'
+import { XaiGrokCredentialStore } from '@/provider/auth/xaiGrok/credentialStore'
+import { shouldUseXaiGrokOAuthFetch } from '@/provider/xaiGrokAuthAdapter'
+import { shell } from 'electron'
+import * as fs from 'fs'
+import * as path from 'path'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 function jsonResponse(value: unknown, init?: ResponseInit): Response {
   return new Response(JSON.stringify(value), {
@@ -115,27 +115,6 @@ describe('xAI Grok OAuth', () => {
         id: 'custom-grok'
       })
     ).toBe(false)
-  })
-
-  it('refuses to send credentials when a wrapped request targets an untrusted endpoint', async () => {
-    const underlyingFetch = vi.fn<typeof fetch>()
-    const fetcher = createXaiGrokFetch(
-      {
-        id: 'grok',
-        name: 'Grok',
-        apiType: 'grok',
-        apiKey: 'console-key',
-        baseUrl: 'https://api.x.ai/v1',
-        enable: true
-      },
-      {},
-      underlyingFetch
-    )
-
-    await expect(fetcher('https://attacker.example.com/v1/models')).rejects.toThrow(
-      'untrusted API endpoint'
-    )
-    expect(underlyingFetch).not.toHaveBeenCalled()
   })
 
   it('stores Grok OAuth credentials outside provider records', () => {

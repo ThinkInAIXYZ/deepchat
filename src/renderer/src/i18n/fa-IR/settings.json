@@ -392,46 +392,6 @@
       },
       "applyFailed": "وارد کردن ناموفق بود: {message}"
     },
-    "databaseEncryption": {
-      "title": "رمزگذاری پایگاه داده SQLite",
-      "description": "agent.db را با SQLCipher رمزگذاری کنید و وقتی باز کردن قفل سیستم قابل استفاده نیست، رمز SQLite را درخواست کنید.",
-      "enabled": "فعال",
-      "disabled": "غیرفعال",
-      "cipher": "رمزنگار",
-      "systemUnlock": "باز کردن قفل سیستم",
-      "startupUnlock": "باز کردن قفل هنگام شروع",
-      "lastMigration": "آخرین مهاجرت",
-      "loading": "در حال بارگذاری",
-      "never": "هرگز",
-      "notRequired": "لازم نیست",
-      "systemUnlockAvailable": "در دسترس",
-      "systemUnlockUnavailable": "در دسترس نیست",
-      "systemUnlockMode": "باز کردن قفل سیستم",
-      "manualUnlock": "رمز دستی",
-      "currentPassword": "رمز فعلی",
-      "newPassword": "رمز جدید SQLite",
-      "confirmPassword": "تأیید رمز",
-      "passwordMismatch": "رمزها یکسان نیستند",
-      "systemCredentialStore": "وقتی ذخیره‌سازی امن سیستم در دسترس باشد، DeepChat رمز SQLite را به صورت رمزگذاری‌شده در خزانه اعتبارنامه سیستم (مانند macOS Keychain، Windows Credential Vault یا یک Linux secret store) ذخیره می‌کند. پس از یک باز کردن قفل موفق، شروع‌های بعدی معمولاً خودکار باز می‌شوند؛ فقط پس از مهاجرت داده، نبودن یا غیرقابل رمزگشایی بودن اعتبارنامه سیستم، یا در دسترس نبودن ذخیره‌سازی امن باید دوباره کلید رمزگذاری را وارد کنید.",
-      "safeStorageUnavailable": "Electron safeStorage روی این سیستم در دسترس نیست. پس از فعال کردن رمزگذاری، باید در هر شروع رمز را وارد کنید.",
-      "enableButton": "فعال کردن رمزگذاری",
-      "changeButton": "تغییر رمز",
-      "disableButton": "غیرفعال کردن رمزگذاری",
-      "enabledTitle": "رمزگذاری پایگاه داده فعال شد",
-      "changedTitle": "رمز SQLite تغییر کرد",
-      "disabledTitle": "رمزگذاری پایگاه داده غیرفعال شد",
-      "failedTitle": "رمزگذاری پایگاه داده ناموفق بود",
-      "failedDescription": "رمز را بررسی کنید و دوباره تلاش کنید.",
-      "setPasswordButton": "تنظیم رمز",
-      "enableDialogTitle": "تنظیم رمز SQLite",
-      "changeDialogTitle": "تغییر رمز SQLite",
-      "disableDialogTitle": "غیرفعال کردن رمزگذاری پایگاه داده",
-      "enableDialogDescription": "یک پایگاه داده SQLite رمزگذاری‌شده ایجاد کنید و داده‌های محلی فعلی را به آن منتقل کنید.",
-      "changeDialogDescription": "پایگاه داده رمزگذاری‌شده فعلی را با رمز جدید به یک پایگاه داده رمزگذاری‌شده جدید منتقل کنید.",
-      "disableDialogDescription": "پایگاه داده رمزگذاری‌شده فعلی را به یک پایگاه داده محلی متن ساده برگردانید.",
-      "cancelButton": "لغو",
-      "unknown": "نامشخص"
-    },
     "cloudSync": {
       "title": "همگام‌سازی ابری (سازگار با S3)",
       "description": "نسخه‌های پشتیبان را در فضای ذخیره‌سازی سازگار با S3 مانند Cloudflare R2 بارگذاری کنید و تازه‌ترین نسخه پشتیبان را در دستگاهی دیگر دریافت کنید.",
@@ -472,7 +432,8 @@
       "saveAndTest": "ذخیره و آزمایش",
       "saveOnly": "فقط ذخیره",
       "saveAndTestFirst": "ابتدا پیکربندی ابر را ذخیره و آزمایش کنید."
-    }
+    },
+    "legacyBackupPassword": "گذرواژهٔ نسخهٔ پشتیبان رمزگذاری‌شدهٔ قدیمی (اختیاری)"
   },
   "dashboard": {
     "badge": "داشبورد مصرف",
@@ -637,10 +598,6 @@
       "reasoningToggle": {
         "description": "کنترل می‌کند که استدلال به‌صورت پیش‌فرض برای این مدل فعال باشد یا نه",
         "label": "فعال‌سازی استدلال"
-      },
-      "interleavedThinking": {
-        "label": "Interleaved Thinking",
-        "description": "کنترل می‌کند که این مدل پیام‌های reasoning و tool-call را با منطق Interleaved Thinking پردازش کند یا نه. مقادیر پیش‌فرض provider به‌صورت خودکار اعمال می‌شوند."
       },
       "thinkingBudget": {
         "label": "بودجه تفکر",
@@ -2832,7 +2789,6 @@
     "thinkingBudget": "بودجه تفکر",
     "reasoningEffort": "سطح استدلال",
     "verbosity": "میزان توضیح",
-    "interleaved": "اجبار به سازگاری با تفکر درهم‌تنیده",
     "systemPrompt": "پرامپت سیستمی پیش‌فرض",
     "systemPromptPlaceholder": "برای استفاده از پرامپت سیستمی خالی، اینجا را خالی بگذارید",
     "defaultProjectPath": "پوشه پیش‌فرض (اختیاری)",
@@ -2842,7 +2798,6 @@
     "permissionDefault": "مجوز پیش‌فرض",
     "defaultToolMode": "حالت پیش‌فرض",
     "defaultToolModeModelDefaultDesc": "توسط مدل فعلی تعیین می‌شود. بیشتر مدل‌ها از Agent استفاده می‌کنند.",
-    "defaultToolModeCodePermissionHint": "حالت Code نیاز دارد مجوز پیش‌فرض روی «{permission}» تنظیم شود، وگرنه فراخوانی‌های کد شکست می‌خورند.",
     "toolsTitle": "ابزارهای داخلی",
     "outputLimitsTitle": "محدودیت‌های پیشرفتهٔ خروجی",
     "outputLimitsDescription": "میزان خروجی ابزار را که برای این عامل به‌صورت درون‌خطی باقی می‌ماند کنترل کنید.",

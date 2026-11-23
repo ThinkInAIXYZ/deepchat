@@ -1,7 +1,7 @@
 import type { AssistantMessageBlock } from '@shared/types/agent-interface'
-import type { DeepChatOutputPort } from '@/agent/deepchat/runtime/output'
+import type { DeepChatOutputPort } from '@/agent/shared/output'
 import type { SessionEventPublisher } from '@/events/sessionEventRouter'
-import type { DeepChatInternalSessionUpdate } from '@/agent/deepchat/runtime/sessionUpdates'
+import type { DeepChatInternalSessionUpdate } from '@/agent/shared/sessionUpdates'
 import { cloneBlocksForRenderer } from './clientMessageProjection'
 
 export function createDeepChatOutputProjection(ports: {

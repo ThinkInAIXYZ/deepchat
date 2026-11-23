@@ -1,13 +1,10 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LLM_PROVIDER } from '@shared/types/provider'
-import { AiSdkProvider } from '../../../src/main/provider/providers/aiSdkProvider'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { resolveAiSdkProviderDefinition } from '../../../src/main/provider/providerRegistry'
+import { AiSdkProvider } from '../../../src/main/provider/providers/aiSdkProvider'
 
-const { mockGetProvider, mockRunAiSdkGenerateText } = vi.hoisted(() => ({
-  mockGetProvider: vi.fn(),
-  mockRunAiSdkGenerateText: vi.fn()
-}))
+const { mockGetProvider } = vi.hoisted(() => ({ mockGetProvider: vi.fn() }))
 
 vi.mock('electron', () => ({
   app: {
@@ -46,13 +43,6 @@ vi.mock('../../../src/main/provider/providerDbLoader', () => ({
   }
 }))
 
-vi.mock('../../../src/main/provider/aiSdk', () => ({
-  runAiSdkCoreStream: vi.fn(),
-  runAiSdkDimensions: vi.fn(),
-  runAiSdkEmbeddings: vi.fn(),
-  runAiSdkGenerateText: mockRunAiSdkGenerateText
-}))
-
 const createProvider = (overrides?: Partial<LLM_PROVIDER>): LLM_PROVIDER => ({
   id: 'kimi-for-coding',
   name: 'Kimi For Coding',
@@ -78,7 +68,6 @@ const createProviderSettings = (): ProviderSettingsPort =>
 describe('AiSdkProvider kimi-for-coding', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockRunAiSdkGenerateText.mockResolvedValue({ content: 'ok' })
   })
 
   it('resolves Kimi For Coding through the Anthropic-compatible runtime', () => {
@@ -151,31 +140,5 @@ describe('AiSdkProvider kimi-for-coding', () => {
         isCustom: false
       }
     ])
-  })
-
-  it('verifies Kimi For Coding with a small generate-text request', async () => {
-    const provider = new AiSdkProvider(createProvider(), createProviderSettings())
-    ;(provider as any).isInitialized = true
-
-    await expect(provider.check()).resolves.toEqual({
-      isOk: true,
-      errorMsg: null
-    })
-    expect(mockRunAiSdkGenerateText).toHaveBeenCalledWith(
-      expect.objectContaining({
-        providerKind: 'anthropic',
-        cleanHeaders: false,
-        provider: expect.objectContaining({
-          id: 'kimi-for-coding',
-          apiType: 'anthropic',
-          baseUrl: 'https://api.kimi.com/coding/'
-        })
-      }),
-      [{ role: 'user', content: 'Hello' }],
-      'kimi-for-coding',
-      expect.any(Object),
-      0.2,
-      16
-    )
   })
 })

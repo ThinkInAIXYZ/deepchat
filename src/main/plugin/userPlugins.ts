@@ -553,7 +553,7 @@ export class UserPlugins {
         selection: record.selection,
         previousDigest: record.previousDigest,
         setup,
-        diagnostics: this.deps.hooks.diagnostics(record.pluginId)
+        diagnostics: await this.deps.hooks.readDiagnostics(record.pluginId)
       }
     }
   }

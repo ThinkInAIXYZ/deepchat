@@ -5,7 +5,6 @@ import {
   SKILL_VIEW_AGENT_TOOL_NAME
 } from '@shared/agentTools'
 import { GLOB_TOOL_NAME, GREP_TOOL_NAME } from '@shared/agentTools'
-import { APPLY_PATCH_TOOL_NAME, STR_REPLACE_EDITOR_TOOL_NAME } from '@/tool/codeMode/toolModeTools'
 
 /**
  * One owner for what an agent built-in tool call means to the assistant review gate that
@@ -58,7 +57,7 @@ const TOOLS_WITH_OWN_APPROVAL_PATH: ReadonlySet<string> = new Set([
  */
 const NOT_REVIEWED_OPERATIONS: Readonly<Record<string, ReadonlySet<string>>> = Object.freeze({
   process: new Set(['list', 'poll', 'log']),
-  [STR_REPLACE_EDITOR_TOOL_NAME]: new Set(['view']),
+  ['str_replace_editor']: new Set(['view']),
   [LIVE_DELEGATION_AGENT_TOOL_NAME]: new Set([
     'list',
     'inspect',
@@ -92,8 +91,8 @@ const PATH_BEARING_AGENT_TOOLS: ReadonlySet<string> = new Set([
   GLOB_TOOL_NAME,
   GREP_TOOL_NAME,
   'exec',
-  APPLY_PATCH_TOOL_NAME,
-  STR_REPLACE_EDITOR_TOOL_NAME
+  'apply_patch',
+  'str_replace_editor'
 ])
 
 /**

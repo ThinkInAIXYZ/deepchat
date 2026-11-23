@@ -7,11 +7,12 @@ import { test, expect } from '../fixtures/electronApp'
 import {
   createNewChat,
   getActiveSessionId,
+  getAssistantMessages,
   selectAgent,
   selectModel,
   sendMessage
 } from '../helpers/chat'
-import { waitForAppReady, waitForGenerationDone } from '../helpers/wait'
+import { waitForAppReady } from '../helpers/wait'
 
 test('new-session files and native browser survive the first message @smoke', async ({ app }) => {
   const workspace = join(app.userDataDir, 'workspace-fixture')
@@ -182,7 +183,11 @@ test('new-session files and native browser survive the first message @smoke', as
       await app.page.keyboard.press('Escape')
     }
     await sendMessage(app.page, 'Review this workspace.')
-    await waitForGenerationDone(app.page)
+    await expect(getAssistantMessages(app.page).last()).toContainText('Workspace accepted.')
+    await expect(app.page.getByTestId('chat-page-shell')).toHaveAttribute(
+      'data-generating',
+      'false'
+    )
     expect(await getActiveSessionId(app.page)).toBe(draftId)
     const { session } = await app.page.evaluate(async () =>
       window.deepchat.invoke('sessions.getActive', {})

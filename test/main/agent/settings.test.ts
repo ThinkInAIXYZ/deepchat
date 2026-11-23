@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { AgentSettings } from '@/agent/settings'
 import { AgentLifecycleGate } from '@/agent/lifecycleGate'
 import { BUILTIN_DEEPCHAT_AGENT_ID } from '@/agent/repository'
-import { CRON_JOB_AGENT_TOOL_NAME } from '@shared/agentTools'
+import { DEFAULT_DISABLED_AGENT_TOOLS } from '@shared/agentTools'
 import type { CreateDeepChatAgentInput } from '@shared/types/agent-interface'
 
 const createModelSelection = (providerId: string, modelId: string) => ({ providerId, modelId })
@@ -347,12 +347,37 @@ describe('AgentSettings migrations', () => {
     ;(settings as any).initializeUnifiedAgents()
 
     expect(repository.updateDeepChatAgent).toHaveBeenNthCalledWith(1, BUILTIN_DEEPCHAT_AGENT_ID, {
-      config: { disabledAgentTools: ['tool-a', CRON_JOB_AGENT_TOOL_NAME] }
+      config: { disabledAgentTools: ['tool-a', ...DEFAULT_DISABLED_AGENT_TOOLS] }
     })
     expect(repository.updateDeepChatAgent).toHaveBeenNthCalledWith(2, 'deepchat-custom', {
-      config: { disabledAgentTools: [CRON_JOB_AGENT_TOOL_NAME] }
+      config: { disabledAgentTools: [...DEFAULT_DISABLED_AGENT_TOOLS] }
     })
     expect(store.set).toHaveBeenCalledWith('unifiedAgentsMigrationVersion', 2)
+  })
+
+  it('disables html_render in every agent once without re-disabling tools users enabled', () => {
+    const repository = {
+      listAgents: vi.fn(() => [{ id: BUILTIN_DEEPCHAT_AGENT_ID }, { id: 'deepchat-no-list' }]),
+      getDeepChatAgentConfig: vi.fn((agentId: string) =>
+        agentId === BUILTIN_DEEPCHAT_AGENT_ID ? { disabledAgentTools: ['tool-a'] } : {}
+      ),
+      updateDeepChatAgent: vi.fn()
+    }
+    const store = { get: vi.fn(() => undefined), set: vi.fn() }
+    const settings = Object.assign(Object.create(AgentSettings.prototype), {
+      repository,
+      settings: store
+    }) as AgentSettings
+
+    ;(settings as any).seedHtmlRenderToolsDisabled()
+
+    expect(repository.updateDeepChatAgent).toHaveBeenCalledWith(BUILTIN_DEEPCHAT_AGENT_ID, {
+      config: { disabledAgentTools: ['tool-a', 'html_render', 'html_render_section'] }
+    })
+    expect(repository.updateDeepChatAgent).toHaveBeenCalledWith('deepchat-no-list', {
+      config: { disabledAgentTools: ['html_render', 'html_render_section'] }
+    })
+    expect(store.set).toHaveBeenCalledWith('htmlRenderToolsSeeded', true)
   })
 
   it('moves live legacy model selections into the built-in agent', () => {
@@ -415,7 +440,7 @@ describe('AgentSettings app defaults', () => {
 })
 
 describe('AgentSettings DeepChat mutations', () => {
-  it('snapshots app auto-compaction defaults when creating an Agent', async () => {
+  it('snapshots app defaults when creating an Agent', async () => {
     const createDeepChatAgent = vi.fn((input: CreateDeepChatAgentInput) => ({
       id: 'writer',
       type: 'deepchat',
@@ -444,6 +469,7 @@ describe('AgentSettings DeepChat mutations', () => {
       name: 'Explicit',
       config: {
         systemPrompt: 'Concise.',
+        disabledAgentTools: [],
         autoCompactionEnabled: true,
         autoCompactionTriggerThreshold: 73,
         autoCompactionRetainRecentPairs: 7.4
@@ -453,6 +479,7 @@ describe('AgentSettings DeepChat mutations', () => {
     expect(createDeepChatAgent).toHaveBeenNthCalledWith(1, {
       name: 'Defaulted',
       config: {
+        disabledAgentTools: [...DEFAULT_DISABLED_AGENT_TOOLS],
         autoCompactionEnabled: false,
         autoCompactionTriggerThreshold: 65,
         autoCompactionRetainRecentPairs: 4
@@ -462,6 +489,7 @@ describe('AgentSettings DeepChat mutations', () => {
       name: 'Explicit',
       config: {
         systemPrompt: 'Concise.',
+        disabledAgentTools: [],
         autoCompactionEnabled: true,
         autoCompactionTriggerThreshold: 75,
         autoCompactionRetainRecentPairs: 7

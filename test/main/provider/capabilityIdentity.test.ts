@@ -335,8 +335,7 @@ describe('capability identity resolution', () => {
     expect(snapshot.requestPolicy).toEqual({
       temperature: { mode: 'omit' },
       topP: { mode: 'omit' },
-      reasoning: { mode: 'fixed', value: true },
-      legacyThinking: { mode: 'omit' }
+      reasoning: { mode: 'fixed', value: true }
     })
     expect(snapshot.supportsReasoningEffort).toBe(true)
     expect(snapshot.reasoningEffortDefault).toBe('max')

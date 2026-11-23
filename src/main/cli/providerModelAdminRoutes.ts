@@ -12,7 +12,10 @@ import {
 } from '@shared/contracts/routes'
 import type { LLM_PROVIDER } from '@shared/types/provider'
 import type { ProviderRuntime } from '@/provider'
-import type { ProviderQueryScheduler } from '@/provider/providerService'
+import {
+  PROVIDER_CONNECTION_TIMEOUT_MS,
+  type ProviderQueryScheduler
+} from '@/provider/providerService'
 import type { ProviderSettingsPort } from '@/provider/settings'
 import {
   createRouteMap,
@@ -30,8 +33,6 @@ type PublicProviderRuntime = Pick<
   ProviderRuntime,
   'addProviderAtomic' | 'check' | 'updateProviderAtomic'
 >
-
-const PUBLIC_PROVIDER_TEST_TIMEOUT_MS = 5_000
 
 type ExtendedProviderCredentialState = LLM_PROVIDER & {
   credential?: { accessKeyId?: string; secretAccessKey?: string; profile?: string }
@@ -127,7 +128,7 @@ export function createCliProviderModelAdminRoutes(
         try {
           const result = await dependencies.scheduler.timeout({
             task: dependencies.providerRuntime.check(input.providerId, input.modelId),
-            ms: PUBLIC_PROVIDER_TEST_TIMEOUT_MS,
+            ms: PROVIDER_CONNECTION_TIMEOUT_MS,
             reason: `providers.testPublicConnection:${input.providerId}`
           })
           isOk = result.isOk

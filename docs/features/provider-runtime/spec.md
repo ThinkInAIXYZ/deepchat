@@ -4,16 +4,20 @@ Status: maintained contract.
 
 ## Ownership
 
-Provider code lives in `src/main/provider/`:
+DeepChat owns provider configuration, credentials, and catalog metadata in `src/main/provider/`:
 
-- `defaults.ts` and provider database define display/config/model metadata;
-- `providerRegistry.ts` maps a provider profile to a known runtime, model source, check strategy and
+- `defaults.ts` defines provider presets and PublicProviderConf supplies shared model metadata;
+- `providerRegistry.ts` maps a provider profile to a known transport, model source, check strategy and
   auth kind;
-- `index.ts` owns provider/model settings and runtime instances;
-- `aiSdk/` maps supported HTTP transports;
-- `providers/` contains behavior that exceeds a generic transport;
+- `index.ts` owns provider/model settings and provider management instances;
+- `providerTransport.ts` selects the wire protocol, including per-model routing for aggregators;
+- `providers/` implements discovery, connection checks, and other desktop provider management;
 - `auth/` owns OAuth/device flows and encrypted credential storage;
 - `routes.ts` exposes typed renderer operations.
+
+For the built-in agent, `src/main/agent/dim/modelCatalog.ts` maps the selected protocol to a
+native driver and applies the model configuration. Dim owns request construction, streaming and
+retries. DeepChat uses the driver shipped with its pinned Dim runtime.
 
 Renderer code selects and configures providers but never owns API keys, OAuth refresh tokens or provider
 instances.
@@ -30,9 +34,10 @@ Adding a provider is an explicit reviewed source change, not a runtime npm/plugi
 5. request headers, endpoint rewrites or capability exceptions;
 6. renderer icon/config and focused tests.
 
-Prefer an existing OpenAI-compatible/Anthropic/AI SDK transport when wire behavior matches. Add a
-special adapter only when auth, request shape, discovery, streaming or error semantics differ. Do not infer
-runtime behavior from package names and do not install arbitrary SDKs dynamically.
+Use an existing Dim driver when wire behavior matches. A new DeepChat provider ID can reuse the
+driver independently of Dim's provider catalog. Implement provider-specific discovery and auth in
+DeepChat. A new wire protocol or unsupported feature requires driver support in Dim. Do not infer
+runtime behavior from package names or install arbitrary SDKs dynamically.
 
 API-key profiles such as NVIDIA, Hugging Face, Moonshot, StepFun, Upstage, Alibaba, MiniMax, DaoXE,
 Kimi For Coding and OpenCode Go remain catalog/registry mappings unless they need a real special adapter.
@@ -79,7 +84,8 @@ passing through unless an explicit model request policy requires a different wir
 - Refresh is single-flight and persists rotated credentials before they replace the active instance.
 - Browser OAuth uses `shell.openExternal` plus loopback callback when supported; paste/device fallback is
   provider-specific and must be explicit.
-- AbortSignal, proxy, timeout and provider error mapping must survive every adapter layer.
+- The native model configuration carries opaque references for credentials and protected headers.
+  Dim resolves them at request time through the DeepChat connection owner.
 
 ## Fireworks
 
@@ -128,18 +134,49 @@ Embeddings are disabled for this profile.
 
 Upstream reference: [API docs](https://obscurify.ai/api-docs).
 
+## OpenLLM
+
+`openllm` uses the OpenAI-compatible transport and defaults to the local daemon at
+`http://127.0.0.1:8787/v1`. The API key is optional: the daemon reads only `Authorization: Bearer`,
+and an empty or placeholder token runs as the signed-in OpenLLM account. A key can be set, together
+with `https://www.openllm.sh/v1` as the base URL, to use the cloud origin instead. Live model
+discovery reads `/v1/models` (authenticated by the daemon's saved login), keeps entries whose
+`capabilities` include `chat`, and takes the context window, output limit, vision, tools and
+reasoning flags from the card. Model ids are kept verbatim. The connection check lists models, so it
+fails with a 401 `auth_error` when the daemon has no saved login and with a connection error when
+the daemon is not running. Embeddings are disabled for this profile.
+
+Upstream reference: [OpenLLM documentation](https://docs.openllm.sh).
+
+## Wiro AI
+
+`wiro` uses the OpenAI-compatible transport with API-key credentials and the default endpoint
+`https://llm.wiro.ai/v1`. Live model discovery reads the `/v1/models` catalog, which lists chat
+models only, and takes each model's context length (`context_length`), output limit (`max_tokens`),
+image input (`capabilities.input_modalities`) and tool support (`capabilities.function_tools`)
+from the record. A value the catalog leaves out is not guessed. Model ids are lowercase
+`owner/model` and are kept verbatim. The catalog needs the key, so the connection check lists
+models and does not generate text. Embeddings are disabled for this profile.
+
+Upstream reference: [Completions API](https://wiro.ai/docs/completions-api).
+
 ## OpenAI Codex
 
 `openai-codex` is separate from standard `openai`: distinct provider ID, runtime kind, credential store,
-routes and request adapter. Current recommended catalog includes `gpt-6.1-sol`, `gpt-6-astra`,
-`gpt-6-sol`, `gpt-6-luna`, `gpt-5.5`, `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`,
+routes and request adapter. The recommended catalog starts with `gpt-6.2-sol`, `gpt-6.2-astra`,
+`gpt-6.1-terra` and `gpt-6.1-sol`. It also includes `gpt-6-astra`, `gpt-6-sol`, `gpt-6-luna`,
+`gpt-5.5`, `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`,
 `gpt-image-2.5-sunburst`, `gpt-image-2.5-flare` and `gpt-image-2`. Chat models require provider-db
-metadata. Curated image models remain listed when metadata is missing and use the OpenAI image-route
-compatibility fallback; explicit user model settings retain precedence. Connection check uses
+metadata. The effective OpenAI catalog fills missing curated Codex records from the bundle, even
+in privacy mode, and gives existing cached records precedence. Curated image models remain listed
+when metadata is missing and use the OpenAI image-route compatibility fallback. Explicit user
+model settings retain precedence. The connection check uses
 `gpt-5.6-luna`. GPT-5.4, GPT-5.4 mini and Codex Spark are omitted following their
 [Codex retirement](https://learn.chatgpt.com/docs/models#deprecated-codex-models).
 
-Codex requests include required instructions and backend routing headers, preserve streaming/tool/reasoning
+The native Codex connection sends the same supported client version in the Version and User-Agent
+headers because the backend uses it to determine model availability. Codex requests include
+required instructions and backend routing headers, preserve streaming/tool/reasoning
 behavior, and surface entitlement failure without logging token or account identifiers. Rejected refresh
 tokens retain their HTTP failure metadata and require sign-in again; media CLI calls return
 `authentication_failed` with `retriable: false`. Other media provider failures expose only normalized
@@ -152,9 +189,9 @@ its dedicated runtime catalog; manual refresh remains available.
 
 ## Validation
 
-Provider work must test registry mapping, defaults/import, auth redaction/refresh, request adapter, model
-catalog/check and renderer configuration where affected. Existing providers must remain unchanged unless the
-spec explicitly includes a migration.
+Verify registry mapping, defaults/import, auth redaction/refresh, model discovery and renderer
+configuration where affected. For changes to request routing or driver behavior, verify a built-in
+agent request through Dim in addition to any separate provider connection check.
 
 Non-goals: runtime provider manifests, renderer-owned credentials, automatic SDK installation and provider
 behavior inferred from external catalogs.

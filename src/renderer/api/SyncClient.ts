@@ -40,10 +40,15 @@ export function createSyncClient(bridge: DeepchatBridge = getDeepchatBridge()) {
     return result.backup
   }
 
-  async function importFromSync(backupFile: string, mode?: 'increment' | 'overwrite') {
+  async function importFromSync(
+    backupFile: string,
+    mode?: 'increment' | 'overwrite',
+    legacyPassword?: string
+  ) {
     const result = await bridge.invoke(syncImportRoute.name, {
       backupFile,
-      mode
+      mode,
+      ...(legacyPassword ? { legacyPassword } : {})
     })
     return result.result
   }

@@ -17,7 +17,7 @@
     "importFailed": "匯入失敗，已還原原始資料",
     "importProcess": "匯入過程發生錯誤",
     "unknown": "未知錯誤",
-    "encryptedBackupPasswordMissing": "此備份已加密，但本機資料庫金鑰不可用。請先解鎖加密資料庫，然後重新匯入。",
+    "encryptedBackupPasswordMissing": "由於新的架構不支援 SQLite 加密，加密功能暫時下線。此備份為加密備份，無法直接從雲端還原，請下載至同步資料夾後透過「匯入資料」匯入並輸入原資料庫密碼。",
     "overwriteEncryptionMismatch": "覆蓋匯入要求備份和目前資料庫處於相同的加密狀態。",
     "cloudNotConfigured": "Cloud is not configured. Fill in and save the cloud connection first.",
     "cloudNoBackup": "No backup available in the cloud bucket",

@@ -1,3 +1,4 @@
+import type { AgentMemorySource } from '@shared/types/agent-memory'
 import type { MemoryCandidate } from '../types'
 import { normalizeMemoryDirective, type MemoryDirectiveInput } from '../domain/directives'
 import { AGENT_MEMORY_CATEGORIES, isAgentMemoryCategory } from '@shared/types/agent-memory'
@@ -111,7 +112,7 @@ export function buildExtractionPrompt(
 }
 
 export interface ExtractedMemoryCandidate extends MemoryCandidate {
-  sourceEntryIds?: number[]
+  sourceEntryIds?: AgentMemorySource[]
 }
 
 export type MemoryCandidateParseResult =
@@ -134,7 +135,7 @@ export type MemoryCandidateParseResult =
 // top-level model output is reported so callers can retry instead of advancing durable cursors.
 export function parseMemoryCandidates(
   raw: string,
-  evidence?: ReadonlyMap<string, number>
+  evidence?: ReadonlyMap<string, AgentMemorySource>
 ): MemoryCandidateParseResult {
   if (typeof raw !== 'string' || !raw.trim()) return { ok: false, reason: 'empty-response' }
 
