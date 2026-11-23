@@ -398,6 +398,25 @@ describe('DEFAULT_PROVIDERS', () => {
     )
   })
 
+  it('includes onomeo as a disabled built-in OpenAI-compatible provider', () => {
+    expect(DEFAULT_PROVIDERS).toContainEqual(
+      expect.objectContaining({
+        id: 'onomeo',
+        name: 'onomeo',
+        apiType: 'openai-completions',
+        baseUrl: 'https://onomeo.com/v1',
+        enable: false,
+        websites: expect.objectContaining({
+          official: 'https://onomeo.com/?utm_source=deepchat',
+          apiKey: 'https://onomeo.com/dashboard?utm_source=deepchat',
+          docs: 'https://onomeo.com/integrations?utm_source=deepchat',
+          models: 'https://onomeo.com/models?utm_source=deepchat',
+          defaultBaseUrl: 'https://onomeo.com/v1'
+        })
+      })
+    )
+  })
+
   it('includes AtmoRouter as a disabled built-in OpenAI-compatible provider', () => {
     expect(DEFAULT_PROVIDERS).toContainEqual(
       expect.objectContaining({

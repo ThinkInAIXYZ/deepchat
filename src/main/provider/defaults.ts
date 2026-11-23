@@ -805,6 +805,20 @@ const PROVIDER_DEFAULTS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'onomeo',
+    name: 'onomeo',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://onomeo.com/v1',
+    enable: false,
+    websites: {
+      official: 'https://onomeo.com/?utm_source=deepchat',
+      apiKey: 'https://onomeo.com/dashboard?utm_source=deepchat',
+      docs: 'https://onomeo.com/integrations?utm_source=deepchat',
+      models: 'https://onomeo.com/models?utm_source=deepchat'
+    }
+  },
+  {
     id: 'obscurify',
     name: 'Obscurify.ai',
     apiType: 'openai-completions',
