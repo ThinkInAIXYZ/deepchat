@@ -18,10 +18,12 @@ vi.mock('node-pty', () => ({ spawn: ptyMock.spawn }))
 
 import {
   SessionTerminalService,
+  TERMINAL_MAX_EXITED,
   TERMINAL_MAX_LIVE,
   TERMINAL_REPLAY_LIMIT,
   sanitizeEnvironment
 } from '@/terminal/sessionTerminalService'
+import { TERMINAL_OUTPUT_CHUNK_MAX } from '@shared/contracts/routes'
 
 function createFakePty(): FakePty {
   let dataListener: ((data: string) => void) | null = null
@@ -50,6 +52,7 @@ describe('SessionTerminalService', () => {
   let rendererDestroyed: Map<number, () => void>
   let sendOutput: ReturnType<typeof vi.fn>
   let sendExit: ReturnType<typeof vi.fn>
+  let resolveEnvironment: ReturnType<typeof vi.fn>
   let service: SessionTerminalService
 
   const size = { cols: 80, rows: 24 }
@@ -71,10 +74,11 @@ describe('SessionTerminalService', () => {
       ptyMock.instances.push(pty)
       return pty
     })
+    resolveEnvironment = vi.fn(async () => ({ PATH: '/usr/bin', ELECTRON_RUN_AS_NODE: '1' }))
     service = new SessionTerminalService({
       resolveWorkdir: (sessionId) => workdirs.get(sessionId) ?? null,
       resolveShell: () => ({ shell: '/bin/zsh', args: ['-l'] }),
-      resolveEnvironment: async () => ({ PATH: '/usr/bin', ELECTRON_RUN_AS_NODE: '1' }),
+      resolveEnvironment,
       sendOutput,
       sendExit,
       onRendererDestroyed: (webContentsId, callback) => {
@@ -135,12 +139,60 @@ describe('SessionTerminalService', () => {
     vi.advanceTimersByTime(10)
     expect(sendOutput).toHaveBeenCalledWith(7, terminalId, 0, 'a'.repeat(10) + 'b'.repeat(5))
 
-    pty.emitData('c'.repeat(TERMINAL_REPLAY_LIMIT))
+    const line = '\x1b[31m' + 'c'.repeat(90) + '\x1b[0m\r\n'
+    const lines = Math.ceil(TERMINAL_REPLAY_LIMIT / line.length) + 2
+    for (let index = 0; index < lines; index += 1) pty.emitData(line)
+    pty.emitData('prompt$ ')
     vi.advanceTimersByTime(10)
     const replay = await service.attach('session-1', 7, size)
-    expect(replay.replay).toHaveLength(TERMINAL_REPLAY_LIMIT)
-    expect(replay.replay.endsWith('c')).toBe(true)
-    expect(replay.outputEnd).toBe(15 + TERMINAL_REPLAY_LIMIT)
+    // Trimmed replay restarts at a line boundary after an attribute reset.
+    expect(replay.replay.startsWith('\x1b[0m' + line)).toBe(true)
+    expect(replay.replay.endsWith('prompt$ ')).toBe(true)
+    expect(replay.replay.length).toBeLessThanOrEqual(TERMINAL_REPLAY_LIMIT + 4)
+    expect(replay.outputEnd).toBe(15 + lines * line.length + 8)
+  })
+
+  it('never splits a surrogate pair across output events', async () => {
+    const { terminalId } = await service.attach('session-1', 7, size)
+    const data = 'a'.repeat(TERMINAL_OUTPUT_CHUNK_MAX - 1) + '🚀tail'
+    ptyMock.instances[0].emitData(data)
+    vi.advanceTimersByTime(10)
+
+    const chunks = sendOutput.mock.calls.map((call) => call[3] as string)
+    expect(chunks.join('')).toBe(data)
+    expect(chunks[0]).toHaveLength(TERMINAL_OUTPUT_CHUNK_MAX - 1)
+    expect(sendOutput.mock.calls[1]).toEqual([
+      7,
+      terminalId,
+      TERMINAL_OUTPUT_CHUNK_MAX - 1,
+      '🚀tail'
+    ])
+  })
+
+  it('does not spawn when the session is deleted or the app quits during bootstrap', async () => {
+    let releaseEnvironment!: () => void
+    resolveEnvironment.mockImplementation(
+      () => new Promise((resolve) => (releaseEnvironment = () => resolve({ PATH: '/usr/bin' })))
+    )
+    const pending = service.attach('session-1', 7, size)
+    service.disposeSession('session-1')
+    releaseEnvironment()
+    await expect(pending).rejects.toThrow('[terminal:not_found]')
+
+    const pendingShutdown = service.attach('session-1', 7, size)
+    service.shutdown()
+    releaseEnvironment()
+    await expect(pendingShutdown).rejects.toThrow('[terminal:not_found]')
+    expect(ptyMock.spawn).not.toHaveBeenCalled()
+  })
+
+  it('shares one in-flight create per session', async () => {
+    const [first, second] = await Promise.all([
+      service.attach('session-1', 7, size),
+      service.attach('session-1', 7, size)
+    ])
+    expect(second.terminalId).toBe(first.terminalId)
+    expect(ptyMock.spawn).toHaveBeenCalledTimes(1)
   })
 
   it('reports exit and allows restart', async () => {
@@ -180,14 +232,35 @@ describe('SessionTerminalService', () => {
     expect(sendExit).not.toHaveBeenCalled()
   })
 
-  it('limits live terminals', async () => {
+  it('limits live terminals, counting concurrent creates and terminating shells', async () => {
+    const attaches = []
     for (let index = 0; index < TERMINAL_MAX_LIVE; index += 1) {
       workdirs.set(`live-${index}`, workdir)
-      await service.attach(`live-${index}`, 7, size)
+      attaches.push(service.attach(`live-${index}`, 7, size))
     }
     workdirs.set('overflow', workdir)
-
     await expect(service.attach('overflow', 7, size)).rejects.toThrow('[terminal:capacity]')
+    await Promise.all(attaches)
+
+    // A disposed shell still holds its slot until it actually exits.
+    service.disposeSession('live-0')
+    await expect(service.attach('overflow', 7, size)).rejects.toThrow('[terminal:capacity]')
+    ptyMock.instances[0].emitExit(0)
+    await expect(service.attach('overflow', 7, size)).resolves.toMatchObject({
+      status: 'running'
+    })
+  })
+
+  it('evicts the oldest exited terminals', async () => {
+    const ids: string[] = []
+    for (let index = 0; index <= TERMINAL_MAX_EXITED; index += 1) {
+      workdirs.set(`exited-${index}`, workdir)
+      ids.push((await service.attach(`exited-${index}`, 7, size)).terminalId)
+      ptyMock.instances[index].emitExit(0)
+    }
+
+    expect(() => service.kill(ids[0], 7)).toThrow('[terminal:not_found]')
+    expect(service.kill(ids[TERMINAL_MAX_EXITED], 7)).toBe(false)
   })
 })
 

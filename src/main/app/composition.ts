@@ -2687,10 +2687,9 @@ export async function createMainProcessControl(dependencies: {
     runtime: {
       cleanupSessionBackends: async (sessionId) =>
         await agentManager.cleanupSessionBackends(sessionId),
-      destroySessionBrowser: async (sessionId) => {
-        sessionTerminalService.disposeSession(sessionId)
-        await yoBrowserPresenter.destroySessionBrowser(sessionId)
-      }
+      destroySessionBrowser: async (sessionId) =>
+        await yoBrowserPresenter.destroySessionBrowser(sessionId),
+      destroySessionTerminal: (sessionId) => sessionTerminalService.disposeSession(sessionId)
     },
     state: { destroySession: (id) => dimAgent.backend.destroySession(toAppSessionId(id)) },
     permissions: sessionPermissionPort,
@@ -3861,7 +3860,11 @@ export async function createMainProcessControl(dependencies: {
           terminals: sessionTerminalService,
           isChatWindowContext: (caller) =>
             caller.windowId !== null &&
-            windowPresenter.getAllWindows().some((window) => window.id === caller.windowId)
+            windowPresenter.getAllWindows().some((window) => window.id === caller.windowId) &&
+            tabPresenter.getWindowType(caller.windowId) === 'chat',
+          isViewingSession: (caller, sessionId) =>
+            desktopSessionBinding.getActiveId(caller.webContentsId) === sessionId ||
+            sessionLifecycle.ownsDraftSession(sessionId, caller.webContentsId)
         }),
         deviceRoutes,
         onboardingRoutes,

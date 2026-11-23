@@ -50,6 +50,9 @@ function createHarness() {
       }),
       destroySessionBrowser: vi.fn(async (sessionId: string) => {
         order.push(`browser:${sessionId}`)
+      }),
+      destroySessionTerminal: vi.fn((sessionId: string) => {
+        order.push(`terminal:${sessionId}`)
       })
     },
     state: {
@@ -87,9 +90,11 @@ describe('SessionDeletion', () => {
     expect(harness.order).toEqual([
       'runtime:parent',
       'browser:parent',
+      'terminal:parent',
       'orchestration:parent',
       'runtime:child',
       'browser:child',
+      'terminal:child',
       'orchestration:child',
       'state:child',
       'skills:clear:child',

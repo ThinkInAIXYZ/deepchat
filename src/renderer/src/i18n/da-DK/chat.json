@@ -729,7 +729,8 @@
       "starting": "Starter shell…",
       "exited": "Processen afsluttede (kode {code})",
       "error": "Terminal utilgængelig",
-      "capacity": "Der kører for mange terminaler. Luk en og prøv igen."
+      "capacity": "Der kører for mange terminaler. Luk en og prøv igen.",
+      "otherWindow": "Denne terminal er åben i et andet vindue"
     },
     "noWorkdir": {
       "title": "Ingen arbejdsmappe",

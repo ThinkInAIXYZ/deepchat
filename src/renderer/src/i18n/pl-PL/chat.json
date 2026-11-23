@@ -729,7 +729,8 @@
       "starting": "Uruchamianie powłoki…",
       "exited": "Proces zakończony (kod {code})",
       "error": "Terminal niedostępny",
-      "capacity": "Uruchomiono zbyt wiele terminali. Zamknij jeden i spróbuj ponownie."
+      "capacity": "Uruchomiono zbyt wiele terminali. Zamknij jeden i spróbuj ponownie.",
+      "otherWindow": "Ten terminal jest otwarty w innym oknie"
     },
     "noWorkdir": {
       "title": "Brak katalogu roboczego",

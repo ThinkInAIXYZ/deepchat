@@ -729,7 +729,8 @@
       "starting": "正在启动 shell…",
       "exited": "进程已退出（code {code}）",
       "error": "终端不可用",
-      "capacity": "运行中的终端过多，请先关闭一个再试。"
+      "capacity": "运行中的终端过多，请先关闭一个再试。",
+      "otherWindow": "此终端已在另一个窗口中打开"
     },
     "noWorkdir": {
       "title": "没有工作目录",

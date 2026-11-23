@@ -729,7 +729,8 @@
       "starting": "Shell wird gestartet…",
       "exited": "Prozess beendet (Code {code})",
       "error": "Terminal nicht verfügbar",
-      "capacity": "Zu viele Terminals aktiv. Schließen Sie eines und versuchen Sie es erneut."
+      "capacity": "Zu viele Terminals aktiv. Schließen Sie eines und versuchen Sie es erneut.",
+      "otherWindow": "Dieses Terminal ist in einem anderen Fenster geöffnet"
     },
     "noWorkdir": {
       "title": "Kein Arbeitsverzeichnis",

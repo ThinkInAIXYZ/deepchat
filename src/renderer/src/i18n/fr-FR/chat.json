@@ -732,7 +732,8 @@
       "starting": "Démarrage du shell…",
       "exited": "Processus terminé (code {code})",
       "error": "Terminal indisponible",
-      "capacity": "Trop de terminaux sont ouverts. Fermez-en un et réessayez."
+      "capacity": "Trop de terminaux sont ouverts. Fermez-en un et réessayez.",
+      "otherWindow": "Ce terminal est ouvert dans une autre fenêtre"
     },
     "noWorkdir": {
       "title": "Aucun dossier de travail",

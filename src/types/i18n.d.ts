@@ -1312,6 +1312,7 @@ declare module 'vue-i18n' {
         exited: string
         error: string
         capacity: string
+        otherWindow: string
       }
       noWorkdir: {
         title: string

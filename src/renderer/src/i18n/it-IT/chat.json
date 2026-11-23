@@ -729,7 +729,8 @@
       "starting": "Avvio della shell…",
       "exited": "Processo terminato (codice {code})",
       "error": "Terminale non disponibile",
-      "capacity": "Troppi terminali in esecuzione. Chiudine uno e riprova."
+      "capacity": "Troppi terminali in esecuzione. Chiudine uno e riprova.",
+      "otherWindow": "Questo terminale è aperto in un'altra finestra"
     },
     "noWorkdir": {
       "title": "Nessuna cartella di lavoro",

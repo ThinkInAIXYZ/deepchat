@@ -729,7 +729,8 @@
       "starting": "Iniciando shell…",
       "exited": "Proceso finalizado (código {code})",
       "error": "Terminal no disponible",
-      "capacity": "Hay demasiados terminales en ejecución. Cierra uno e inténtalo de nuevo."
+      "capacity": "Hay demasiados terminales en ejecución. Cierra uno e inténtalo de nuevo.",
+      "otherWindow": "Este terminal está abierto en otra ventana"
     },
     "noWorkdir": {
       "title": "Sin directorio de trabajo",

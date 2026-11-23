@@ -17,7 +17,8 @@ workspace, browser, MCP app, and tape inspector tabs; `node-pty` is a production
   WASM, xterm.js-compatible API) for accurate escape-sequence and grapheme handling.
 - Keep the shell alive while the user switches tabs, closes the panel, or switches sessions, and
   replay recent output when the panel reattaches.
-- Toggle the terminal with a configurable shortcut (default `CommandOrControl+\``).
+- Toggle the terminal with a configurable shortcut (default `Control+\`` on every platform;
+  macOS reserves `Command+\`` for cycling windows).
 - Keep terminal I/O out of the agent: it never enters model context, tape, or transcripts.
 
 ## Non-Goals
@@ -57,21 +58,34 @@ workspace, browser, MCP app, and tape inspector tabs; `node-pty` is a production
 `SessionTerminalService` owns at most **one PTY per session id**.
 
 - **Working directory**: resolved in the main process from the session record's `projectDir`.
-  The renderer never supplies a path. A missing or non-directory path rejects with a typed error.
+  One exception: an unsent draft's record is not updated until its first message, so for a draft
+  that is owned by the calling `webContents` the main process accepts the renderer's
+  `draftWorkdir` (absolute paths only). The working directory is revalidated after the shell
+  environment resolves. A missing or non-directory path rejects with a typed error.
 - **Shell**: POSIX uses the user's login shell (`getUserShell()`) with `-l`; Windows uses
   `powershell.exe -NoLogo`, falling back to `cmd.exe`.
 - **Environment**: `process.env` merged with `getShellEnvironment()` PATH data, plus
   `TERM=xterm-256color`, `COLORTERM=truecolor`, `TERM_PROGRAM=DeepChat`. Electron-internal
   variables (`ELECTRON_RUN_AS_NODE`, `ELECTRON_RENDERER_URL`, …) are removed.
-- **Output**: coalesced for ~8 ms before publishing; each event chunk is at most 64 KiB. A 256 KiB
-  ring buffer per PTY supports replay on attach. No total output cap and no idle timeout.
-- **Ownership**: a PTY is owned by the `webContents` that created it. Input, resize, kill, and
-  restart from any other `webContents` are rejected. Output events go only to the owner.
-- **Capacity**: at most 8 live PTYs across the app; creating a ninth rejects with a typed error.
-- **Termination**: user kill, shell exit, session deletion (`SessionDeletion` runtime stage, which
-  also covers discarded drafts), owner `webContents` destruction, and application shutdown. Kill
-  sends the default signal, escalates to `SIGKILL` after 2 s on POSIX, and settles after a 4 s
-  fallback.
+- **Output**: coalesced for ~8 ms before publishing; each event chunk is at most 64 KiB and never
+  splits a UTF-16 surrogate pair. A 256 KiB chunked tail per PTY supports replay on attach; a
+  trimmed replay starts at a line boundary after an SGR reset. No total output cap and no idle
+  timeout.
+- **Access**: `attach` and `restart` require the caller to be a chat-type app window that is
+  showing the session (`DesktopSessionBinding`) or owns it as a draft, matching the browser
+  routes. A PTY is then owned by that `webContents`; input, resize, kill, and restart from any
+  other `webContents` are rejected and output events go only to the owner. A second window
+  showing the same session gets a typed `forbidden` error rather than a shared PTY.
+- **Capacity**: at most 8 PTYs across the app, counting in-flight creates and shells that are
+  still terminating. Concurrent attaches for one session share a single in-flight create. Exited
+  terminals keep their replay until restart; beyond 8 the oldest are evicted.
+- **Cancellation**: session deletion and shutdown cancel an in-flight create, so a shell is never
+  spawned after its session is gone.
+- **Termination**: user kill, shell exit, session deletion (`destroySessionTerminal` stage of
+  `SessionDeletion`, which also covers discarded drafts), owner `webContents` destruction, and
+  application shutdown. Kill sends the default signal, escalates to `SIGKILL` after 2 s on POSIX,
+  and settles after a 4 s fallback. On Windows there is no escalation; `node-pty` closes the
+  ConPTY, and the fallback only stops waiting.
 
 ### IPC contract
 
@@ -79,14 +93,16 @@ Routes (`terminal.routes.ts`), main chat window callers only:
 
 | Route | Input | Output |
 | --- | --- | --- |
-| `terminal.attach` | `sessionId, cols, rows` | `terminalId, cwd, shell, replay, status, exitCode?` |
+| `terminal.attach` | `sessionId, cols, rows, draftWorkdir?` | `terminalId, cwd, shell, replay, outputEnd, status, exitCode?` |
 | `terminal.input` | `terminalId, data` (≤16 KiB) | `sent` |
 | `terminal.resize` | `terminalId, cols, rows` | `resized` |
 | `terminal.kill` | `terminalId` | `killed` |
-| `terminal.restart` | `sessionId, cols, rows` | same as attach |
+| `terminal.restart` | `sessionId, cols, rows, draftWorkdir?` | same as attach |
 
-Events (`terminal.events.ts`): `terminal.output { terminalId, data }` and
-`terminal.exit { terminalId, exitCode, signal? }`, delivered to the owner only.
+Events (`terminal.events.ts`): `terminal.output { terminalId, offset, data }` and
+`terminal.exit { terminalId, exitCode, signal? }`, delivered to the owner only. `offset` is the
+character position of `data` in the terminal's output stream; `outputEnd` is the position just
+past `replay`.
 
 `attach` creates the PTY when none exists for the session, otherwise returns the existing one with
 its replay buffer. Callers outside chat windows (settings, plugin, CLI, remote) are rejected.
@@ -96,7 +112,15 @@ its replay buffer. Callers outside chat windows (settings, plugin, CLI, remote) 
 - `SidePanelTab` gains `'terminal'`; `sidepanelStore.openTerminal()` / `toggleTerminal()`.
 - `TerminalPanel.vue` lazy-loads ghostty-web (`init()` on first use) and its `FitAddon`; input is
   batched for 8 ms and chunked to 16 KiB like `AcpAuthDialog`.
-- Detaching (tab switch, panel close, session switch) disposes the view but not the PTY.
+- The panel only creates or attaches a terminal while the side panel is open on the Terminal tab.
+  Closing the panel, switching tabs, or switching sessions disposes the view but not the PTY.
+- Output that arrives while an attach is in flight is buffered and replayed through the same
+  offset check once the snapshot is applied, so nothing between snapshot and render is lost.
+- Fitting is skipped while the host has no size, so the closing animation never resizes a live
+  shell. xterm uses `@xterm/addon-fit`.
+- The renderer choice waits for the native accessibility status before the first view is created.
+- The toggle shortcut is stopped in the capture phase before either backend sees it, without
+  cancelling the event, so the menu accelerator fires and the shell never receives it.
 - Theme follows the app's light/dark mode. ghostty-web cannot change themes after `open()`, so a
   theme or accessibility change rebuilds the view and replays the buffer.
 - Output carries a stream offset so events racing the attach replay are de-duplicated.
@@ -112,14 +136,19 @@ its replay buffer. Callers outside chat windows (settings, plugin, CLI, remote) 
 ## Security
 
 - Native capability stays behind typed routes; the renderer gets no PTY handle or spawn options.
-- cwd is derived from trusted session state, never from renderer input.
-- Owner checks on every mutating route; events never broadcast.
+- cwd is derived from trusted session state. The only renderer-supplied path is `draftWorkdir`,
+  honored solely for an unsent draft owned by the caller, absolute, and checked to be a directory.
+- `attach`/`restart` require a chat window showing the session; owner checks on every mutating
+  route; events never broadcast.
 - Not exposed to remote-control, IM, CLI, or agent callers.
 
 ## Validation
 
-- Main tests with mocked `node-pty`: owner enforcement, cwd resolution, replay bound, termination
-  on session deletion / renderer destruction / shutdown, capacity limit.
+- Main tests with mocked `node-pty`: owner and session-view enforcement, cwd resolution, replay
+  bound and boundary, surrogate-safe chunks, cancellation during bootstrap, capacity (concurrent and
+  terminating), exited eviction, termination on deletion / renderer destruction / shutdown.
+- Renderer tests: key handling in both backends, early output, hidden-panel attach, missing-workdir
+  recovery, accessibility readiness.
 - Manual on macOS: CJK IME input, vim/htop/less, resize, large output (`pnpm install`, `cat` of a
   large file), copy/paste, packaged build WASM loading.
 - format, i18n, lint, typecheck, relevant main/renderer suites.

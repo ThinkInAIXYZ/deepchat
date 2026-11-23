@@ -729,7 +729,8 @@
       "starting": "Kabuk başlatılıyor…",
       "exited": "İşlem sonlandı (kod {code})",
       "error": "Terminal kullanılamıyor",
-      "capacity": "Çok fazla terminal çalışıyor. Birini kapatıp tekrar deneyin."
+      "capacity": "Çok fazla terminal çalışıyor. Birini kapatıp tekrar deneyin.",
+      "otherWindow": "Bu terminal başka bir pencerede açık"
     },
     "noWorkdir": {
       "title": "Çalışma dizini yok",

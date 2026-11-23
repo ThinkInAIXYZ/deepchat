@@ -729,7 +729,8 @@
       "starting": "Starting shell…",
       "exited": "Process exited (code {code})",
       "error": "Terminal unavailable",
-      "capacity": "Too many terminals are running. Close one and try again."
+      "capacity": "Too many terminals are running. Close one and try again.",
+      "otherWindow": "This terminal is open in another window"
     },
     "noWorkdir": {
       "title": "No working directory",

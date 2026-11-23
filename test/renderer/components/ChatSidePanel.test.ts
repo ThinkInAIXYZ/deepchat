@@ -8,7 +8,7 @@ describe('ChatSidePanel', () => {
 
   const setup = async (options?: {
     open?: boolean
-    activeTab?: 'workspace' | 'browser' | 'mcp-app' | 'tape-inspector'
+    activeTab?: 'workspace' | 'browser' | 'terminal' | 'mcp-app' | 'tape-inspector'
     mcpAppPreviewOwnerId?: string | null
     sessionId?: string | null
     traceDebugEnabled?: boolean
@@ -27,6 +27,10 @@ describe('ChatSidePanel', () => {
       openWorkspace: vi.fn(),
       openBrowser: vi.fn(() => {
         sidepanelStore.activeTab = 'browser'
+        sidepanelStore.open = true
+      }),
+      openTerminal: vi.fn(() => {
+        sidepanelStore.activeTab = 'terminal'
         sidepanelStore.open = true
       }),
       openMcpAppPreview: vi.fn((ownerId: string) => {
@@ -95,6 +99,15 @@ describe('ChatSidePanel', () => {
         },
         template:
           '<div data-testid="workspace-panel-stub" :data-fullscreen="String(isFullscreen)"><button data-testid="workspace-panel-toggle" @click="$emit(\'toggle-fullscreen\')">toggle</button><button data-testid="workspace-panel-insert" @click="$emit(\'insert-file-reference\', \'C:/workspace/README.md\')">insert</button></div>'
+      })
+    }))
+
+    vi.doMock('@/components/sidepanel/TerminalPanel.vue', () => ({
+      default: defineComponent({
+        name: 'TerminalPanel',
+        props: ['sessionId', 'workspacePath', 'active'],
+        template:
+          '<div data-testid="terminal-panel-stub" :data-session-id="sessionId" :data-active="String(active)" />'
       })
     }))
 
@@ -197,6 +210,23 @@ describe('ChatSidePanel', () => {
       window.removeEventListener('workspace-panel-unmounted', recordWorkspaceUnmount)
       window.removeEventListener('browser-panel-mounted', recordBrowserMount)
     }
+  })
+
+  it('opens the Terminal tab and only marks it active while the panel is shown', async () => {
+    const { wrapper, sidepanelStore } = await setup({ activeTab: 'workspace' })
+    await wrapper.get('[data-testid="terminal-sidepanel-tab"]').trigger('click')
+    await flushPromises()
+
+    expect(sidepanelStore.openTerminal).toHaveBeenCalledWith('session-1')
+    const terminal = wrapper.get('[data-testid="terminal-panel-stub"]')
+    expect(terminal.attributes('data-session-id')).toBe('session-1')
+    expect(terminal.attributes('data-active')).toBe('true')
+
+    sidepanelStore.open = false
+    await nextTick()
+    expect(wrapper.get('[data-testid="terminal-panel-stub"]').attributes('data-active')).toBe(
+      'false'
+    )
   })
 
   it('keeps the mcp-app outlet mounted so teleported apps always have a target', async () => {

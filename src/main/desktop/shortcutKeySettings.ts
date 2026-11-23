@@ -9,7 +9,8 @@ export const defaultShortcutKey: ShortcutKeySetting = {
   QuickSearch: `${CommandKey}+P`,
   ToggleSidebar: `${CommandKey}+B`,
   ToggleWorkspace: `${CommandKey}+J`,
-  ToggleTerminal: `${CommandKey}+\``,
+  // Control on every platform: macOS reserves Command+` for cycling windows.
+  ToggleTerminal: 'Control+`',
   NewWindow: `${CommandKey}+${ShiftKey}+N`,
   CloseWindow: `${CommandKey}+W`,
   ZoomIn: `${CommandKey}+=`,

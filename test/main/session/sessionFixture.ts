@@ -74,7 +74,8 @@ export const createSessionFixture = (input: {
     runtime: {
       cleanupSessionBackends: async (sessionId) =>
         await input.agentManager.cleanupSessionBackends(sessionId),
-      destroySessionBrowser: async () => undefined
+      destroySessionBrowser: async () => undefined,
+      destroySessionTerminal: () => undefined
     },
     state: input.sharedData.sessionState,
     permissions: {

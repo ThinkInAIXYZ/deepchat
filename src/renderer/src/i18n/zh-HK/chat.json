@@ -729,7 +729,8 @@
       "starting": "正在啟動 shell…",
       "exited": "程序已結束（code {code}）",
       "error": "終端機無法使用",
-      "capacity": "執行中的終端機過多，請先關閉一個再試。"
+      "capacity": "執行中的終端機過多，請先關閉一個再試。",
+      "otherWindow": "此終端機已在另一個視窗中開啟"
     },
     "noWorkdir": {
       "title": "沒有工作目錄",

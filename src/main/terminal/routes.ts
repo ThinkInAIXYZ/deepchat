@@ -17,6 +17,8 @@ import type { SessionTerminalService } from './sessionTerminalService'
 export function createTerminalRoutes(dependencies: {
   terminals: SessionTerminalService
   isChatWindowContext(caller: RendererRouteCaller): boolean
+  /** The caller window is showing the session, or owns it as an unsent draft. */
+  isViewingSession(caller: RendererRouteCaller, sessionId: string): boolean
 }): DeepchatRouteMap {
   const requireChatWindow = (context: RouteContext): RendererRouteCaller => {
     const caller = requireRendererCaller(context)
@@ -25,6 +27,11 @@ export function createTerminalRoutes(dependencies: {
     }
     return caller
   }
+  const requireViewing = (caller: RendererRouteCaller, sessionId: string) => {
+    if (!dependencies.isViewingSession(caller, sessionId)) {
+      throw new Error('[terminal:forbidden] Session is not open in this window')
+    }
+  }
 
   return createRouteMap([
     [
@@ -32,6 +39,7 @@ export function createTerminalRoutes(dependencies: {
       async (rawInput, context) => {
         const caller = requireChatWindow(context)
         const { sessionId, ...input } = terminalAttachRoute.input.parse(rawInput)
+        requireViewing(caller, sessionId)
         return terminalAttachRoute.output.parse(
           await dependencies.terminals.attach(sessionId, caller.webContentsId, input)
         )
@@ -42,6 +50,7 @@ export function createTerminalRoutes(dependencies: {
       async (rawInput, context) => {
         const caller = requireChatWindow(context)
         const { sessionId, ...input } = terminalRestartRoute.input.parse(rawInput)
+        requireViewing(caller, sessionId)
         return terminalRestartRoute.output.parse(
           await dependencies.terminals.restart(sessionId, caller.webContentsId, input)
         )

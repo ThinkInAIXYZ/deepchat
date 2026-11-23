@@ -5,6 +5,8 @@ import { TERMINAL_OUTPUT_CHUNK_MAX } from '@shared/contracts/routes'
 
 export const TERMINAL_REPLAY_LIMIT = 256 * 1024
 export const TERMINAL_MAX_LIVE = 8
+/** Exited terminals keep their replay for the panel; older ones are evicted beyond this count. */
+export const TERMINAL_MAX_EXITED = 8
 const OUTPUT_FLUSH_MS = 8
 const KILL_GRACE_MS = 2_000
 const EXIT_FALLBACK_MS = 4_000
@@ -70,6 +72,12 @@ export interface SessionTerminalDependencies {
   platform?: NodeJS.Platform
 }
 
+interface PendingCreate {
+  ownerWebContentsId: number
+  cancelled: boolean
+  promise: Promise<SessionTerminalSnapshot>
+}
+
 interface TerminalRecord {
   terminalId: string
   sessionId: string
@@ -77,7 +85,7 @@ interface TerminalRecord {
   cwd: string
   shell: string
   pty: IPty | null
-  replay: string
+  replay: ReplayBuffer
   outputEnd: number
   pendingOutput: string
   pendingOffset: number
@@ -92,6 +100,11 @@ export class SessionTerminalService {
   private readonly bySession = new Map<string, TerminalRecord>()
   private readonly byId = new Map<string, TerminalRecord>()
   private readonly rendererListeners = new Map<number, () => void>()
+  /** Records whose PTY is still alive, including detached ones that are still terminating. */
+  private readonly livePtys = new Set<TerminalRecord>()
+  /** In-flight creates; deletion and shutdown cancel them before they can spawn. */
+  private readonly pendingCreates = new Map<string, PendingCreate>()
+  private shuttingDown = false
   private readonly platform: NodeJS.Platform
 
   constructor(private readonly dependencies: SessionTerminalDependencies) {
@@ -150,6 +163,7 @@ export class SessionTerminalService {
   }
 
   disposeSession(sessionId: string): void {
+    this.cancelPending(sessionId)
     const record = this.bySession.get(sessionId)
     if (record) this.dispose(record)
   }
@@ -161,6 +175,8 @@ export class SessionTerminalService {
   }
 
   shutdown(): void {
+    this.shuttingDown = true
+    for (const sessionId of this.pendingCreates.keys()) this.cancelPending(sessionId)
     for (const record of this.bySession.values()) this.dispose(record)
     for (const unsubscribe of this.rendererListeners.values()) unsubscribe()
     this.rendererListeners.clear()
@@ -171,28 +187,50 @@ export class SessionTerminalService {
     ownerWebContentsId: number,
     input: SessionTerminalOpenInput
   ): Promise<SessionTerminalSnapshot> {
-    const cwd = this.dependencies
-      .resolveWorkdir(sessionId, ownerWebContentsId, input.draftWorkdir)
-      ?.trim()
-    if (!cwd) {
-      throw new SessionTerminalError('no_workdir', 'Session has no working directory')
-    }
-    if (!isDirectory(cwd)) {
-      throw new SessionTerminalError('workdir_missing', 'Working directory does not exist')
-    }
-    if (this.liveCount() >= TERMINAL_MAX_LIVE) {
-      throw new SessionTerminalError('capacity', 'Too many terminals are running')
-    }
-
-    const env = sanitizeEnvironment(await this.dependencies.resolveEnvironment())
-    // The session may have been attached concurrently while the environment resolved.
-    const raced = this.bySession.get(sessionId)
-    if (raced) {
-      if (raced.ownerWebContentsId !== ownerWebContentsId) {
+    if (this.shuttingDown) throw new SessionTerminalError('not_found', 'Terminals are shut down')
+    const inFlight = this.pendingCreates.get(sessionId)
+    if (inFlight) {
+      if (inFlight.ownerWebContentsId !== ownerWebContentsId) {
         throw new SessionTerminalError('forbidden', 'Terminal belongs to another window')
       }
-      return this.snapshot(raced)
+      return await inFlight.promise
     }
+    this.resolveCwd(sessionId, ownerWebContentsId, input)
+    this.assertCapacity()
+    const pending: PendingCreate = {
+      ownerWebContentsId,
+      cancelled: false,
+      promise: undefined as unknown as Promise<SessionTerminalSnapshot>
+    }
+    pending.promise = this.spawnAfterEnvironment(sessionId, ownerWebContentsId, input, pending)
+    this.pendingCreates.set(sessionId, pending)
+    try {
+      return await pending.promise
+    } finally {
+      if (this.pendingCreates.get(sessionId) === pending) this.pendingCreates.delete(sessionId)
+    }
+  }
+
+  private cancelPending(sessionId: string): void {
+    const pending = this.pendingCreates.get(sessionId)
+    if (!pending) return
+    pending.cancelled = true
+    this.pendingCreates.delete(sessionId)
+  }
+
+  private async spawnAfterEnvironment(
+    sessionId: string,
+    ownerWebContentsId: number,
+    input: SessionTerminalOpenInput,
+    pending: PendingCreate
+  ): Promise<SessionTerminalSnapshot> {
+    const env = sanitizeEnvironment(await this.dependencies.resolveEnvironment())
+    if (pending.cancelled || this.shuttingDown) {
+      throw new SessionTerminalError('not_found', 'Terminal request was cancelled')
+    }
+    // Revalidate after the await: the session or its directory may be gone.
+    const cwd = this.resolveCwd(sessionId, ownerWebContentsId, input)
+    // This create reserved its slot before awaiting, so the reservation already covers it.
 
     const { shell, args } = this.dependencies.resolveShell()
     const pty = spawn(shell, args, {
@@ -209,7 +247,7 @@ export class SessionTerminalService {
       cwd,
       shell,
       pty,
-      replay: '',
+      replay: new ReplayBuffer(TERMINAL_REPLAY_LIMIT),
       outputEnd: 0,
       pendingOutput: '',
       pendingOffset: 0,
@@ -220,6 +258,7 @@ export class SessionTerminalService {
     }
     this.bySession.set(sessionId, record)
     this.byId.set(record.terminalId, record)
+    this.livePtys.add(record)
     this.watchRenderer(ownerWebContentsId)
 
     record.disposables.push(
@@ -229,9 +268,32 @@ export class SessionTerminalService {
     return this.snapshot(record)
   }
 
+  private resolveCwd(
+    sessionId: string,
+    ownerWebContentsId: number,
+    input: SessionTerminalOpenInput
+  ): string {
+    const cwd = this.dependencies
+      .resolveWorkdir(sessionId, ownerWebContentsId, input.draftWorkdir)
+      ?.trim()
+    if (!cwd) {
+      throw new SessionTerminalError('no_workdir', 'Session has no working directory')
+    }
+    if (!isDirectory(cwd)) {
+      throw new SessionTerminalError('workdir_missing', 'Working directory does not exist')
+    }
+    return cwd
+  }
+
+  private assertCapacity(): void {
+    if (this.livePtys.size + this.pendingCreates.size >= TERMINAL_MAX_LIVE) {
+      throw new SessionTerminalError('capacity', 'Too many terminals are running')
+    }
+  }
+
   private handleData(record: TerminalRecord, data: string): void {
     if (this.byId.get(record.terminalId) !== record) return
-    record.replay = appendBounded(record.replay, data, TERMINAL_REPLAY_LIMIT)
+    record.replay.append(data)
     if (!record.pendingOutput) record.pendingOffset = record.outputEnd
     record.outputEnd += data.length
     record.pendingOutput += data
@@ -244,13 +306,18 @@ export class SessionTerminalService {
     const pending = record.pendingOutput
     record.pendingOutput = ''
     if (!pending || this.byId.get(record.terminalId) !== record) return
-    for (let offset = 0; offset < pending.length; offset += TERMINAL_OUTPUT_CHUNK_MAX) {
+    let offset = 0
+    while (offset < pending.length) {
+      let end = Math.min(offset + TERMINAL_OUTPUT_CHUNK_MAX, pending.length)
+      // Keep UTF-16 surrogate pairs in one event.
+      if (end < pending.length && isHighSurrogate(pending.charCodeAt(end - 1))) end -= 1
       this.dependencies.sendOutput(
         record.ownerWebContentsId,
         record.terminalId,
         record.pendingOffset + offset,
-        pending.slice(offset, offset + TERMINAL_OUTPUT_CHUNK_MAX)
+        pending.slice(offset, end)
       )
+      offset = end
     }
   }
 
@@ -264,6 +331,14 @@ export class SessionTerminalService {
     record.exitCode = exitCode
     if (this.byId.get(record.terminalId) === record) {
       this.dependencies.sendExit(record.ownerWebContentsId, record.terminalId, exitCode, signal)
+      this.evictExited()
+    }
+  }
+
+  private evictExited(): void {
+    const exited = [...this.bySession.values()].filter((record) => !record.pty)
+    for (const record of exited.slice(0, Math.max(0, exited.length - TERMINAL_MAX_EXITED))) {
+      this.dispose(record)
     }
   }
 
@@ -312,6 +387,7 @@ export class SessionTerminalService {
     record.forceKillTimer = null
     record.exitFallbackTimer = null
     record.pty = null
+    this.livePtys.delete(record)
   }
 
   private resizePty(record: TerminalRecord, size: { cols: number; rows: number }): void {
@@ -325,7 +401,7 @@ export class SessionTerminalService {
       terminalId: record.terminalId,
       cwd: record.cwd,
       shell: record.shell,
-      replay: record.replay,
+      replay: record.replay.read(),
       outputEnd: record.outputEnd,
       status: record.pty ? 'running' : 'exited',
       ...(record.pty || record.exitCode === undefined ? {} : { exitCode: record.exitCode })
@@ -339,12 +415,6 @@ export class SessionTerminalService {
       throw new SessionTerminalError('forbidden', 'Terminal belongs to another window')
     }
     return record
-  }
-
-  private liveCount(): number {
-    let count = 0
-    for (const record of this.bySession.values()) if (record.pty) count += 1
-    return count
   }
 
   private watchRenderer(webContentsId: number): void {
@@ -373,14 +443,49 @@ function isDirectory(target: string): boolean {
   }
 }
 
-function appendBounded(buffer: string, data: string, limit: number): string {
-  const next = buffer + data
-  if (next.length <= limit) return next
-  let start = next.length - limit
-  // Avoid starting replay in the middle of a UTF-16 surrogate pair.
-  const code = next.charCodeAt(start)
-  if (code >= 0xdc00 && code <= 0xdfff) start += 1
-  return next.slice(start)
+function isHighSurrogate(code: number): boolean {
+  return code >= 0xd800 && code <= 0xdbff
+}
+
+const REPLAY_RESET = '\x1b[0m'
+const REPLAY_BOUNDARY_SEARCH = 4_096
+
+/** Bounded output tail kept as chunks so appends do not copy the whole buffer. */
+class ReplayBuffer {
+  private chunks: string[] = []
+  private length = 0
+  private trimmed = false
+
+  constructor(private readonly limit: number) {}
+
+  append(data: string): void {
+    this.chunks.push(data)
+    this.length += data.length
+    // Drop whole chunks that fall entirely outside the window; read() trims the remainder.
+    while (this.chunks.length > 1 && this.length - this.chunks[0].length >= this.limit) {
+      this.length -= this.chunks.shift()!.length
+      this.trimmed = true
+    }
+  }
+
+  read(): string {
+    let text = this.chunks.join('')
+    this.chunks = text ? [text] : []
+    if (text.length > this.limit) {
+      text = text.slice(text.length - this.limit)
+      this.chunks = [text]
+      this.length = text.length
+      this.trimmed = true
+    }
+    if (!this.trimmed) return text
+    // Start replay at a line boundary so it does not begin inside an escape sequence or a
+    // surrogate pair, and reset attributes left over from the dropped prefix.
+    const newline = text.indexOf('\n')
+    let start = newline >= 0 && newline < REPLAY_BOUNDARY_SEARCH ? newline + 1 : 0
+    const code = text.charCodeAt(start)
+    if (code >= 0xdc00 && code <= 0xdfff) start += 1
+    return REPLAY_RESET + text.slice(start)
+  }
 }
 
 export function sanitizeEnvironment(input: Record<string, string>): Record<string, string> {

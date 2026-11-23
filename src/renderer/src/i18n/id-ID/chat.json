@@ -729,7 +729,8 @@
       "starting": "Memulai shell…",
       "exited": "Proses keluar (kode {code})",
       "error": "Terminal tidak tersedia",
-      "capacity": "Terlalu banyak terminal berjalan. Tutup salah satu lalu coba lagi."
+      "capacity": "Terlalu banyak terminal berjalan. Tutup salah satu lalu coba lagi.",
+      "otherWindow": "Terminal ini terbuka di jendela lain"
     },
     "noWorkdir": {
       "title": "Tidak ada direktori kerja",

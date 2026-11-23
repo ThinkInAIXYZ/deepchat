@@ -161,6 +161,7 @@
           v-else-if="sidepanelStore.activeTab === 'terminal'"
           :session-id="props.sessionId"
           :workspace-path="props.workspacePath"
+          :active="shouldShow"
           @update:workspace-path="emit('update:workspacePath', $event)"
         />
         <TapeInspectorPanel

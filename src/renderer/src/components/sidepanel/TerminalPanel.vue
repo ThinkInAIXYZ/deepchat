@@ -23,10 +23,22 @@
             : t('chat.terminal.workdirMissing.description')
         }}
       </p>
-      <DcButton variant="outline" size="sm" class="h-7 text-xs" @click="selectFolder">
-        <Icon icon="lucide:folder-open" class="mr-1.5 h-3.5 w-3.5" />
-        {{ t('chat.workspace.files.noWorkspace.button') }}
-      </DcButton>
+      <div class="flex justify-center gap-2">
+        <DcButton variant="outline" size="sm" class="h-7 text-xs" @click="selectFolder">
+          <Icon icon="lucide:folder-open" class="mr-1.5 h-3.5 w-3.5" />
+          {{ t('chat.workspace.files.noWorkspace.button') }}
+        </DcButton>
+        <DcButton
+          v-if="state === 'workdir-missing'"
+          variant="ghost"
+          size="sm"
+          class="h-7 text-xs"
+          data-testid="terminal-retry"
+          @click="retryAttach"
+        >
+          {{ t('chat.terminal.restart') }}
+        </DcButton>
+      </div>
     </div>
 
     <template v-else>
@@ -72,6 +84,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { until } from '@vueuse/core'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import { DcButton } from '@dc-ui/components/button'
@@ -80,10 +93,13 @@ import { createTerminalClient } from '@api/TerminalClient'
 import type { DeepchatRouteOutput } from '@shared/contracts/routes'
 import { TERMINAL_INPUT_CHUNK_MAX } from '@shared/contracts/routes'
 import { useAccessibilitySupport } from '@/composables/useAccessibilitySupport'
+import { useShortcutKeyStore } from '@/stores/shortcutKey'
 import { useSidepanelStore } from '@/stores/ui/sidepanel'
 import { useThemeStore } from '@/stores/theme'
+import { matchesAccelerator } from './terminalShortcut'
 
 type TerminalSnapshot = DeepchatRouteOutput<'terminal.attach'>
+type OutputEvent = { terminalId: string; offset: number; data: string }
 type PanelState =
   | 'idle'
   | 'connecting'
@@ -105,12 +121,13 @@ interface TerminalView {
   dispose(): void
   onData(listener: (data: string) => void): { dispose(): void }
   onResize(listener: (size: { cols: number; rows: number }) => void): { dispose(): void }
-  attachCustomKeyEventHandler(handler: (event: KeyboardEvent) => boolean): void
 }
 
 const props = defineProps<{
   sessionId: string
   workspacePath: string | null
+  /** The side panel is open on this tab. Terminals are only created or attached while active. */
+  active: boolean
 }>()
 const emit = defineEmits<{ 'update:workspacePath': [path: string | null] }>()
 
@@ -119,7 +136,8 @@ const client = createTerminalClient()
 const projectClient = createProjectClient()
 const sidepanelStore = useSidepanelStore()
 const themeStore = useThemeStore()
-const { accessibilityEnabled } = useAccessibilitySupport()
+const shortcutKeyStore = useShortcutKeyStore()
+const { accessibilityEnabled, accessibilityReady } = useAccessibilitySupport()
 
 const terminalHost = ref<HTMLElement | null>(null)
 const state = ref<PanelState>('idle')
@@ -136,6 +154,11 @@ let inputBuffer = ''
 let inputTimer: ReturnType<typeof setTimeout> | null = null
 let attachGeneration = 0
 let renderedOutputEnd = 0
+/** Output that arrived while an attach was in flight, before its snapshot was applied. */
+let attachInFlight = false
+let earlyOutput: OutputEvent[] = []
+let earlyOutputLength = 0
+const EARLY_OUTPUT_LIMIT = 1024 * 1024
 let ghosttyReady: Promise<void> | null = null
 let disposed = false
 
@@ -145,11 +168,28 @@ const DARK_THEME = {
   cursor: '#e5e7eb',
   selectionBackground: '#3b4252'
 }
+// Light backgrounds need a palette whose white/yellow entries stay readable.
 const LIGHT_THEME = {
   background: '#fbfbfc',
   foreground: '#1f2328',
   cursor: '#1f2328',
-  selectionBackground: '#cfd8e3'
+  selectionBackground: '#cfd8e3',
+  black: '#24292f',
+  red: '#cf222e',
+  green: '#116329',
+  yellow: '#7d4e00',
+  blue: '#0969da',
+  magenta: '#8250df',
+  cyan: '#1b7c83',
+  white: '#6e7781',
+  brightBlack: '#57606a',
+  brightRed: '#a40e26',
+  brightGreen: '#1a7f37',
+  brightYellow: '#633c01',
+  brightBlue: '#218bff',
+  brightMagenta: '#a475f9',
+  brightCyan: '#3192aa',
+  brightWhite: '#8c959f'
 }
 const terminalTheme = computed(() => (themeStore.isDark ? DARK_THEME : LIGHT_THEME))
 const terminalLabel = computed(() => t('chat.terminal.label'))
@@ -186,6 +226,8 @@ function mapError(error: unknown): PanelState {
   if (message.includes('[terminal:workdir_missing]')) return 'workdir-missing'
   if (message.includes('[terminal:capacity]')) {
     errorMessage.value = t('chat.terminal.status.capacity')
+  } else if (message.includes('[terminal:forbidden]')) {
+    errorMessage.value = t('chat.terminal.status.otherWindow')
   } else {
     errorMessage.value = t('chat.terminal.status.error')
   }
@@ -198,12 +240,24 @@ async function loadGhostty() {
   await ghosttyReady
 }
 
+const isToggleShortcut = (event: KeyboardEvent) =>
+  matchesAccelerator(event, shortcutKeyStore.shortcutKeys?.ToggleTerminal)
+
+/** False while the host is collapsed (closing animation, hidden tab). */
+function hostHasSize(): boolean {
+  const host = terminalHost.value
+  return Boolean(host && host.clientWidth > 0 && host.clientHeight > 0)
+}
+
 async function createView(): Promise<TerminalView | null> {
   const fontFamily = 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace'
   if (accessibilityEnabled.value) {
     // ghostty-web renders to canvas without an accessible buffer; xterm keeps screen readers working.
-    const { Terminal } = await import('@xterm/xterm')
-    await import('@xterm/xterm/css/xterm.css')
+    const [{ Terminal }, { FitAddon }] = await Promise.all([
+      import('@xterm/xterm'),
+      import('@xterm/addon-fit'),
+      import('@xterm/xterm/css/xterm.css')
+    ])
     const terminal = new Terminal({
       screenReaderMode: true,
       cursorBlink: true,
@@ -212,7 +266,14 @@ async function createView(): Promise<TerminalView | null> {
       scrollback: 5_000,
       theme: terminalTheme.value
     })
-    fitView = () => fitXterm(terminal)
+    const fit = new FitAddon()
+    terminal.loadAddon(fit)
+    fitView = () => {
+      // The fit addon clamps a collapsed host to 2x1; never send that to a live shell.
+      if (!hostHasSize()) return undefined
+      fit.fit()
+      return { cols: terminal.cols, rows: terminal.rows }
+    }
     return terminal as unknown as TerminalView
   }
   await loadGhostty()
@@ -227,28 +288,11 @@ async function createView(): Promise<TerminalView | null> {
   const fit = new FitAddon()
   terminal.loadAddon(fit)
   fitView = () => {
+    if (!hostHasSize()) return undefined
     fit.fit()
     return { cols: terminal.cols, rows: terminal.rows }
   }
   return terminal as unknown as TerminalView
-}
-
-/** Minimal fit for xterm, which ships no fit logic in core. */
-function fitXterm(terminal: import('@xterm/xterm').Terminal) {
-  const host = terminalHost.value
-  const core = (
-    terminal as unknown as {
-      _core?: {
-        _renderService?: { dimensions?: { css?: { cell?: { width: number; height: number } } } }
-      }
-    }
-  )._core
-  const cell = core?._renderService?.dimensions?.css?.cell
-  if (!host || !cell?.width || !cell.height) return undefined
-  const cols = Math.max(2, Math.floor((host.clientWidth - 16) / cell.width))
-  const rows = Math.max(1, Math.floor((host.clientHeight - 8) / cell.height))
-  if (cols !== terminal.cols || rows !== terminal.rows) terminal.resize(cols, rows)
-  return { cols, rows }
 }
 
 function disposeView() {
@@ -302,13 +346,17 @@ async function ensureView(): Promise<TerminalView | null> {
     return null
   }
   view = created
-  created.open(terminalHost.value)
+  const host = terminalHost.value
+  // Keep the toggle shortcut away from the terminal so the shell never sees it. This runs before
+  // either backend's own handler (their custom key handlers use opposite return semantics) and
+  // does not cancel the event, so the native menu accelerator still fires.
+  const stopToggleShortcut = (event: KeyboardEvent) => {
+    if (isToggleShortcut(event)) event.stopImmediatePropagation()
+  }
+  host.addEventListener('keydown', stopToggleShortcut, true)
+  viewDisposers.push(() => host.removeEventListener('keydown', stopToggleShortcut, true))
+  created.open(host)
   created.textarea?.setAttribute('aria-label', terminalLabel.value)
-  created.attachCustomKeyEventHandler((event) => {
-    // Let the app-level toggle shortcut reach the menu instead of the shell.
-    if (event.key === '`' && (event.metaKey || event.ctrlKey) && !event.altKey) return true
-    return false
-  })
   const dataSubscription = created.onData(queueInput)
   const resizeSubscription = created.onResize(({ cols, rows }) => {
     const terminalId = snapshot.value?.terminalId
@@ -321,7 +369,7 @@ async function ensureView(): Promise<TerminalView | null> {
   )
   fitView?.()
   resizeObserver = new ResizeObserver(scheduleFit)
-  resizeObserver.observe(terminalHost.value)
+  resizeObserver.observe(host)
   return created
 }
 
@@ -331,11 +379,30 @@ function writeView(data: string) {
   if (data) view?.write(data)
 }
 
+function writeOutput(payload: OutputEvent) {
+  const end = payload.offset + payload.data.length
+  if (end <= renderedOutputEnd) return
+  // Skip the part already delivered through the attach replay.
+  const start = Math.max(0, renderedOutputEnd - payload.offset)
+  writeView(start > 0 ? payload.data.slice(start) : payload.data)
+  renderedOutputEnd = end
+}
+
+function clearEarlyOutput() {
+  earlyOutput = []
+  earlyOutputLength = 0
+}
+
 function applySnapshot(next: TerminalSnapshot) {
   snapshot.value = next
   view?.reset()
   writeView(next.replay)
   renderedOutputEnd = next.outputEnd
+  const buffered = earlyOutput
+  clearEarlyOutput()
+  for (const payload of buffered) {
+    if (payload.terminalId === next.terminalId) writeOutput(payload)
+  }
   if (next.status === 'running') {
     state.value = 'running'
     exitCode.value = null
@@ -346,10 +413,18 @@ function applySnapshot(next: TerminalSnapshot) {
 }
 
 async function open(mode: 'attach' | 'restart') {
+  if (!props.active) return
   const generation = ++attachGeneration
   errorMessage.value = null
   if (state.value !== 'running') state.value = 'connecting'
+  // Snapshot-era events are now replaced by the coming snapshot; collect fresh ones from here.
+  snapshot.value = null
+  clearEarlyOutput()
+  attachInFlight = true
   try {
+    // The renderer choice depends on the native accessibility status; wait for it once.
+    if (!accessibilityReady.value) await until(accessibilityReady).toBe(true)
+    if (disposed || generation !== attachGeneration) return
     const terminal = await ensureView()
     if (!terminal || generation !== attachGeneration) return
     const size = fitView?.() ?? { cols: terminal.cols, rows: terminal.rows }
@@ -362,13 +437,31 @@ async function open(mode: 'attach' | 'restart') {
     }
     const next = mode === 'restart' ? await client.restart(input) : await client.attach(input)
     if (disposed || generation !== attachGeneration) return
+    attachInFlight = false
     applySnapshot(next)
     terminal.focus()
   } catch (error) {
     if (disposed || generation !== attachGeneration) return
+    attachInFlight = false
+    clearEarlyOutput()
     state.value = mapError(error)
     if (state.value !== 'error') disposeView()
   }
+}
+
+/** Detach the view (the PTY keeps running) and drop any in-flight attach. */
+function detach() {
+  attachGeneration += 1
+  attachInFlight = false
+  disposeView()
+  snapshot.value = null
+  clearEarlyOutput()
+  renderedOutputEnd = 0
+  state.value = 'idle'
+}
+
+function retryAttach() {
+  void open('attach')
 }
 
 function restartTerminal() {
@@ -391,13 +484,18 @@ async function selectFolder() {
 }
 
 const stopOutput = client.onOutput((payload) => {
-  if (payload.terminalId !== snapshot.value?.terminalId || !view) return
-  const end = payload.offset + payload.data.length
-  if (end <= renderedOutputEnd) return
-  // Skip the part already delivered through the attach replay.
-  const start = Math.max(0, renderedOutputEnd - payload.offset)
-  writeView(start > 0 ? payload.data.slice(start) : payload.data)
-  renderedOutputEnd = end
+  if (!snapshot.value) {
+    // An attach is in flight: keep events until its snapshot says which terminal and offset apply.
+    if (!attachInFlight) return
+    earlyOutput.push(payload)
+    earlyOutputLength += payload.data.length
+    while (earlyOutputLength > EARLY_OUTPUT_LIMIT && earlyOutput.length > 1) {
+      earlyOutputLength -= earlyOutput.shift()!.data.length
+    }
+    return
+  }
+  if (payload.terminalId !== snapshot.value.terminalId || !view) return
+  writeOutput(payload)
 })
 
 const stopExit = client.onExit((payload) => {
@@ -417,11 +515,16 @@ watch(
 watch(
   () => props.sessionId,
   () => {
-    disposeView()
-    snapshot.value = null
-    renderedOutputEnd = 0
-    state.value = 'idle'
+    detach()
     void open('attach')
+  }
+)
+
+watch(
+  () => props.active,
+  (active) => {
+    if (active) void open('attach')
+    else detach()
   }
 )
 
@@ -429,15 +532,21 @@ watch(
   () => props.workspacePath,
   (path, previous) => {
     // A working directory chosen from the empty state starts the shell immediately.
-    if (path && !previous && (state.value === 'no-workdir' || state.value === 'workdir-missing')) {
+    if (
+      path &&
+      path !== previous &&
+      (state.value === 'no-workdir' || state.value === 'workdir-missing')
+    ) {
       void open('attach')
     }
   }
 )
 
 watch([accessibilityEnabled, () => themeStore.isDark], () => {
-  if (!view) return
-  // Renderer choice and ghostty-web theme are fixed at creation; rebuild and replay.
+  if (state.value === 'idle' || state.value === 'no-workdir' || state.value === 'workdir-missing')
+    return
+  // Renderer choice and ghostty-web theme are fixed at creation; rebuild and replay. This also
+  // supersedes an attach still creating its view.
   disposeView()
   void open('attach')
 })
