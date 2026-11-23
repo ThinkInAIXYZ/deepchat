@@ -1,6 +1,6 @@
 # Session Terminal Specification
 
-> Status: in progress. Tracks [#2470](https://github.com/ThinkInAIXYZ/deepchat/issues/2470).
+> Status: implemented. Tracks [#2470](https://github.com/ThinkInAIXYZ/deepchat/issues/2470).
 
 ## Context
 
@@ -97,7 +97,12 @@ its replay buffer. Callers outside chat windows (settings, plugin, CLI, remote) 
 - `TerminalPanel.vue` lazy-loads ghostty-web (`init()` on first use) and its `FitAddon`; input is
   batched for 8 ms and chunked to 16 KiB like `AcpAuthDialog`.
 - Detaching (tab switch, panel close, session switch) disposes the view but not the PTY.
-- Theme follows the app's light/dark mode.
+- Theme follows the app's light/dark mode. ghostty-web cannot change themes after `open()`, so a
+  theme or accessibility change rebuilds the view and replays the buffer.
+- Output carries a stream offset so events racing the attach replay are de-duplicated.
+- ghostty-web 0.4 throws on zero-length writes; the panel never writes empty strings.
+- The WASM blob is inlined into the lazily loaded ghostty-web chunk as a data URL, so packaged
+  builds need no extra asset path.
 
 ### Shortcut
 
