@@ -112,8 +112,6 @@ import { TrayPresenter } from '../desktop/tray'
 import { OAuthService } from '../provider/auth'
 import { CHATGPT_PROVIDER_ID } from '../provider/auth/chatgpt/constants'
 
-/** Settings flag: the first ChatGPT sign-in already enabled its default models. */
-const CHATGPT_DEFAULT_MODELS_APPLIED_KEY = 'chatgptDefaultModelsApplied'
 import { FloatingButtonPresenter } from '../desktop/floatingButton'
 import { YoBrowserPresenter } from '../desktop/browser/YoBrowserPresenter'
 import { ComputerUsePreviewPresenter } from '@/desktop/computerUse/ComputerUsePreviewPresenter'
@@ -346,6 +344,9 @@ import {
   TimeoutNotificationScheduler,
   systemNotificationClock
 } from '@shared/notifications'
+
+/** Settings value: the ChatGPT account (email) whose default models were already enabled. */
+const CHATGPT_DEFAULT_MODELS_APPLIED_KEY = 'chatgptDefaultModelsApplied'
 
 type ApplicationDatabaseMaintenancePort = SyncImportDatabasePort &
   DatabaseSecurityMigrationDatabasePort
@@ -900,11 +901,15 @@ export async function createMainProcessControl(dependencies: {
         }
         void providerRuntime
           .refreshProviderCatalog(CHATGPT_PROVIDER_ID, 'config')
-          .then(() => {
-            // The first sign-in should be ready to chat: enable the account's leading models,
-            // in server order. This happens once; later sign-ins keep the user's choices,
-            // including disabling every model.
-            if (dependencies.settingsStore.get<boolean>(CHATGPT_DEFAULT_MODELS_APPLIED_KEY)) return
+          .then(async () => {
+            // An account's first sign-in should be ready to chat: enable its leading models, in
+            // server order. This happens once per account; later sign-ins of the same account
+            // keep the user's choices, including disabling every model.
+            const account = (await oauthService.getChatGPTStatus()).email ?? ''
+            const applied = dependencies.settingsStore.get<unknown>(
+              CHATGPT_DEFAULT_MODELS_APPLIED_KEY
+            )
+            if (applied === account || (applied === true && !account)) return
             const models = providerSettings.getProviderModels(CHATGPT_PROVIDER_ID)
             if (models.length === 0) return
             const statuses = providerSettings.getBatchModelStatus(
@@ -917,7 +922,7 @@ export async function createMainProcessControl(dependencies: {
                 Object.fromEntries(models.slice(0, 3).map((model) => [model.id, true]))
               )
             }
-            dependencies.settingsStore.set(CHATGPT_DEFAULT_MODELS_APPLIED_KEY, true)
+            dependencies.settingsStore.set(CHATGPT_DEFAULT_MODELS_APPLIED_KEY, account)
           })
           .catch((error) => {
             logger.warn('[ChatGPT] Model refresh after sign-in failed:', error)

@@ -19,7 +19,8 @@ interface AuxiliaryInput {
   signal?: AbortSignal
 }
 interface AuxiliaryOptions {
-  models: Pick<DimModelCatalog, 'admit'> & Partial<Pick<DimModelCatalog, 'withDraft'>>
+  models: Pick<DimModelCatalog, 'admit'> &
+    Partial<Pick<DimModelCatalog, 'withDraft' | 'restrictParameters'>>
   bridge: Pick<DimModelBridge, 'complete'> & Partial<Pick<DimModelBridge, 'stream'>>
   parameters?(providerId: string, modelId: string): DimModelParameters
 }
@@ -105,7 +106,7 @@ export class DimAuxiliaryModels {
     const model = await this.options.models.admit(input.providerId, input.modelId)
     input.signal?.throwIfAborted()
     const defaults = this.options.parameters?.(input.providerId, input.modelId)
-    const parameters =
+    const merged =
       defaults || input.parameters
         ? {
             ...defaults,
@@ -114,6 +115,11 @@ export class DimAuxiliaryModels {
             )
           }
         : undefined
+    // Explicit caller values are merged last, so provider restrictions apply after the merge.
+    const parameters =
+      merged && this.options.models.restrictParameters
+        ? this.options.models.restrictParameters(input.providerId, merged)
+        : merged
     return { model, request, parameters }
   }
 }

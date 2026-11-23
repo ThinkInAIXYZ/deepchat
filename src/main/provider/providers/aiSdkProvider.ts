@@ -606,12 +606,15 @@ export class AiSdkProvider extends BaseLLMProvider {
         )
       }
       const payload: unknown = await response.json()
-      const list =
-        payload &&
-        typeof payload === 'object' &&
-        Array.isArray((payload as { models?: unknown }).models)
-          ? (payload as { models: unknown[] }).models
-          : []
+      // An invalid envelope must not pass as an empty catalog and delete the saved models.
+      if (
+        !payload ||
+        typeof payload !== 'object' ||
+        !Array.isArray((payload as { models?: unknown }).models)
+      ) {
+        throw new Error('Invalid ChatGPT model list response')
+      }
+      const list = (payload as { models: unknown[] }).models
       // One malformed entry must not hide the account's other models.
       const records = list.filter(
         (record): record is Record<string, unknown> =>

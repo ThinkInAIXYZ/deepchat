@@ -14,11 +14,20 @@ const provider = (id: string, extra: Record<string, unknown> = {}): LLM_PROVIDER
     ...extra
   }) as LLM_PROVIDER
 
-function run(initial: LLM_PROVIDER[], settings: Record<string, unknown> = {}) {
+function run(
+  initial: LLM_PROVIDER[],
+  settings: Record<string, unknown> = {},
+  stored: Record<string, unknown> = {}
+) {
   let providers = initial
   const values = { ...settings }
+  const store = new Map(Object.entries(stored))
   const presenter = Object.assign(Object.create(ProviderSettings.prototype), {
     userDataPath: '/user-data',
+    store: {
+      get: (key: string) => store.get(key),
+      delete: (key: string) => store.delete(key)
+    },
     getProviders: vi.fn(() => providers),
     setProviders: vi.fn((next: LLM_PROVIDER[]) => {
       providers = next
@@ -29,7 +38,7 @@ function run(initial: LLM_PROVIDER[], settings: Record<string, unknown> = {}) {
     })
   })
   ;(presenter as ProviderSettings & { retireOpenAICodex: () => void }).retireOpenAICodex()
-  return { providers: () => providers, values }
+  return { providers: () => providers, values, store }
 }
 
 describe('retireOpenAICodex', () => {
@@ -50,6 +59,16 @@ describe('retireOpenAICodex', () => {
       recursive: true,
       force: true
     })
+  })
+
+  it('clears OpenAI selections that relied on the ChatGPT mode only', () => {
+    const openai = { providerId: 'openai', modelId: 'gpt-5-codex' }
+    const other = { providerId: 'anthropic', modelId: 'claude' }
+    const stored = { defaultModel: openai, assistantModel: other, preferredModel: openai }
+    const retired = run([provider('openai', { openaiAuthMode: 'chatgpt' })], {}, stored)
+    expect(Object.fromEntries(retired.store)).toEqual({ assistantModel: other })
+    const apiKey = run([provider('openai', { openaiAuthMode: 'apiKey' })], {}, stored)
+    expect(Object.fromEntries(apiKey.store)).toEqual(stored)
   })
 
   it('owes the notice for an enabled Codex provider or leftover credentials only', () => {

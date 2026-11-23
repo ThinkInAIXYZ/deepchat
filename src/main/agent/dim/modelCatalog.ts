@@ -161,6 +161,14 @@ export class DimModelCatalog {
       : this.configure(providerId, modelId, options, false)
   }
 
+  /** Drop explicit caller overrides the provider rejects, after they are merged over defaults. */
+  restrictParameters(providerId: string, parameters: DimModelParameters): DimModelParameters {
+    const provider = this.options.settings.getProviderById(providerId)
+    if (!provider || !isChatGPT(provider)) return parameters
+    const { temperature: _temperature, topP: _topP, maxTokens: _maxTokens, ...rest } = parameters
+    return rest
+  }
+
   parameters(providerId: string, modelId: string, settings: GenerationParameters) {
     return dimModelParameters(
       settings,

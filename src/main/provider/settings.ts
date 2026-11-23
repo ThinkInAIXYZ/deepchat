@@ -960,6 +960,26 @@ export class ProviderSettings implements ProviderSettingsPort {
         })
       )
     }
+    // OpenAI's ChatGPT mode ran on the retired Codex sign-in; its default, assistant, vision and
+    // preferred selections cannot run with the API key mode left behind, so clear them.
+    if (
+      providers.some(
+        (provider) =>
+          provider.id === 'openai' &&
+          (provider as LLM_PROVIDER & { openaiAuthMode?: unknown }).openaiAuthMode === 'chatgpt'
+      )
+    ) {
+      const keysToClear = getDeprecatedProviderModelSelectionKeysToClear(
+        Object.fromEntries(
+          DEPRECATED_PROVIDER_MODEL_SETTING_KEYS.map((key) => [
+            key,
+            this.store.get(key) as ModelSelection | undefined
+          ])
+        ),
+        ['openai']
+      )
+      for (const key of keysToClear) this.store.delete(key)
+    }
     const credentialDir = path.join(this.userDataPath, LEGACY_CODEX_CREDENTIAL_DIR)
     const credentialsPresent = fs.existsSync(credentialDir)
     if (!this.getSetting<boolean>(CODEX_RETIREMENT_MIGRATION_KEY)) {

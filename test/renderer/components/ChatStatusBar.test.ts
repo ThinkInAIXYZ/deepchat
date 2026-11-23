@@ -374,19 +374,22 @@ const setup = async (options: SetupOptions = {}) => {
     findModelByIdOrName: vi.fn((value: string) => modelLookup.get(value) ?? null)
   })
 
+  const providers = [
+    { id: 'openai', name: 'OpenAI', apiType: 'openai', enable: true },
+    { id: 'anthropic', name: 'Anthropic', apiType: 'anthropic', enable: true },
+    { id: 'acp', name: 'ACP', apiType: 'acp', enable: true }
+  ].concat(
+    normalizedExtraModelGroups.map((group) => ({
+      id: group.providerId,
+      name: group.providerName,
+      apiType: group.apiType,
+      enable: true
+    }))
+  )
   const providerStore = reactive({
-    sortedProviders: [
-      { id: 'openai', name: 'OpenAI', apiType: 'openai', enable: true },
-      { id: 'anthropic', name: 'Anthropic', apiType: 'anthropic', enable: true },
-      { id: 'acp', name: 'ACP', apiType: 'acp', enable: true }
-    ].concat(
-      normalizedExtraModelGroups.map((group) => ({
-        id: group.providerId,
-        name: group.providerName,
-        apiType: group.apiType,
-        enable: true
-      }))
-    )
+    initialized: true,
+    providers,
+    sortedProviders: providers
   })
 
   const agentId = options.agentId ?? 'deepchat'
@@ -1322,6 +1325,17 @@ describe('ChatStatusBar model and session panels', () => {
     await flushPromises()
 
     expect(modelStore.initialize).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows no model for a session whose provider was retired', async () => {
+    const { wrapper } = await setup({
+      hasActiveSession: true,
+      activeProviderId: 'openai-codex',
+      activeModelId: 'gpt-5-codex'
+    })
+
+    expect((wrapper.vm as any).displayModelText).toBe('common.selectModel')
+    expect(wrapper.text()).not.toContain('gpt-5-codex')
   })
 
   it('keeps the model picker limited to search and model selection', async () => {

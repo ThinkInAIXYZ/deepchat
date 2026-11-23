@@ -172,7 +172,8 @@ export class ChatGPTAuth {
       ? 'pending-browser'
       : planUsageEnabled
         ? 'authenticated'
-        : tokens || this.denied
+        : // A denied consent means the plan is off only for an account that already signed in.
+          tokens || (this.denied && registration)
           ? 'plan-disabled'
           : registration?.reauthRequired
             ? 'reauth-required'
@@ -267,6 +268,8 @@ export class ChatGPTAuth {
       void this.complete(pending)
       await this.openExternal(pending.authorizationUrl)
     } catch (error) {
+      // A superseded attempt must not tear down the listener of the one that replaced it.
+      if (attempt !== this.attempt) return this.getStatus()
       this.failPending(error)
     }
     this.publish()
@@ -546,9 +549,9 @@ export class ChatGPTAuth {
             delete target.tokens
             target.reauthRequired = true
             this.store.save(latest)
+            this.options.onAccountChanged?.(false)
           }
           this.publish()
-          this.options.onAccountChanged?.(false)
           throw new ProviderHttpError('ChatGPT sign-in expired. Reconnect ChatGPT.', {
             statusCode: 401,
             code: CHATGPT_SIGN_IN_REQUIRED,

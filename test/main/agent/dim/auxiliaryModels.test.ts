@@ -1,5 +1,6 @@
 import { expect, it, vi } from 'vitest'
 import { DimAuxiliaryModels, dimAuxiliaryRequest } from '@/agent/dim/auxiliaryModels'
+import { DimModelCatalog } from '@/agent/dim/modelCatalog'
 
 it('preserves system text, image bytes and tool call identities in the native message contract', () => {
   expect(
@@ -101,6 +102,36 @@ it('keeps admission cancellation from reaching Rust inference and preserves conf
     temperature: 0.2,
     maxTokens: 80
   })
+})
+
+it('drops explicit sampling and output limits for the ChatGPT plan after the merge', async () => {
+  const complete = vi.fn(async () => ({ text: 'native', stopReason: 'end_turn' as const }))
+  const catalog = new DimModelCatalog({
+    settings: {
+      getProviderById: (id: string) =>
+        id === 'chatgpt' ? { id, apiType: 'chatgpt' } : { id, apiType: 'openai-completions' }
+    }
+  } as never)
+  const auxiliary = new DimAuxiliaryModels({
+    models: {
+      admit: async (providerId, modelId) => ({ providerId, modelId }),
+      restrictParameters: (providerId, parameters) =>
+        catalog.restrictParameters(providerId, parameters)
+    },
+    bridge: { complete },
+    parameters: () => ({ reasoning: { effort: 'low' } })
+  })
+  const input = {
+    modelId: 'model',
+    messages: [{ role: 'user' as const, content: 'prompt' }],
+    parameters: { temperature: 0.1, topP: 0.9, maxTokens: 10 }
+  }
+  await auxiliary.complete({ ...input, providerId: 'chatgpt' })
+  await auxiliary.complete({ ...input, providerId: 'other' })
+  expect(complete.mock.calls.map((call) => call.at(-1))).toEqual([
+    { reasoning: { effort: 'low' } },
+    { reasoning: { effort: 'low' }, temperature: 0.1, topP: 0.9, maxTokens: 10 }
+  ])
 })
 
 it('blocks a truncated audio preparation before the Agent receives incomplete evidence', async () => {

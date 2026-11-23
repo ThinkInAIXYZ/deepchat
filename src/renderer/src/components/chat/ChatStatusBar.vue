@@ -2934,7 +2934,8 @@ const commitNumericField = (
 
   const error = validateGenerationNumericField(field, rawValue, {
     contextLength: localSettings.value.contextLength,
-    maxTokens: localSettings.value.maxTokens,
+    // The ChatGPT plan hides max tokens; a lower context length clamps it instead.
+    maxTokens: usesChatGPTPlan.value ? undefined : localSettings.value.maxTokens,
     thinkingBudgetRange: modelCapabilities.budgetRange.value ?? undefined
   })
   if (error) {
@@ -3069,8 +3070,15 @@ function stepContextLength(direction: -1 | 1) {
   if (committed === undefined) {
     return
   }
-  updateLocalGenerationSettings({ contextLength: committed })
+  updateLocalGenerationSettings(contextLengthPatch(committed))
   resetNumericInputFieldState('contextLength')
+}
+
+function contextLengthPatch(contextLength: number): Partial<SessionGenerationSettings> {
+  const maxTokens = localSettings.value?.maxTokens
+  return usesChatGPTPlan.value && maxTokens !== undefined && maxTokens > contextLength
+    ? { contextLength, maxTokens: contextLength }
+    : { contextLength }
 }
 
 function onContextLengthInput(value: string | number) {
@@ -3082,7 +3090,7 @@ function commitContextLengthInput() {
   if (next === undefined) {
     return
   }
-  updateLocalGenerationSettings({ contextLength: next })
+  updateLocalGenerationSettings(contextLengthPatch(next))
   resetNumericInputFieldState('contextLength')
 }
 
