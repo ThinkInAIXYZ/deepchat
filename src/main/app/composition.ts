@@ -111,6 +111,9 @@ import { DesktopSessionBinding } from '@/desktop/sessionBinding'
 import { TrayPresenter } from '../desktop/tray'
 import { OAuthService } from '../provider/auth'
 import { CHATGPT_PROVIDER_ID } from '../provider/auth/chatgpt/constants'
+
+/** Settings flag: the first ChatGPT sign-in already enabled its default models. */
+const CHATGPT_DEFAULT_MODELS_APPLIED_KEY = 'chatgptDefaultModelsApplied'
 import { FloatingButtonPresenter } from '../desktop/floatingButton'
 import { YoBrowserPresenter } from '../desktop/browser/YoBrowserPresenter'
 import { ComputerUsePreviewPresenter } from '@/desktop/computerUse/ComputerUsePreviewPresenter'
@@ -887,6 +890,7 @@ export async function createMainProcessControl(dependencies: {
         const provider = providerSettings.getProviderById(CHATGPT_PROVIDER_ID)
         if (!provider) return
         if (!signedIn) {
+          providerRuntime.supersedeProviderCatalogRefresh(CHATGPT_PROVIDER_ID)
           providerRuntime.replaceProviderCatalogFromSource(CHATGPT_PROVIDER_ID, [], 'config')
           return
         }
@@ -897,18 +901,23 @@ export async function createMainProcessControl(dependencies: {
         void providerRuntime
           .refreshProviderCatalog(CHATGPT_PROVIDER_ID, 'config')
           .then(() => {
-            // A first sign-in should be ready to chat: enable the account's leading models,
-            // in server order, unless the user already chose some.
+            // The first sign-in should be ready to chat: enable the account's leading models,
+            // in server order. This happens once; later sign-ins keep the user's choices,
+            // including disabling every model.
+            if (dependencies.settingsStore.get<boolean>(CHATGPT_DEFAULT_MODELS_APPLIED_KEY)) return
             const models = providerSettings.getProviderModels(CHATGPT_PROVIDER_ID)
+            if (models.length === 0) return
             const statuses = providerSettings.getBatchModelStatus(
               CHATGPT_PROVIDER_ID,
               models.map((model) => model.id)
             )
-            if (models.length === 0 || Object.values(statuses).some(Boolean)) return
-            providerSettings.batchSetModelStatus(
-              CHATGPT_PROVIDER_ID,
-              Object.fromEntries(models.slice(0, 3).map((model) => [model.id, true]))
-            )
+            if (!Object.values(statuses).some(Boolean)) {
+              providerSettings.batchSetModelStatus(
+                CHATGPT_PROVIDER_ID,
+                Object.fromEntries(models.slice(0, 3).map((model) => [model.id, true]))
+              )
+            }
+            dependencies.settingsStore.set(CHATGPT_DEFAULT_MODELS_APPLIED_KEY, true)
           })
           .catch((error) => {
             logger.warn('[ChatGPT] Model refresh after sign-in failed:', error)

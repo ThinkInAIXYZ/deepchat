@@ -53,7 +53,11 @@
         <DcButton v-if="chatgptRecovery === 'usageLimit'" size="sm" @click="chatgpt?.openUsage()">
           {{ t('chatgpt.manageUsage') }}
         </DcButton>
-        <DcButton v-else size="sm" @click="chatgpt?.startLogin()">
+        <DcButton
+          v-else
+          size="sm"
+          @click="chatgpt?.startLogin(chatgpt.status.value.state === 'plan-disabled')"
+        >
           {{ t('chatgpt.reconnect') }}
         </DcButton>
       </div>

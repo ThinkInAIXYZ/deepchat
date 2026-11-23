@@ -39,6 +39,7 @@ describe('retireOpenAICodex', () => {
   })
 
   it('drops the ChatGPT auth mode, keeps the API key and owes one notice', () => {
+    vi.mocked(fs.existsSync).mockReturnValue(true)
     const result = run([
       provider('openai', { apiKey: 'sk-keep', openaiAuthMode: 'chatgpt', enable: true })
     ])
@@ -70,5 +71,21 @@ describe('retireOpenAICodex', () => {
     expect(result.providers()[0]).not.toHaveProperty('openaiAuthMode')
     expect(result.values[CODEX_RETIRED_NOTICE_PENDING_KEY]).toBeUndefined()
     expect(fs.rmSync).not.toHaveBeenCalled()
+  })
+
+  it('retries deleting leftover credentials without owing the notice again', () => {
+    vi.mocked(fs.existsSync).mockReturnValue(true)
+    vi.mocked(fs.rmSync).mockImplementationOnce(() => {
+      throw Object.assign(new Error('busy'), { code: 'EBUSY' })
+    })
+    const first = run([provider('openai')])
+    expect(first.values[CODEX_RETIRED_NOTICE_PENDING_KEY]).toBe(true)
+
+    const later = run([provider('openai')], {
+      codexRetirementMigrated: true,
+      [CODEX_RETIRED_NOTICE_PENDING_KEY]: false
+    })
+    expect(fs.rmSync).toHaveBeenCalledTimes(2)
+    expect(later.values[CODEX_RETIRED_NOTICE_PENDING_KEY]).toBe(false)
   })
 })

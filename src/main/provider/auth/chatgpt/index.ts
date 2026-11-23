@@ -87,6 +87,17 @@ class TokenEndpointError extends Error {
 
 let globalChatGPTAuth: ChatGPTAuth | null = null
 
+function parseObject(text: string): Record<string, unknown> {
+  try {
+    const value: unknown = JSON.parse(text)
+    return value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {}
+  } catch {
+    return {}
+  }
+}
+
 const base64Url = (bytes: Buffer) => bytes.toString('base64url')
 const randomToken = () => base64Url(randomBytes(32))
 const leaseOf = (accessToken: string) => createHash('sha256').update(accessToken).digest('hex')
@@ -136,6 +147,8 @@ export class ChatGPTAuth {
   private readonly openExternal: (url: string) => Promise<void>
   private readonly now: () => number
   private pending: PendingLogin | null = null
+  /** Bumped by every start and cancel; an attempt whose token changed while binding is dropped. */
+  private attempt = 0
   private refreshing: Promise<ChatGPTTokenSet> | null = null
   private discovery: Promise<Discovery> | null = null
   private keys: Jwk[] | null = null
@@ -188,10 +201,15 @@ export class ChatGPTAuth {
 
   async startLogin(options: { requestPlanConsent?: boolean } = {}): Promise<ChatGPTAuthStatus> {
     this.cancelPending()
+    const attempt = this.attempt
     this.lastError = null
     this.denied = false
     try {
       const existing = this.store.load()
+      if (this.store.isUnavailable()) {
+        // Replacing an account that cannot be read would discard its host ID and client.
+        throw new Error('ChatGPT credentials are locked by the system keychain')
+      }
       const state = existing ?? createChatGPTAccountState()
       // The host ID must be persisted before its first sign-in.
       if (!existing) this.store.save(state)
@@ -220,6 +238,11 @@ export class ChatGPTAuth {
           if (parameters.get('error') === 'access_denied') throw new AccessDeniedError()
         }
       })
+      if (attempt !== this.attempt) {
+        // Cancelled, or superseded, while the listener was binding.
+        callback.close()
+        return this.getStatus()
+      }
       const url = new URL(CHATGPT_AUTHORIZE_URL)
       const query: Array<[string, string]> = [
         ['client_id', clientId ?? CHATGPT_DYNAMIC_CLIENT_ID],
@@ -287,10 +310,11 @@ export class ChatGPTAuth {
       delete registration.tokens
       delete registration.reauthRequired
       this.store.save(state)
+      // Announce before the remote call, so a sign-in finishing meanwhile is announced after it.
+      this.options.onAccountChanged?.(false)
       if (tokens.refreshToken) {
         revocationConfirmed = await this.revoke(registration.clientId, tokens.refreshToken)
       }
-      this.options.onAccountChanged?.(false)
     } else if (state && registration?.reauthRequired) {
       delete registration.reauthRequired
       this.store.save(state)
@@ -347,6 +371,7 @@ export class ChatGPTAuth {
   }
 
   private cancelPending(): void {
+    this.attempt += 1
     if (!this.pending) return
     this.pending.cancelled = true
     this.pending.callback.close()
@@ -426,7 +451,11 @@ export class ChatGPTAuth {
     if (pending.cancelled) return
 
     // Re-read: a refresh or another write may have landed while this attempt was in flight.
-    const state = this.store.load() ?? createChatGPTAccountState()
+    const loaded = this.store.load()
+    if (this.store.isUnavailable()) {
+      throw new Error('ChatGPT credentials are locked by the system keychain')
+    }
+    const state = loaded ?? createChatGPTAccountState()
     let registration = pending.registrationId
       ? state.registrations.find((entry) => entry.id === pending.registrationId)
       : state.registrations.find((entry) => entry.clientId === clientId)
@@ -483,14 +512,32 @@ export class ChatGPTAuth {
       const next = this.parseTokens(reply, registration.tokens.idToken, registration.tokens)
       const latest = this.store.load()
       const target = latest?.registrations.find((entry) => entry.id === registration.id)
-      // Persist the rotated refresh token unless the user signed out meanwhile.
-      if (latest && target?.tokens?.refreshToken === refreshToken) {
-        target.tokens = next
-        this.store.save(latest)
+      // Refreshes are serialized in this process, so a different stored refresh token means the
+      // grant was replaced (sign-out or a new sign-in); the rotated token belongs to no one.
+      if (
+        !latest ||
+        latest.activeRegistrationId !== registration.id ||
+        target?.tokens?.refreshToken !== refreshToken
+      ) {
+        throw new ProviderHttpError('Sign in with ChatGPT to continue', {
+          statusCode: 401,
+          code: CHATGPT_SIGN_IN_REQUIRED,
+          retryable: false
+        })
       }
+      target.tokens = next
+      this.store.save(latest)
       this.publish()
+      if (!hasPlan(next.scopes)) {
+        throw new ProviderHttpError('ChatGPT plan use is not enabled for DeepChat', {
+          statusCode: 403,
+          code: CHATGPT_PLAN_NOT_ENABLED,
+          retryable: false
+        })
+      }
       return next
     } catch (error) {
+      if (error instanceof ProviderHttpError) throw error
       if (error instanceof TokenEndpointError && error.code) {
         if (CHATGPT_UNUSABLE_REFRESH_ERRORS.has(error.code)) {
           const latest = this.store.load()
@@ -578,13 +625,13 @@ export class ChatGPTAuth {
     for (const delay of [0, ...CHATGPT_REVOKE_RETRY_DELAYS_MS]) {
       if (delay) await new Promise((resolve) => setTimeout(resolve, delay))
       try {
-        const response = await this.request(endpoint, {
+        const { status } = await this.request(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body
         })
-        if (response.status === 200) return true
-        if (response.status < 500) return false
+        if (status === 200) return true
+        if (status < 500) return false
       } catch {}
     }
     return false
@@ -594,7 +641,7 @@ export class ChatGPTAuth {
     this.discovery ??= (async () => {
       const response = await this.request(CHATGPT_DISCOVERY_URL, { method: 'GET' })
       if (!response.ok) throw new Error(`ChatGPT discovery failed (${response.status})`)
-      const document = (await response.json()) as Record<string, unknown>
+      const document = parseObject(response.text)
       const origin = new URL(CHATGPT_ISSUER).origin
       const jwksUri = typeof document.jwks_uri === 'string' ? document.jwks_uri : ''
       const revocation =
@@ -618,7 +665,7 @@ export class ChatGPTAuth {
     if (this.keys && !refresh) return this.keys
     const response = await this.request((await this.getDiscovery()).jwksUri, { method: 'GET' })
     if (!response.ok) throw new Error(`ChatGPT key request failed (${response.status})`)
-    const document = (await response.json()) as { keys?: unknown }
+    const document = parseObject(response.text)
     this.keys = Array.isArray(document.keys) ? (document.keys as Jwk[]) : []
     return this.keys
   }
@@ -632,11 +679,7 @@ export class ChatGPTAuth {
       },
       body: new URLSearchParams(params)
     })
-    const text = await response.text().catch(() => '')
-    let payload: Record<string, unknown> = {}
-    try {
-      payload = JSON.parse(text) as Record<string, unknown>
-    } catch {}
+    const payload = parseObject(response.text)
     if (!response.ok) {
       const code =
         typeof payload.error === 'string'
@@ -649,11 +692,21 @@ export class ChatGPTAuth {
     return payload
   }
 
-  private async request(url: string, init: RequestInit): Promise<Response> {
+  /** One deadline covers the response and its body, so a stalled body cannot hold refresh waiters. */
+  private async request(
+    url: string,
+    init: RequestInit
+  ): Promise<{ ok: boolean; status: number; text: string }> {
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), CHATGPT_REQUEST_TIMEOUT_MS)
     try {
-      return await this.fetch(url, { ...init, redirect: 'error', signal: controller.signal })
+      const response = await this.fetch(url, {
+        ...init,
+        redirect: 'error',
+        signal: controller.signal
+      })
+      const text = await response.text()
+      return { ok: response.ok, status: response.status, text }
     } catch (error) {
       if (controller.signal.aborted) throw new Error('ChatGPT request timed out')
       throw error

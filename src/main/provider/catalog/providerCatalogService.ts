@@ -343,6 +343,11 @@ export class ProviderCatalogService {
     this.publishChanged(providerId, state, source, reason, true, undefined, null)
   }
 
+  /** The catalog's owner changed; a fetch started for the previous owner must not commit. */
+  supersedeRefresh(providerId: string): void {
+    this.invalidateGeneration(providerId)
+  }
+
   forgetCatalog(providerId: string): void {
     this.invalidateGeneration(providerId)
     this.deps.settings.deleteProviderCatalogState(providerId)

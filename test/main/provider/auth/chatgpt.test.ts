@@ -35,6 +35,9 @@ class MemoryStore {
   getStorage() {
     return 'safeStorage' as const
   }
+  isUnavailable() {
+    return false
+  }
 }
 
 type Callback = (url: string) => void
@@ -43,7 +46,8 @@ function harness() {
   const store = new MemoryStore()
   const tokenRequests: URLSearchParams[] = []
   const revokeRequests: URLSearchParams[] = []
-  let tokenReply: () => { status: number; body: Record<string, unknown> } = () => ({
+  type TokenReply = { status: number; body: Record<string, unknown> }
+  let tokenReply: () => TokenReply | Promise<TokenReply> = () => ({
     status: 500,
     body: {}
   })
@@ -52,7 +56,10 @@ function harness() {
   const accountChanges: boolean[] = []
   let nonce = ''
 
+  let bindGate: Promise<void> | null = null
+  const closes: Array<ReturnType<typeof vi.fn>> = []
   startSession.mockImplementation(async (options: { expectedState: string }) => {
+    if (bindGate) await bindGate
     let resolve!: (value: unknown) => void
     let reject!: (error: Error) => void
     const promise = new Promise((res, rej) => {
@@ -69,7 +76,9 @@ function harness() {
         resolve({ code: parsed.searchParams.get('code'), state: options.expectedState, url })
       }
     }
-    return { redirectUri: REDIRECT, waitForCallback: () => promise, close: vi.fn() }
+    const close = vi.fn()
+    closes.push(close)
+    return { redirectUri: REDIRECT, waitForCallback: () => promise, close }
   })
 
   const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
@@ -93,7 +102,7 @@ function harness() {
     }
     if (url.endsWith('/api/accounts/oauth/token')) {
       tokenRequests.push(new URLSearchParams(String(init?.body)))
-      const reply = tokenReply()
+      const reply = await tokenReply()
       return json(reply.status, reply.body)
     }
     throw new Error(`unexpected ${url}`)
@@ -152,6 +161,15 @@ function harness() {
     setTokenReply: (reply: typeof tokenReply) => {
       tokenReply = reply
     },
+    holdBinding: () => {
+      let release!: () => void
+      bindGate = new Promise((resolve) => (release = resolve))
+      return () => {
+        bindGate = null
+        release()
+      }
+    },
+    closes,
     grant,
     signIn
   }
@@ -328,5 +346,79 @@ describe('ChatGPT account owner', () => {
     expect(result.status.state).toBe('signed-out')
     expect(h.store.state!.registrations[0].tokens).toBeUndefined()
     expect(h.store.state!.registrations[0].clientId).toBe('oaiapp_issued')
+  })
+
+  it('drops a sign-in cancelled while its callback listener is binding', async () => {
+    const h = harness()
+    const release = h.holdBinding()
+    const starting = h.auth.startLogin()
+    h.auth.cancelLogin()
+    release()
+    await starting
+
+    expect(h.opened).toHaveLength(0)
+    expect(h.closes[0]).toHaveBeenCalled()
+    expect(h.auth.getStatus().state).toBe('signed-out')
+  })
+
+  it('announces sign-out before awaiting remote revocation', async () => {
+    const h = harness()
+    h.setTokenReply(() => h.grant())
+    await h.signIn('code=code-1&client_id=oaiapp_issued')
+
+    const signingOut = h.auth.logout()
+    expect(h.accountChanges).toEqual([true, false])
+    await signingOut
+    expect(h.accountChanges).toEqual([true, false])
+  })
+
+  it('withholds a refreshed bearer after sign-out or when the plan scope is gone', async () => {
+    const h = harness()
+    h.setTokenReply(() => h.grant({ expires_in: 30 }))
+    await h.signIn('code=code-1&client_id=oaiapp_issued')
+
+    // Sign out while the refresh request is in flight; the token endpoint answers afterwards.
+    let refreshRequested!: () => void
+    const requested = new Promise<void>((resolve) => (refreshRequested = resolve))
+    let answer!: () => void
+    const answered = new Promise<void>((resolve) => (answer = resolve))
+    h.setTokenReply(async () => {
+      refreshRequested()
+      await answered
+      return {
+        status: 200,
+        body: {
+          access_token: 'access-2',
+          refresh_token: 'refresh-2',
+          token_type: 'Bearer',
+          expires_in: 3600
+        }
+      }
+    })
+    const refreshing = h.auth.getAccessToken()
+    await requested
+    await h.auth.logout()
+    answer()
+    await expect(refreshing).rejects.toSatisfy(
+      (error) => extractProviderFailureMetadata(error)?.code === 'chatgpt_sign_in_required'
+    )
+    expect(h.store.state!.registrations[0].tokens).toBeUndefined()
+
+    h.setTokenReply(() => h.grant({ expires_in: 30 }))
+    await h.signIn('code=code-2')
+    h.setTokenReply(() => ({
+      status: 200,
+      body: {
+        access_token: 'access-3',
+        refresh_token: 'refresh-3',
+        token_type: 'Bearer',
+        expires_in: 3600,
+        scope: 'openid profile email offline_access'
+      }
+    }))
+    await expect(h.auth.getAccessToken()).rejects.toSatisfy(
+      (error) => extractProviderFailureMetadata(error)?.code === 'chatgpt_plan_not_enabled'
+    )
+    expect(h.auth.getStatus().state).toBe('plan-disabled')
   })
 })

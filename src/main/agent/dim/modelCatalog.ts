@@ -648,6 +648,8 @@ type ReasoningContext = {
   providerKind: string
   modelId?: string
   providerId?: string
+  /** Set from the provider with the same rule connection selection uses. */
+  chatgptPlan?: boolean
   reasoningPortrait?: ReasoningPortrait | null
 }
 
@@ -679,6 +681,7 @@ export function dimReasoningContext(
     providerKind,
     providerId,
     modelId,
+    ...(provider && isChatGPT(provider) ? { chatgptPlan: true } : {}),
     reasoningPortrait:
       providerKind === 'anthropic' || providerKind === 'gemini' || providerKind === 'vertex'
         ? catalog.getCapabilitySnapshot({ providerId, modelId, resolvedModelConfig: modelConfig })
@@ -689,18 +692,17 @@ export function dimReasoningContext(
 
 export function dimModelParameters(
   settings: GenerationParameters,
-  { providerKind, modelId, providerId, reasoningPortrait }: ReasoningContext
+  { providerKind, modelId, chatgptPlan, reasoningPortrait }: ReasoningContext
 ): DimModelParameters {
   // The ChatGPT plan's Responses preview rejects sampling and output-limit overrides
   // (`Unsupported model parameter: temperature`); send none of them for that provider.
-  const parameters =
-    providerId === 'chatgpt'
-      ? {}
-      : {
-          temperature: settings.temperature,
-          ...(settings.topP === undefined ? {} : { topP: settings.topP }),
-          maxTokens: settings.maxTokens
-        }
+  const parameters = chatgptPlan
+    ? {}
+    : {
+        temperature: settings.temperature,
+        ...(settings.topP === undefined ? {} : { topP: settings.topP }),
+        maxTokens: settings.maxTokens
+      }
   const { reasoningEffort: effort, reasoningVisibility, thinkingBudget: budget } = settings
   if (providerKind === 'anthropic') {
     const miniMax = /^minimax-m3(?:[.-]|$)/.test(getUnqualifiedModelId(modelId))

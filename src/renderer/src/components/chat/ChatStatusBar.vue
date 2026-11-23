@@ -804,7 +804,10 @@
                         </p>
                       </div>
 
-                      <div v-if="!showOpenAIMediaGenerationSettings" class="space-y-1.5">
+                      <div
+                        v-if="!showOpenAIMediaGenerationSettings && !usesChatGPTPlan"
+                        class="space-y-1.5"
+                      >
                         <label class="text-xs font-medium">{{
                           t('chat.advancedSettings.maxTokens')
                         }}</label>
@@ -1669,6 +1672,8 @@ const effectiveModelSelection = computed<ModelSelection | null>(() => {
   return draftModelSelection.value
 })
 
+// The ChatGPT plan's Responses preview has no output-limit override; none is sent for it.
+const usesChatGPTPlan = computed(() => effectiveModelSelection.value?.providerId === 'chatgpt')
 const temperatureControl = modelCapabilities.temperatureControl
 const topPControl = modelCapabilities.topPControl
 const isTemperatureFixed = computed(() => temperatureControl.value.mode === 'fixed')
@@ -2134,8 +2139,8 @@ const isGenerationSettingsReady = computed(() => {
 const displayIconId = computed(() => {
   if (hasActiveSession.value) {
     return resolveModelIconId(
-      activeSessionSelection.value?.providerId || draftModelSelection.value?.providerId,
-      activeSessionSelection.value?.modelId || draftModelSelection.value?.modelId
+      activeSessionSelection.value?.providerId,
+      activeSessionSelection.value?.modelId
     )
   }
   if (isAcpAgent.value) {
@@ -2155,7 +2160,7 @@ const displayModelText = computed(() => {
     return acpAgentLabel.value
   }
   if (hasActiveSession.value) {
-    const selection = activeSessionSelection.value ?? draftModelSelection.value
+    const selection = activeSessionSelection.value
     if (selection?.modelId) {
       return selection.modelId
     }

@@ -116,6 +116,8 @@ export function createChatGPTAccountState(): ChatGPTAccountState {
 export class ChatGPTAccountStore {
   private readonly filePath: string
   private loadError: string | null = null
+  /** An encrypted account exists but the keychain cannot open it now; it must not be replaced. */
+  private unavailable = false
 
   constructor(filePath?: string) {
     this.filePath =
@@ -134,8 +136,13 @@ export class ChatGPTAccountStore {
     return this.loadError
   }
 
+  isUnavailable(): boolean {
+    return this.unavailable
+  }
+
   /** Reads the account; an unreadable file is preserved as `.corrupt` and replaced on next save. */
   load(): ChatGPTAccountState | null {
+    this.unavailable = false
     let raw: string
     try {
       raw = fs.readFileSync(this.filePath, 'utf-8')
@@ -158,6 +165,12 @@ export class ChatGPTAccountStore {
     if (envelope.storage === 'file') {
       state = normalizeState(envelope.state)
     } else if (envelope.storage === 'safeStorage' && isString(envelope.wrapped)) {
+      if (this.getStorage() !== 'safeStorage') {
+        // Electron refuses to decrypt before the keychain is ready; this is not corruption.
+        this.unavailable = true
+        this.loadError = 'the system keychain is not available to read ChatGPT credentials'
+        return null
+      }
       try {
         state = normalizeState(
           JSON.parse(safeStorage.decryptString(Buffer.from(envelope.wrapped, 'base64')))
@@ -174,6 +187,9 @@ export class ChatGPTAccountStore {
   }
 
   save(state: ChatGPTAccountState): void {
+    if (this.unavailable) {
+      throw new Error('ChatGPT credentials are locked by the system keychain')
+    }
     const directory = path.dirname(this.filePath)
     fs.mkdirSync(directory, { recursive: true, mode: 0o700 })
     if (this.loadError) {

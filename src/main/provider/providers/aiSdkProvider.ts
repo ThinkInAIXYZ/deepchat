@@ -605,10 +605,18 @@ export class AiSdkProvider extends BaseLLMProvider {
           response.status
         )
       }
-      const payload = (await response.json()) as { models?: unknown }
-      const records = Array.isArray(payload.models)
-        ? (payload.models as Array<Record<string, unknown>>)
-        : []
+      const payload: unknown = await response.json()
+      const list =
+        payload &&
+        typeof payload === 'object' &&
+        Array.isArray((payload as { models?: unknown }).models)
+          ? (payload as { models: unknown[] }).models
+          : []
+      // One malformed entry must not hide the account's other models.
+      const records = list.filter(
+        (record): record is Record<string, unknown> =>
+          Boolean(record) && typeof record === 'object' && !Array.isArray(record)
+      )
       const seen = new Set<string>()
       return records.flatMap((record) => {
         const id = typeof record.slug === 'string' ? record.slug.trim() : ''

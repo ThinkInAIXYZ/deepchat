@@ -960,23 +960,29 @@ export class ProviderSettings implements ProviderSettingsPort {
         })
       )
     }
-    if (this.getSetting<boolean>(CODEX_RETIREMENT_MIGRATION_KEY)) return
-
     const credentialDir = path.join(this.userDataPath, LEGACY_CODEX_CREDENTIAL_DIR)
-    const affected =
-      providers.some(
-        (provider) =>
-          (provider.id === 'openai-codex' && provider.enable) ||
-          (provider.id === 'openai' &&
-            (provider as LLM_PROVIDER & { openaiAuthMode?: unknown }).openaiAuthMode === 'chatgpt')
-      ) || fs.existsSync(credentialDir)
-    try {
-      fs.rmSync(credentialDir, { recursive: true, force: true })
-    } catch (error) {
-      console.warn('[ProviderSettings] Failed to remove retired Codex credentials:', error)
+    const credentialsPresent = fs.existsSync(credentialDir)
+    if (!this.getSetting<boolean>(CODEX_RETIREMENT_MIGRATION_KEY)) {
+      const affected =
+        credentialsPresent ||
+        providers.some(
+          (provider) =>
+            (provider.id === 'openai-codex' && provider.enable) ||
+            (provider.id === 'openai' &&
+              (provider as LLM_PROVIDER & { openaiAuthMode?: unknown }).openaiAuthMode ===
+                'chatgpt')
+        )
+      if (affected) this.setSetting(CODEX_RETIRED_NOTICE_PENDING_KEY, true)
+      this.setSetting(CODEX_RETIREMENT_MIGRATION_KEY, true)
     }
-    if (affected) this.setSetting(CODEX_RETIRED_NOTICE_PENDING_KEY, true)
-    this.setSetting(CODEX_RETIREMENT_MIGRATION_KEY, true)
+    // Deletion is retried on every start until it succeeds; the notice above is decided once.
+    if (credentialsPresent) {
+      try {
+        fs.rmSync(credentialDir, { recursive: true, force: true })
+      } catch (error) {
+        console.warn('[ProviderSettings] Failed to remove retired Codex credentials:', error)
+      }
+    }
   }
 
   private cleanupDeprecatedBuiltinProviders(): void {
