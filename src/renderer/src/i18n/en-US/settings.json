@@ -2170,6 +2170,7 @@
     "quitApp": "Quit app",
     "toggleSidebar": "Toggle Sidebar",
     "toggleWorkspace": "Toggle Workspace",
+    "toggleTerminal": "Toggle Terminal",
     "zoomIn": "Zoom in ",
     "zoomOut": "Zoom out ",
     "zoomReset": "Reset zoom",

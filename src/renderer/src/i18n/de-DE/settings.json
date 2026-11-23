@@ -2029,6 +2029,7 @@
     "quitApp": "App beenden",
     "toggleSidebar": "Seitenleiste umschalten",
     "toggleWorkspace": "Arbeitsbereich umschalten",
+    "toggleTerminal": "Terminal ein-/ausblenden",
     "newWindow": "Neues Fenster öffnen",
     "showHideWindow": "Fenster anzeigen/ausblenden",
     "newConversation": "Neue Sitzung",

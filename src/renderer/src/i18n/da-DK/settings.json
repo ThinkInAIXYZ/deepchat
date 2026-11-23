@@ -1730,6 +1730,7 @@
     "quitApp": "Afslut app",
     "toggleSidebar": "Vis/skjul sidepanel",
     "toggleWorkspace": "Vis/skjul arbejdsområde",
+    "toggleTerminal": "Vis/skjul terminal",
     "zoomIn": "Zoom ind",
     "zoomOut": "Zoom ud",
     "zoomReset": "Nulstil zoom",

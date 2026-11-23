@@ -2029,6 +2029,7 @@
     "quitApp": "Esci dall'app",
     "toggleSidebar": "Mostra/nascondi barra laterale",
     "toggleWorkspace": "Mostra/nascondi workspace",
+    "toggleTerminal": "Mostra/nascondi terminale",
     "newWindow": "Apri nuova finestra",
     "showHideWindow": "Mostra/nascondi finestra",
     "newConversation": "Nuova conversazione",

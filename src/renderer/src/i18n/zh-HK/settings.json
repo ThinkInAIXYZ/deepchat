@@ -1797,6 +1797,7 @@
     "quitApp": "退出程序",
     "toggleSidebar": "顯示/隱藏側邊欄",
     "toggleWorkspace": "顯示/隱藏工作區",
+    "toggleTerminal": "顯示/隱藏終端機",
     "zoomIn": "放大字體",
     "zoomOut": "縮小字體",
     "zoomReset": "重置字體",

@@ -2029,6 +2029,7 @@
     "quitApp": "Keluar dari program",
     "toggleSidebar": "Alihkan bilah sisi",
     "toggleWorkspace": "Ganti ruang kerja",
+    "toggleTerminal": "Tampilkan/sembunyikan terminal",
     "newWindow": "Buka jendela baru",
     "showHideWindow": "Tampilkan/sembunyikan jendela",
     "newConversation": "sesi baru",

@@ -1797,6 +1797,7 @@
     "quitApp": "Sair do app",
     "toggleSidebar": "Mostrar/ocultar barra lateral",
     "toggleWorkspace": "Mostrar/ocultar espaço de trabalho",
+    "toggleTerminal": "Mostrar/ocultar terminal",
     "zoomIn": "Ampliar ",
     "zoomOut": "Reduzir ",
     "zoomReset": "Redefinir zoom",

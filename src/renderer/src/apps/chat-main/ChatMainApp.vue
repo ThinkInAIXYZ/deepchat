@@ -423,6 +423,13 @@ const { setup: setupAppIpcRuntime, cleanup: cleanupAppIpcRuntime } = useAppIpcRu
       sidepanelStore.toggleWorkspace(pageRouterStore.chatSessionId)
     }
   },
+  handleToggleTerminal: () => {
+    if (pageRouterStore.currentRoute === 'newThread' && agentStore.selectedAgentId) {
+      sidepanelStore.toggleTerminal(draftStore.workspaceSessionId)
+    } else if (pageRouterStore.chatSessionId) {
+      sidepanelStore.toggleTerminal(pageRouterStore.chatSessionId)
+    }
+  },
   openSpotlight: () => {
     spotlightStore.openSpotlight()
   },

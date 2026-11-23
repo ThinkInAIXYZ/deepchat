@@ -9,6 +9,7 @@ export const defaultShortcutKey: ShortcutKeySetting = {
   QuickSearch: `${CommandKey}+P`,
   ToggleSidebar: `${CommandKey}+B`,
   ToggleWorkspace: `${CommandKey}+J`,
+  ToggleTerminal: `${CommandKey}+\``,
   NewWindow: `${CommandKey}+${ShiftKey}+N`,
   CloseWindow: `${CommandKey}+W`,
   ZoomIn: `${CommandKey}+=`,

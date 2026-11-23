@@ -11,6 +11,7 @@ interface UseAppIpcRuntimeOptions {
   handleCreateNewConversation: () => void | Promise<void>
   handleToggleSidebar: () => void
   handleToggleWorkspace: () => void
+  handleToggleTerminal: () => void
   openSpotlight: () => void
   handleSystemNotificationClick: (payload: unknown) => void
   getCurrentRouteName: () => string | symbol | null | undefined
@@ -58,6 +59,9 @@ export function useAppIpcRuntime(options: UseAppIpcRuntimeOptions) {
             break
           case 'toggleWorkspace':
             options.handleToggleWorkspace()
+            break
+          case 'toggleTerminal':
+            options.handleToggleTerminal()
             break
           case 'toggleSpotlight':
             options.openSpotlight()

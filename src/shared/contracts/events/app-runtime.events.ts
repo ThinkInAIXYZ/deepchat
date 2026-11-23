@@ -55,6 +55,7 @@ export const appRuntimeShortcutRequestedEvent = defineEventContract({
       'createNewConversation',
       'toggleSidebar',
       'toggleWorkspace',
+      'toggleTerminal',
       'toggleSpotlight'
     ])
   })
