@@ -718,5 +718,26 @@
     "parentTask": "Parent task",
     "parentRun": "Parent run",
     "contextWindow": "Context window"
+  },
+  "terminal": {
+    "title": "Terminal",
+    "label": "Sitzungsterminal",
+    "restart": "Neu starten",
+    "kill": "Beenden",
+    "workdirChanged": "Verzeichnis geändert · zum Übernehmen neu starten",
+    "status": {
+      "starting": "Shell wird gestartet…",
+      "exited": "Prozess beendet (Code {code})",
+      "error": "Terminal nicht verfügbar",
+      "capacity": "Zu viele Terminals aktiv. Schließen Sie eines und versuchen Sie es erneut."
+    },
+    "noWorkdir": {
+      "title": "Kein Arbeitsverzeichnis",
+      "description": "Wählen Sie einen Ordner, um dort ein Terminal zu öffnen"
+    },
+    "workdirMissing": {
+      "title": "Arbeitsverzeichnis nicht gefunden",
+      "description": "Der Ordner wurde möglicherweise verschoben oder gelöscht. Wählen Sie einen anderen."
+    }
   }
 }

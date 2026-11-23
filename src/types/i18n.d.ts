@@ -1301,6 +1301,27 @@ declare module 'vue-i18n' {
       parentRun: string
       contextWindow: string
     }
+    terminal: {
+      title: string
+      label: string
+      restart: string
+      kill: string
+      workdirChanged: string
+      status: {
+        starting: string
+        exited: string
+        error: string
+        capacity: string
+      }
+      noWorkdir: {
+        title: string
+        description: string
+      }
+      workdirMissing: {
+        title: string
+        description: string
+      }
+    }
     skipToContent: string
     notifications: {
       label: string
@@ -2434,7 +2455,6 @@ declare module 'vue-i18n' {
       permissionDefault: string
       defaultToolMode: string
       defaultToolModeModelDefaultDesc: string
-      defaultToolModeCodePermissionHint: string
       subagentsTitle: string
       subagentsDescription: string
       subagentsEnabled: string
@@ -3699,6 +3719,7 @@ declare module 'vue-i18n' {
       quitApp: string
       toggleSidebar: string
       toggleWorkspace: string
+      toggleTerminal: string
       newWindow: string
       showHideWindow: string
       newConversation: string

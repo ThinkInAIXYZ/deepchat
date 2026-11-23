@@ -718,5 +718,26 @@
     "parentTask": "Parent task",
     "parentRun": "Parent run",
     "contextWindow": "Context window"
+  },
+  "terminal": {
+    "title": "ターミナル",
+    "label": "セッションターミナル",
+    "restart": "再起動",
+    "kill": "終了",
+    "workdirChanged": "ディレクトリが変更されました · 再起動で反映",
+    "status": {
+      "starting": "シェルを起動中…",
+      "exited": "プロセスが終了しました（code {code}）",
+      "error": "ターミナルを利用できません",
+      "capacity": "実行中のターミナルが多すぎます。いずれかを閉じてから再試行してください。"
+    },
+    "noWorkdir": {
+      "title": "作業ディレクトリがありません",
+      "description": "フォルダーを選択するとそこでターミナルを開きます"
+    },
+    "workdirMissing": {
+      "title": "作業ディレクトリが見つかりません",
+      "description": "フォルダーが移動または削除された可能性があります。別のフォルダーを選択してください。"
+    }
   }
 }

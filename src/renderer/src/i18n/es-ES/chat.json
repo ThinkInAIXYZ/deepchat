@@ -718,5 +718,26 @@
     "parentTask": "Parent task",
     "parentRun": "Parent run",
     "contextWindow": "Context window"
+  },
+  "terminal": {
+    "title": "Terminal",
+    "label": "Terminal de la sesión",
+    "restart": "Reiniciar",
+    "kill": "Finalizar",
+    "workdirChanged": "Directorio cambiado · reinicia para aplicar",
+    "status": {
+      "starting": "Iniciando shell…",
+      "exited": "Proceso finalizado (código {code})",
+      "error": "Terminal no disponible",
+      "capacity": "Hay demasiados terminales en ejecución. Cierra uno e inténtalo de nuevo."
+    },
+    "noWorkdir": {
+      "title": "Sin directorio de trabajo",
+      "description": "Elige una carpeta para abrir un terminal en ella"
+    },
+    "workdirMissing": {
+      "title": "No se encuentra el directorio de trabajo",
+      "description": "Puede que la carpeta se haya movido o eliminado. Elige otra."
+    }
   }
 }

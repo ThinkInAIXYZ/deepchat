@@ -718,5 +718,26 @@
     "parentTask": "Parent task",
     "parentRun": "Parent run",
     "contextWindow": "Context window"
+  },
+  "terminal": {
+    "title": "Terminal",
+    "label": "Terminal sesi",
+    "restart": "Mula semula",
+    "kill": "Hentikan",
+    "workdirChanged": "Direktori berubah · mula semula untuk menggunakan",
+    "status": {
+      "starting": "Memulakan shell…",
+      "exited": "Proses keluar (kod {code})",
+      "error": "Terminal tidak tersedia",
+      "capacity": "Terlalu banyak terminal sedang berjalan. Tutup satu dan cuba lagi."
+    },
+    "noWorkdir": {
+      "title": "Tiada direktori kerja",
+      "description": "Pilih folder untuk membuka terminal di dalamnya"
+    },
+    "workdirMissing": {
+      "title": "Direktori kerja tidak ditemui",
+      "description": "Folder mungkin telah dialihkan atau dipadam. Pilih folder lain."
+    }
   }
 }

@@ -721,5 +721,26 @@
     "parentTask": "Tâche parente",
     "parentRun": "Exécution parente",
     "contextWindow": "Fenêtre de contexte"
+  },
+  "terminal": {
+    "title": "Terminal",
+    "label": "Terminal de session",
+    "restart": "Redémarrer",
+    "kill": "Arrêter",
+    "workdirChanged": "Dossier modifié · redémarrez pour appliquer",
+    "status": {
+      "starting": "Démarrage du shell…",
+      "exited": "Processus terminé (code {code})",
+      "error": "Terminal indisponible",
+      "capacity": "Trop de terminaux sont ouverts. Fermez-en un et réessayez."
+    },
+    "noWorkdir": {
+      "title": "Aucun dossier de travail",
+      "description": "Choisissez un dossier pour y ouvrir un terminal"
+    },
+    "workdirMissing": {
+      "title": "Dossier de travail introuvable",
+      "description": "Le dossier a peut-être été déplacé ou supprimé. Choisissez-en un autre."
+    }
   }
 }

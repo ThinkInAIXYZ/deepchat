@@ -718,5 +718,26 @@
     "parentTask": "父任務",
     "parentRun": "父運行",
     "contextWindow": "上下文視窗"
+  },
+  "terminal": {
+    "title": "終端機",
+    "label": "工作階段終端機",
+    "restart": "重新啟動",
+    "kill": "結束",
+    "workdirChanged": "目錄已變更 · 重新啟動後生效",
+    "status": {
+      "starting": "正在啟動 shell…",
+      "exited": "程序已結束（code {code}）",
+      "error": "終端機無法使用",
+      "capacity": "執行中的終端機過多，請先關閉一個再試。"
+    },
+    "noWorkdir": {
+      "title": "沒有工作目錄",
+      "description": "選擇一個資料夾，在其中開啟終端機"
+    },
+    "workdirMissing": {
+      "title": "找不到工作目錄",
+      "description": "資料夾可能已被移動或刪除，請重新選擇。"
+    }
   }
 }

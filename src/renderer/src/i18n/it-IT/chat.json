@@ -718,5 +718,26 @@
     "parentTask": "Parent task",
     "parentRun": "Parent run",
     "contextWindow": "Context window"
+  },
+  "terminal": {
+    "title": "Terminale",
+    "label": "Terminale della sessione",
+    "restart": "Riavvia",
+    "kill": "Termina",
+    "workdirChanged": "Cartella cambiata · riavvia per applicare",
+    "status": {
+      "starting": "Avvio della shell…",
+      "exited": "Processo terminato (codice {code})",
+      "error": "Terminale non disponibile",
+      "capacity": "Troppi terminali in esecuzione. Chiudine uno e riprova."
+    },
+    "noWorkdir": {
+      "title": "Nessuna cartella di lavoro",
+      "description": "Scegli una cartella in cui aprire un terminale"
+    },
+    "workdirMissing": {
+      "title": "Cartella di lavoro non trovata",
+      "description": "La cartella potrebbe essere stata spostata o eliminata. Scegline un'altra."
+    }
   }
 }
