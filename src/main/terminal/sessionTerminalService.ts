@@ -155,13 +155,13 @@ export class SessionTerminalService {
   }
 
   disposeOwnedBy(webContentsId: number): void {
-    for (const record of [...this.bySession.values()]) {
+    for (const record of this.bySession.values()) {
       if (record.ownerWebContentsId === webContentsId) this.dispose(record)
     }
   }
 
   shutdown(): void {
-    for (const record of [...this.bySession.values()]) this.dispose(record)
+    for (const record of this.bySession.values()) this.dispose(record)
     for (const unsubscribe of this.rendererListeners.values()) unsubscribe()
     this.rendererListeners.clear()
   }

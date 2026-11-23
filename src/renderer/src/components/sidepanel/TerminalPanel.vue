@@ -325,10 +325,16 @@ async function ensureView(): Promise<TerminalView | null> {
   return created
 }
 
+// ghostty-web 0.4 throws on empty writes: its WASM allocator returns an out-of-range pointer
+// for zero-length buffers.
+function writeView(data: string) {
+  if (data) view?.write(data)
+}
+
 function applySnapshot(next: TerminalSnapshot) {
   snapshot.value = next
   view?.reset()
-  view?.write(next.replay)
+  writeView(next.replay)
   renderedOutputEnd = next.outputEnd
   if (next.status === 'running') {
     state.value = 'running'
@@ -390,7 +396,7 @@ const stopOutput = client.onOutput((payload) => {
   if (end <= renderedOutputEnd) return
   // Skip the part already delivered through the attach replay.
   const start = Math.max(0, renderedOutputEnd - payload.offset)
-  view.write(start > 0 ? payload.data.slice(start) : payload.data)
+  writeView(start > 0 ? payload.data.slice(start) : payload.data)
   renderedOutputEnd = end
 })
 
