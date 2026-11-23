@@ -17,13 +17,9 @@
   "signInFailed": "無法使用 ChatGPT 登入，請再試一次。",
   "welcomeHint": "使用你的 ChatGPT 方案，不需要 API 金鑰。",
   "orAddProvider": "或新增服務供應商",
-  "welcomeTitle": "你正在使用 ChatGPT 方案",
-  "welcomeDescription": "DeepChat 中符合條件的用量會計入你的 ChatGPT 方案。可在 ChatGPT 設定中管理用量。",
   "codexRetiredTitle": "OpenAI Codex 登入已停用",
   "codexRetiredDescription": "DeepChat 現已支援官方的 Sign in with ChatGPT。重新連接即可繼續使用你的 ChatGPT 方案，現有對話都會保留。",
-  "gotIt": "知道了",
   "later": "稍後",
-  "usingPlan": "正在使用 ChatGPT 方案",
   "reconnect": "重新連接 ChatGPT",
   "recovery": {
     "usageLimit": {

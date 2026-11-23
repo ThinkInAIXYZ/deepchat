@@ -21,8 +21,8 @@ describe('provider DB catalog', () => {
     expect(isProviderDbBackedProvider(' MISTRAL ')).toBe(true)
   })
 
-  it('treats ChatGPT as provider DB-backed', () => {
-    expect(isProviderDbBackedProvider('chatgpt')).toBe(true)
+  it('keeps ChatGPT account catalog facts out of the provider DB set', () => {
+    expect(isProviderDbBackedProvider('chatgpt')).toBe(false)
   })
 
   it('treats Kimi For Coding as provider DB-backed', () => {

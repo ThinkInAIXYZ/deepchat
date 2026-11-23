@@ -689,13 +689,18 @@ export function dimReasoningContext(
 
 export function dimModelParameters(
   settings: GenerationParameters,
-  { providerKind, modelId, reasoningPortrait }: ReasoningContext
+  { providerKind, modelId, providerId, reasoningPortrait }: ReasoningContext
 ): DimModelParameters {
-  const parameters = {
-    temperature: settings.temperature,
-    ...(settings.topP === undefined ? {} : { topP: settings.topP }),
-    maxTokens: settings.maxTokens
-  }
+  // The ChatGPT plan's Responses preview rejects sampling and output-limit overrides
+  // (`Unsupported model parameter: temperature`); send none of them for that provider.
+  const parameters =
+    providerId === 'chatgpt'
+      ? {}
+      : {
+          temperature: settings.temperature,
+          ...(settings.topP === undefined ? {} : { topP: settings.topP }),
+          maxTokens: settings.maxTokens
+        }
   const { reasoningEffort: effort, reasoningVisibility, thinkingBudget: budget } = settings
   if (providerKind === 'anthropic') {
     const miniMax = /^minimax-m3(?:[.-]|$)/.test(getUnqualifiedModelId(modelId))

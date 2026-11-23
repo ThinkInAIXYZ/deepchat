@@ -333,7 +333,6 @@ describe('ProviderRuntime background model sync', () => {
   it.each([
     'doubao',
     'kimi-for-coding',
-    'chatgpt',
     'xiaomi-token-plan-cn',
     'xiaomi-token-plan-sgp',
     'xiaomi-token-plan-ams'

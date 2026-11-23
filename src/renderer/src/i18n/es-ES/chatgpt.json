@@ -17,13 +17,9 @@
   "signInFailed": "No se pudo iniciar sesión con ChatGPT. Inténtalo de nuevo.",
   "welcomeHint": "Usa tu plan de ChatGPT. Sin clave API.",
   "orAddProvider": "o añade un proveedor",
-  "welcomeTitle": "Estás usando tu plan de ChatGPT",
-  "welcomeDescription": "El uso apto en DeepChat se descuenta de tu plan de ChatGPT. Gestiona el uso en la configuración de ChatGPT.",
   "codexRetiredTitle": "El inicio de sesión de OpenAI Codex se ha retirado",
   "codexRetiredDescription": "DeepChat ahora admite el Sign in with ChatGPT oficial. Vuelve a conectar para seguir usando tu plan de ChatGPT. Tus chats se conservan.",
-  "gotIt": "Entendido",
   "later": "Más tarde",
-  "usingPlan": "Usando el plan de ChatGPT",
   "reconnect": "Reconectar ChatGPT",
   "recovery": {
     "usageLimit": {

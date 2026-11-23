@@ -1319,13 +1319,9 @@ declare module 'vue-i18n' {
     signInFailed: string
     welcomeHint: string
     orAddProvider: string
-    welcomeTitle: string
-    welcomeDescription: string
     codexRetiredTitle: string
     codexRetiredDescription: string
-    gotIt: string
     later: string
-    usingPlan: string
     reconnect: string
     recovery: {
       usageLimit: {

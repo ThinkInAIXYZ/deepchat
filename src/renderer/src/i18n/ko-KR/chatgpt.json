@@ -17,13 +17,9 @@
   "signInFailed": "ChatGPT로 로그인하지 못했습니다. 다시 시도하세요.",
   "welcomeHint": "ChatGPT 요금제를 사용하세요. API 키가 필요 없습니다.",
   "orAddProvider": "또는 제공자 추가",
-  "welcomeTitle": "ChatGPT 요금제를 사용 중입니다",
-  "welcomeDescription": "DeepChat의 적격 사용량은 ChatGPT 요금제에서 차감됩니다. ChatGPT 설정에서 사용량을 관리하세요.",
   "codexRetiredTitle": "OpenAI Codex 로그인이 종료되었습니다",
   "codexRetiredDescription": "DeepChat이 이제 공식 Sign in with ChatGPT를 지원합니다. 다시 연결하면 ChatGPT 요금제를 계속 사용할 수 있으며 채팅은 그대로 유지됩니다.",
-  "gotIt": "확인",
   "later": "나중에",
-  "usingPlan": "ChatGPT 요금제 사용 중",
   "reconnect": "ChatGPT 다시 연결",
   "recovery": {
     "usageLimit": {

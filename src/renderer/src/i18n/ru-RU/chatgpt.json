@@ -17,13 +17,9 @@
   "signInFailed": "Не удалось войти через ChatGPT. Попробуйте ещё раз.",
   "welcomeHint": "Используйте свой тариф ChatGPT. API-ключ не нужен.",
   "orAddProvider": "или добавьте провайдера",
-  "welcomeTitle": "Вы используете тариф ChatGPT",
-  "welcomeDescription": "Подходящее использование в DeepChat списывается с вашего тарифа ChatGPT. Управлять использованием можно в настройках ChatGPT.",
   "codexRetiredTitle": "Вход через OpenAI Codex прекращён",
   "codexRetiredDescription": "DeepChat теперь поддерживает официальный Sign in with ChatGPT. Переподключитесь, чтобы и дальше пользоваться тарифом ChatGPT. Ваши чаты сохранятся.",
-  "gotIt": "Понятно",
   "later": "Позже",
-  "usingPlan": "Используется тариф ChatGPT",
   "reconnect": "Переподключить ChatGPT",
   "recovery": {
     "usageLimit": {

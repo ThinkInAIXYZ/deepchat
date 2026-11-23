@@ -17,13 +17,9 @@
   "signInFailed": "ChatGPT でサインインできませんでした。もう一度お試しください。",
   "welcomeHint": "ChatGPT プランを使用。API キーは不要です。",
   "orAddProvider": "またはプロバイダーを追加",
-  "welcomeTitle": "ChatGPT プランを使用しています",
-  "welcomeDescription": "DeepChat での対象となる使用量は ChatGPT プランから消費されます。使用量は ChatGPT の設定で管理できます。",
   "codexRetiredTitle": "OpenAI Codex のサインインは終了しました",
   "codexRetiredDescription": "DeepChat は公式の Sign in with ChatGPT に対応しました。再接続すると引き続き ChatGPT プランを使用できます。チャットはそのまま残ります。",
-  "gotIt": "OK",
   "later": "後で",
-  "usingPlan": "ChatGPT プランを使用中",
   "reconnect": "ChatGPT に再接続",
   "recovery": {
     "usageLimit": {

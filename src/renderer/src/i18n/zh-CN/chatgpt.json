@@ -17,13 +17,9 @@
   "signInFailed": "无法使用 ChatGPT 登录，请重试。",
   "welcomeHint": "使用你的 ChatGPT 套餐，无需 API Key。",
   "orAddProvider": "或添加服务商",
-  "welcomeTitle": "你正在使用 ChatGPT 套餐",
-  "welcomeDescription": "DeepChat 中符合条件的用量将计入你的 ChatGPT 套餐。可在 ChatGPT 设置中管理用量。",
   "codexRetiredTitle": "OpenAI Codex 登录已下线",
   "codexRetiredDescription": "DeepChat 现已支持官方的 Sign in with ChatGPT。重新连接即可继续使用你的 ChatGPT 套餐，现有对话都会保留。",
-  "gotIt": "知道了",
   "later": "稍后",
-  "usingPlan": "正在使用 ChatGPT 套餐",
   "reconnect": "重新连接 ChatGPT",
   "recovery": {
     "usageLimit": {

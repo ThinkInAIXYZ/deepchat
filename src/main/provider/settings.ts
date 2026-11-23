@@ -25,6 +25,7 @@ import {
 } from '@shared/modelConfigDefaults'
 import { DEFAULT_PROVIDERS } from '@/provider/defaults'
 import path from 'path'
+import { CHATGPT_PROVIDER_ID } from './auth/chatgpt/constants'
 import { app } from 'electron'
 import fs from 'fs'
 import { compare } from 'compare-versions'
@@ -613,6 +614,17 @@ export class ProviderSettings implements ProviderSettingsPort {
       snapshot.thinkingBudgetRange = {}
     }
     if (isTextOnlyInputProvider(providerId)) {
+      snapshot.supportsAudioInput = false
+    }
+    if (providerId === CHATGPT_PROVIDER_ID) {
+      // The ChatGPT plan's Responses preview rejects sampling overrides and hosted media tools;
+      // the native preset strips them, so the UI must not offer controls that cannot apply.
+      snapshot.requestPolicy = {
+        ...snapshot.requestPolicy,
+        temperature: { mode: 'omit' },
+        topP: { mode: 'omit' }
+      }
+      snapshot.mediaSettings = { image: false, video: false }
       snapshot.supportsAudioInput = false
     }
     if (

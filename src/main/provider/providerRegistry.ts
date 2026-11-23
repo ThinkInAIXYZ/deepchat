@@ -1026,7 +1026,7 @@ export function resolveAiSdkProviderDefinition(
 // Catalog facts belong to a provider profile, not every provider sharing its transport.
 export function isProviderDbBackedProvider(providerId: string | undefined | null): boolean {
   const source = PROVIDER_ID_REGISTRY.get(providerId?.trim().toLowerCase() ?? '')?.modelSource
-  return source === 'provider-db' || source === 'kimi-for-coding' || source === 'chatgpt'
+  return source === 'provider-db' || source === 'kimi-for-coding'
 }
 
 // Input modalities belong to the endpoint: model ids on a text-only provider must not inherit

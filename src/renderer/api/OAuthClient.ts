@@ -61,9 +61,7 @@ export function createOAuthClient(bridge: DeepchatBridge = getDeepchatBridge()) 
     return await bridge.invoke(oauthChatGPTLogoutRoute.name, {})
   }
 
-  async function dismissChatGPTNotice(
-    notice: 'welcome' | 'codexRetired'
-  ): Promise<ChatGPTAuthStatus> {
+  async function dismissChatGPTNotice(notice: 'codexRetired'): Promise<ChatGPTAuthStatus> {
     const result = await bridge.invoke(oauthChatGPTDismissNoticeRoute.name, { notice })
     return result.status
   }

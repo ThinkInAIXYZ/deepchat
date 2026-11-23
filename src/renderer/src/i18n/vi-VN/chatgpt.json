@@ -17,13 +17,9 @@
   "signInFailed": "Không thể đăng nhập bằng ChatGPT. Hãy thử lại.",
   "welcomeHint": "Dùng gói ChatGPT của bạn. Không cần khóa API.",
   "orAddProvider": "hoặc thêm nhà cung cấp",
-  "welcomeTitle": "Bạn đang dùng gói ChatGPT",
-  "welcomeDescription": "Mức sử dụng đủ điều kiện trong DeepChat được tính vào gói ChatGPT của bạn. Quản lý mức sử dụng trong cài đặt ChatGPT.",
   "codexRetiredTitle": "Đăng nhập OpenAI Codex đã ngừng hỗ trợ",
   "codexRetiredDescription": "DeepChat hiện hỗ trợ Sign in with ChatGPT chính thức. Hãy kết nối lại để tiếp tục dùng gói ChatGPT. Các cuộc trò chuyện vẫn được giữ.",
-  "gotIt": "Đã hiểu",
   "later": "Để sau",
-  "usingPlan": "Đang dùng gói ChatGPT",
   "reconnect": "Kết nối lại ChatGPT",
   "recovery": {
     "usageLimit": {

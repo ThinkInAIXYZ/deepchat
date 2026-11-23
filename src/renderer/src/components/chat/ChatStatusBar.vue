@@ -363,19 +363,6 @@
       </div>
 
       <div class="flex shrink-0 items-center gap-1">
-        <button
-          v-if="usesChatGPTPlan"
-          type="button"
-          data-testid="chatgpt-plan-indicator"
-          :title="t('chatgpt.manageUsage')"
-          class="composer-control flex h-6 min-w-8 items-center gap-1 rounded-md px-2 text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          @click="openChatGPTUsage"
-        >
-          <img :src="chatgptMark" alt="" aria-hidden="true" class="size-3.5 shrink-0 dark:invert" />
-          <span class="composer-control-details whitespace-nowrap">
-            {{ t('chatgpt.usingPlan') }} · {{ t('chatgpt.manageUsage') }}
-          </span>
-        </button>
         <div
           v-if="contextOccupancy"
           data-testid="context-occupancy"
@@ -1224,9 +1211,6 @@
 </template>
 
 <script setup lang="ts">
-import chatgptMark from '@/assets/chatgpt/chatgpt-mark-black.svg?url'
-import { CHATGPT_USAGE_URL } from '@/composables/useChatGPTAuth'
-import { openRuntimeExternal } from '@api/runtime'
 import { useChatSessionStore } from '@/features/chat-session/store'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -1684,13 +1668,6 @@ const effectiveModelSelection = computed<ModelSelection | null>(() => {
   }
   return draftModelSelection.value
 })
-
-const usesChatGPTPlan = computed(() => effectiveModelSelection.value?.providerId === 'chatgpt')
-const openChatGPTUsage = () => {
-  void openRuntimeExternal(CHATGPT_USAGE_URL).catch((error) =>
-    console.warn('[ChatGPT] Failed to open usage settings:', error)
-  )
-}
 
 const temperatureControl = modelCapabilities.temperatureControl
 const topPControl = modelCapabilities.topPControl

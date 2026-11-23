@@ -184,8 +184,7 @@ describe('ChatGPT account owner', () => {
     expect(h.auth.getStatus()).toMatchObject({
       state: 'authenticated',
       email: 'alice@example.com',
-      planUsageEnabled: true,
-      notices: { welcome: true }
+      planUsageEnabled: true
     })
     expect(h.accountChanges).toEqual([true])
     await expect(h.auth.getAccessToken()).resolves.toBe('access-1')

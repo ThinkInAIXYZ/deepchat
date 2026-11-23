@@ -625,6 +625,16 @@ export class AiSdkProvider extends BaseLLMProvider {
           typeof record.display_name === 'string' && record.display_name.trim()
             ? record.display_name.trim()
             : id
+        // The account catalog states these limits for this plan; they take precedence over the
+        // public API catalog, whose context window is larger than the plan grants.
+        const contextLength =
+          typeof record.context_window === 'number' && record.context_window > 0
+            ? record.context_window
+            : undefined
+        const modalities = Array.isArray(record.input_modalities) ? record.input_modalities : null
+        const reasoningLevels = Array.isArray(record.supported_reasoning_levels)
+          ? record.supported_reasoning_levels
+          : null
         return [
           {
             id,
@@ -632,7 +642,12 @@ export class AiSdkProvider extends BaseLLMProvider {
             group: 'ChatGPT',
             providerId: this.provider.id,
             isCustom: false,
-            type: ModelType.Chat
+            type: ModelType.Chat,
+            // Every listed model runs local tools through Responses function calls.
+            functionCall: true,
+            ...(contextLength ? { contextLength } : {}),
+            ...(modalities ? { vision: modalities.includes('image') } : {}),
+            ...(reasoningLevels ? { reasoning: reasoningLevels.length > 0 } : {})
           } satisfies MODEL_META
         ]
       })

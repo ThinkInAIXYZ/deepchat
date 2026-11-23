@@ -26,7 +26,6 @@ export const ChatGPTAuthStatusSchema: z.ZodType<ChatGPTAuthStatus> = z.object({
   storage: z.enum(['safeStorage', 'file', 'none']),
   error: z.string().optional(),
   notices: z.object({
-    welcome: z.boolean(),
     codexRetired: z.boolean()
   })
 })
@@ -106,7 +105,7 @@ export const oauthChatGPTLogoutRoute = defineRouteContract({
 export const oauthChatGPTDismissNoticeRoute = defineRouteContract({
   name: 'oauth.chatgpt.dismissNotice',
   input: z.object({
-    notice: z.enum(['welcome', 'codexRetired'])
+    notice: z.enum(['codexRetired'])
   }),
   output: ChatGPTStatusResultSchema
 })

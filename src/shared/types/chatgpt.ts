@@ -6,7 +6,7 @@ export type ChatGPTAuthState =
   | 'reauth-required'
   | 'error'
 
-export type ChatGPTNotice = 'welcome' | 'codexRetired'
+export type ChatGPTNotice = 'codexRetired'
 
 export type ChatGPTAuthStatus = {
   state: ChatGPTAuthState

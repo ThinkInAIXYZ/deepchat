@@ -17,13 +17,9 @@
   "signInFailed": "לא ניתן להתחבר עם ChatGPT. נסה שוב.",
   "welcomeHint": "השתמש בתוכנית ChatGPT שלך. ללא צורך במפתח API.",
   "orAddProvider": "או הוסף ספק",
-  "welcomeTitle": "אתה משתמש בתוכנית ChatGPT שלך",
-  "welcomeDescription": "שימוש מתאים ב-DeepChat נספר מתוכנית ChatGPT שלך. ניהול השימוש מתבצע בהגדרות ChatGPT.",
   "codexRetiredTitle": "התחברות OpenAI Codex הופסקה",
   "codexRetiredDescription": "DeepChat תומך כעת ב-Sign in with ChatGPT הרשמי. התחבר מחדש כדי להמשיך להשתמש בתוכנית ChatGPT שלך. השיחות שלך נשמרות.",
-  "gotIt": "הבנתי",
   "later": "מאוחר יותר",
-  "usingPlan": "משתמש בתוכנית ChatGPT",
   "reconnect": "חבר מחדש את ChatGPT",
   "recovery": {
     "usageLimit": {

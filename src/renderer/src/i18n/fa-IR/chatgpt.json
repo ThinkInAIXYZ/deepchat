@@ -17,13 +17,9 @@
   "signInFailed": "ورود با ChatGPT ممکن نشد. دوباره تلاش کنید.",
   "welcomeHint": "از طرح ChatGPT خود استفاده کنید. بدون نیاز به کلید API.",
   "orAddProvider": "یا یک ارائه‌دهنده اضافه کنید",
-  "welcomeTitle": "شما از طرح ChatGPT خود استفاده می‌کنید",
-  "welcomeDescription": "مصرف واجد شرایط در DeepChat از طرح ChatGPT شما کسر می‌شود. مصرف را در تنظیمات ChatGPT مدیریت کنید.",
   "codexRetiredTitle": "ورود OpenAI Codex متوقف شده است",
   "codexRetiredDescription": "DeepChat اکنون از Sign in with ChatGPT رسمی پشتیبانی می‌کند. برای ادامهٔ استفاده از طرح ChatGPT دوباره متصل شوید. گفتگوهای شما حفظ می‌شوند.",
-  "gotIt": "متوجه شدم",
   "later": "بعداً",
-  "usingPlan": "در حال استفاده از طرح ChatGPT",
   "reconnect": "اتصال دوباره به ChatGPT",
   "recovery": {
     "usageLimit": {

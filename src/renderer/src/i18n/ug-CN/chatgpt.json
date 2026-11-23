@@ -17,13 +17,9 @@
   "signInFailed": "Couldn't sign in with ChatGPT. Try again.",
   "welcomeHint": "Use your ChatGPT plan. No API key needed.",
   "orAddProvider": "or add a provider",
-  "welcomeTitle": "You're using your ChatGPT plan",
-  "welcomeDescription": "Eligible usage in DeepChat uses your ChatGPT plan. Manage usage in your ChatGPT settings.",
   "codexRetiredTitle": "OpenAI Codex sign-in has been retired",
   "codexRetiredDescription": "DeepChat now supports the official Sign in with ChatGPT. Reconnect to keep using your ChatGPT plan. Your chats are kept.",
-  "gotIt": "Got it",
   "later": "Later",
-  "usingPlan": "Using ChatGPT plan",
   "reconnect": "Reconnect ChatGPT",
   "recovery": {
     "usageLimit": {

@@ -25,7 +25,6 @@ const createModel = (providerId: string): MODEL_META => ({
 
 describe('provider model facts', () => {
   it.each([
-    'chatgpt',
     'kimi-for-coding',
     'xiaomi-token-plan-cn',
     'xiaomi-token-plan-sgp',
@@ -68,7 +67,7 @@ describe('provider model facts', () => {
     ).toBe(true)
   })
 
-  it.each(['chatgpt', 'xiaomi-token-plan-cn'])(
+  it.each(['kimi-for-coding', 'xiaomi-token-plan-cn'])(
     'retains explicit custom-model facts on %s',
     (providerId) => {
       const stored = { ...createModel(providerId), isCustom: true }

@@ -17,13 +17,9 @@
   "signInFailed": "Não foi possível entrar com o ChatGPT. Tente novamente.",
   "welcomeHint": "Use seu plano do ChatGPT. Sem chave de API.",
   "orAddProvider": "ou adicione um provedor",
-  "welcomeTitle": "Você está usando seu plano do ChatGPT",
-  "welcomeDescription": "O uso elegível no DeepChat é descontado do seu plano do ChatGPT. Gerencie o uso nas configurações do ChatGPT.",
   "codexRetiredTitle": "O login do OpenAI Codex foi descontinuado",
   "codexRetiredDescription": "O DeepChat agora oferece o Sign in with ChatGPT oficial. Reconecte para continuar usando seu plano do ChatGPT. Suas conversas são mantidas.",
-  "gotIt": "Entendi",
   "later": "Mais tarde",
-  "usingPlan": "Usando o plano do ChatGPT",
   "reconnect": "Reconectar ChatGPT",
   "recovery": {
     "usageLimit": {

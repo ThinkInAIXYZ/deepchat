@@ -1228,26 +1228,26 @@ function createRuntime() {
       state: 'signed-out',
       planUsageEnabled: false,
       storage: 'safeStorage',
-      notices: { welcome: false, codexRetired: false }
+      notices: { codexRetired: false }
     }),
     startChatGPTLogin: vi.fn().mockResolvedValue({
       state: 'pending-browser',
       planUsageEnabled: false,
       storage: 'safeStorage',
-      notices: { welcome: false, codexRetired: false }
+      notices: { codexRetired: false }
     }),
     cancelChatGPTLogin: vi.fn().mockResolvedValue({
       state: 'signed-out',
       planUsageEnabled: false,
       storage: 'safeStorage',
-      notices: { welcome: false, codexRetired: false }
+      notices: { codexRetired: false }
     }),
     logoutChatGPT: vi.fn().mockResolvedValue({
       status: {
         state: 'signed-out',
         planUsageEnabled: false,
         storage: 'safeStorage',
-        notices: { welcome: false, codexRetired: false }
+        notices: { codexRetired: false }
       },
       revocationConfirmed: true
     })

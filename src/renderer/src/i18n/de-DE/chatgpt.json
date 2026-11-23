@@ -17,13 +17,9 @@
   "signInFailed": "Anmeldung mit ChatGPT fehlgeschlagen. Bitte erneut versuchen.",
   "welcomeHint": "Nutze deinen ChatGPT-Tarif. Kein API-Schlüssel nötig.",
   "orAddProvider": "oder Anbieter hinzufügen",
-  "welcomeTitle": "Du nutzt deinen ChatGPT-Tarif",
-  "welcomeDescription": "Berechtigte Nutzung in DeepChat wird über deinen ChatGPT-Tarif abgerechnet. Verwalte die Nutzung in den ChatGPT-Einstellungen.",
   "codexRetiredTitle": "Die OpenAI-Codex-Anmeldung wurde eingestellt",
   "codexRetiredDescription": "DeepChat unterstützt jetzt das offizielle Sign in with ChatGPT. Verbinde dich erneut, um deinen ChatGPT-Tarif weiter zu nutzen. Deine Chats bleiben erhalten.",
-  "gotIt": "Verstanden",
   "later": "Später",
-  "usingPlan": "ChatGPT-Tarif wird genutzt",
   "reconnect": "ChatGPT erneut verbinden",
   "recovery": {
     "usageLimit": {

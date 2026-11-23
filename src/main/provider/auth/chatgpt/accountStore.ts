@@ -34,7 +34,6 @@ export interface ChatGPTAccountState {
   activeRegistrationId?: string
   /** A client issued by a registration whose code exchange did not complete. */
   pendingClientId?: string
-  welcomeAcknowledged: boolean
   registrations: ChatGPTRegistration[]
 }
 
@@ -98,7 +97,6 @@ function normalizeState(value: unknown): ChatGPTAccountState | null {
       ? { activeRegistrationId: state.activeRegistrationId }
       : {}),
     ...(isString(state.pendingClientId) ? { pendingClientId: state.pendingClientId } : {}),
-    welcomeAcknowledged: state.welcomeAcknowledged === true,
     registrations
   }
 }
@@ -107,7 +105,6 @@ export function createChatGPTAccountState(): ChatGPTAccountState {
   return {
     version: 1,
     hostId: `urn:uuid:${randomUUID()}`,
-    welcomeAcknowledged: false,
     registrations: []
   }
 }

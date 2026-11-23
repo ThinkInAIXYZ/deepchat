@@ -62,7 +62,6 @@ export const GENERATED_ICON_WHITELIST: Record<GeneratedIconCollectionKey, readon
     'circle-x',
     'clapperboard',
     'clipboard',
-    'clipboard-paste',
     'clock',
     'clock-3',
     'cloud',

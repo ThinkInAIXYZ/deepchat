@@ -17,13 +17,9 @@
   "signInFailed": "Kunne ikke logge ind med ChatGPT. Prøv igen.",
   "welcomeHint": "Brug dit ChatGPT-abonnement. Ingen API-nøgle nødvendig.",
   "orAddProvider": "eller tilføj en udbyder",
-  "welcomeTitle": "Du bruger dit ChatGPT-abonnement",
-  "welcomeDescription": "Kvalificeret forbrug i DeepChat trækkes fra dit ChatGPT-abonnement. Administrer forbruget i ChatGPT-indstillingerne.",
   "codexRetiredTitle": "OpenAI Codex-login er udfaset",
   "codexRetiredDescription": "DeepChat understøtter nu det officielle Sign in with ChatGPT. Opret forbindelse igen for at fortsætte med at bruge dit ChatGPT-abonnement. Dine chats bevares.",
-  "gotIt": "Forstået",
   "later": "Senere",
-  "usingPlan": "Bruger ChatGPT-abonnement",
   "reconnect": "Forbind ChatGPT igen",
   "recovery": {
     "usageLimit": {

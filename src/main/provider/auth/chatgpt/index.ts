@@ -174,7 +174,6 @@ export class ChatGPTAuth {
       storage: this.store.getStorage(),
       ...(error ? { error } : {}),
       notices: {
-        welcome: planUsageEnabled && !state?.welcomeAcknowledged,
         codexRetired: this.options.codexRetiredNotice?.pending() ?? false
       }
     }
@@ -270,15 +269,7 @@ export class ChatGPTAuth {
   }
 
   dismissNotice(notice: ChatGPTNotice): ChatGPTAuthStatus {
-    if (notice === 'codexRetired') {
-      this.options.codexRetiredNotice?.dismiss()
-    } else {
-      const state = this.store.load()
-      if (state && !state.welcomeAcknowledged) {
-        state.welcomeAcknowledged = true
-        this.store.save(state)
-      }
-    }
+    if (notice === 'codexRetired') this.options.codexRetiredNotice?.dismiss()
     this.publish()
     return this.getStatus()
   }

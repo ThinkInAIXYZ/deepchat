@@ -41,8 +41,8 @@
 
 - [x] `ChatGPTAuth.vue`：设置页连接区。
 - [x] `WelcomePage`：主入口和原地状态行；授权成功后把服务商相关的引导步骤标记为完成。
-- [x] `ChatGPTNoticeDialog`：首次授权确认弹窗和 Codex 下线提示，挂在主窗口。
-- [x] `ChatStatusBar`：Using ChatGPT plan · Manage usage；服务商已下线的会话模型显示为空。
+- [x] `ChatGPTNoticeDialog`：Codex 下线提示，挂在主窗口。首次授权确认弹窗试用后已去掉。
+- [x] `ChatStatusBar`：服务商已下线的会话模型显示为空。用量指示试用后已去掉。
 - [x] `MessageBlockError`：额度耗尽、资格受限、需要重新连接三种恢复动作。
 - [x] devkit 的官方标识资产，附 `NOTICE.md`。
 - [x] 新增 `chatgpt` i18n 命名空间，覆盖全部语言。`bo-CN`、`mn-Mong-CN`、`ug-CN` 暂用英文，
@@ -64,5 +64,8 @@
 - [x] format、i18n、lint、typecheck。
 - [x] 持久测试：账号所有者（注册、重新授权、身份/客户端不匹配、ID token 校验、plan scope、
       串行刷新与轮换、不可用 refresh token、撤销），Codex 下线迁移，原生 ChatGPT 预设主机校验。
-- [ ] 升级 dim 后，用真实 Plus 或 Pro 账号手动验收 spec 中的验收标准，包括带工具调用的两轮
-      对话和请求整形抓包。
+- [x] 真实账号验证（alpha.23）：动态注册、回调参数、ID token 各项校验、凭证文件 `0600` 与
+      safeStorage 包装、`/v1/models` 字段与 slug 覆盖、去掉采样参数后的文本对话。
+- [x] 修正试用发现的问题：去掉首次弹窗和输入框用量指示；`temperature` 被拒；弱 Agent 警告
+      误报；上下文窗口取自账号目录；首次登录后自动启用模型。
+- [ ] 升级 dim 后验收带工具调用的两轮对话和请求整形，以及用量上限的错误提示。

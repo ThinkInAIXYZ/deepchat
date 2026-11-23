@@ -17,13 +17,9 @@
   "signInFailed": "ChatGPT ile oturum açılamadı. Tekrar deneyin.",
   "welcomeHint": "ChatGPT planınızı kullanın. API anahtarı gerekmez.",
   "orAddProvider": "veya sağlayıcı ekleyin",
-  "welcomeTitle": "ChatGPT planınızı kullanıyorsunuz",
-  "welcomeDescription": "DeepChat'teki uygun kullanım ChatGPT planınızdan düşülür. Kullanımı ChatGPT ayarlarından yönetin.",
   "codexRetiredTitle": "OpenAI Codex oturum açma kullanımdan kaldırıldı",
   "codexRetiredDescription": "DeepChat artık resmi Sign in with ChatGPT'yi destekliyor. ChatGPT planınızı kullanmaya devam etmek için yeniden bağlanın. Sohbetleriniz korunur.",
-  "gotIt": "Anladım",
   "later": "Daha sonra",
-  "usingPlan": "ChatGPT planı kullanılıyor",
   "reconnect": "ChatGPT'ye yeniden bağlan",
   "recovery": {
     "usageLimit": {

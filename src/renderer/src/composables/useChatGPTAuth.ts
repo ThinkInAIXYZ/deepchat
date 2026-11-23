@@ -9,7 +9,7 @@ const signedOut: ChatGPTAuthStatus = {
   state: 'signed-out',
   planUsageEnabled: false,
   storage: 'none',
-  notices: { welcome: false, codexRetired: false }
+  notices: { codexRetired: false }
 }
 
 /** The ChatGPT account status as the main process reports it, plus its actions. */
@@ -18,6 +18,11 @@ export function useChatGPTAuth() {
   const status = ref<ChatGPTAuthStatus>(signedOut)
   const busy = ref(false)
   let unsubscribe: (() => void) | null = null
+
+  // Every reply passes through here; an absent reply keeps the last known status.
+  const apply = (next: ChatGPTAuthStatus | undefined) => {
+    if (next?.notices) status.value = next
+  }
 
   const isPending = computed(() => status.value.state === 'pending-browser')
   const isConnected = computed(() => status.value.state === 'authenticated')
@@ -33,35 +38,31 @@ export function useChatGPTAuth() {
   }
 
   const refresh = async () => {
-    status.value = await oauthClient.getChatGPTStatus()
+    apply(await oauthClient.getChatGPTStatus())
   }
   const startLogin = (requestPlanConsent = false) =>
     run(async () => {
-      status.value = await oauthClient.startChatGPTLogin(
-        requestPlanConsent ? { requestPlanConsent } : {}
-      )
+      apply(await oauthClient.startChatGPTLogin(requestPlanConsent ? { requestPlanConsent } : {}))
     })
   const reopenBrowser = async () => {
-    status.value = await oauthClient.reopenChatGPTBrowser()
+    apply(await oauthClient.reopenChatGPTBrowser())
   }
   const cancelLogin = async () => {
-    status.value = await oauthClient.cancelChatGPTLogin()
+    apply(await oauthClient.cancelChatGPTLogin())
   }
   const logout = () =>
     run<ChatGPTLogoutResult>(async () => {
       const result = await oauthClient.logoutChatGPT()
-      status.value = result.status
+      apply(result?.status)
       return result
     })
-  const dismissNotice = async (notice: 'welcome' | 'codexRetired') => {
-    status.value = await oauthClient.dismissChatGPTNotice(notice)
+  const dismissNotice = async (notice: 'codexRetired') => {
+    apply(await oauthClient.dismissChatGPTNotice(notice))
   }
   const openUsage = () => openRuntimeExternal(CHATGPT_USAGE_URL)
 
   onMounted(() => {
-    unsubscribe = oauthClient.onChatGPTStatusChanged((next) => {
-      status.value = next
-    })
+    unsubscribe = oauthClient.onChatGPTStatusChanged(apply)
     void refresh().catch((error) => console.warn('[ChatGPT] Failed to load status:', error))
   })
   onUnmounted(() => unsubscribe?.())

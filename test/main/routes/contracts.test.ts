@@ -552,7 +552,7 @@ describe('main kernel contracts', () => {
       email: 'user@example.com',
       planUsageEnabled: true,
       storage: 'safeStorage',
-      notices: { welcome: true, codexRetired: false }
+      notices: { codexRetired: false }
     }
     expect(oauthChatGPTGetStatusRoute.output.parse({ status })).toEqual({ status })
 

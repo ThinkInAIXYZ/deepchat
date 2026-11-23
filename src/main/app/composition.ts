@@ -890,12 +890,26 @@ export async function createMainProcessControl(dependencies: {
           providerRuntime.replaceProviderCatalogFromSource(CHATGPT_PROVIDER_ID, [], 'config')
           return
         }
+        // Enabling rebuilds the instance and starts a config refresh; joining it keeps one fetch.
         if (!provider.enable) {
           providerRuntime.updateProviderAtomic(CHATGPT_PROVIDER_ID, { enable: true })
-          return
         }
         void providerRuntime
           .refreshProviderCatalog(CHATGPT_PROVIDER_ID, 'config')
+          .then(() => {
+            // A first sign-in should be ready to chat: enable the account's leading models,
+            // in server order, unless the user already chose some.
+            const models = providerSettings.getProviderModels(CHATGPT_PROVIDER_ID)
+            const statuses = providerSettings.getBatchModelStatus(
+              CHATGPT_PROVIDER_ID,
+              models.map((model) => model.id)
+            )
+            if (models.length === 0 || Object.values(statuses).some(Boolean)) return
+            providerSettings.batchSetModelStatus(
+              CHATGPT_PROVIDER_ID,
+              Object.fromEntries(models.slice(0, 3).map((model) => [model.id, true]))
+            )
+          })
           .catch((error) => {
             logger.warn('[ChatGPT] Model refresh after sign-in failed:', error)
           })

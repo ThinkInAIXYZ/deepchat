@@ -17,13 +17,9 @@
   "signInFailed": "Tidak dapat log masuk dengan ChatGPT. Cuba lagi.",
   "welcomeHint": "Gunakan pelan ChatGPT anda. Tiada kunci API diperlukan.",
   "orAddProvider": "atau tambah penyedia",
-  "welcomeTitle": "Anda menggunakan pelan ChatGPT",
-  "welcomeDescription": "Penggunaan yang layak dalam DeepChat dikira daripada pelan ChatGPT anda. Urus penggunaan dalam tetapan ChatGPT.",
   "codexRetiredTitle": "Log masuk OpenAI Codex telah ditamatkan",
   "codexRetiredDescription": "DeepChat kini menyokong Sign in with ChatGPT rasmi. Sambung semula untuk terus menggunakan pelan ChatGPT anda. Sembang anda dikekalkan.",
-  "gotIt": "Faham",
   "later": "Kemudian",
-  "usingPlan": "Menggunakan pelan ChatGPT",
   "reconnect": "Sambung semula ChatGPT",
   "recovery": {
     "usageLimit": {

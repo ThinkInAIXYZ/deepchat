@@ -17,13 +17,9 @@
   "signInFailed": "Tidak dapat masuk dengan ChatGPT. Coba lagi.",
   "welcomeHint": "Gunakan paket ChatGPT Anda. Tanpa kunci API.",
   "orAddProvider": "atau tambahkan penyedia",
-  "welcomeTitle": "Anda menggunakan paket ChatGPT",
-  "welcomeDescription": "Penggunaan yang memenuhi syarat di DeepChat dihitung dari paket ChatGPT Anda. Kelola penggunaan di pengaturan ChatGPT.",
   "codexRetiredTitle": "Masuk dengan OpenAI Codex telah dihentikan",
   "codexRetiredDescription": "DeepChat kini mendukung Sign in with ChatGPT resmi. Hubungkan kembali untuk terus menggunakan paket ChatGPT Anda. Obrolan Anda tetap tersimpan.",
-  "gotIt": "Mengerti",
   "later": "Nanti",
-  "usingPlan": "Menggunakan paket ChatGPT",
   "reconnect": "Hubungkan ulang ChatGPT",
   "recovery": {
     "usageLimit": {

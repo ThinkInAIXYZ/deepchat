@@ -613,7 +613,7 @@ describe('renderer api clients', () => {
                   state: 'signed-out',
                   planUsageEnabled: false,
                   storage: 'safeStorage',
-                  notices: { welcome: false, codexRetired: false }
+                  notices: { codexRetired: false }
                 }
               }
             case 'oauth.chatgpt.startLogin':
@@ -622,7 +622,7 @@ describe('renderer api clients', () => {
                   state: 'pending-browser',
                   planUsageEnabled: false,
                   storage: 'safeStorage',
-                  notices: { welcome: false, codexRetired: false }
+                  notices: { codexRetired: false }
                 }
               }
             case 'oauth.chatgpt.logout':
@@ -631,7 +631,7 @@ describe('renderer api clients', () => {
                   state: 'signed-out',
                   planUsageEnabled: false,
                   storage: 'safeStorage',
-                  notices: { welcome: false, codexRetired: false }
+                  notices: { codexRetired: false }
                 },
                 revocationConfirmed: false
               }

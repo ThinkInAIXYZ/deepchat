@@ -1,6 +1,6 @@
 # Sign in with ChatGPT
 
-状态：实现中，等待 dim 发布 `openai-chatgpt` 预设。
+状态：已实现；已用真实账号验证登录、模型列表和文本对话，等待 dim 发布 `openai-chatgpt` 预设后做完整验收。
 
 ## 背景
 
@@ -106,24 +106,11 @@ client、PKCE + OIDC、公开的 `https://api.openai.com/v1` Responses 与模型
 - 凭证不可用（刷新被拒、远端断开）时显示 `Reconnect ChatGPT`，复用已保存的注册与提示信息。
 - 退出登录时若远端撤销未确认，提示用户到 ChatGPT 设置中断开 DeepChat。
 
-### 首次授权确认
+### 不做的提示
 
-第一次获得 plan 权限后弹出一次，之后不再出现（包括退出后重新登录）。
-
-```text
-+------------------------------------------+
-|  You're using your ChatGPT plan          |
-|  Eligible usage in DeepChat uses your    |
-|  ChatGPT plan. Manage usage in your      |
-|  ChatGPT settings.                       |
-|                           [ Got it ]     |
-+------------------------------------------+
-```
-
-### 输入框
-
-当前会话模型属于 `chatgpt` 时，`ChatStatusBar` 显示
-`Using ChatGPT plan · Manage usage ↗`。窄宽度时收为 ChatGPT 图标加 tooltip。
+真实账号试用后决定不做首次授权确认弹窗，也不在输入框旁显示「Using ChatGPT plan · Manage usage」：
+弹窗打断首次使用，输入框指示只在悬停时展开、含义不清。设置页的连接区保留 Manage usage 入口，
+用量耗尽的错误块保留 Manage usage 主操作。
 
 ### 错误提示
 
@@ -232,7 +219,7 @@ token、ID token 与授权 URL 不离开主进程，也不进入日志、事件�
 
 - `safeStorage` 可用时整体加密；否则明文 JSON。文件权限 `0600`，目录 `0700`，临时文件 +
   rename 原子写入，损坏文件备份后忽略。
-- 内容（版本化）：`hostId`、`activeRegistrationId`、`welcomeAcknowledged`、
+- 内容（版本化）：`hostId`、`activeRegistrationId`、`pendingClientId`、
   `registrations[]`。每个注册包含 `id`、`issuer`、`subject`、`clientId`、`email`，以及可清除的
   `idToken`、`accessToken`、`refreshToken`、`tokenType`、`scopes`、`expiresAt`、`savedAt`。
 - 该文件不参与设备同步、备份导出或 CLI 输出。
@@ -247,8 +234,10 @@ Codex 下线提示标记不属于账号数据，存放在主进程设置中。
   `checkStrategy: 'fetch-models'`；不支持 embedding、路由与自定义请求头。
 - 模型列表：`GET https://api.openai.com/v1/models`，bearer 来自账号所有者。只保留
   `visibility == 'list'` 的条目，保持服务端顺序，`slug` 作为模型 ID，`display_name` 作为
-  显示名。上下文长度、输出上限、视觉与推理能力按 slug 从 provider-db 的 `openai` 数据补全；
-  补不到的用保守默认值，且关闭视觉。
+  显示名。账号目录给出的 `context_window`、`input_modalities`、`supported_reasoning_levels`
+  直接作为该模型的事实（套餐的上下文窗口小于公开 API 目录）；所有列出的模型都支持函数工具。
+  其余能力按 slug 从 provider-db 的 `openai` 数据补全。`chatgpt` 不属于 provider-db 托管的
+  服务商，所以这些账号事实会被保存，不会被当作派生字段剥离。
 - 目录来源属于 runtime：账号变化（登录、退出、重新授权）时清空并刷新模型目录。后台
   provider-db 刷新不触碰这个目录。
 - 所有模型标记为 Responses-only chat 模型，不暴露图片生成或嵌入模型。
@@ -267,12 +256,15 @@ Codex 下线提示标记不属于账号数据，存放在主进程设置中。
   service tier 等不支持字段、历史随 `input` 发送，并把
   `subscription_sharing_usage_limit_exceeded` 归为额度耗尽、
   `subscription_sharing_usage_unavailable`/`subscription_sharing_user_unavailable` 归为临时服务
-  错误。DeepChat 不在 Node 侧重复这些整形。
+  错误。
+- DeepChat 在 `dimModelParameters` 中对 `chatgpt` 不发送 `temperature`、`topP`、`maxTokens`；
+  能力快照把 temperature 与 top-p 标记为 `omit`，界面不再显示这两项，并关闭图片、视频与音频
+  输入。这不依赖 dim 的预设，当前版本就会因为 `Unsupported model parameter: temperature` 失败。
 
 **上游依赖**：`openai-chatgpt` 预设随 dim PR #2076（`697b4018d`）合入 dim main，但当前锁定的
 `0.1.0-alpha.23` 与最新发布 `0.1.0-alpha.27` 都不包含。DeepChat 侧先完成全部接入；dim 发布
-包含该提交的版本后，再升级 `resources/dim-runtime-lock.json`。升级前，ChatGPT 推理请求会因
-缺少整形被 SIWC 拒绝。
+包含该提交的版本后，再升级 `resources/dim-runtime-lock.json`。在 alpha.23 上，去掉采样参数后的
+纯文本对话已能完成；工具调用与 developer 角色等整形仍需升级后验证。
 
 ### 使用范围
 
@@ -337,7 +329,7 @@ SIWC 授权给本地开源应用中的用户本人使用。DeepChat 全部运行
 1. 全新安装：首页显示 Continue with ChatGPT；完成浏览器授权后，`chatgpt` 已启用、模型列表来自
    `/v1/models`，可以发起包含工具调用的多轮对话，且请求发往
    `https://api.openai.com/v1/responses`，带 `store: false` 与 `stream: true`。
-2. 首次获得 plan 权限时弹出一次确认；退出后重新登录不再弹出。
+2. 首次登录后自动启用账号目录中的前三个模型，可以直接开始对话；用户已启用模型时不改动。
 3. 拒绝授权或缺少 plan scope 时不发起推理，界面给出重新授权入口；重新授权使用已保存的
    client ID，不新建注册。
 4. ID token 签名、issuer、audience、过期或 nonce 任一不通过，或重新授权的 subject 不一致时，
@@ -348,7 +340,7 @@ SIWC 授权给本地开源应用中的用户本人使用。DeepChat 全部运行
 7. 退出登录会尝试远端撤销；未确认时给出提示。本地 token 被清除，再次登录复用 client ID 与
    host ID。
 8. 凭证文件权限为 `0600`；token 与 ID token 不出现在日志、事件、路由返回、CLI 输出和同步数据中。
-9. 选中 ChatGPT 模型时，输入框显示 Using ChatGPT plan 与 Manage usage 链接。
+9. ChatGPT 模型不显示 temperature、top-p 控件，请求不携带这些参数，也不显示弱 Agent 能力警告。
 10. 额度耗尽时错误块显示 Manage usage 主操作；认证失败时显示 Reconnect ChatGPT。
 11. 升级用户：`openai-codex` 消失，OpenAI 只剩 API Key 模式且已存的 key 保留，Codex 凭证目录被
     删除；受影响用户只看到一次下线提示，未受影响用户不会看到。

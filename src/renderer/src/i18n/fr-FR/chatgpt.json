@@ -17,13 +17,9 @@
   "signInFailed": "Impossible de se connecter avec ChatGPT. Réessayez.",
   "welcomeHint": "Utilisez votre abonnement ChatGPT. Aucune clé API nécessaire.",
   "orAddProvider": "ou ajouter un fournisseur",
-  "welcomeTitle": "Vous utilisez votre abonnement ChatGPT",
-  "welcomeDescription": "L'usage éligible dans DeepChat est décompté de votre abonnement ChatGPT. Gérez l'utilisation dans les paramètres de ChatGPT.",
   "codexRetiredTitle": "La connexion OpenAI Codex a été retirée",
   "codexRetiredDescription": "DeepChat prend désormais en charge le Sign in with ChatGPT officiel. Reconnectez-vous pour continuer à utiliser votre abonnement ChatGPT. Vos conversations sont conservées.",
-  "gotIt": "Compris",
   "later": "Plus tard",
-  "usingPlan": "Abonnement ChatGPT utilisé",
   "reconnect": "Reconnecter ChatGPT",
   "recovery": {
     "usageLimit": {
