@@ -363,7 +363,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onBeforeUnmount, onMounted, nextTick } from 'vue'
+import { ref, computed, watch, onBeforeUnmount, onMounted } from 'vue'
 import {
   Dialog,
   DialogContent,
@@ -700,26 +700,26 @@ const syncEditor = async () => {
     return
   }
 
-  await nextTick()
-  await nextTick()
-  if (editorHost !== host) {
-    resetEditor()
-    editorHost = host
-  }
-
-  if (!editorInitialized.value) {
-    try {
-      await createEditor(host, json, 'json')
-      editorInitialized.value = true
-      applyTheme()
-      applyFontFamily(uiSettingsStore.formattedCodeFontFamily)
-    } catch (err) {
-      console.error('Failed to create stream-diffs editor:', err)
-    }
+  if (editorHost === host) {
+    if (editorInitialized.value) await updateCode(json, 'json')
     return
   }
 
-  updateCode(json, 'json')
+  resetEditor()
+  editorHost = host
+  try {
+    await createEditor(host, json, 'json')
+    if (editorHost !== host) return
+    editorInitialized.value = true
+    applyTheme()
+    applyFontFamily(uiSettingsStore.formattedCodeFontFamily)
+    const latestJson = formattedJson.value
+    if (latestJson && latestJson !== json) await updateCode(latestJson, 'json')
+  } catch (err) {
+    if (editorHost !== host) return
+    resetEditor()
+    console.error('Failed to initialize the stream-diffs request editor:', err)
+  }
 }
 
 watch(
@@ -802,8 +802,7 @@ const resetState = () => {
   nestedExecutionAudit.value = emptyNestedExecutionAudit()
   selectedRequestSeq.value = null
   activeTab.value = 'request'
-  cleanupEditor()
-  editorInitialized.value = false
+  resetEditor()
 }
 
 const formatNullable = (value: string | number | null): string => {

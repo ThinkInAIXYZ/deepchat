@@ -192,6 +192,7 @@
 
       <WorkspaceCodePane
         v-else-if="paneKind === 'code' && codeSource"
+        :key="codeSource.id"
         class="h-full min-h-0 w-full"
         :source="codeSource"
       />

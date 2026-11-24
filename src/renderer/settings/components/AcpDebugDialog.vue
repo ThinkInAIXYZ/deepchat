@@ -144,13 +144,11 @@
           <div
             class="shrink-0 border rounded-lg overflow-hidden flex flex-col bg-background/80 shadow-sm"
           >
-            <div
-              class="border-x-0 border-b-0 border rounded-none bg-background overflow-hidden min-h-[200px] max-h-[340px] h-full"
-            >
+            <div class="border-x-0 border-b-0 border rounded-none bg-background overflow-hidden">
               <div
                 ref="payloadEditor"
                 data-testid="acp-debug-payload-editor"
-                class="acp-debug-payload-editor h-full min-h-[200px]"
+                class="acp-debug-payload-editor min-h-[200px] max-h-[340px]"
               ></div>
             </div>
 
@@ -823,33 +821,17 @@ watch(
     clearDebugFeedback()
     processReady.value = false
     loading.value = false
-  }
+  },
+  { immediate: true }
 )
 
 onMounted(async () => {
+  stopDebugEvents = providerClient.onAcpDebugEvent(handleDebugEvent)
   try {
     webContentsId.value = await getRuntimeWebContentsId()
   } catch (error) {
     console.warn('[AcpDebugDialog] Failed to resolve runtime webContents id:', error)
   }
-
-  if (props.open) {
-    const generation = dialogGeneration
-    try {
-      await nextTick()
-      if (!isCurrentDialogGeneration(generation)) return
-      await ensureEditor()
-      if (!isCurrentDialogGeneration(generation)) {
-        disposeEditor()
-        return
-      }
-      resetPayload()
-    } catch (error) {
-      console.error('[AcpDebugDialog] Failed to initialize payload editor:', error)
-      setDebugFeedback('editor', t('common.error.operationFailed'))
-    }
-  }
-  stopDebugEvents = providerClient.onAcpDebugEvent(handleDebugEvent)
 })
 
 watch(

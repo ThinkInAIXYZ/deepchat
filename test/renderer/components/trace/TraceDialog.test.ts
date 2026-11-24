@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
+import { createDeferred } from '../../utils/deferred'
 
 const {
   listMessageTraceDiagnosticsMock,
@@ -594,6 +595,8 @@ describe('TraceDialog', () => {
   )
 
   it('does not fall back to a different request when selected manifest has no trace', async () => {
+    const pendingEditor = createDeferred<void>()
+    createEditorMock.mockReturnValueOnce(pendingEditor.promise)
     listMessageTraceDiagnosticsMock.mockResolvedValue({
       traces: [
         {
@@ -618,11 +621,15 @@ describe('TraceDialog', () => {
     await wrapper.setProps({ messageId: 'm1' })
     await flushPromises()
 
+    expect(createEditorMock).toHaveBeenCalledTimes(1)
     expect(wrapper.text()).toContain('https://api.example.com/second')
 
     wrapper.getComponent({ name: 'Select' }).vm.$emit('update:modelValue', 1)
     await flushPromises()
+    pendingEditor.resolve()
+    await flushPromises()
 
+    expect(setThemeMock).not.toHaveBeenCalled()
     expect(wrapper.text()).toContain('traceDialog.requestUnavailable')
     expect(wrapper.text()).not.toContain('https://api.example.com/second')
 

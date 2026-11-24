@@ -140,6 +140,30 @@ describe('useStreamDiffEditor', () => {
     expect(host.style.getPropertyValue('--diffs-font-family')).toBe('Second Font')
   })
 
+  it.each(['\n', '\r\n', '\r'])(
+    'replaces the entire document with %j line endings',
+    async (eol) => {
+      const editor = useStreamDiffEditor()
+      await editor.createEditor(
+        document.createElement('div'),
+        ['{', '  "a": 1', '}'].join(eol),
+        'json'
+      )
+
+      editor.updateCode('{}', 'json')
+
+      expect(surfaceState.surface.getEditor().applyEdits).toHaveBeenCalledWith(
+        [
+          {
+            range: { start: { line: 0, character: 0 }, end: { line: 2, character: 1 } },
+            newText: '{}'
+          }
+        ],
+        true
+      )
+    }
+  )
+
   it('keeps read-only surfaces render-only and updates their file directly', async () => {
     const host = document.createElement('div')
     const editor = useStreamDiffEditor({ readOnly: true, theme: 'vitesse-dark' })

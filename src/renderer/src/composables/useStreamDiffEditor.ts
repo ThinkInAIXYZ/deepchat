@@ -218,16 +218,16 @@ export function useStreamDiffEditor(options: StreamDiffEditorOptions = {}): Stre
     if (!editor) return false
     const currentText = editor.getText()
     if (currentText === value) return true
-    const lines = currentText.split('\n')
+    const lines = currentText.split(/\r\n|\r|\n/)
     const end = {
-      line: lines.length,
+      line: lines.length - 1,
       character: lines[lines.length - 1]?.length ?? 0
     }
     editor.applyEdits(
       [
         {
           range: {
-            start: { line: 1, character: 0 },
+            start: { line: 0, character: 0 },
             end
           },
           newText: value
