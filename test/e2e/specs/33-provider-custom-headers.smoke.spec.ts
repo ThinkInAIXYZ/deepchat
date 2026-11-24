@@ -33,25 +33,15 @@ test('provider headers use a JSON editor above the model list @smoke', async ({ 
   await trigger.click()
 
   const editor = settingsPage.getByTestId('provider-custom-headers-editor')
-  const editorInput = editor.locator('.native-edit-context, textarea.inputarea').first()
+  const editorInput = editor.locator('[contenteditable="true"]').first()
   const save = settingsPage.getByTestId('provider-custom-headers-save')
   const replaceEditorText = async (value: string) => {
-    await editor.locator('.view-lines').click()
+    await editorInput.click()
     await settingsPage.keyboard.press('ControlOrMeta+A')
-    await editorInput.evaluate((element, text) => {
-      const clipboardData = new DataTransfer()
-      clipboardData.setData('text/plain', text)
-      element.dispatchEvent(
-        new ClipboardEvent('paste', {
-          bubbles: true,
-          cancelable: true,
-          clipboardData
-        })
-      )
-    }, value)
+    await settingsPage.keyboard.insertText(value)
   }
   await expect(editor).toBeVisible()
-  await expect(editor.locator('.monaco-editor')).toBeVisible()
+  await expect(editor.locator('[data-file]')).toBeVisible()
   await expect(editorInput).toBeFocused()
 
   await replaceEditorText('[]')
@@ -65,7 +55,7 @@ test('provider headers use a JSON editor above the model list @smoke', async ({ 
   await expect(trigger).toBeFocused()
 
   await trigger.click()
-  await expect(editor.locator('.view-lines')).toContainText('X-Tenant-ID')
+  await expect(editorInput).toContainText('X-Tenant-ID')
   await replaceEditorText('{}')
   await save.click()
   await expect(editor).not.toBeVisible()

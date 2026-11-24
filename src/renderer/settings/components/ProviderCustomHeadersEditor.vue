@@ -96,7 +96,7 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { useMonaco } from 'stream-monaco'
+import { useStreamDiffEditor } from '@/composables/useStreamDiffEditor'
 import {
   Dialog,
   DialogContent,
@@ -109,6 +109,7 @@ import {
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { DcButton } from '@dc-ui/components/button'
 import { DcInlineError } from '@dc-ui/components/inline-error'
+import { useThemeStore } from '@/stores/theme'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import {
   canonicalizeProviderCustomHeaders,
@@ -127,6 +128,8 @@ const props = defineProps<{
 
 const { t } = useI18n()
 const uiSettingsStore = useUiSettingsStore()
+const themeStore = useThemeStore()
+const resolvedTheme = computed(() => (themeStore.isDark ? 'vitesse-dark' : 'vitesse-light'))
 const open = ref(false)
 const draft = ref('{}')
 const saving = ref(false)
@@ -138,19 +141,14 @@ let editorCreated = false
 let editorTask: Promise<void> | null = null
 let editorGeneration = 0
 
-const { createEditor, updateCode, getEditorView, cleanupEditor } = useMonaco({
+const { createEditor, updateCode, getEditorView, getEditor, cleanupEditor } = useStreamDiffEditor({
   readOnly: false,
-  automaticLayout: true,
-  wordWrap: 'on',
-  wrappingIndent: 'same',
+  wordWrap: true,
   fontFamily: uiSettingsStore.formattedCodeFontFamily,
   fontSize: 13,
-  tabSize: 2,
-  insertSpaces: true,
-  minimap: { enabled: false },
-  scrollBeyondLastLine: false,
-  lineNumbers: 'on',
-  ariaLabel: t('settings.provider.customHeaders.title')
+  lineNumbers: true,
+  theme: resolvedTheme.value,
+  fileName: 'custom-headers.json'
 })
 
 const configuredCount = computed(() => Object.keys(props.modelValue ?? {}).length)
@@ -218,7 +216,10 @@ const ensureEditor = async () => {
       editorCreated = true
     } catch (error) {
       if (generation !== editorGeneration || !open.value) return
-      console.error('[ProviderCustomHeadersEditor] Failed to initialize Monaco:', error)
+      console.error(
+        '[ProviderCustomHeadersEditor] Failed to initialize stream-diffs editor:',
+        error
+      )
       submitError.value = t('common.error.operationFailed')
     }
   })()
@@ -300,5 +301,30 @@ watch(
   { flush: 'post' }
 )
 
+watch(
+  resolvedTheme,
+  (theme) => {
+    if (editorCreated) getEditor().setTheme(theme)
+  },
+  { flush: 'post' }
+)
+
+watch(
+  () => uiSettingsStore.formattedCodeFontFamily,
+  (fontFamily) => {
+    getEditorView().updateOptions({ fontFamily })
+  }
+)
+
 onBeforeUnmount(disposeEditor)
 </script>
+
+<style scoped>
+[data-testid='provider-custom-headers-editor'] {
+  overflow: auto;
+}
+
+[data-testid='provider-custom-headers-editor'] :deep([data-file]) {
+  min-height: 100%;
+}
+</style>

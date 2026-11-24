@@ -147,7 +147,11 @@
             <div
               class="border-x-0 border-b-0 border rounded-none bg-background overflow-hidden min-h-[200px] max-h-[340px] h-full"
             >
-              <div ref="payloadEditor" class="h-full min-h-[200px]"></div>
+              <div
+                ref="payloadEditor"
+                data-testid="acp-debug-payload-editor"
+                class="h-full min-h-[200px]"
+              ></div>
             </div>
 
             <div
@@ -240,7 +244,8 @@ import { getRuntimeWebContentsId } from '@api/runtime'
 import { createDeviceClient } from '@api/DeviceClient'
 import { createProviderClient } from '@api/ProviderClient'
 import { nanoid } from 'nanoid'
-import { useMonaco } from 'stream-monaco'
+import { useStreamDiffEditor } from '@/composables/useStreamDiffEditor'
+import { useThemeStore } from '@/stores/theme'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 
 const props = defineProps<{
@@ -257,6 +262,8 @@ const { t } = useI18n()
 const deviceClient = createDeviceClient()
 const providerClient = createProviderClient()
 const uiSettingsStore = useUiSettingsStore()
+const themeStore = useThemeStore()
+const resolvedTheme = computed(() => (themeStore.isDark ? 'vitesse-dark' : 'vitesse-light'))
 
 const selectedMethod = ref<AcpDebugRequest['action']>('newSession')
 const payloadText = ref('')
@@ -284,16 +291,14 @@ const workdirLabel = computed(() =>
   workdirPath.value ? workdirPath.value : t('settings.acp.debug.workdirPlaceholder')
 )
 
-const { createEditor, updateCode, getEditorView, cleanupEditor } = useMonaco({
+const { createEditor, updateCode, getEditorView, getEditor, cleanupEditor } = useStreamDiffEditor({
   readOnly: false,
-  wordWrap: 'on',
-  wrappingIndent: 'same',
+  wordWrap: true,
   fontFamily: uiSettingsStore.formattedCodeFontFamily,
   fontSize: 13,
-  minimap: { enabled: false },
-  scrollBeyondLastLine: false,
-  automaticLayout: true,
-  lineNumbers: 'on'
+  lineNumbers: true,
+  theme: resolvedTheme.value,
+  fileName: 'acp-debug-payload.json'
 })
 
 function createDebugSessionId() {
@@ -845,6 +850,21 @@ onMounted(async () => {
   stopDebugEvents = providerClient.onAcpDebugEvent(handleDebugEvent)
 })
 
+watch(
+  resolvedTheme,
+  (theme) => {
+    if (editorCreated) getEditor().setTheme(theme)
+  },
+  { flush: 'post' }
+)
+
+watch(
+  () => uiSettingsStore.formattedCodeFontFamily,
+  (fontFamily) => {
+    getEditorView().updateOptions({ fontFamily })
+  }
+)
+
 onBeforeUnmount(() => {
   dialogGeneration += 1
   disposeEditor()
@@ -852,3 +872,13 @@ onBeforeUnmount(() => {
   stopDebugEvents = null
 })
 </script>
+
+<style scoped>
+[data-testid='acp-debug-payload-editor'] {
+  overflow: auto;
+}
+
+[data-testid='acp-debug-payload-editor'] :deep([data-file]) {
+  min-height: 100%;
+}
+</style>

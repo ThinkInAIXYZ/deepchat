@@ -112,7 +112,7 @@
             <div v-if="selectedTrace" class="relative h-full min-h-0 bg-muted/30">
               <div
                 ref="jsonEditor"
-                class="absolute inset-0"
+                class="absolute inset-0 overflow-auto"
                 :class="{ 'opacity-0': !editorInitialized }"
               ></div>
               <div
@@ -386,7 +386,7 @@ import { Spinner } from '@shadcn/components/ui/spinner'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import { createSessionClient } from '@api/SessionClient'
-import { useMonaco } from 'stream-monaco'
+import { useStreamDiffEditor } from '@/composables/useStreamDiffEditor'
 import { useThemeStore } from '@/stores/theme'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import type { MessageTraceRecord } from '@shared/types/agent-interface'
@@ -416,25 +416,14 @@ const themeStore = useThemeStore()
 const resolvedTheme = computed(() => (themeStore.isDark ? 'vitesse-dark' : 'vitesse-light'))
 
 const jsonEditor = ref<HTMLElement | null>(null)
-const { createEditor, updateCode, cleanupEditor, getEditorView, getEditor } = useMonaco({
+const { createEditor, updateCode, cleanupEditor, getEditorView, getEditor } = useStreamDiffEditor({
   readOnly: true,
-  wordWrap: 'off',
-  wrappingIndent: 'same',
+  wordWrap: false,
   fontFamily: uiSettingsStore.formattedCodeFontFamily,
-  themes: ['vitesse-dark', 'vitesse-light'],
   theme: resolvedTheme.value,
-  minimap: { enabled: false },
-  scrollBeyondLastLine: true,
   fontSize: 12,
-  lineNumbers: 'on',
-  folding: true,
-  automaticLayout: true,
-  scrollbar: {
-    horizontal: 'visible',
-    vertical: 'visible',
-    horizontalScrollbarSize: 10,
-    verticalScrollbarSize: 10
-  }
+  lineNumbers: true,
+  fileName: 'trace-request.json'
 })
 
 const props = defineProps<{
@@ -692,7 +681,7 @@ const applyTheme = async () => {
   try {
     getEditor().setTheme(resolvedTheme.value)
   } catch (err) {
-    console.warn('Failed to apply Monaco theme:', err)
+    console.warn('Failed to apply stream-diffs theme:', err)
   }
 }
 
@@ -700,7 +689,7 @@ const layoutEditor = () => {
   try {
     getEditorView()?.layout()
   } catch (err) {
-    console.warn('Failed to layout Monaco Editor:', err)
+    console.warn('Failed to layout stream-diffs editor:', err)
   }
 }
 
@@ -717,8 +706,7 @@ watch(
     if (open && tab === 'request' && trace && json && editorEl) {
       await nextTick()
       await nextTick()
-      const hasEditor = editorEl.querySelector('.monaco-editor')
-      if (!hasEditor && !editorInitialized.value) {
+      if (!editorInitialized.value) {
         try {
           await createEditor(editorEl, json, 'json')
           editorInitialized.value = true
@@ -726,9 +714,9 @@ watch(
           applyFontFamily(uiSettingsStore.formattedCodeFontFamily)
           layoutEditor()
         } catch (err) {
-          console.error('Failed to create Monaco Editor:', err)
+          console.error('Failed to create stream-diffs editor:', err)
         }
-      } else if (hasEditor && editorInitialized.value) {
+      } else {
         updateCode(json, 'json')
         layoutEditor()
       }
@@ -747,7 +735,7 @@ onMounted(async () => {
   ) {
     await nextTick()
     await nextTick()
-    if (!jsonEditor.value.querySelector('.monaco-editor') && !editorInitialized.value) {
+    if (!editorInitialized.value) {
       try {
         await createEditor(jsonEditor.value, formattedJson.value, 'json')
         editorInitialized.value = true
@@ -755,7 +743,7 @@ onMounted(async () => {
         applyFontFamily(uiSettingsStore.formattedCodeFontFamily)
         layoutEditor()
       } catch (err) {
-        console.error('Failed to create Monaco Editor on mount:', err)
+        console.error('Failed to create stream-diffs editor on mount:', err)
       }
     }
   }

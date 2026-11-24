@@ -11,8 +11,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
-import { useResizeObserver } from '@vueuse/core'
-import { useMonaco } from 'stream-monaco'
+import { useStreamDiffEditor } from '@/composables/useStreamDiffEditor'
 import { useThemeStore } from '@/stores/theme'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 
@@ -34,24 +33,14 @@ const editorInitialized = ref(false)
 let createEditorTask: Promise<void> | null = null
 const resolvedTheme = computed(() => (themeStore.isDark ? 'vitesse-dark' : 'vitesse-light'))
 
-const { createEditor, updateCode, cleanupEditor, getEditorView, getEditor } = useMonaco({
+const { createEditor, updateCode, cleanupEditor, getEditorView, getEditor } = useStreamDiffEditor({
   readOnly: true,
-  domReadOnly: true,
-  automaticLayout: true,
-  wordWrap: 'on',
-  wrappingIndent: 'same',
-  scrollBeyondLastLine: false,
-  minimap: { enabled: false },
-  lineNumbers: 'on',
-  renderLineHighlight: 'none',
-  contextmenu: false,
-  themes: ['vitesse-dark', 'vitesse-light'],
+  wordWrap: true,
+  lineNumbers: true,
   theme: resolvedTheme.value,
   fontFamily: uiSettingsStore.formattedCodeFontFamily,
-  padding: {
-    top: 12,
-    bottom: 12
-  }
+  fontSize: 13,
+  fileName: props.source.id
 })
 
 const LANGUAGE_ALIASES: Record<string, string> = {
@@ -165,9 +154,8 @@ const syncEditor = async () => {
 
   const nextContent = props.source.content ?? ''
   const nextLanguage = resolvedLanguage.value
-  const hasEditor = Boolean(editorElement.querySelector('.monaco-editor'))
 
-  if (!hasEditor || !editorInitialized.value) {
+  if (!editorInitialized.value) {
     if (createEditorTask) {
       await createEditorTask
       return
@@ -236,11 +224,6 @@ watch(editorRef, (value) => {
   createEditorTask = null
 })
 
-// Same ResizeObserver → layoutEditor path; VueUse tracks the ref target automatically.
-useResizeObserver(editorRef, () => {
-  layoutEditor()
-})
-
 onBeforeUnmount(() => {
   cleanupEditor()
   editorInitialized.value = false
@@ -250,18 +233,14 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .workspace-code-editor-host {
-  display: flex;
+  display: block;
   height: 100% !important;
   min-height: 0 !important;
   max-height: none !important;
-  overflow: hidden !important;
+  overflow: auto !important;
 }
 
-.workspace-code-editor-host :deep(.monaco-editor),
-.workspace-code-editor-host :deep(.overflow-guard),
-.workspace-code-editor-host :deep(.monaco-scrollable-element) {
-  height: 100% !important;
-  min-height: 0 !important;
-  max-height: none !important;
+.workspace-code-editor-host :deep([data-file]) {
+  min-height: 100%;
 }
 </style>

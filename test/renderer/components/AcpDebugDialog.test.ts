@@ -75,16 +75,23 @@ async function setup(
   vi.doMock('@api/runtime', () => ({
     getRuntimeWebContentsId: () => Promise.resolve(88)
   }))
-  vi.doMock('stream-monaco', () => ({
-    useMonaco: () => ({
+  vi.doMock('@/composables/useStreamDiffEditor', () => ({
+    useStreamDiffEditor: () => ({
       createEditor,
       updateCode: vi.fn(),
       getEditorView: vi.fn(() => ({
         onDidChangeModelContent: vi.fn(),
-        getValue: vi.fn(() => '{}')
+        getValue: vi.fn(() => '{}'),
+        focus: vi.fn(),
+        layout: vi.fn(),
+        updateOptions: vi.fn()
       })),
+      getEditor: vi.fn(() => ({ setTheme: vi.fn() })),
       cleanupEditor
     })
+  }))
+  vi.doMock('@/stores/theme', () => ({
+    useThemeStore: () => ({ isDark: false })
   }))
   vi.doMock('@/stores/uiSettingsStore', () => ({
     useUiSettingsStore: () => ({

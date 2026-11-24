@@ -13,7 +13,7 @@ const {
   setThemeMock,
   getEditorViewMock,
   getEditorMock,
-  useMonacoMock,
+  useStreamDiffEditorMock,
   themeStoreMock
 } = vi.hoisted(() => {
   const createEditorMock = vi.fn()
@@ -29,7 +29,7 @@ const {
   const getEditorMock = vi.fn().mockReturnValue({
     setTheme: setThemeMock
   })
-  const useMonacoMock = vi.fn(() => ({
+  const useStreamDiffEditorMock = vi.fn(() => ({
     createEditor: createEditorMock,
     updateCode: updateCodeMock,
     cleanupEditor: cleanupEditorMock,
@@ -49,7 +49,7 @@ const {
     setThemeMock,
     getEditorViewMock,
     getEditorMock,
-    useMonacoMock,
+    useStreamDiffEditorMock,
     themeStoreMock: {
       isDark: false
     }
@@ -80,8 +80,8 @@ vi.mock('@/stores/theme', () => ({
   useThemeStore: () => themeStoreMock
 }))
 
-vi.mock('stream-monaco', () => ({
-  useMonaco: useMonacoMock
+vi.mock('@/composables/useStreamDiffEditor', () => ({
+  useStreamDiffEditor: useStreamDiffEditorMock
 }))
 
 vi.mock(
@@ -307,8 +307,8 @@ describe('TraceDialog', () => {
     getEditorMock.mockReturnValue({
       setTheme: setThemeMock
     })
-    useMonacoMock.mockReset()
-    useMonacoMock.mockImplementation(() => ({
+    useStreamDiffEditorMock.mockReset()
+    useStreamDiffEditorMock.mockImplementation(() => ({
       createEditor: createEditorMock,
       updateCode: updateCodeMock,
       cleanupEditor: cleanupEditorMock,
@@ -369,7 +369,7 @@ describe('TraceDialog', () => {
     expect(requestContent.classes()).not.toContain('min-h-[300px]')
   })
 
-  it('initializes Monaco with the resolved light theme', async () => {
+  it('initializes the stream-diffs surface with the resolved light theme', async () => {
     listMessageTraceDiagnosticsMock.mockResolvedValue({
       traces: [
         {
@@ -393,9 +393,9 @@ describe('TraceDialog', () => {
     await wrapper.setProps({ messageId: 'm1' })
     await flushPromises()
 
-    expect(useMonacoMock).toHaveBeenCalledWith(
+    expect(useStreamDiffEditorMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        themes: ['vitesse-dark', 'vitesse-light'],
+        readOnly: true,
         theme: 'vitesse-light'
       })
     )
