@@ -1,4 +1,4 @@
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import WorkspaceCodePane from '@/components/sidepanel/viewer/WorkspaceCodePane.vue'
 
@@ -9,7 +9,6 @@ const editorMocks = vi.hoisted(() => {
   const setTheme = vi.fn()
   const updateOptions = vi.fn()
   const focus = vi.fn()
-  const layout = vi.fn()
   const useStreamDiffEditor = vi.fn(() => ({
     createEditor,
     updateCode,
@@ -18,7 +17,6 @@ const editorMocks = vi.hoisted(() => {
       onDidChangeModelContent: vi.fn(),
       getValue: vi.fn(() => ''),
       focus,
-      layout,
       updateOptions
     }),
     getEditor: () => ({ setTheme })
@@ -31,7 +29,6 @@ const editorMocks = vi.hoisted(() => {
     setTheme,
     updateOptions,
     focus,
-    layout,
     useStreamDiffEditor,
     themeStore: { isDark: false },
     uiSettingsStore: { formattedCodeFontFamily: 'JetBrains Mono' }
@@ -51,17 +48,6 @@ vi.mock('@/stores/uiSettingsStore', () => ({
 }))
 
 describe('WorkspaceCodePane', () => {
-  beforeAll(() => {
-    vi.stubGlobal(
-      'ResizeObserver',
-      class {
-        observe() {}
-        unobserve() {}
-        disconnect() {}
-      }
-    )
-  })
-
   beforeEach(() => {
     editorMocks.createEditor.mockClear()
     editorMocks.updateCode.mockClear()
@@ -87,7 +73,12 @@ describe('WorkspaceCodePane', () => {
     await flushPromises()
 
     expect(editorMocks.useStreamDiffEditor).toHaveBeenCalledWith(
-      expect.objectContaining({ readOnly: true, theme: 'vitesse-light' })
+      expect.objectContaining({
+        readOnly: true,
+        theme: 'vitesse-light',
+        fontSize: 14,
+        ariaLabel: 'file-1'
+      })
     )
     expect(editorMocks.createEditor).toHaveBeenCalledWith(
       expect.any(HTMLElement),

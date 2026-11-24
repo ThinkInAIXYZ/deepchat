@@ -39,8 +39,9 @@ const { createEditor, updateCode, cleanupEditor, getEditorView, getEditor } = us
   lineNumbers: true,
   theme: resolvedTheme.value,
   fontFamily: uiSettingsStore.formattedCodeFontFamily,
-  fontSize: 13,
-  fileName: props.source.id
+  fontSize: 14,
+  fileName: props.source.id,
+  ariaLabel: props.source.id
 })
 
 const LANGUAGE_ALIASES: Record<string, string> = {
@@ -130,19 +131,11 @@ const applyFontFamily = (fontFamily: string) => {
   getEditorView()?.updateOptions({ fontFamily })
 }
 
-const applyTheme = async () => {
+const applyTheme = () => {
   try {
     getEditor().setTheme(resolvedTheme.value)
   } catch (error) {
-    console.warn('[WorkspaceCodePane] Failed to apply Monaco theme:', error)
-  }
-}
-
-const layoutEditor = () => {
-  try {
-    getEditorView()?.layout()
-  } catch (error) {
-    console.warn('[WorkspaceCodePane] Failed to layout Monaco editor:', error)
+    console.warn('[WorkspaceCodePane] Failed to apply stream-diffs theme:', error)
   }
 }
 
@@ -164,9 +157,8 @@ const syncEditor = async () => {
     createEditorTask = (async () => {
       await createEditor(editorElement, nextContent, nextLanguage)
       editorInitialized.value = true
-      await applyTheme()
+      applyTheme()
       applyFontFamily(uiSettingsStore.formattedCodeFontFamily)
-      layoutEditor()
     })()
 
     try {
@@ -178,7 +170,6 @@ const syncEditor = async () => {
   }
 
   updateCode(nextContent, nextLanguage)
-  layoutEditor()
 }
 
 watch(
@@ -203,11 +194,7 @@ watch(
 watch(
   resolvedTheme,
   () => {
-    if (!editorInitialized.value) {
-      return
-    }
-
-    void applyTheme()
+    applyTheme()
   },
   {
     flush: 'post'

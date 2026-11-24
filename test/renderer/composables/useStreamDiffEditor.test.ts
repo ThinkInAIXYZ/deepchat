@@ -92,14 +92,20 @@ describe('useStreamDiffEditor', () => {
     const editor = useStreamDiffEditor({
       fontFamily: 'JetBrains Mono',
       fontSize: 13,
-      theme: 'vitesse-light'
+      theme: 'vitesse-light',
+      ariaLabel: 'Custom headers'
     })
     await editor.createEditor(host, '{"a":1}', 'json')
     const listener = vi.fn()
     editor.getEditorView().onDidChangeModelContent(listener)
 
-    expect(surfaceState.createDiffSurface).toHaveBeenCalled()
+    expect(surfaceState.createDiffSurface).toHaveBeenCalledWith(
+      expect.objectContaining({ file: expect.objectContaining({ name: 'Custom headers' }) })
+    )
     expect(surfaceState.surface.mount).toHaveBeenCalledWith(host)
+    expect(host.tabIndex).toBe(-1)
+    expect(host.getAttribute('role')).toBe('group')
+    expect(host.getAttribute('aria-label')).toBe('Custom headers')
     expect(surfaceState.surface.startEditing).toHaveBeenCalled()
     expect(host.style.getPropertyValue('--diffs-font-family')).toBe('JetBrains Mono')
 
@@ -122,6 +128,18 @@ describe('useStreamDiffEditor', () => {
     expect(host.childElementCount).toBe(0)
   })
 
+  it('retains theme and font changes made before the surface exists', async () => {
+    const host = document.createElement('div')
+    const editor = useStreamDiffEditor({ theme: 'vitesse-light', fontFamily: 'First Font' })
+
+    editor.getEditor().setTheme('vitesse-dark')
+    editor.getEditorView().updateOptions({ fontFamily: 'Second Font' })
+    await editor.createEditor(host, '{}', 'json')
+
+    expect(surfaceState.getOptions().themeType).toBe('dark')
+    expect(host.style.getPropertyValue('--diffs-font-family')).toBe('Second Font')
+  })
+
   it('keeps read-only surfaces render-only and updates their file directly', async () => {
     const host = document.createElement('div')
     const editor = useStreamDiffEditor({ readOnly: true, theme: 'vitesse-dark' })
@@ -129,6 +147,9 @@ describe('useStreamDiffEditor', () => {
     await editor.createEditor(host, 'const a = 1', 'typescript')
 
     expect(surfaceState.surface.startEditing).not.toHaveBeenCalled()
+    expect(host.tabIndex).toBe(0)
+    expect(host.getAttribute('role')).toBe('region')
+    expect(host.getAttribute('aria-label')).toBe('Code editor')
     expect(surfaceState.getOptions().themeType).toBe('dark')
 
     await editor.updateCode('const a = 2', 'typescript')

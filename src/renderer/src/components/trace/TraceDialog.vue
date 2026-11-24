@@ -423,7 +423,8 @@ const { createEditor, updateCode, cleanupEditor, getEditorView, getEditor } = us
   theme: resolvedTheme.value,
   fontSize: 12,
   lineNumbers: true,
-  fileName: 'trace-request.json'
+  fileName: 'trace-request.json',
+  ariaLabel: t('traceDialog.tabs.request')
 })
 
 const props = defineProps<{
@@ -670,14 +671,19 @@ watch(isOpen, (newValue) => {
 })
 
 const editorInitialized = ref(false)
-const applyFontFamily = (fontFamily: string) => {
-  const editor = getEditorView()
-  if (editor) {
-    editor.updateOptions({ fontFamily })
-  }
+let editorHost: HTMLElement | null = null
+
+const resetEditor = () => {
+  cleanupEditor()
+  editorInitialized.value = false
+  editorHost = null
 }
 
-const applyTheme = async () => {
+const applyFontFamily = (fontFamily: string) => {
+  getEditorView().updateOptions({ fontFamily })
+}
+
+const applyTheme = () => {
   try {
     getEditor().setTheme(resolvedTheme.value)
   } catch (err) {
@@ -685,68 +691,47 @@ const applyTheme = async () => {
   }
 }
 
-const layoutEditor = () => {
-  try {
-    getEditorView()?.layout()
-  } catch (err) {
-    console.warn('Failed to layout stream-diffs editor:', err)
+const syncEditor = async () => {
+  const host = jsonEditor.value
+  const trace = selectedTrace.value
+  const json = formattedJson.value
+  if (!isOpen.value || activeTab.value !== 'request' || !trace || !json || !host) {
+    if (editorInitialized.value || editorHost) resetEditor()
+    return
   }
-}
 
-watch(activeTab, (tab) => {
-  if (tab !== 'request') {
-    cleanupEditor()
-    editorInitialized.value = false
+  await nextTick()
+  await nextTick()
+  if (editorHost !== host) {
+    resetEditor()
+    editorHost = host
   }
-})
+
+  if (!editorInitialized.value) {
+    try {
+      await createEditor(host, json, 'json')
+      editorInitialized.value = true
+      applyTheme()
+      applyFontFamily(uiSettingsStore.formattedCodeFontFamily)
+    } catch (err) {
+      console.error('Failed to create stream-diffs editor:', err)
+    }
+    return
+  }
+
+  updateCode(json, 'json')
+}
 
 watch(
   [isOpen, activeTab, selectedTrace, formattedJson, jsonEditor],
-  async ([open, tab, trace, json, editorEl]) => {
-    if (open && tab === 'request' && trace && json && editorEl) {
-      await nextTick()
-      await nextTick()
-      if (!editorInitialized.value) {
-        try {
-          await createEditor(editorEl, json, 'json')
-          editorInitialized.value = true
-          await applyTheme()
-          applyFontFamily(uiSettingsStore.formattedCodeFontFamily)
-          layoutEditor()
-        } catch (err) {
-          console.error('Failed to create stream-diffs editor:', err)
-        }
-      } else {
-        updateCode(json, 'json')
-        layoutEditor()
-      }
-    }
+  () => {
+    void syncEditor()
   },
   { flush: 'post' }
 )
 
-onMounted(async () => {
-  if (
-    isOpen.value &&
-    activeTab.value === 'request' &&
-    selectedTrace.value &&
-    formattedJson.value &&
-    jsonEditor.value
-  ) {
-    await nextTick()
-    await nextTick()
-    if (!editorInitialized.value) {
-      try {
-        await createEditor(jsonEditor.value, formattedJson.value, 'json')
-        editorInitialized.value = true
-        await applyTheme()
-        applyFontFamily(uiSettingsStore.formattedCodeFontFamily)
-        layoutEditor()
-      } catch (err) {
-        console.error('Failed to create stream-diffs editor on mount:', err)
-      }
-    }
-  }
+onMounted(() => {
+  void syncEditor()
 })
 
 watch(
@@ -759,17 +744,12 @@ watch(
 watch(
   resolvedTheme,
   () => {
-    if (isOpen.value && editorInitialized.value) {
-      void applyTheme()
-    }
+    applyTheme()
   },
   { flush: 'post' }
 )
 
-onBeforeUnmount(() => {
-  cleanupEditor()
-  editorInitialized.value = false
-})
+onBeforeUnmount(resetEditor)
 
 const loadTraces = async (messageId: string, preferredRequestSeq?: number) => {
   requestId.value += 1

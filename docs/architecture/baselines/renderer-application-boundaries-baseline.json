@@ -133,6 +133,14 @@
     },
     {
       "file": "src/renderer/settings/components/AcpDebugDialog.vue",
+      "specifier": "@/composables/useStreamDiffEditor"
+    },
+    {
+      "file": "src/renderer/settings/components/AcpDebugDialog.vue",
+      "specifier": "@/stores/theme"
+    },
+    {
+      "file": "src/renderer/settings/components/AcpDebugDialog.vue",
       "specifier": "@/stores/uiSettingsStore"
     },
     {
@@ -457,6 +465,14 @@
     },
     {
       "file": "src/renderer/settings/components/ProviderCustomHeadersEditor.vue",
+      "specifier": "@/composables/useStreamDiffEditor"
+    },
+    {
+      "file": "src/renderer/settings/components/ProviderCustomHeadersEditor.vue",
+      "specifier": "@/stores/theme"
+    },
+    {
+      "file": "src/renderer/settings/components/ProviderCustomHeadersEditor.vue",
       "specifier": "@/stores/uiSettingsStore"
     },
     {
@@ -540,5 +556,5 @@
       "specifier": "@/i18n/bootstrap"
     }
   ],
-  "settingsToChatAppImportCount": 122
+  "settingsToChatAppImportCount": 126
 }

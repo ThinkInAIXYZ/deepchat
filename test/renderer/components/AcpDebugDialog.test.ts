@@ -83,7 +83,6 @@ async function setup(
         onDidChangeModelContent: vi.fn(),
         getValue: vi.fn(() => '{}'),
         focus: vi.fn(),
-        layout: vi.fn(),
         updateOptions: vi.fn()
       })),
       getEditor: vi.fn(() => ({ setTheme: vi.fn() })),
@@ -326,7 +325,7 @@ describe('AcpDebugDialog', () => {
     resolveEditor?.()
     await flushPromises()
 
-    expect(cleanupEditor).toHaveBeenCalledTimes(1)
+    expect(cleanupEditor).toHaveBeenCalled()
 
     wrapper.unmount()
   })

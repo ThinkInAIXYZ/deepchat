@@ -11,13 +11,14 @@ export interface StreamDiffEditorOptions {
   /** Initial resolved theme name, e.g. `vitesse-dark` or `vitesse-light`. */
   theme?: string
   fileName?: string
+  /** Accessible name applied to the read-only host and the editor textbox. */
+  ariaLabel?: string
 }
 
 export interface StreamDiffEditorView {
   getValue: () => string
   onDidChangeModelContent: (listener: () => void) => { dispose: () => void }
   focus: () => void
-  layout: () => void
   updateOptions: (options: { fontFamily?: string }) => void
 }
 
@@ -52,10 +53,10 @@ function normalizeLanguage(language: string | undefined) {
 function createFileContents(
   value: string,
   language: string,
-  fileName: string | undefined
+  name: string | undefined
 ): FileContents {
   return {
-    name: fileName || `snippet.${language}`,
+    name: name || `snippet.${language}`,
     contents: value,
     lang: language
   }
@@ -71,6 +72,8 @@ function applyEditorStyles(
     host.style.setProperty('--diffs-font-size', `${fontSize}px`)
     host.style.setProperty('--diffs-line-height', `${Math.round(fontSize * 1.5)}px`)
   }
+  // The upstream editor derives both tab metrics and its indent unit from this
+  // CSS variable, so Tab inserts two spaces at the caret.
   host.style.setProperty('--diffs-tab-size', '2')
 }
 
@@ -86,8 +89,8 @@ export function useStreamDiffEditor(options: StreamDiffEditorOptions = {}): Stre
   let currentValue = ''
   let currentLanguage = 'text'
   let currentTheme = options.theme || DEFAULT_THEME
+  let currentFontFamily = options.fontFamily
   let generation = 0
-  let editStateSeed = 0
   const changeListeners = new Set<() => void>()
 
   const notifyChange = () => {
@@ -101,8 +104,11 @@ export function useStreamDiffEditor(options: StreamDiffEditorOptions = {}): Stre
   }
 
   const updateFont = (fontFamily: string | undefined) => {
-    if (host && fontFamily) host.style.setProperty('--diffs-font-family', fontFamily)
+    if (!fontFamily) return
+    currentFontFamily = fontFamily
+    if (host) host.style.setProperty('--diffs-font-family', fontFamily)
   }
+  const accessibleName = options.ariaLabel || options.fileName || 'Code editor'
 
   const view: StreamDiffEditorView = {
     getValue: () => surface?.getEditingText() ?? currentValue,
@@ -118,10 +124,6 @@ export function useStreamDiffEditor(options: StreamDiffEditorOptions = {}): Stre
         return
       }
       host?.focus()
-    },
-    layout: () => {
-      // The Diffs surface observes its own host size. Keep this method for the
-      // existing call sites that used Monaco's layout().
     },
     updateOptions: ({ fontFamily }) => updateFont(fontFamily)
   }
@@ -148,8 +150,7 @@ export function useStreamDiffEditor(options: StreamDiffEditorOptions = {}): Stre
   }
 
   const startEditing = async (target: DiffSurfaceController) => {
-    editStateSeed += 1
-    await target.startEditing({}, `deepchat-stream-diff-editor-${editStateSeed}`)
+    await target.startEditing({})
     currentValue = target.getEditingText() ?? currentValue
   }
 
@@ -163,12 +164,14 @@ export function useStreamDiffEditor(options: StreamDiffEditorOptions = {}): Stre
     currentLanguage = normalizeLanguage(language)
     host.replaceChildren()
     host.classList.add('stream-diff-editor-host')
-    host.tabIndex = options.readOnly ? -1 : 0
-    applyEditorStyles(host, options.fontFamily, options.fontSize)
+    host.tabIndex = options.readOnly ? 0 : -1
+    host.setAttribute('role', options.readOnly ? 'region' : 'group')
+    host.setAttribute('aria-label', accessibleName)
+    applyEditorStyles(host, currentFontFamily, options.fontSize)
 
     const nextSurface = createDiffSurface({
       kind: 'file',
-      file: createFileContents(currentValue, currentLanguage, options.fileName),
+      file: createFileContents(currentValue, currentLanguage, accessibleName),
       options: {
         theme: THEME_PAIR,
         themeType: isDarkTheme(currentTheme) ? 'dark' : 'light',
@@ -247,7 +250,7 @@ export function useStreamDiffEditor(options: StreamDiffEditorOptions = {}): Stre
       if (wasEditing) surface.stopEditing('discard')
       currentLanguage = nextLanguage
       return surface
-        .updateFile(createFileContents(nextValue, currentLanguage, options.fileName))
+        .updateFile(createFileContents(nextValue, currentLanguage, accessibleName))
         .then(async () => {
           if (!wasEditing || options.readOnly || !surface) return
           await startEditing(surface)
@@ -255,7 +258,7 @@ export function useStreamDiffEditor(options: StreamDiffEditorOptions = {}): Stre
     }
 
     if (replaceEditingDocument(nextValue)) return
-    return surface.updateFile(createFileContents(nextValue, currentLanguage, options.fileName))
+    return surface.updateFile(createFileContents(nextValue, currentLanguage, accessibleName))
   }
 
   const cleanupEditor = () => {

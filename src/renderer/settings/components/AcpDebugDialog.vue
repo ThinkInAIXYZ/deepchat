@@ -150,7 +150,7 @@
               <div
                 ref="payloadEditor"
                 data-testid="acp-debug-payload-editor"
-                class="h-full min-h-[200px]"
+                class="acp-debug-payload-editor h-full min-h-[200px]"
               ></div>
             </div>
 
@@ -298,7 +298,8 @@ const { createEditor, updateCode, getEditorView, getEditor, cleanupEditor } = us
   fontSize: 13,
   lineNumbers: true,
   theme: resolvedTheme.value,
-  fileName: 'acp-debug-payload.json'
+  fileName: 'acp-debug-payload.json',
+  ariaLabel: t('settings.acp.debug.title')
 })
 
 function createDebugSessionId() {
@@ -774,7 +775,9 @@ const clearWorkdir = () => {
 
 const ensureEditor = async () => {
   if (editorCreated || !payloadEditor.value) return
+  const generation = dialogGeneration
   await createEditor(payloadEditor.value, payloadText.value, 'json')
+  if (generation !== dialogGeneration || !props.open) return
   const editor = getEditorView()
   if (editor) {
     editor.onDidChangeModelContent(() => {
@@ -786,7 +789,6 @@ const ensureEditor = async () => {
 }
 
 const disposeEditor = () => {
-  if (!editorCreated) return
   cleanupEditor()
   editorCreated = false
 }
@@ -853,7 +855,7 @@ onMounted(async () => {
 watch(
   resolvedTheme,
   (theme) => {
-    if (editorCreated) getEditor().setTheme(theme)
+    getEditor().setTheme(theme)
   },
   { flush: 'post' }
 )
@@ -874,11 +876,11 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-[data-testid='acp-debug-payload-editor'] {
+.acp-debug-payload-editor {
   overflow: auto;
 }
 
-[data-testid='acp-debug-payload-editor'] :deep([data-file]) {
+.acp-debug-payload-editor :deep([data-file]) {
   min-height: 100%;
 }
 </style>

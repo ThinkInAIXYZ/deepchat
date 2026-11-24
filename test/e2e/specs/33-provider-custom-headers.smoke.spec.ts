@@ -47,6 +47,16 @@ test('provider headers use a JSON editor above the model list @smoke', async ({ 
   await replaceEditorText('[]')
   await expect(save).toBeDisabled()
 
+  await replaceEditorText('{\n  "a": 1\n}')
+  await settingsPage.keyboard.press('ControlOrMeta+End')
+  await settingsPage.keyboard.press('ArrowUp')
+  await settingsPage.keyboard.press('End')
+  await settingsPage.keyboard.press('Tab')
+  await expect(editorInput).toBeFocused()
+  expect(
+    await editorInput.locator('[data-line="2"]').evaluate((element) => element.textContent)
+  ).toBe('  "a": 1  ')
+
   await replaceEditorText('{"X-Tenant-ID":"team-a"}')
   await expect(save).toBeEnabled()
   await settingsPage.getByTestId('provider-custom-headers-format').click()

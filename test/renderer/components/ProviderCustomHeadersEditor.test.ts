@@ -28,7 +28,6 @@ const streamDiffEditorMock = vi.hoisted(() => {
       onDidChangeModelContent,
       getValue,
       focus,
-      layout: vi.fn(),
       updateOptions: vi.fn()
     })),
     getEditor: vi.fn(() => ({ setTheme: vi.fn() })),

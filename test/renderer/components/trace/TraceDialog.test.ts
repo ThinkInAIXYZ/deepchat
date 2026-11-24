@@ -9,7 +9,6 @@ const {
   updateCodeMock,
   cleanupEditorMock,
   updateOptionsMock,
-  layoutMock,
   setThemeMock,
   getEditorViewMock,
   getEditorMock,
@@ -20,11 +19,9 @@ const {
   const updateCodeMock = vi.fn()
   const cleanupEditorMock = vi.fn()
   const updateOptionsMock = vi.fn()
-  const layoutMock = vi.fn()
   const setThemeMock = vi.fn()
   const getEditorViewMock = vi.fn().mockReturnValue({
-    updateOptions: updateOptionsMock,
-    layout: layoutMock
+    updateOptions: updateOptionsMock
   })
   const getEditorMock = vi.fn().mockReturnValue({
     setTheme: setThemeMock
@@ -45,7 +42,6 @@ const {
     updateCodeMock,
     cleanupEditorMock,
     updateOptionsMock,
-    layoutMock,
     setThemeMock,
     getEditorViewMock,
     getEditorMock,
@@ -296,12 +292,10 @@ describe('TraceDialog', () => {
     updateCodeMock.mockReset()
     cleanupEditorMock.mockReset()
     updateOptionsMock.mockReset()
-    layoutMock.mockReset()
     setThemeMock.mockReset()
     getEditorViewMock.mockReset()
     getEditorViewMock.mockReturnValue({
-      updateOptions: updateOptionsMock,
-      layout: layoutMock
+      updateOptions: updateOptionsMock
     })
     getEditorMock.mockReset()
     getEditorMock.mockReturnValue({

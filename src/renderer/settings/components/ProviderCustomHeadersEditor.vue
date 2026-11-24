@@ -56,7 +56,7 @@
             :id="editorId"
             ref="editorHost"
             data-testid="provider-custom-headers-editor"
-            class="h-72 min-h-72 w-full"
+            class="provider-custom-headers-editor h-72 min-h-72 w-full"
             :aria-invalid="Boolean(validationError || submitError) || undefined"
             :aria-describedby="validationError || submitError ? errorId : undefined"
           ></div>
@@ -148,7 +148,8 @@ const { createEditor, updateCode, getEditorView, getEditor, cleanupEditor } = us
   fontSize: 13,
   lineNumbers: true,
   theme: resolvedTheme.value,
-  fileName: 'custom-headers.json'
+  fileName: 'custom-headers.json',
+  ariaLabel: t('settings.provider.customHeaders.title')
 })
 
 const configuredCount = computed(() => Object.keys(props.modelValue ?? {}).length)
@@ -304,7 +305,7 @@ watch(
 watch(
   resolvedTheme,
   (theme) => {
-    if (editorCreated) getEditor().setTheme(theme)
+    getEditor().setTheme(theme)
   },
   { flush: 'post' }
 )
@@ -320,11 +321,11 @@ onBeforeUnmount(disposeEditor)
 </script>
 
 <style scoped>
-[data-testid='provider-custom-headers-editor'] {
+.provider-custom-headers-editor {
   overflow: auto;
 }
 
-[data-testid='provider-custom-headers-editor'] :deep([data-file]) {
+.provider-custom-headers-editor :deep([data-file]) {
   min-height: 100%;
 }
 </style>
