@@ -47,8 +47,8 @@ impl PrepareProviderConnection for Desktop {
     ) -> HostFuture<'_, ResolvedModelConnection> {
         Box::pin(async move {
             let reference = credential_reference.as_deref().unwrap_or_default();
-            let preset = if reference.starts_with("deepchat/codex/v1/") {
-                OAuthPreset::Codex
+            let preset = if reference.starts_with("deepchat/chatgpt/v1/") {
+                OAuthPreset::ChatGpt
             } else if reference.starts_with("deepchat/grok/v1/") {
                 OAuthPreset::Grok
             } else {
@@ -70,8 +70,8 @@ impl PrepareProviderConnection for Desktop {
 }
 #[derive(Clone, Copy, Deserialize, PartialEq, Eq)]
 enum OAuthPreset {
-    #[serde(rename = "openai-codex")]
-    Codex,
+    #[serde(rename = "openai-chatgpt")]
+    ChatGpt,
     #[serde(rename = "xai-grok")]
     Grok,
 }
@@ -80,7 +80,6 @@ enum OAuthPreset {
 struct Auth {
     preset: OAuthPreset,
     bearer: String,
-    account_id: Option<String>,
     lease: String,
 }
 async fn credential(
@@ -111,9 +110,6 @@ fn attach(
             .bytes()
             .all(|byte| (0x21..=0x7e).contains(&byte))
         || auth.lease != format!("{:x}", Sha256::digest(auth.bearer.as_bytes()))
-        || auth.account_id.as_ref().is_some_and(|id| {
-            id.is_empty() || id.len() > 256 || !id.bytes().all(|byte| (0x21..=0x7e).contains(&byte))
-        })
     {
         return Err(unavailable());
     }
@@ -121,9 +117,23 @@ fn attach(
         return Err(unavailable());
     };
     match preset {
-        OAuthPreset::Codex if http.protocol == ModelProtocol::OpenaiResponses => {
-            http.preset = Some("openai-codex".into());
-            configure_codex_headers(&mut http.headers, auth.account_id);
+        OAuthPreset::ChatGpt if http.protocol == ModelProtocol::OpenaiResponses => {
+            // The plan grant is issued for the public Responses resource only.
+            let url = url::Url::parse(&http.base_url).map_err(|_| unavailable())?;
+            if url.scheme() != "https"
+                || url.host_str() != Some("api.openai.com")
+                || url.port().is_some()
+                || url.path().trim_end_matches('/') != "/v1"
+                || !url.username().is_empty()
+                || url.password().is_some()
+                || url.query().is_some()
+            {
+                return Err(unavailable());
+            }
+            http.headers
+                .retain(|name, _| !name.eq_ignore_ascii_case("authorization"));
+            // Aimux shapes requests to the ChatGPT plan's Responses preview rules.
+            http.preset = Some("openai-chatgpt".into());
         }
         OAuthPreset::Grok if http.protocol == ModelProtocol::OpenaiCompatible => {
             let url = url::Url::parse(&http.base_url).map_err(|_| unavailable())?;
@@ -151,35 +161,6 @@ fn attach(
     Ok(connection)
 }
 
-fn configure_codex_headers(
-    headers: &mut std::collections::HashMap<String, String>,
-    account_id: Option<String>,
-) {
-    // The Codex backend gates model availability by client version.
-    const CLIENT_VERSION: &str = "0.170.0";
-    headers.retain(|name, _| {
-        ![
-            "chatgpt-account-id",
-            "authorization",
-            "oai-product-sku",
-            "originator",
-            "version",
-            "user-agent",
-        ]
-        .iter()
-        .any(|controlled| name.eq_ignore_ascii_case(controlled))
-    });
-    headers.insert("Version".into(), CLIENT_VERSION.into());
-    if let Some(id) = account_id {
-        headers.insert("ChatGPT-Account-Id".into(), id);
-    }
-    headers.insert("OAI-Product-Sku".into(), "codex".into());
-    headers.insert("originator".into(), "codex_cli_rs".into());
-    headers.insert(
-        "User-Agent".into(),
-        format!("codex_cli_rs/{CLIENT_VERSION} (Ubuntu 22.4.0; x86_64) xterm-256color"),
-    );
-}
 struct Recovery {
     provider_id: String,
     model_id: String,
@@ -265,7 +246,6 @@ mod tests {
                 Auth {
                     preset: OAuthPreset::Grok,
                     bearer: token.into(),
-                    account_id: None,
                     lease: format!("{:x}", Sha256::digest(token.as_bytes())),
                 },
             )
@@ -278,5 +258,59 @@ mod tests {
         assert!(resolved.recovery.is_some());
         assert!(connect("https://api.x.ai.example.com/v1").is_err());
         assert!(connect("http://api.x.ai/v1").is_err());
+    }
+
+    #[test]
+    fn chatgpt_oauth_sets_the_plan_preset_only_on_the_openai_resource() {
+        let connect = |base_url: &str, protocol: ModelProtocol| {
+            let token = "fixture-chatgpt";
+            attach(
+                "chatgpt".into(),
+                "fixture".into(),
+                ResolvedModelConnection {
+                    connection: ModelConnection::Http(HttpModelConnection {
+                        protocol,
+                        base_url: base_url.into(),
+                        network: Default::default(),
+                        headers: [("Authorization".to_owned(), "Bearer other".to_owned())].into(),
+                        bearer: Some("deepchat-provider-v1".into()),
+                        api_key: None,
+                        preset: None,
+                    }),
+                    failure_policy: None,
+                    recovery: None,
+                },
+                OAuthPreset::ChatGpt,
+                Auth {
+                    preset: OAuthPreset::ChatGpt,
+                    bearer: token.into(),
+                    lease: format!("{:x}", Sha256::digest(token.as_bytes())),
+                },
+            )
+        };
+        let resolved = connect("https://api.openai.com/v1", ModelProtocol::OpenaiResponses)
+            .expect("OpenAI resource");
+        let ModelConnection::Http(http) = resolved.connection else {
+            panic!("expected HTTP connection")
+        };
+        assert_eq!(http.bearer.as_deref(), Some("fixture-chatgpt"));
+        assert_eq!(http.preset.as_deref(), Some("openai-chatgpt"));
+        assert!(http.headers.is_empty());
+        assert!(resolved.recovery.is_some());
+        assert!(
+            connect(
+                "https://chatgpt.com/backend-api/codex",
+                ModelProtocol::OpenaiResponses
+            )
+            .is_err()
+        );
+        assert!(
+            connect(
+                "https://api.openai.com.example.com/v1",
+                ModelProtocol::OpenaiResponses
+            )
+            .is_err()
+        );
+        assert!(connect("https://api.openai.com/v1", ModelProtocol::OpenaiCompatible).is_err());
     }
 }

@@ -19,6 +19,7 @@ import promptSetting from './promptSetting.json'
 import traceDialog from './traceDialog.json'
 import tapeInspector from './tapeInspector.json'
 import plan from './plan.json'
+import chatgpt from './chatgpt.json'
 
 // Individual top-level keys
 const others = {
@@ -57,5 +58,6 @@ export default {
   traceDialog,
   tapeInspector,
   plan,
+  chatgpt,
   ...others
 }

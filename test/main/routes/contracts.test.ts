@@ -31,7 +31,7 @@ import {
   configListAgentsRoute,
   oauthGithubCopilotStartDeviceFlowLoginRoute,
   oauthGithubCopilotStartLoginRoute,
-  oauthOpenAICodexGetStatusRoute,
+  oauthChatGPTGetStatusRoute,
   sessionsActivateRoute,
   sessionsCompactRoute,
   sessionsGetGenerationSettingsRoute,
@@ -254,10 +254,12 @@ describe('main kernel contracts', () => {
         'ocr.getRuntimeStatus',
         'oauth.githubCopilot.startDeviceFlowLogin',
         'oauth.githubCopilot.startLogin',
-        'oauth.openaiCodex.cancelLogin',
-        'oauth.openaiCodex.getStatus',
-        'oauth.openaiCodex.logout',
-        'oauth.openaiCodex.startBrowserLogin',
+        'oauth.chatgpt.cancelLogin',
+        'oauth.chatgpt.dismissNotice',
+        'oauth.chatgpt.getStatus',
+        'oauth.chatgpt.logout',
+        'oauth.chatgpt.reopenBrowser',
+        'oauth.chatgpt.startLogin',
         'plugins.get',
         'plugins.invokeAction',
         'project.pathExists',
@@ -543,49 +545,20 @@ describe('main kernel contracts', () => {
     ).toThrow()
   })
 
-  it('validates OpenAI Codex OAuth route payloads', () => {
-    expect(oauthOpenAICodexGetStatusRoute.input.parse({})).toEqual({})
-    expect(
-      oauthOpenAICodexGetStatusRoute.output.parse({
-        status: {
-          state: 'authenticated',
-          authenticated: true,
-          accountId: 'acct...1234',
-          accountLabel: 'user@example.com',
-          planType: 'plus',
-          expiresAt: 123,
-          storage: 'safeStorage'
-        }
-      })
-    ).toEqual({
-      status: {
-        state: 'authenticated',
-        authenticated: true,
-        accountId: 'acct...1234',
-        accountLabel: 'user@example.com',
-        planType: 'plus',
-        expiresAt: 123,
-        storage: 'safeStorage'
-      }
-    })
-
-    expect(
-      oauthOpenAICodexGetStatusRoute.output.parse({
-        status: {
-          state: 'pending-browser',
-          authenticated: false,
-          storage: 'file'
-        }
-      }).status.state
-    ).toBe('pending-browser')
+  it('validates ChatGPT OAuth route payloads', () => {
+    expect(oauthChatGPTGetStatusRoute.input.parse({})).toEqual({})
+    const status = {
+      state: 'authenticated',
+      email: 'user@example.com',
+      planUsageEnabled: true,
+      storage: 'safeStorage',
+      notices: { codexRetired: false }
+    }
+    expect(oauthChatGPTGetStatusRoute.output.parse({ status })).toEqual({ status })
 
     expect(() =>
-      oauthOpenAICodexGetStatusRoute.output.parse({
-        status: {
-          state: 'pending-device',
-          authenticated: false,
-          storage: 'file'
-        }
+      oauthChatGPTGetStatusRoute.output.parse({
+        status: { ...status, state: 'pending-device' }
       })
     ).toThrow()
   })
@@ -2067,7 +2040,7 @@ describe('main kernel contracts', () => {
         'models.config.changed',
         'models.status.changed',
         'notification.semantic',
-        'oauth.openaiCodex.statusChanged',
+        'oauth.chatgpt.statusChanged',
         'providers.acp.debug.event',
         'providers.changed',
         'providers.ollama.pull.progress',

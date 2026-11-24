@@ -106,7 +106,7 @@ upstream catalog.
 Freshness is derived from the persisted `fetched_at` and the source-specific TTL:
 
 - remote catalog sources: six hours;
-- runtime sources (`openai-codex`, Ollama, ACP): sixty seconds;
+- runtime sources (`chatgpt`, Ollama, ACP): sixty seconds;
 - provider-db and config sources: effectively infinite until a provider-db/config event.
 
 `ensureFresh(providerId)` schedules a background `stale` refresh only when the provider is

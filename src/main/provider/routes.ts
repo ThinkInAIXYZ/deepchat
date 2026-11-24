@@ -31,11 +31,12 @@ import {
   modelsUpdateCustomRoute,
   oauthGithubCopilotStartDeviceFlowLoginRoute,
   oauthGithubCopilotStartLoginRoute,
-  oauthOpenAICodexCancelLoginRoute,
-  oauthOpenAICodexCompleteBrowserLoginFromUrlRoute,
-  oauthOpenAICodexGetStatusRoute,
-  oauthOpenAICodexLogoutRoute,
-  oauthOpenAICodexStartBrowserLoginRoute,
+  oauthChatGPTCancelLoginRoute,
+  oauthChatGPTDismissNoticeRoute,
+  oauthChatGPTGetStatusRoute,
+  oauthChatGPTLogoutRoute,
+  oauthChatGPTReopenBrowserRoute,
+  oauthChatGPTStartLoginRoute,
   oauthXaiGrokCancelLoginRoute,
   oauthXaiGrokGetStatusRoute,
   oauthXaiGrokLogoutRoute,
@@ -808,47 +809,54 @@ export function createProviderRoutes(deps: {
       }
     ],
     [
-      oauthOpenAICodexGetStatusRoute.name,
+      oauthChatGPTGetStatusRoute.name,
       async (rawInput) => {
-        oauthOpenAICodexGetStatusRoute.input.parse(rawInput)
-        return oauthOpenAICodexGetStatusRoute.output.parse({
-          status: await oauthService.getOpenAICodexStatus()
+        oauthChatGPTGetStatusRoute.input.parse(rawInput)
+        return oauthChatGPTGetStatusRoute.output.parse({
+          status: await oauthService.getChatGPTStatus()
         })
       }
     ],
     [
-      oauthOpenAICodexStartBrowserLoginRoute.name,
+      oauthChatGPTStartLoginRoute.name,
       async (rawInput) => {
-        oauthOpenAICodexStartBrowserLoginRoute.input.parse(rawInput)
-        return oauthOpenAICodexStartBrowserLoginRoute.output.parse({
-          status: await oauthService.startOpenAICodexBrowserLogin()
+        const input = oauthChatGPTStartLoginRoute.input.parse(rawInput)
+        return oauthChatGPTStartLoginRoute.output.parse({
+          status: await oauthService.startChatGPTLogin(input)
         })
       }
     ],
     [
-      oauthOpenAICodexCompleteBrowserLoginFromUrlRoute.name,
+      oauthChatGPTReopenBrowserRoute.name,
       async (rawInput) => {
-        const input = oauthOpenAICodexCompleteBrowserLoginFromUrlRoute.input.parse(rawInput)
-        return oauthOpenAICodexCompleteBrowserLoginFromUrlRoute.output.parse({
-          status: await oauthService.completeOpenAICodexBrowserLoginFromUrl(input.callbackUrl)
+        oauthChatGPTReopenBrowserRoute.input.parse(rawInput)
+        return oauthChatGPTReopenBrowserRoute.output.parse({
+          status: await oauthService.reopenChatGPTBrowser()
         })
       }
     ],
     [
-      oauthOpenAICodexCancelLoginRoute.name,
+      oauthChatGPTCancelLoginRoute.name,
       async (rawInput) => {
-        oauthOpenAICodexCancelLoginRoute.input.parse(rawInput)
-        return oauthOpenAICodexCancelLoginRoute.output.parse({
-          status: await oauthService.cancelOpenAICodexLogin()
+        oauthChatGPTCancelLoginRoute.input.parse(rawInput)
+        return oauthChatGPTCancelLoginRoute.output.parse({
+          status: await oauthService.cancelChatGPTLogin()
         })
       }
     ],
     [
-      oauthOpenAICodexLogoutRoute.name,
+      oauthChatGPTLogoutRoute.name,
       async (rawInput) => {
-        oauthOpenAICodexLogoutRoute.input.parse(rawInput)
-        return oauthOpenAICodexLogoutRoute.output.parse({
-          status: await oauthService.logoutOpenAICodex()
+        oauthChatGPTLogoutRoute.input.parse(rawInput)
+        return oauthChatGPTLogoutRoute.output.parse(await oauthService.logoutChatGPT())
+      }
+    ],
+    [
+      oauthChatGPTDismissNoticeRoute.name,
+      async (rawInput) => {
+        const input = oauthChatGPTDismissNoticeRoute.input.parse(rawInput)
+        return oauthChatGPTDismissNoticeRoute.output.parse({
+          status: await oauthService.dismissChatGPTNotice(input.notice)
         })
       }
     ],

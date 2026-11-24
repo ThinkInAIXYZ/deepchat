@@ -17,7 +17,7 @@ export type AiSdkModelSourceStrategy =
   | 'obscurify'
   | 'wiro'
   | 'apimart'
-  | 'openai-codex'
+  | 'chatgpt'
   | 'opencode-go'
   | 'kimi-for-coding'
   | 'github'
@@ -120,21 +120,20 @@ const CHINESE_SUMMARY_OPENAI = createDefinition({
   behaviorPreset: 'chinese-summary'
 })
 
-const OPENAI_CODEX = createDefinition({
-  runtimeKind: 'openai-codex',
+/**
+ * Sign in with ChatGPT: the account owner supplies the bearer, the catalog is the account's own
+ * `/v1/models`, and inference uses the public Responses API under the plan's preview rules.
+ */
+const CHATGPT = createDefinition({
+  runtimeKind: 'openai-responses',
   behaviorPreset: 'openai',
-  modelSource: 'openai-codex',
-  checkStrategy: 'generate-text',
+  modelSource: 'chatgpt',
+  checkStrategy: 'fetch-models',
   credentialStrategy: 'none',
   keyStatusStrategy: 'none',
   routeStrategy: 'none',
   embeddingStrategy: 'none',
-  providerDbSourceId: 'openai',
-  providerDbGroup: 'Codex',
-  checkModelId: 'gpt-5.6-luna',
-  checkPrompt: 'Hello',
-  checkTemperature: 0.2,
-  checkMaxTokens: 16
+  providerDbSourceId: 'openai'
 })
 
 const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
@@ -339,6 +338,14 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
   ],
   [
     'cheapaimodel',
+    createDefinition({
+      ...OPENAI_BASE,
+      credentialStrategy: 'api-key',
+      embeddingStrategy: 'none'
+    })
+  ],
+  [
+    'onomeo',
     createDefinition({
       ...OPENAI_BASE,
       credentialStrategy: 'api-key',
@@ -640,7 +647,7 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
       runtimeKind: 'openai-responses'
     })
   ],
-  ['openai-codex', OPENAI_CODEX],
+  ['chatgpt', CHATGPT],
   [
     'openrouter',
     createDefinition({
@@ -1005,7 +1012,7 @@ const PROVIDER_API_TYPE_REGISTRY = new Map<string, AiSdkProviderDefinition>([
   ['new-api', PROVIDER_ID_REGISTRY.get('new-api')!],
   ['o3fan', PROVIDER_ID_REGISTRY.get('o3fan')!],
   ['openai', PROVIDER_ID_REGISTRY.get('openai')!],
-  ['openai-codex', OPENAI_CODEX],
+  ['chatgpt', CHATGPT],
   ['openai-compatible', OPENAI_BASE],
   ['openai-completions', OPENAI_BASE],
   ['openai-responses', PROVIDER_ID_REGISTRY.get('openai-responses')!],
@@ -1021,17 +1028,13 @@ export function resolveAiSdkProviderDefinition(
   const providerId = provider.id.trim().toLowerCase()
   const apiType = provider.apiType.trim().toLowerCase()
 
-  if (providerId === 'openai' && provider.openaiAuthMode === 'chatgpt') {
-    return OPENAI_CODEX
-  }
-
   return PROVIDER_ID_REGISTRY.get(providerId) || PROVIDER_API_TYPE_REGISTRY.get(apiType) || null
 }
 
 // Catalog facts belong to a provider profile, not every provider sharing its transport.
 export function isProviderDbBackedProvider(providerId: string | undefined | null): boolean {
   const source = PROVIDER_ID_REGISTRY.get(providerId?.trim().toLowerCase() ?? '')?.modelSource
-  return source === 'provider-db' || source === 'kimi-for-coding' || source === 'openai-codex'
+  return source === 'provider-db' || source === 'kimi-for-coding'
 }
 
 // Input modalities belong to the endpoint: model ids on a text-only provider must not inherit

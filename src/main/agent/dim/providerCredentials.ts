@@ -6,16 +6,14 @@ import {
   getGitHubCopilotToken,
   type CopilotTokenResponse
 } from '@/provider/auth/githubCopilotDeviceFlow'
-import { getGlobalOpenAICodexAuth, type OpenAICodexAuth } from '@/provider/auth/openaiCodex'
+import { getGlobalChatGPTAuth, type ChatGPTAuth } from '@/provider/auth/chatgpt'
 import { getGlobalXaiGrokAuth, type XaiGrokAuth } from '@/provider/auth/xaiGrok'
 import { shouldUseXaiGrokOAuthFetch } from '@/provider/xaiGrokAuthAdapter'
-import { resolveAiSdkProviderDefinition } from '@/provider/providerRegistry'
 import type { DimCredential } from './modelCatalog'
 
 export interface DimOAuthConnection {
-  preset: 'openai-codex' | 'xai-grok'
+  preset: 'openai-chatgpt' | 'xai-grok'
   bearer: string
-  accountId?: string
   lease: string
 }
 
@@ -24,7 +22,7 @@ interface CredentialOptions {
   awsChain?: typeof fromNodeProviderChain
   now?: () => number
   vertexAuth?: (options: GoogleAuthOptions) => Pick<GoogleAuth, 'getAccessToken'>
-  codexAuth?: () => Pick<OpenAICodexAuth, 'getBackendAuth' | 'forceRefreshBackendAuth'>
+  chatgptAuth?: () => Pick<ChatGPTAuth, 'getAccessToken' | 'forceRefreshAccessToken'>
   grokAuth?: () => Pick<XaiGrokAuth, 'ensureAccessToken' | 'forceRefreshAccessToken'>
 }
 
@@ -46,8 +44,8 @@ export class DimProviderCredentials {
     signal.throwIfAborted()
     try {
       let credential: DimCredential
-      if (resolveAiSdkProviderDefinition(provider)?.runtimeKind === 'openai-codex') {
-        credential = (await this.codexConnection(signal)).bearer
+      if (isChatGPT(provider)) {
+        credential = (await this.chatgptConnection(signal)).bearer
       } else if (shouldUseXaiGrokOAuthFetch(provider)) {
         // The native connection host replaces this marker before any provider request.
         credential = provider.apiKey || 'deepchat-grok-admission-v1'
@@ -74,8 +72,7 @@ export class DimProviderCredentials {
     rejectedLease: string | undefined,
     signal: AbortSignal
   ) {
-    if (resolveAiSdkProviderDefinition(provider)?.runtimeKind === 'openai-codex')
-      return this.codexConnection(signal, rejectedLease)
+    if (isChatGPT(provider)) return this.chatgptConnection(signal, rejectedLease)
     if (shouldUseXaiGrokOAuthFetch(provider))
       return this.grokConnection(provider, signal, rejectedLease)
     return null
@@ -107,19 +104,21 @@ export class DimProviderCredentials {
   }
 
   /** The native recovery owner supplies a rejected lease only after an authorized 401. */
-  async codexConnection(signal: AbortSignal, rejectedLease?: string): Promise<DimOAuthConnection> {
+  async chatgptConnection(
+    signal: AbortSignal,
+    rejectedLease?: string
+  ): Promise<DimOAuthConnection> {
     signal.throwIfAborted()
-    const auth = (this.options.codexAuth ?? getGlobalOpenAICodexAuth)()
-    const credential = rejectedLease
-      ? await auth.forceRefreshBackendAuth(rejectedLease)
-      : await auth.getBackendAuth()
+    const auth = (this.options.chatgptAuth ?? getGlobalChatGPTAuth)()
+    const bearer = rejectedLease
+      ? await auth.forceRefreshAccessToken(rejectedLease)
+      : await auth.getAccessToken()
     signal.throwIfAborted()
-    if (!credential.accessToken) throw new Error('Provider credential is unavailable')
+    if (!bearer) throw new Error('Provider credential is unavailable')
     return {
-      preset: 'openai-codex',
-      bearer: credential.accessToken,
-      ...(credential.accountId ? { accountId: credential.accountId } : {}),
-      lease: createHash('sha256').update(credential.accessToken).digest('hex')
+      preset: 'openai-chatgpt',
+      bearer,
+      lease: createHash('sha256').update(bearer).digest('hex')
     }
   }
 
@@ -212,4 +211,8 @@ export class DimProviderCredentials {
       ...(value.sessionToken ? { sessionToken: value.sessionToken } : {})
     }
   }
+}
+
+function isChatGPT(provider: LLM_PROVIDER): boolean {
+  return provider.id === 'chatgpt' || provider.apiType === 'chatgpt'
 }

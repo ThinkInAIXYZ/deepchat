@@ -682,13 +682,13 @@ describe('CLI compute service', () => {
     [ModelType.VideoGeneration, videosGenerateRoute.name, 'generateVideoStandalone'],
     [ModelType.TTS, speechGenerateRoute.name, 'generateSpeechStandalone']
   ] as const)(
-    'reports expired Codex sign-in for %s without requesting retries',
+    'reports expired ChatGPT sign-in for %s without requesting retries',
     async (type, route, method) => {
       const media = await createMediaService(type, {
         [method]: vi.fn(async () => {
           throw new ProviderHttpError('private OAuth response', {
             statusCode: 400,
-            code: 'openai_codex_sign_in_required',
+            code: 'chatgpt_sign_in_required',
             retryable: false
           })
         })
@@ -708,7 +708,7 @@ describe('CLI compute service', () => {
         )
       ).rejects.toMatchObject({
         code: 'authentication_failed',
-        message: 'OpenAI Codex sign-in is required. Sign in again.',
+        message: 'ChatGPT sign-in is required. Reconnect ChatGPT in DeepChat.',
         retriable: false,
         options: { details: { providerFailure: { statusCode: 400, retryable: false } } }
       })

@@ -56,7 +56,10 @@
 
 2. 安装必要的开发工具:
 
-   - 安装 [Node.js](https://nodejs.org/) (推荐使用最新的 LTS 版本)
+   - 安装符合 [package.json](./package.json) 中 `engines` 范围的 Node.js 和 pnpm。
+     项目使用的 pnpm 版本由 `packageManager` 字段指定。
+   - 如果使用 mise，可在仓库根目录运行 `mise install`，安装
+     [mise.toml](./mise.toml) 中固定的版本。
 
 3. 根据您的操作系统进行额外设置:
 

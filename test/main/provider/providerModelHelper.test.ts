@@ -223,13 +223,13 @@ describe('ProviderModelHelper cache', () => {
       deleteModelStatus: vi.fn(),
       publishEvent: publishDeepchatEventMock
     })
-    const store = helper.getProviderModelStore('openai-codex')
+    const store = helper.getProviderModelStore('kimi-for-coding')
     store.set('models', [
       {
-        id: 'gpt-5.6-sol',
-        name: 'GPT-5.6 Sol',
-        group: 'Codex',
-        providerId: 'openai-codex',
+        id: 'kimi-for-coding',
+        name: 'Kimi For Coding',
+        group: 'Kimi Code',
+        providerId: 'kimi-for-coding',
         isCustom: false,
         contextLength: 16000,
         maxTokens: 4096,
@@ -240,17 +240,17 @@ describe('ProviderModelHelper cache', () => {
         selectableEndpointTypes: ['openai']
       }
     ])
-    const storeState = storeStates.get('models_openai-codex')!
+    const storeState = storeStates.get('models_kimi-for-coding')!
     storeState.set.mockClear()
 
-    const models = helper.getProviderModels('openai-codex')
+    const models = helper.getProviderModels('kimi-for-coding')
 
     expect(models).toEqual([
       {
-        id: 'gpt-5.6-sol',
-        name: 'GPT-5.6 Sol',
-        group: 'Codex',
-        providerId: 'openai-codex',
+        id: 'kimi-for-coding',
+        name: 'Kimi For Coding',
+        group: 'Kimi Code',
+        providerId: 'kimi-for-coding',
         isCustom: false
       }
     ])

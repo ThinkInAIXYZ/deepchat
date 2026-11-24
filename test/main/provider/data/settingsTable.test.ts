@@ -449,10 +449,10 @@ describeIfSqlite('ProviderSettingsTable', () => {
   it('migrates persisted provider projections without touching remote upstream facts', () => {
     const { db, table } = createTable()
     const catalogProjection = {
-      id: 'gpt-5.6-sol',
-      name: 'GPT-5.6 Sol',
-      group: 'Codex',
-      providerId: 'openai-codex',
+      id: 'kimi-for-coding',
+      name: 'Kimi For Coding',
+      group: 'Kimi Code',
+      providerId: 'kimi-for-coding',
       isCustom: false,
       contextLength: 16_000,
       maxTokens: 4096,
@@ -472,7 +472,7 @@ describeIfSqlite('ProviderSettingsTable', () => {
       maxTokens: 12_345,
       selectableEndpointTypes: ['openai']
     } as MODEL_META
-    table.replaceProviderModels('openai-codex', 'provider', [catalogProjection])
+    table.replaceProviderModels('kimi-for-coding', 'provider', [catalogProjection])
     table.replaceProviderModels('new-api', 'provider', [remoteFacts])
     const restoreLegacyProjection = db.prepare(
       `UPDATE provider_models
@@ -481,16 +481,18 @@ describeIfSqlite('ProviderSettingsTable', () => {
     )
     restoreLegacyProjection.run(
       JSON.stringify(catalogProjection),
-      'openai-codex',
+      'kimi-for-coding',
       catalogProjection.id
     )
     restoreLegacyProjection.run(JSON.stringify(remoteFacts), 'new-api', remoteFacts.id)
 
     expect(table.migrateProviderModelsToRawFacts()).toEqual({ scanned: 2, updated: 2 })
-    expect(table.listProviderModels('openai-codex', 'provider')[0]).not.toHaveProperty(
+    expect(table.listProviderModels('kimi-for-coding', 'provider')[0]).not.toHaveProperty(
       'contextLength'
     )
-    expect(table.listProviderModels('openai-codex', 'provider')[0]).not.toHaveProperty('maxTokens')
+    expect(table.listProviderModels('kimi-for-coding', 'provider')[0]).not.toHaveProperty(
+      'maxTokens'
+    )
     expect(table.listProviderModels('new-api', 'provider')[0]).toMatchObject({
       contextLength: 123_456,
       maxTokens: 12_345

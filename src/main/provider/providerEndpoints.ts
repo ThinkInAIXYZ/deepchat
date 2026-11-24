@@ -2,7 +2,6 @@ export type ProviderTransportKind =
   | 'openai-compatible'
   | 'openai-responses'
   | 'deepseek-open-responses'
-  | 'openai-codex'
   | 'azure'
   | 'anthropic'
   | 'gemini'

@@ -25,6 +25,7 @@ import {
 } from '@shared/modelConfigDefaults'
 import { DEFAULT_PROVIDERS } from '@/provider/defaults'
 import path from 'path'
+import { CHATGPT_PROVIDER_ID } from './auth/chatgpt/constants'
 import { app } from 'electron'
 import fs from 'fs'
 import { compare } from 'compare-versions'
@@ -91,7 +92,11 @@ const defaultProviders = DEFAULT_PROVIDERS.map((provider) => ({
 }))
 
 const PROVIDERS_STORE_KEY = 'providers'
-const DEPRECATED_BUILTIN_PROVIDER_IDS = ['qwenlm', 'laoshi'] as const
+const DEPRECATED_BUILTIN_PROVIDER_IDS = ['qwenlm', 'laoshi', 'openai-codex'] as const
+/** Settings flag: an upgraded user relied on the retired Codex sign-in and is owed one notice. */
+export const CODEX_RETIRED_NOTICE_PENDING_KEY = 'codexRetiredNoticePending'
+const CODEX_RETIREMENT_MIGRATION_KEY = 'codexRetirementMigrated'
+const LEGACY_CODEX_CREDENTIAL_DIR = 'openai-codex-auth'
 /** System One's endpoint, and the bare host a pre-change build persisted for it. */
 const TYPESAFE_SYSTEM_ONE_ENDPOINT = 'https://api.typesafe.ai/v1/systemone'
 const LEGACY_TYPESAFE_HOST = 'https://api.typesafe.ai'
@@ -435,6 +440,7 @@ export class ProviderSettings implements ProviderSettingsPort {
     this.migrateMinimaxProvider()
     this.migrateAnthropicProviderToApiOnly()
     this.migrateTypesafeSystemOneEndpoint()
+    this.retireOpenAICodex()
     this.cleanupDeprecatedBuiltinProviders()
 
     const existingProviders = this.getSetting<LLM_PROVIDER[]>(PROVIDERS_STORE_KEY) || []
@@ -608,6 +614,17 @@ export class ProviderSettings implements ProviderSettingsPort {
       snapshot.thinkingBudgetRange = {}
     }
     if (isTextOnlyInputProvider(providerId)) {
+      snapshot.supportsAudioInput = false
+    }
+    if (providerId === CHATGPT_PROVIDER_ID) {
+      // The ChatGPT plan's Responses preview rejects sampling overrides and hosted media tools;
+      // the native preset strips them, so the UI must not offer controls that cannot apply.
+      snapshot.requestPolicy = {
+        ...snapshot.requestPolicy,
+        temperature: { mode: 'omit' },
+        topP: { mode: 'omit' }
+      }
+      snapshot.mediaSettings = { image: false, video: false }
       snapshot.supportsAudioInput = false
     }
     if (
@@ -920,6 +937,73 @@ export class ProviderSettings implements ProviderSettingsPort {
 
       for (const key of keysToClear) {
         this.store.delete(key)
+      }
+    }
+  }
+
+  /**
+   * Codex sign-in is replaced by Sign in with ChatGPT. Record whether this user relied on it before
+   * the generic cleanup removes the provider, drop OpenAI's ChatGPT mode, and delete the old
+   * credentials locally. Runs once; the removal itself stays idempotent for imported settings.
+   */
+  private retireOpenAICodex(): void {
+    const providers = this.getProviders()
+    const legacyMode = (provider: LLM_PROVIDER) =>
+      Object.prototype.hasOwnProperty.call(provider, 'openaiAuthMode')
+    if (providers.some(legacyMode)) {
+      this.setProviders(
+        providers.map((provider) => {
+          if (!legacyMode(provider)) return provider
+          const next = { ...provider } as LLM_PROVIDER & { openaiAuthMode?: unknown }
+          // Without an API key the API mode left behind cannot run; existing sessions on it must
+          // not look runnable.
+          if (next.openaiAuthMode === 'chatgpt' && !next.apiKey?.trim()) next.enable = false
+          delete next.openaiAuthMode
+          return next
+        })
+      )
+    }
+    // OpenAI's ChatGPT mode ran on the retired Codex sign-in; its default, assistant, vision and
+    // preferred selections cannot run with the API key mode left behind, so clear them.
+    if (
+      providers.some(
+        (provider) =>
+          provider.id === 'openai' &&
+          (provider as LLM_PROVIDER & { openaiAuthMode?: unknown }).openaiAuthMode === 'chatgpt'
+      )
+    ) {
+      const keysToClear = getDeprecatedProviderModelSelectionKeysToClear(
+        Object.fromEntries(
+          DEPRECATED_PROVIDER_MODEL_SETTING_KEYS.map((key) => [
+            key,
+            this.store.get(key) as ModelSelection | undefined
+          ])
+        ),
+        ['openai']
+      )
+      for (const key of keysToClear) this.store.delete(key)
+    }
+    const credentialDir = path.join(this.userDataPath, LEGACY_CODEX_CREDENTIAL_DIR)
+    const credentialsPresent = fs.existsSync(credentialDir)
+    if (!this.getSetting<boolean>(CODEX_RETIREMENT_MIGRATION_KEY)) {
+      const affected =
+        credentialsPresent ||
+        providers.some(
+          (provider) =>
+            (provider.id === 'openai-codex' && provider.enable) ||
+            (provider.id === 'openai' &&
+              (provider as LLM_PROVIDER & { openaiAuthMode?: unknown }).openaiAuthMode ===
+                'chatgpt')
+        )
+      if (affected) this.setSetting(CODEX_RETIRED_NOTICE_PENDING_KEY, true)
+      this.setSetting(CODEX_RETIREMENT_MIGRATION_KEY, true)
+    }
+    // Deletion is retried on every start until it succeeds; the notice above is decided once.
+    if (credentialsPresent) {
+      try {
+        fs.rmSync(credentialDir, { recursive: true, force: true })
+      } catch (error) {
+        console.warn('[ProviderSettings] Failed to remove retired Codex credentials:', error)
       }
     }
   }

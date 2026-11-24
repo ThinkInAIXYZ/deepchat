@@ -468,17 +468,17 @@ const PROVIDER_DEFAULTS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
-    id: 'openai-codex',
-    name: 'OpenAI Codex',
-    apiType: 'openai-codex',
+    id: 'chatgpt',
+    name: 'ChatGPT',
+    apiType: 'chatgpt',
     apiKey: '',
-    baseUrl: 'https://chatgpt.com/backend-api/codex',
+    baseUrl: 'https://api.openai.com/v1',
     enable: false,
     websites: {
-      official: 'https://developers.openai.com/codex',
-      apiKey: 'https://chatgpt.com/codex',
-      docs: 'https://developers.openai.com/codex/auth',
-      models: 'https://developers.openai.com/codex/models'
+      official: 'https://chatgpt.com/',
+      apiKey: 'https://chatgpt.com/settings/usage',
+      docs: 'https://developers.openai.com/siwc',
+      models: 'https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference'
     }
   },
   {
@@ -802,6 +802,20 @@ const PROVIDER_DEFAULTS: LLM_PROVIDER_BASE[] = [
       apiKey: 'https://console.cheapaimodel.ai/keys?utm_source=deepchat',
       docs: 'https://cheapaimodel.ai/docs?utm_source=deepchat',
       models: 'https://cheapaimodel.ai/models?utm_source=deepchat'
+    }
+  },
+  {
+    id: 'onomeo',
+    name: 'onomeo',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://onomeo.com/v1',
+    enable: false,
+    websites: {
+      official: 'https://onomeo.com/?utm_source=deepchat',
+      apiKey: 'https://onomeo.com/dashboard?utm_source=deepchat',
+      docs: 'https://onomeo.com/integrations?utm_source=deepchat',
+      models: 'https://onomeo.com/models?utm_source=deepchat'
     }
   },
   {

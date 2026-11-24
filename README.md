@@ -481,6 +481,12 @@ Common commands include `/start`, `/help`, `/pair`, `/new`, `/sessions`, `/use`,
       <a href="https://aigrow.gg/ai-api">AIGROW</a>
     </td>
   </tr>
+  <tr align="center">
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/onomeo.svg" width="50" height="50" alt="onomeo Icon"><br/>
+      <a href="https://onomeo.com/?utm_source=deepchat">onomeo</a>
+    </td>
+  </tr>
 
 </table>
 

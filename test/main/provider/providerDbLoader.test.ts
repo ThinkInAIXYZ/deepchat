@@ -186,54 +186,6 @@ describe('ProviderDbLoader', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('fills missing curated Codex records from the bundle while keeping cached metadata', async () => {
-    const cachedSol = { id: 'gpt-6.1-sol', display_name: 'Cached Sol', tool_call: false }
-    const bundledAstra = {
-      id: 'gpt-6.2-astra',
-      display_name: 'Bundled Astra',
-      limit: { context: 272000 },
-      tool_call: true
-    }
-    writeBuiltInDb({
-      providers: {
-        openai: {
-          id: 'openai',
-          models: [
-            { id: 'gpt-6.1-sol', display_name: 'Bundled Sol', tool_call: true },
-            bundledAstra,
-            { id: 'gpt-4o' }
-          ]
-        }
-      }
-    })
-    writeCachedDb({ providers: { openai: { id: 'openai', models: [cachedSol] } } })
-    const fetchMock = vi.fn()
-    vi.stubGlobal('fetch', fetchMock)
-
-    const ProviderDbLoader = await importLoader()
-    const loader = new ProviderDbLoader()
-    loader.setPrivacyModeResolver(() => true)
-    await loader.initialize()
-
-    expect(loader.getProvider('openai-codex')?.models.map(({ id }) => id)).toEqual([
-      'gpt-6.1-sol',
-      'gpt-6.2-astra'
-    ])
-    expect(loader.getModel('openai-codex', cachedSol.id)).toMatchObject(cachedSol)
-    expect(loader.getModel('openai-codex', bundledAstra.id)).toMatchObject(bundledAstra)
-    expect(fetchMock).not.toHaveBeenCalled()
-
-    const remoteSol = { ...cachedSol, display_name: 'Refreshed Sol' }
-    const remote = { providers: { openai: { id: 'openai', models: [remoteSol] } } }
-    fetchMock.mockResolvedValue(new Response(JSON.stringify(remote)))
-    await expect(loader.refreshIfNeeded(true)).resolves.toMatchObject({ status: 'updated' })
-    expect(loader.getModel('openai-codex', remoteSol.id)).toMatchObject(remoteSol)
-    expect(loader.getModel('openai-codex', bundledAstra.id)).toMatchObject(bundledAstra)
-    expect(JSON.parse(fs.readFileSync(getCacheFile(), 'utf-8')).providers.openai.models).toEqual([
-      remoteSol
-    ])
-  })
-
   it('skips non-forced refreshes within the default 4-hour TTL', async () => {
     writeCachedDb(createAggregate(['openai']))
     const now = Date.now()

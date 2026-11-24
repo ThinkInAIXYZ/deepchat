@@ -1,0 +1,38 @@
+{
+  "continue": "ادامه با ChatGPT",
+  "opening": "در حال باز کردن ChatGPT…",
+  "connected": "به ChatGPT متصل است",
+  "connectedAs": "متصل با {email}",
+  "planEnabled": "استفاده از طرح ChatGPT فعال است",
+  "manageUsage": "مدیریت مصرف",
+  "signOut": "خروج",
+  "offerTitle": "از طرح ChatGPT خود استفاده کنید",
+  "offerDescription": "درخواست‌های هوش مصنوعی واجد شرایط در DeepChat از سهمیهٔ طرح ChatGPT یا موجودی اعتبار شما استفاده می‌کنند. این جدا از صورتحساب کلید API است.",
+  "planDisabled": "وارد شده‌اید، اما استفاده از طرح ChatGPT مجاز نشده است. برای اجازه دادن به DeepChat برای استفاده از طرح خود، با ChatGPT ادامه دهید.",
+  "reauthRequired": "ورود ChatGPT شما منقضی شده است. برای اتصال دوباره با ChatGPT ادامه دهید.",
+  "waiting": "در انتظار مجوز در مرورگر…",
+  "reopenBrowser": "باز کردن دوبارهٔ مرورگر",
+  "revocationUnconfirmed": "به‌صورت محلی خارج شدید. لغو از راه دور تأیید نشد؛ DeepChat را در تنظیمات ChatGPT قطع کنید.",
+  "startChatting": "شروع گفتگو",
+  "signInFailed": "ورود با ChatGPT ممکن نشد. دوباره تلاش کنید.",
+  "welcomeHint": "از طرح ChatGPT خود استفاده کنید. بدون نیاز به کلید API.",
+  "orAddProvider": "یا یک ارائه‌دهنده اضافه کنید",
+  "codexRetiredTitle": "ورود OpenAI Codex متوقف شده است",
+  "codexRetiredDescription": "DeepChat اکنون از Sign in with ChatGPT رسمی پشتیبانی می‌کند. برای ادامهٔ استفاده از طرح ChatGPT دوباره متصل شوید. گفتگوهای شما حفظ می‌شوند.",
+  "later": "بعداً",
+  "reconnect": "اتصال دوباره به ChatGPT",
+  "recovery": {
+    "usageLimit": {
+      "title": "به سقف مصرف رسیدید",
+      "description": "طرح خود یا سقف DeepChat را در تنظیمات ChatGPT بررسی کنید."
+    },
+    "notEligible": {
+      "title": "طرح ChatGPT در دسترس نیست",
+      "description": "استفاده از طرح ChatGPT برای این حساب یا فضای کاری در دسترس نیست."
+    },
+    "reconnect": {
+      "title": "دوباره وارد شوید",
+      "description": "برای ادامهٔ این گفتگو دوباره به ChatGPT متصل شوید."
+    }
+  }
+}

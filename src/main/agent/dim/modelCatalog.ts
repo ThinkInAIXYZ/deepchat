@@ -21,7 +21,7 @@ import { resolveAiSdkProviderDefinition } from '@/provider/providerRegistry'
 import { resolveProviderTransport } from '@/provider/providerTransport'
 import { GITHUB_COPILOT_CHAT_HEADERS } from '@/provider/auth/githubCopilotProtocol'
 import { resolveVertexSettings } from '@/provider/vertexSettings'
-import { normalizeOpenAICodexBaseUrl } from '@/provider/openaiCodexAdapter'
+import { CHATGPT_API_BASE_URL } from '@/provider/auth/chatgpt/constants'
 import {
   normalizeAnthropicBaseUrl,
   normalizeAzureBaseUrl,
@@ -159,6 +159,14 @@ export class DimModelCatalog {
     return options?.session
       ? this.configureForSession(providerId, modelId, options, false)
       : this.configure(providerId, modelId, options, false)
+  }
+
+  /** Drop explicit caller overrides the provider rejects, after they are merged over defaults. */
+  restrictParameters(providerId: string, parameters: DimModelParameters): DimModelParameters {
+    const provider = this.options.settings.getProviderById(providerId)
+    if (!provider || !isChatGPT(provider)) return parameters
+    const { temperature: _temperature, topP: _topP, maxTokens: _maxTokens, ...rest } = parameters
+    return rest
   }
 
   parameters(providerId: string, modelId: string, settings: GenerationParameters) {
@@ -420,7 +428,6 @@ export class DimModelCatalog {
       id: provider.id,
       apiType: provider.apiType,
       baseUrl: provider.baseUrl,
-      openaiAuthMode: provider.openaiAuthMode ?? 'api-key',
       anonymous: isAnonymous(provider),
       copilotClientId: provider.copilotClientId ?? '',
       ...(isVertex(provider) ? { vertex: resolveVertexSettings(provider as VERTEX_PROVIDER) } : {}),
@@ -438,8 +445,8 @@ export class DimModelCatalog {
   }
 
   private credentialReference(provider: LLM_PROVIDER): string {
-    if (resolveAiSdkProviderDefinition(provider)?.runtimeKind === 'openai-codex')
-      return `deepchat/codex/v1/${encodeURIComponent(provider.id)}/${fingerprint(this.credentialScope(provider))}`
+    if (isChatGPT(provider))
+      return `deepchat/chatgpt/v1/${encodeURIComponent(provider.id)}/${fingerprint(this.credentialScope(provider))}`
     if (shouldUseXaiGrokOAuthFetch(provider))
       return `deepchat/grok/v1/${encodeURIComponent(provider.id)}/${fingerprint(this.credentialScope(provider))}`
     return isBedrock(provider) || isCopilot(provider) || isVertex(provider)
@@ -481,8 +488,7 @@ export class DimModelCatalog {
       gemini: 'gemini',
       azure: 'azure-openai',
       'aws-bedrock': 'amazon-bedrock',
-      vertex: 'gemini',
-      'openai-codex': 'openai-responses'
+      vertex: 'gemini'
     }[kind]
     const auth: JsonObject = anonymous
       ? { type: 'anonymous' }
@@ -507,7 +513,8 @@ export class DimModelCatalog {
           ? 'https://dev.voice.ai'
           : '')
     ).replace(/\/+$/, '')
-    if (kind === 'openai-codex') baseUrl = normalizeOpenAICodexBaseUrl(provider.baseUrl)
+    // The plan grant is issued for this resource only; the profile's base URL is not consulted.
+    if (isChatGPT(provider)) baseUrl = CHATGPT_API_BASE_URL
     if (kind === 'gemini') baseUrl = normalizeGeminiBaseUrl(provider.baseUrl)
     if (kind === 'anthropic' && !baseUrl.endsWith('/messages'))
       baseUrl = normalizeAnthropicBaseUrl(provider.baseUrl)
@@ -556,10 +563,12 @@ export class DimModelCatalog {
         ...definition?.defaultHeadersPatch,
         ...(copilot ? GITHUB_COPILOT_CHAT_HEADERS : {}),
         ...Object.fromEntries(
-          Object.entries(provider.customHeaders ?? {}).map(([name, value]) => [
-            name,
-            value ? `deepchat-header-ref:v1:${headerReference(provider.id, name, value)}` : ''
-          ])
+          Object.entries(isChatGPT(provider) ? {} : (provider.customHeaders ?? {})).map(
+            ([name, value]) => [
+              name,
+              value ? `deepchat-header-ref:v1:${headerReference(provider.id, name, value)}` : ''
+            ]
+          )
         )
       },
       ...(config.timeout && config.timeout > 0 ? { network: { timeoutMs: config.timeout } } : {})
@@ -567,6 +576,9 @@ export class DimModelCatalog {
   }
 }
 
+function isChatGPT(provider: LLM_PROVIDER): boolean {
+  return provider.id === 'chatgpt' || provider.apiType === 'chatgpt'
+}
 function isBedrock(provider: LLM_PROVIDER): boolean {
   return provider.apiType === 'aws-bedrock' || provider.id === 'aws-bedrock'
 }
@@ -593,7 +605,7 @@ function isOllama(provider: LLM_PROVIDER): boolean {
 function isAnonymous(provider: LLM_PROVIDER): boolean {
   return (
     !provider.apiKey &&
-    provider.openaiAuthMode !== 'chatgpt' &&
+    !isChatGPT(provider) &&
     !shouldUseXaiGrokOAuthFetch(provider) &&
     (isOllama(provider) ||
       ['openai', 'openai-completions', 'openai-responses'].includes(provider.apiType ?? 'openai'))
@@ -644,6 +656,8 @@ type ReasoningContext = {
   providerKind: string
   modelId?: string
   providerId?: string
+  /** Set from the provider with the same rule connection selection uses. */
+  chatgptPlan?: boolean
   reasoningPortrait?: ReasoningPortrait | null
 }
 
@@ -675,6 +689,7 @@ export function dimReasoningContext(
     providerKind,
     providerId,
     modelId,
+    ...(provider && isChatGPT(provider) ? { chatgptPlan: true } : {}),
     reasoningPortrait:
       providerKind === 'anthropic' || providerKind === 'gemini' || providerKind === 'vertex'
         ? catalog.getCapabilitySnapshot({ providerId, modelId, resolvedModelConfig: modelConfig })
@@ -685,13 +700,17 @@ export function dimReasoningContext(
 
 export function dimModelParameters(
   settings: GenerationParameters,
-  { providerKind, modelId, reasoningPortrait }: ReasoningContext
+  { providerKind, modelId, chatgptPlan, reasoningPortrait }: ReasoningContext
 ): DimModelParameters {
-  const parameters = {
-    temperature: settings.temperature,
-    ...(settings.topP === undefined ? {} : { topP: settings.topP }),
-    maxTokens: settings.maxTokens
-  }
+  // The ChatGPT plan's Responses preview rejects sampling and output-limit overrides
+  // (`Unsupported model parameter: temperature`); send none of them for that provider.
+  const parameters = chatgptPlan
+    ? {}
+    : {
+        temperature: settings.temperature,
+        ...(settings.topP === undefined ? {} : { topP: settings.topP }),
+        maxTokens: settings.maxTokens
+      }
   const { reasoningEffort: effort, reasoningVisibility, thinkingBudget: budget } = settings
   if (providerKind === 'anthropic') {
     const miniMax = /^minimax-m3(?:[.-]|$)/.test(getUnqualifiedModelId(modelId))

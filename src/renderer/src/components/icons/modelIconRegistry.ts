@@ -28,7 +28,7 @@ import qingyanColorIcon from '@/assets/llm-icons/qingyan-color.svg?url'
 import qwenColorIcon from '@/assets/llm-icons/qwen-color.svg?url'
 import deepseekColorIcon from '@/assets/llm-icons/deepseek-color.svg?url'
 import openaiColorIcon from '@/assets/llm-icons/openai.svg?url'
-import openaiCodexColorIcon from '@/assets/llm-icons/openai-codex.svg?url'
+import chatgptColorIcon from '@/assets/llm-icons/chatgpt.svg?url'
 import ollamaColorIcon from '@/assets/llm-icons/ollama.svg?url'
 import doubaoColorIcon from '@/assets/llm-icons/doubao-color.svg?url'
 import dimcodeColorIcon from '@/assets/llm-icons/dimcode.svg?url'
@@ -63,6 +63,7 @@ import wallyColorIcon from '@/assets/llm-icons/wally-color.svg?url'
 import uberllmColorIcon from '@/assets/llm-icons/uberllm-color.svg?url'
 import wiroIcon from '@/assets/llm-icons/wiro.svg?url'
 import cheapaimodelIcon from '@/assets/llm-icons/cheapaimodel.svg?url'
+import onomeoIcon from '@/assets/llm-icons/onomeo.svg?url'
 import obscurifyIcon from '@/assets/llm-icons/obscurify.svg?url'
 import demonrouteColorIcon from '@/assets/llm-icons/demonroute.svg?url'
 import orcarouterColorIcon from '@/assets/llm-icons/orcarouter.svg?url'
@@ -125,7 +126,7 @@ export const modelIcons = {
   'claude-acp': claudeColorIcon,
   'claude-code-acp': claudeColorIcon,
   'codex-acp': openaiColorIcon,
-  'openai-codex': openaiCodexColorIcon,
+  chatgpt: chatgptColorIcon,
   dimcode: dimcodeColorIcon,
   'dimcode-acp': dimcodeColorIcon,
   o3fan: o3fanColorIcon,
@@ -227,6 +228,7 @@ export const modelIcons = {
   uberllm: uberllmColorIcon,
   wiro: wiroIcon,
   cheapaimodel: cheapaimodelIcon,
+  onomeo: onomeoIcon,
   obscurify: obscurifyIcon,
   demonroute: demonrouteColorIcon,
   orcarouter: orcarouterColorIcon,
@@ -295,7 +297,7 @@ export const resolveModelIconKey = (source: string | undefined): ModelIconKey | 
 
 const monoIconUrls = new Set<string>([
   openaiColorIcon,
-  openaiCodexColorIcon,
+  chatgptColorIcon,
   dimcodeColorIcon,
   ollamaColorIcon,
   zerooneColorIcon,

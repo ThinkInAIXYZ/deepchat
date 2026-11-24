@@ -1311,30 +1311,30 @@ describe('ModelConfigDialog OpenAI image generation settings', () => {
     )
   })
 
-  it.each([
-    { providerId: 'openai', providerApiType: 'openai' },
-    { providerId: 'openai-codex', providerApiType: 'openai-codex' }
-  ])('uses the image settings form for gpt-image-2 on $providerId', async (provider) => {
-    const { wrapper } = await setup({
-      mediaSettings: { image: true, video: false },
-      providerId: provider.providerId,
-      modelId: 'gpt-image-2',
-      modelName: 'GPT Image 2',
-      providerApiType: provider.providerApiType,
-      modelConfig: {
-        imageGeneration: {
-          size: '1024x1024'
+  it.each([{ providerId: 'openai', providerApiType: 'openai' }])(
+    'uses the image settings form for gpt-image-2 on $providerId',
+    async (provider) => {
+      const { wrapper } = await setup({
+        mediaSettings: { image: true, video: false },
+        providerId: provider.providerId,
+        modelId: 'gpt-image-2',
+        modelName: 'GPT Image 2',
+        providerApiType: provider.providerApiType,
+        modelConfig: {
+          imageGeneration: {
+            size: '1024x1024'
+          }
         }
-      }
-    })
+      })
 
-    expect((wrapper.vm as any).showOpenAIImageGenerationSettings).toBe(true)
-    expect(wrapper.text()).toContain('settings.model.modelConfig.imageGeneration.size.label')
-    expect(wrapper.text()).toContain('settings.model.modelConfig.timeout.label')
-    expect(wrapper.text()).not.toContain('settings.model.modelConfig.contextLength.label')
-    expect(wrapper.text()).not.toContain('settings.model.modelConfig.maxTokens.label')
-    expect(wrapper.text()).not.toContain('settings.model.modelConfig.interleavedThinking.label')
-  })
+      expect((wrapper.vm as any).showOpenAIImageGenerationSettings).toBe(true)
+      expect(wrapper.text()).toContain('settings.model.modelConfig.imageGeneration.size.label')
+      expect(wrapper.text()).toContain('settings.model.modelConfig.timeout.label')
+      expect(wrapper.text()).not.toContain('settings.model.modelConfig.contextLength.label')
+      expect(wrapper.text()).not.toContain('settings.model.modelConfig.maxTokens.label')
+      expect(wrapper.text()).not.toContain('settings.model.modelConfig.interleavedThinking.label')
+    }
+  )
 
   it('keeps ordinary OpenAI chat models on the generic model form', async () => {
     const { wrapper } = await setup({
@@ -1355,47 +1355,47 @@ describe('ModelConfigDialog OpenAI image generation settings', () => {
     expect(wrapper.text()).toContain('settings.model.modelConfig.maxTokens.label')
   })
 
-  it.each([
-    { providerId: 'openai', providerApiType: 'openai' },
-    { providerId: 'openai-codex', providerApiType: 'openai-codex' }
-  ])('saves normalized image settings for gpt-image-2 on $providerId', async (provider) => {
-    const { wrapper, modelConfigStore } = await setup({
-      mediaSettings: { image: true, video: false },
-      providerId: provider.providerId,
-      modelId: 'gpt-image-2',
-      modelName: 'GPT Image 2',
-      providerApiType: provider.providerApiType,
-      modelConfig: {
-        topP: 0.4
-      }
-    })
-
-    ;(wrapper.vm as any).config.imageGeneration = {
-      size: '1792x1024',
-      quality: 'high',
-      outputFormat: 'jpeg',
-      outputCompression: 80,
-      background: 'opaque',
-      moderation: 'low'
-    }
-    await (wrapper.vm as any).handleSave()
-
-    expect(modelConfigStore.setModelConfig).toHaveBeenCalledWith(
-      'gpt-image-2',
-      provider.providerId,
-      expect.objectContaining({
-        topP: 0.4,
-        imageGeneration: {
-          size: '1792x1024',
-          quality: 'high',
-          outputFormat: 'jpeg',
-          outputCompression: 80,
-          background: 'opaque',
-          moderation: 'low'
+  it.each([{ providerId: 'openai', providerApiType: 'openai' }])(
+    'saves normalized image settings for gpt-image-2 on $providerId',
+    async (provider) => {
+      const { wrapper, modelConfigStore } = await setup({
+        mediaSettings: { image: true, video: false },
+        providerId: provider.providerId,
+        modelId: 'gpt-image-2',
+        modelName: 'GPT Image 2',
+        providerApiType: provider.providerApiType,
+        modelConfig: {
+          topP: 0.4
         }
       })
-    )
-  })
+
+      ;(wrapper.vm as any).config.imageGeneration = {
+        size: '1792x1024',
+        quality: 'high',
+        outputFormat: 'jpeg',
+        outputCompression: 80,
+        background: 'opaque',
+        moderation: 'low'
+      }
+      await (wrapper.vm as any).handleSave()
+
+      expect(modelConfigStore.setModelConfig).toHaveBeenCalledWith(
+        'gpt-image-2',
+        provider.providerId,
+        expect.objectContaining({
+          topP: 0.4,
+          imageGeneration: {
+            size: '1792x1024',
+            quality: 'high',
+            outputFormat: 'jpeg',
+            outputCompression: 80,
+            background: 'opaque',
+            moderation: 'low'
+          }
+        })
+      )
+    }
+  )
 })
 
 describe('ModelConfigDialog new-api endpoint normalization', () => {

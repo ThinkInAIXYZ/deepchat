@@ -1,9 +1,9 @@
 import { z } from 'zod'
 import { EntityIdSchema, defineRouteContract } from '../common'
-import type { OpenAICodexAuthStatus } from '../../types/openai-codex'
+import type { ChatGPTAuthStatus } from '../../types/chatgpt'
 import type { XaiGrokAuthStatus } from '../../types/xai-grok'
 
-export type { OpenAICodexAuthStatus } from '../../types/openai-codex'
+export type { ChatGPTAuthStatus, ChatGPTLogoutResult } from '../../types/chatgpt'
 export type { XaiGrokAuthStatus } from '../../types/xai-grok'
 
 const OAuthProviderIdSchema = EntityIdSchema
@@ -12,19 +12,26 @@ const OAuthLoginResultSchema = z.object({
   success: z.boolean()
 })
 
-export const OpenAICodexAuthStatusSchema: z.ZodType<OpenAICodexAuthStatus> = z.object({
-  state: z.enum(['disabled', 'signed-out', 'pending-browser', 'authenticated', 'error']),
-  authenticated: z.boolean(),
-  accountId: z.string().optional(),
-  accountLabel: z.string().optional(),
-  planType: z.string().optional(),
-  expiresAt: z.number().optional(),
+export const ChatGPTAuthStatusSchema: z.ZodType<ChatGPTAuthStatus> = z.object({
+  state: z.enum([
+    'signed-out',
+    'pending-browser',
+    'authenticated',
+    'plan-disabled',
+    'reauth-required',
+    'error'
+  ]),
+  email: z.string().optional(),
+  planUsageEnabled: z.boolean(),
   storage: z.enum(['safeStorage', 'file', 'none']),
-  error: z.string().optional()
+  error: z.string().optional(),
+  notices: z.object({
+    codexRetired: z.boolean()
+  })
 })
 
-const OpenAICodexStatusResultSchema = z.object({
-  status: OpenAICodexAuthStatusSchema
+const ChatGPTStatusResultSchema = z.object({
+  status: ChatGPTAuthStatusSchema
 })
 
 export const XaiGrokAuthStatusSchema: z.ZodType<XaiGrokAuthStatus> = z.object({
@@ -60,36 +67,47 @@ export const oauthGithubCopilotStartDeviceFlowLoginRoute = defineRouteContract({
   output: OAuthLoginResultSchema
 })
 
-export const oauthOpenAICodexGetStatusRoute = defineRouteContract({
-  name: 'oauth.openaiCodex.getStatus',
+export const oauthChatGPTGetStatusRoute = defineRouteContract({
+  name: 'oauth.chatgpt.getStatus',
   input: z.object({}),
-  output: OpenAICodexStatusResultSchema
+  output: ChatGPTStatusResultSchema
 })
 
-export const oauthOpenAICodexStartBrowserLoginRoute = defineRouteContract({
-  name: 'oauth.openaiCodex.startBrowserLogin',
-  input: z.object({}),
-  output: OpenAICodexStatusResultSchema
-})
-
-export const oauthOpenAICodexCompleteBrowserLoginFromUrlRoute = defineRouteContract({
-  name: 'oauth.openaiCodex.completeBrowserLoginFromUrl',
+export const oauthChatGPTStartLoginRoute = defineRouteContract({
+  name: 'oauth.chatgpt.startLogin',
   input: z.object({
-    callbackUrl: z.url()
+    requestPlanConsent: z.boolean().optional()
   }),
-  output: OpenAICodexStatusResultSchema
+  output: ChatGPTStatusResultSchema
 })
 
-export const oauthOpenAICodexCancelLoginRoute = defineRouteContract({
-  name: 'oauth.openaiCodex.cancelLogin',
+export const oauthChatGPTReopenBrowserRoute = defineRouteContract({
+  name: 'oauth.chatgpt.reopenBrowser',
   input: z.object({}),
-  output: OpenAICodexStatusResultSchema
+  output: ChatGPTStatusResultSchema
 })
 
-export const oauthOpenAICodexLogoutRoute = defineRouteContract({
-  name: 'oauth.openaiCodex.logout',
+export const oauthChatGPTCancelLoginRoute = defineRouteContract({
+  name: 'oauth.chatgpt.cancelLogin',
   input: z.object({}),
-  output: OpenAICodexStatusResultSchema
+  output: ChatGPTStatusResultSchema
+})
+
+export const oauthChatGPTLogoutRoute = defineRouteContract({
+  name: 'oauth.chatgpt.logout',
+  input: z.object({}),
+  output: z.object({
+    status: ChatGPTAuthStatusSchema,
+    revocationConfirmed: z.boolean()
+  })
+})
+
+export const oauthChatGPTDismissNoticeRoute = defineRouteContract({
+  name: 'oauth.chatgpt.dismissNotice',
+  input: z.object({
+    notice: z.enum(['codexRetired'])
+  }),
+  output: ChatGPTStatusResultSchema
 })
 
 export const oauthXaiGrokGetStatusRoute = defineRouteContract({

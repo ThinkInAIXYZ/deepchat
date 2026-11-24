@@ -56,7 +56,11 @@ We use GitHub to host code, to track issues and feature requests, as well as acc
 
 2. Install required development tools:
 
-   - Install [Node.js](https://nodejs.org/) (Latest LTS version recommended)
+   - Install Node.js and pnpm versions that satisfy the `engines` ranges in
+     [package.json](./package.json). The `packageManager` field pins the pnpm version used by
+     the project.
+   - If you use mise, run `mise install` at the repository root to install the exact versions
+     pinned in [mise.toml](./mise.toml).
 
 3. Additional setup based on your operating system:
 

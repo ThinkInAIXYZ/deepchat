@@ -19,6 +19,7 @@ import promptSetting from './promptSetting.json'
 import traceDialog from './traceDialog.json'
 import tapeInspector from './tapeInspector.json'
 import plan from './plan.json'
+import chatgpt from './chatgpt.json'
 // 单独的顶层键
 const others = {
   Silicon: '矽基流動',
@@ -55,5 +56,6 @@ export default {
   traceDialog,
   tapeInspector,
   plan,
+  chatgpt,
   ...others
 }
