@@ -804,7 +804,10 @@
                         </p>
                       </div>
 
-                      <div v-if="!showOpenAIMediaGenerationSettings" class="space-y-1.5">
+                      <div
+                        v-if="!showOpenAIMediaGenerationSettings && !usesChatGPTPlan"
+                        class="space-y-1.5"
+                      >
                         <label class="text-xs font-medium">{{
                           t('chat.advancedSettings.maxTokens')
                         }}</label>
@@ -1642,6 +1645,20 @@ const showModelPopover = computed(
 const activeSessionSelection = computed<ModelSelection | null>(() => {
   const active = sessionStore.activeSession
   if (!active?.providerId || !active?.modelId) return null
+  // A session whose provider was retired (for example OpenAI Codex) or whose model is no longer
+  // enabled has no model until the user chooses one; showing it would suggest it can still run.
+  if (active.providerId !== 'acp') {
+    if (
+      providerStore.initialized &&
+      !providerStore.providers.some((provider) => provider.id === active.providerId)
+    )
+      return null
+    if (
+      modelStore.initialized &&
+      !modelStore.findChatSelectableModel(active.providerId, active.modelId)
+    )
+      return null
+  }
   return {
     providerId: active.providerId,
     modelId: active.modelId
@@ -1661,6 +1678,8 @@ const effectiveModelSelection = computed<ModelSelection | null>(() => {
   return draftModelSelection.value
 })
 
+// The ChatGPT plan's Responses preview has no output-limit override; none is sent for it.
+const usesChatGPTPlan = computed(() => effectiveModelSelection.value?.providerId === 'chatgpt')
 const temperatureControl = modelCapabilities.temperatureControl
 const topPControl = modelCapabilities.topPControl
 const isTemperatureFixed = computed(() => temperatureControl.value.mode === 'fixed')
@@ -1819,7 +1838,7 @@ const resolveModelIconId = (providerId?: string | null, modelId?: string | null)
   // ModelIcon accepts registry keys as well as provider and Agent IDs.
   const modelIcon = resolveModelIconKey(modelId?.split('/').at(-1))
   if (modelIcon) return modelIcon
-  return providerId || 'anthropic'
+  return providerId || ''
 }
 
 const {
@@ -2126,8 +2145,8 @@ const isGenerationSettingsReady = computed(() => {
 const displayIconId = computed(() => {
   if (hasActiveSession.value) {
     return resolveModelIconId(
-      activeSessionSelection.value?.providerId || draftModelSelection.value?.providerId,
-      activeSessionSelection.value?.modelId || draftModelSelection.value?.modelId
+      activeSessionSelection.value?.providerId,
+      activeSessionSelection.value?.modelId
     )
   }
   if (isAcpAgent.value) {
@@ -2147,7 +2166,7 @@ const displayModelText = computed(() => {
     return acpAgentLabel.value
   }
   if (hasActiveSession.value) {
-    const selection = activeSessionSelection.value ?? draftModelSelection.value
+    const selection = activeSessionSelection.value
     if (selection?.modelId) {
       return selection.modelId
     }
@@ -2921,7 +2940,8 @@ const commitNumericField = (
 
   const error = validateGenerationNumericField(field, rawValue, {
     contextLength: localSettings.value.contextLength,
-    maxTokens: localSettings.value.maxTokens,
+    // The ChatGPT plan hides max tokens; a lower context length clamps it instead.
+    maxTokens: usesChatGPTPlan.value ? undefined : localSettings.value.maxTokens,
     thinkingBudgetRange: modelCapabilities.budgetRange.value ?? undefined
   })
   if (error) {
@@ -3056,8 +3076,15 @@ function stepContextLength(direction: -1 | 1) {
   if (committed === undefined) {
     return
   }
-  updateLocalGenerationSettings({ contextLength: committed })
+  updateLocalGenerationSettings(contextLengthPatch(committed))
   resetNumericInputFieldState('contextLength')
+}
+
+function contextLengthPatch(contextLength: number): Partial<SessionGenerationSettings> {
+  const maxTokens = localSettings.value?.maxTokens
+  return usesChatGPTPlan.value && maxTokens !== undefined && maxTokens > contextLength
+    ? { contextLength, maxTokens: contextLength }
+    : { contextLength }
 }
 
 function onContextLengthInput(value: string | number) {
@@ -3069,7 +3096,7 @@ function commitContextLengthInput() {
   if (next === undefined) {
     return
   }
-  updateLocalGenerationSettings({ contextLength: next })
+  updateLocalGenerationSettings(contextLengthPatch(next))
   resetNumericInputFieldState('contextLength')
 }
 

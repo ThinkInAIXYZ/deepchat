@@ -131,7 +131,11 @@
                 :message-id="currentMessage.id"
                 :thread-id="currentThreadId"
               />
-              <MessageBlockError v-else-if="item.block.type === 'error'" :block="item.block" />
+              <MessageBlockError
+                v-else-if="item.block.type === 'error'"
+                :block="item.block"
+                :provider-id="currentMessage.model_provider"
+              />
             </template>
             <MessageBlockGuardStop
               v-if="guardStopReason"

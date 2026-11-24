@@ -18,8 +18,8 @@ vi.mock('@/provider/auth/githubCopilotOAuth', () => ({
     exchangeCodeForToken: mocks.exchangeCodeForToken
   })
 }))
-vi.mock('@/provider/auth/openaiCodex', () => ({
-  initializeGlobalOpenAICodexAuth: vi.fn()
+vi.mock('@/provider/auth/chatgpt', () => ({
+  initializeGlobalChatGPTAuth: vi.fn()
 }))
 vi.mock('@/provider/auth/xaiGrok', () => ({
   initializeGlobalXaiGrokAuth: vi.fn()

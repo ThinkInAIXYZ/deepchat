@@ -1301,6 +1301,42 @@ declare module 'vue-i18n' {
       parentRun: string
       contextWindow: string
     }
+    continue: string
+    opening: string
+    connected: string
+    connectedAs: string
+    planEnabled: string
+    manageUsage: string
+    signOut: string
+    offerTitle: string
+    offerDescription: string
+    planDisabled: string
+    reauthRequired: string
+    waiting: string
+    reopenBrowser: string
+    revocationUnconfirmed: string
+    startChatting: string
+    signInFailed: string
+    welcomeHint: string
+    orAddProvider: string
+    codexRetiredTitle: string
+    codexRetiredDescription: string
+    later: string
+    reconnect: string
+    recovery: {
+      usageLimit: {
+        title: string
+        description: string
+      }
+      notEligible: {
+        title: string
+        description: string
+      }
+      reconnect: {
+        title: string
+        description: string
+      }
+    }
     skipToContent: string
     notifications: {
       label: string
@@ -2434,7 +2470,6 @@ declare module 'vue-i18n' {
       permissionDefault: string
       defaultToolMode: string
       defaultToolModeModelDefaultDesc: string
-      defaultToolModeCodePermissionHint: string
       subagentsTitle: string
       subagentsDescription: string
       subagentsEnabled: string
@@ -4836,7 +4871,6 @@ declare module 'vue-i18n' {
     version: string
     releaseDate: string
     releaseNotes: string
-    later: string
     githubDownload: string
     officialDownload: string
     checkUpdate: string

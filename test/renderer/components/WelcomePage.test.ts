@@ -3,6 +3,29 @@ import { mount } from '@vue/test-utils'
 import { flushPromises } from '@vue/test-utils'
 import { GUIDED_ONBOARDING_RESUME_STORAGE_KEY } from '@/lib/onboardingResume'
 
+vi.mock('@/composables/useChatGPTAuth', async () => {
+  const { computed, ref } = await vi.importActual<typeof import('vue')>('vue')
+  return {
+    useChatGPTAuth: () => {
+      const status = ref({
+        state: 'signed-out',
+        planUsageEnabled: false,
+        storage: 'none',
+        notices: { welcome: false, codexRetired: false }
+      })
+      return {
+        status,
+        busy: ref(false),
+        isPending: computed(() => false),
+        isConnected: computed(() => false),
+        startLogin: vi.fn(),
+        reopenBrowser: vi.fn(),
+        cancelLogin: vi.fn()
+      }
+    }
+  }
+})
+
 afterEach(() => {
   vi.clearAllTimers()
   vi.useRealTimers()

@@ -1,21 +1,23 @@
 import type { DeepchatBridge } from '@shared/contracts/bridge'
 import {
-  oauthOpenAICodexStatusChangedEvent,
+  oauthChatGPTStatusChangedEvent,
   oauthXaiGrokStatusChangedEvent
 } from '@shared/contracts/events'
 import {
-  oauthOpenAICodexCancelLoginRoute,
-  oauthOpenAICodexCompleteBrowserLoginFromUrlRoute,
-  oauthOpenAICodexGetStatusRoute,
-  oauthOpenAICodexLogoutRoute,
-  oauthOpenAICodexStartBrowserLoginRoute,
+  oauthChatGPTCancelLoginRoute,
+  oauthChatGPTDismissNoticeRoute,
+  oauthChatGPTGetStatusRoute,
+  oauthChatGPTLogoutRoute,
+  oauthChatGPTReopenBrowserRoute,
+  oauthChatGPTStartLoginRoute,
   oauthGithubCopilotStartDeviceFlowLoginRoute,
   oauthGithubCopilotStartLoginRoute,
   oauthXaiGrokCancelLoginRoute,
   oauthXaiGrokGetStatusRoute,
   oauthXaiGrokLogoutRoute,
   oauthXaiGrokStartDeviceLoginRoute,
-  type OpenAICodexAuthStatus,
+  type ChatGPTAuthStatus,
+  type ChatGPTLogoutResult,
   type XaiGrokAuthStatus
 } from '@shared/contracts/routes'
 import { getDeepchatBridge } from './core'
@@ -33,39 +35,39 @@ export function createOAuthClient(bridge: DeepchatBridge = getDeepchatBridge()) 
     return result.success
   }
 
-  async function getOpenAICodexStatus(): Promise<OpenAICodexAuthStatus> {
-    const result = await bridge.invoke(oauthOpenAICodexGetStatusRoute.name, {})
+  async function getChatGPTStatus(): Promise<ChatGPTAuthStatus> {
+    const result = await bridge.invoke(oauthChatGPTGetStatusRoute.name, {})
     return result.status
   }
 
-  async function startOpenAICodexBrowserLogin(): Promise<OpenAICodexAuthStatus> {
-    const result = await bridge.invoke(oauthOpenAICodexStartBrowserLoginRoute.name, {})
+  async function startChatGPTLogin(
+    options: { requestPlanConsent?: boolean } = {}
+  ): Promise<ChatGPTAuthStatus> {
+    const result = await bridge.invoke(oauthChatGPTStartLoginRoute.name, options)
     return result.status
   }
 
-  async function completeOpenAICodexBrowserLoginFromUrl(
-    callbackUrl: string
-  ): Promise<OpenAICodexAuthStatus> {
-    const result = await bridge.invoke(oauthOpenAICodexCompleteBrowserLoginFromUrlRoute.name, {
-      callbackUrl
-    })
+  async function reopenChatGPTBrowser(): Promise<ChatGPTAuthStatus> {
+    const result = await bridge.invoke(oauthChatGPTReopenBrowserRoute.name, {})
     return result.status
   }
 
-  async function cancelOpenAICodexLogin(): Promise<OpenAICodexAuthStatus> {
-    const result = await bridge.invoke(oauthOpenAICodexCancelLoginRoute.name, {})
+  async function cancelChatGPTLogin(): Promise<ChatGPTAuthStatus> {
+    const result = await bridge.invoke(oauthChatGPTCancelLoginRoute.name, {})
     return result.status
   }
 
-  async function logoutOpenAICodex(): Promise<OpenAICodexAuthStatus> {
-    const result = await bridge.invoke(oauthOpenAICodexLogoutRoute.name, {})
+  async function logoutChatGPT(): Promise<ChatGPTLogoutResult> {
+    return await bridge.invoke(oauthChatGPTLogoutRoute.name, {})
+  }
+
+  async function dismissChatGPTNotice(notice: 'codexRetired'): Promise<ChatGPTAuthStatus> {
+    const result = await bridge.invoke(oauthChatGPTDismissNoticeRoute.name, { notice })
     return result.status
   }
 
-  function onOpenAICodexStatusChanged(
-    listener: (status: OpenAICodexAuthStatus) => void
-  ): () => void {
-    return bridge.on(oauthOpenAICodexStatusChangedEvent.name, (payload) => {
+  function onChatGPTStatusChanged(listener: (status: ChatGPTAuthStatus) => void): () => void {
+    return bridge.on(oauthChatGPTStatusChangedEvent.name, (payload) => {
       listener(payload.status)
     })
   }
@@ -99,12 +101,13 @@ export function createOAuthClient(bridge: DeepchatBridge = getDeepchatBridge()) 
   return {
     startGitHubCopilotLogin,
     startGitHubCopilotDeviceFlowLogin,
-    getOpenAICodexStatus,
-    startOpenAICodexBrowserLogin,
-    completeOpenAICodexBrowserLoginFromUrl,
-    cancelOpenAICodexLogin,
-    logoutOpenAICodex,
-    onOpenAICodexStatusChanged,
+    getChatGPTStatus,
+    startChatGPTLogin,
+    reopenChatGPTBrowser,
+    cancelChatGPTLogin,
+    logoutChatGPT,
+    dismissChatGPTNotice,
+    onChatGPTStatusChanged,
     getXaiGrokStatus,
     startXaiGrokDeviceLogin,
     cancelXaiGrokLogin,

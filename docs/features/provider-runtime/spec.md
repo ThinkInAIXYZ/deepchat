@@ -45,7 +45,7 @@ Kimi For Coding and OpenCode Go remain catalog/registry mappings unless they nee
 Default reset URLs are derived from each profile's base URL, except explicit website overrides
 (currently Vertex, Azure and MiniMax). Defaults never overwrite a saved user endpoint.
 Catalog-backed profile membership is derived in the main registry from `provider-db`,
-`kimi-for-coding` and `openai-codex` model-source strategies, not a separately maintained ID list.
+`kimi-for-coding` and `chatgpt` model-source strategies, not a separately maintained ID list.
 The existing default-provider route projects `usesProviderDb` for renderer refresh hints; this
 field is not a persisted provider setting. Model-fact cleanup remains profile-ID based and
 preserves explicit custom-model facts rather than inferring ownership from a shared transport.
@@ -160,32 +160,18 @@ models and does not generate text. Embeddings are disabled for this profile.
 
 Upstream reference: [Completions API](https://wiro.ai/docs/completions-api).
 
-## OpenAI Codex
+## ChatGPT
 
-`openai-codex` is separate from standard `openai`: distinct provider ID, runtime kind, credential store,
-routes and request adapter. The recommended catalog starts with `gpt-6.2-sol`, `gpt-6.2-astra`,
-`gpt-6.1-terra` and `gpt-6.1-sol`. It also includes `gpt-6-astra`, `gpt-6-sol`, `gpt-6-luna`,
-`gpt-5.5`, `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`,
-`gpt-image-2.5-sunburst`, `gpt-image-2.5-flare` and `gpt-image-2`. Chat models require provider-db
-metadata. The effective OpenAI catalog fills missing curated Codex records from the bundle, even
-in privacy mode, and gives existing cached records precedence. Curated image models remain listed
-when metadata is missing and use the OpenAI image-route compatibility fallback. Explicit user
-model settings retain precedence. The connection check uses
-`gpt-5.6-luna`. GPT-5.4, GPT-5.4 mini and Codex Spark are omitted following their
-[Codex retirement](https://learn.chatgpt.com/docs/models#deprecated-codex-models).
+`chatgpt` uses Sign in with ChatGPT so built-in agent requests run on the user's ChatGPT plan. The
+main-process account owner in `src/main/provider/auth/chatgpt` holds registration, tokens, renewal
+and revocation; the profile stores no credential. The catalog is the signed-in account's
+`GET https://api.openai.com/v1/models` list (`visibility: "list"`, server order), with capabilities
+filled from the OpenAI provider-db entry. Inference always targets `https://api.openai.com/v1`
+through the native `openai-chatgpt` connection preset; profile base URLs and custom headers are not
+applied. See [Sign in with ChatGPT](../sign-in-with-chatgpt/spec.md).
 
-The native Codex connection sends the same supported client version in the Version and User-Agent
-headers because the backend uses it to determine model availability. Codex requests include
-required instructions and backend routing headers, preserve streaming/tool/reasoning
-behavior, and surface entitlement failure without logging token or account identifiers. Rejected refresh
-tokens retain their HTTP failure metadata and require sign-in again; media CLI calls return
-`authentication_failed` with `retriable: false`. Other media provider failures expose only normalized
-HTTP status and retryability. Unreadable credential files remain storage failures. OAuth error bodies
-are parsed before diagnostic messages are limited to 1,000 characters. Image generation
-uses the same OAuth credential path with `/images/generations`; Responses-only body normalization does not
-apply to image requests. The image-generation projection preserves shared OpenAI image settings but disables
-vision input because the standalone route accepts only text prompts. Background provider-db refresh skips
-its dedicated runtime catalog; manual refresh remains available.
+The former `openai-codex` provider and OpenAI's ChatGPT authentication mode are retired. Upgrades
+remove both and delete the old Codex credentials locally.
 
 ## Validation
 

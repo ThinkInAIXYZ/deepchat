@@ -1,0 +1,38 @@
+{
+  "continue": "Continuar con ChatGPT",
+  "opening": "Abriendo ChatGPT…",
+  "connected": "Conectado a ChatGPT",
+  "connectedAs": "Conectado como {email}",
+  "planEnabled": "El uso del plan de ChatGPT está activado",
+  "manageUsage": "Gestionar uso",
+  "signOut": "Cerrar sesión",
+  "offerTitle": "Usa tu plan de ChatGPT",
+  "offerDescription": "Las solicitudes de IA aptas en DeepChat usan el uso incluido en tu plan de ChatGPT o tu saldo de créditos. Es independiente de la facturación por clave API.",
+  "planDisabled": "Sesión iniciada, pero el uso del plan de ChatGPT no está permitido. Continúa con ChatGPT para permitir que DeepChat use tu plan.",
+  "reauthRequired": "Tu sesión de ChatGPT ha caducado. Continúa con ChatGPT para volver a conectar.",
+  "waiting": "Esperando la autorización en el navegador…",
+  "reopenBrowser": "Volver a abrir el navegador",
+  "revocationUnconfirmed": "Sesión cerrada localmente. No se confirmó la revocación remota; desconecta DeepChat en la configuración de ChatGPT.",
+  "startChatting": "Empezar a chatear",
+  "signInFailed": "No se pudo iniciar sesión con ChatGPT. Inténtalo de nuevo.",
+  "welcomeHint": "Usa tu plan de ChatGPT. Sin clave API.",
+  "orAddProvider": "o añade un proveedor",
+  "codexRetiredTitle": "El inicio de sesión de OpenAI Codex se ha retirado",
+  "codexRetiredDescription": "DeepChat ahora admite el Sign in with ChatGPT oficial. Vuelve a conectar para seguir usando tu plan de ChatGPT. Tus chats se conservan.",
+  "later": "Más tarde",
+  "reconnect": "Reconectar ChatGPT",
+  "recovery": {
+    "usageLimit": {
+      "title": "Límite de uso alcanzado",
+      "description": "Revisa tu plan o el límite de DeepChat en la configuración de ChatGPT."
+    },
+    "notEligible": {
+      "title": "Plan de ChatGPT no disponible",
+      "description": "El uso del plan de ChatGPT no está disponible para esta cuenta o espacio de trabajo."
+    },
+    "reconnect": {
+      "title": "Vuelve a iniciar sesión",
+      "description": "Vuelve a conectar ChatGPT para continuar este chat."
+    }
+  }
+}

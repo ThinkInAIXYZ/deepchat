@@ -37,7 +37,7 @@ function createRoutes(deps: {
 
 describe('Provider routes', () => {
   it('projects catalog membership without adding it to saved defaults', async () => {
-    const providers = ['xiaomi-token-plan-cn', 'kimi-for-coding', 'openai-codex', 'anthropic'].map(
+    const providers = ['xiaomi-token-plan-cn', 'kimi-for-coding', 'mistral', 'chatgpt'].map(
       (id) => ({
         id,
         name: id,

@@ -1,0 +1,38 @@
+{
+  "continue": "ChatGPT で続行",
+  "opening": "ChatGPT を開いています…",
+  "connected": "ChatGPT に接続済み",
+  "connectedAs": "{email} として接続済み",
+  "planEnabled": "ChatGPT プランの利用が有効です",
+  "manageUsage": "使用量を管理",
+  "signOut": "サインアウト",
+  "offerTitle": "ChatGPT プランを使用",
+  "offerDescription": "DeepChat の対象となる AI リクエストを、ChatGPT プランまたはクレジット残高に含まれる使用量で処理します。API キーの課金とは別です。",
+  "planDisabled": "サインイン済みですが、ChatGPT プランの利用が許可されていません。ChatGPT で続行して、DeepChat にプランの利用を許可してください。",
+  "reauthRequired": "ChatGPT のサインインの有効期限が切れました。ChatGPT で続行して再接続してください。",
+  "waiting": "ブラウザでの承認を待っています…",
+  "reopenBrowser": "ブラウザを再度開く",
+  "revocationUnconfirmed": "ローカルでサインアウトしました。リモートでの取り消しを確認できませんでした。ChatGPT の設定で DeepChat の接続を解除してください。",
+  "startChatting": "チャットを開始",
+  "signInFailed": "ChatGPT でサインインできませんでした。もう一度お試しください。",
+  "welcomeHint": "ChatGPT プランを使用。API キーは不要です。",
+  "orAddProvider": "またはプロバイダーを追加",
+  "codexRetiredTitle": "OpenAI Codex のサインインは終了しました",
+  "codexRetiredDescription": "DeepChat は公式の Sign in with ChatGPT に対応しました。再接続すると引き続き ChatGPT プランを使用できます。チャットはそのまま残ります。",
+  "later": "後で",
+  "reconnect": "ChatGPT に再接続",
+  "recovery": {
+    "usageLimit": {
+      "title": "使用量の上限に達しました",
+      "description": "ChatGPT の設定でプランまたは DeepChat の上限を確認してください。"
+    },
+    "notEligible": {
+      "title": "ChatGPT プランを利用できません",
+      "description": "このアカウントまたはワークスペースでは ChatGPT プランを利用できません。"
+    },
+    "reconnect": {
+      "title": "再度サインイン",
+      "description": "このチャットを続けるには ChatGPT に再接続してください。"
+    }
+  }
+}

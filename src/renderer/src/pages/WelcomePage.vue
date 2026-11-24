@@ -205,6 +205,76 @@
         </div>
       </div>
 
+      <!-- Sign in with ChatGPT: the primary way to start without an API key -->
+      <div
+        data-testid="welcome-chatgpt"
+        class="mb-6 flex w-full max-w-sm flex-col items-center gap-2 text-center"
+      >
+        <ContinueWithChatGPTButton
+          v-if="!chatgpt.isPending.value && !chatgpt.isConnected.value"
+          :loading="chatgpt.busy.value"
+          @click="chatgpt.startLogin(chatgpt.status.value.state === 'plan-disabled')"
+        />
+        <div
+          v-if="chatgpt.isPending.value"
+          data-testid="welcome-chatgpt-pending"
+          class="flex flex-wrap items-center justify-center gap-2 text-xs text-muted-foreground"
+        >
+          <Spinner class="size-3.5" />
+          <span>{{ t('chatgpt.waiting') }}</span>
+          <button
+            type="button"
+            class="underline-offset-2 hover:underline"
+            @click="chatgpt.reopenBrowser"
+          >
+            {{ t('chatgpt.reopenBrowser') }}
+          </button>
+          <button
+            type="button"
+            class="underline-offset-2 hover:underline"
+            @click="chatgpt.cancelLogin"
+          >
+            {{ t('common.cancel') }}
+          </button>
+        </div>
+        <div
+          v-else-if="chatgpt.isConnected.value"
+          data-testid="welcome-chatgpt-connected"
+          class="flex flex-wrap items-center justify-center gap-2 text-sm"
+        >
+          <span class="text-foreground/85">
+            {{
+              chatgpt.status.value.email
+                ? t('chatgpt.connectedAs', { email: chatgpt.status.value.email })
+                : t('chatgpt.connected')
+            }}
+          </span>
+          <button
+            type="button"
+            class="rounded-lg border border-border/80 px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-accent/50"
+            @click="goToChat()"
+          >
+            {{ t('chatgpt.startChatting') }}
+          </button>
+        </div>
+        <p
+          v-else-if="chatgpt.status.value.state === 'plan-disabled'"
+          class="text-xs text-muted-foreground"
+        >
+          {{ t('chatgpt.planDisabled') }}
+        </p>
+        <p v-else-if="chatgpt.status.value.state === 'error'" class="text-xs text-muted-foreground">
+          {{ t('chatgpt.signInFailed') }}
+        </p>
+        <p v-else class="text-xs text-muted-foreground">{{ t('chatgpt.welcomeHint') }}</p>
+      </div>
+
+      <div class="mb-4 flex w-full max-w-sm items-center gap-3">
+        <div class="h-px flex-1 bg-border"></div>
+        <span class="text-xs text-muted-foreground/60">{{ t('chatgpt.orAddProvider') }}</span>
+        <div class="h-px flex-1 bg-border"></div>
+      </div>
+
       <!-- Provider grid -->
       <div
         ref="providerGridRef"
@@ -279,6 +349,9 @@ import {
   type GuidedOnboardingSettingsRouteName
 } from '@shared/guidedOnboarding'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
+import ContinueWithChatGPTButton from '@/components/chatgpt/ContinueWithChatGPTButton.vue'
+import { Spinner } from '@shadcn/components/ui/spinner'
+import { useChatGPTAuth } from '@/composables/useChatGPTAuth'
 import OnBoardingSpotlight from '@/components/onboarding/OnBoardingSpotlight.vue'
 import { useOnBoarding } from '@/composables/useOnBoarding'
 import type {
@@ -299,6 +372,7 @@ const guideCardRef = ref<HTMLElement | null>(null)
 const providerGridRef = ref<HTMLElement | null>(null)
 const guideDescriptionId = useId()
 const guideCoachmarkDismissed = ref(false)
+const chatgpt = useChatGPTAuth()
 const coachmarkPanelRef = ref<HTMLElement | null>(null)
 
 const providers = [
@@ -668,6 +742,24 @@ const onImportProviders = async () => {
 const onSetupAcp = async () => {
   await openSettings('settings-acp')
 }
+
+// A ChatGPT sign-in configures the provider and its models; the guide moves past those steps.
+watch(
+  () => chatgpt.status.value.state,
+  async (state, previous) => {
+    if (state !== 'authenticated' || previous !== 'pending-browser') return
+    for (const stepId of ['select-provider', 'provider-api-key', 'provider-model'] as const) {
+      try {
+        onboardingState.value = await onboardingClient.setStepStatus({
+          stepId,
+          status: 'completed'
+        })
+      } catch (error) {
+        console.warn(`Failed to complete onboarding step ${stepId}:`, error)
+      }
+    }
+  }
+)
 
 onMounted(() => {
   void syncOnboardingState()

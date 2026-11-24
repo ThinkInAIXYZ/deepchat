@@ -21,19 +21,10 @@ describe('provider onboarding readiness', () => {
     ).toBe(true)
     expect(isProviderReadyForOnboarding(provider({ oauthToken: 'oauth-token' }))).toBe(true)
     expect(isProviderReadyForOnboarding(provider({}))).toBe(false)
+    expect(isProviderReadyForOnboarding(provider({ id: 'chatgpt', apiType: 'chatgpt' }))).toBe(true)
     expect(
-      isProviderReadyForOnboarding(provider({ id: 'openai', openaiAuthMode: 'chatgpt' }))
+      isProviderReadyForOnboarding(provider({ id: 'chatgpt', apiType: 'chatgpt', enable: false }))
     ).toBe(false)
-    expect(
-      isProviderReadyForOnboarding(
-        provider({ id: 'openai', openaiAuthMode: 'chatgpt', apiKey: 'unused-api-key' })
-      )
-    ).toBe(false)
-    expect(
-      isProviderReadyForOnboarding(
-        provider({ id: 'openai', openaiAuthMode: 'chatgpt', oauthToken: 'oauth-token' })
-      )
-    ).toBe(true)
   })
 
   it('accepts a keyless local OpenLLM daemon but requires a key for the hosted endpoint', () => {

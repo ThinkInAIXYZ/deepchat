@@ -46,8 +46,6 @@ describe('ProviderSettings provider model capability mapping', () => {
     ['anthropic-proxy', 'openai-compatible', 'gpt-image-1', undefined, true, false],
     ['custom', 'gemini', 'gpt-image-1', undefined, false, false],
     ['vertex', 'vertex', 'gpt-image-1', undefined, false, false],
-    ['openai-codex', 'openai-codex', 'gpt-image-2', undefined, true, false],
-    ['openai-codex', 'openai-codex', 'sora-2', undefined, false, false],
     ['grok', 'grok', 'grok-2-image', 'image-generation', false, false],
     ['grok', 'grok', 'sora-2', 'video-generation', false, true],
     ['new-api', 'new-api', 'gpt-image-1', 'gemini', false, false],
@@ -451,7 +449,7 @@ describe('ProviderSettings provider model capability mapping', () => {
       }
     }) as InstanceType<typeof ProviderSettings>
 
-    expect(presenter.isKnownModel('openai-codex', 'gpt-5.6-sol')).toBe(true)
+    expect(presenter.isKnownModel('chatgpt', 'gpt-5.6-sol')).toBe(true)
     expect(getCatalogMatch).toHaveBeenCalledWith('openai', 'gpt-5.6-sol')
     expect(getProviderModel).not.toHaveBeenCalled()
     expect(getProviderModels).not.toHaveBeenCalled()

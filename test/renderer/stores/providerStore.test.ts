@@ -117,14 +117,6 @@ describe('provider connection persistence', () => {
     expect(store.sortedProviders.value.map((provider) => provider.id)).toEqual(['a', 'b', 'c'])
   })
 
-  it('invalidates cached health when the OpenAI authentication mode changes', async () => {
-    const { store } = await setupStore()
-    await store.checkProvider('p1')
-    expect(store.getProviderHealth('p1').status).toBe('verified')
-    await store.updateProviderConfig('p1', { openaiAuthMode: 'chatgpt' })
-    expect(store.getProviderHealth('p1').status).toBe('not_checked')
-  })
-
   it('saves key and URL atomically without requiring access to the default probe model', async () => {
     const { store, source, providerClient, configClient } = await setupStore()
     await store.checkProvider('p1')

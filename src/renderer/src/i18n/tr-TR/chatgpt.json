@@ -1,0 +1,38 @@
+{
+  "continue": "ChatGPT ile devam et",
+  "opening": "ChatGPT açılıyor…",
+  "connected": "ChatGPT'ye bağlandı",
+  "connectedAs": "{email} olarak bağlandı",
+  "planEnabled": "ChatGPT planı kullanımı etkin",
+  "manageUsage": "Kullanımı yönet",
+  "signOut": "Oturumu kapat",
+  "offerTitle": "ChatGPT planınızı kullanın",
+  "offerDescription": "DeepChat'teki uygun yapay zekâ istekleri ChatGPT planınıza veya kredi bakiyenize dahil kullanımla tamamlanır. Bu, API anahtarı faturalandırmasından ayrıdır.",
+  "planDisabled": "Oturum açıldı ancak ChatGPT planı kullanımına izin verilmedi. DeepChat'in planınızı kullanmasına izin vermek için ChatGPT ile devam edin.",
+  "reauthRequired": "ChatGPT oturumunuzun süresi doldu. Yeniden bağlanmak için ChatGPT ile devam edin.",
+  "waiting": "Tarayıcıda yetkilendirme bekleniyor…",
+  "reopenBrowser": "Tarayıcıyı yeniden aç",
+  "revocationUnconfirmed": "Yerel olarak oturum kapatıldı. Uzaktan iptal onaylanmadı; ChatGPT ayarlarından DeepChat bağlantısını kesin.",
+  "startChatting": "Sohbete başla",
+  "signInFailed": "ChatGPT ile oturum açılamadı. Tekrar deneyin.",
+  "welcomeHint": "ChatGPT planınızı kullanın. API anahtarı gerekmez.",
+  "orAddProvider": "veya sağlayıcı ekleyin",
+  "codexRetiredTitle": "OpenAI Codex oturum açma kullanımdan kaldırıldı",
+  "codexRetiredDescription": "DeepChat artık resmi Sign in with ChatGPT'yi destekliyor. ChatGPT planınızı kullanmaya devam etmek için yeniden bağlanın. Sohbetleriniz korunur.",
+  "later": "Daha sonra",
+  "reconnect": "ChatGPT'ye yeniden bağlan",
+  "recovery": {
+    "usageLimit": {
+      "title": "Kullanım sınırına ulaşıldı",
+      "description": "ChatGPT ayarlarından planınızı veya DeepChat sınırını inceleyin."
+    },
+    "notEligible": {
+      "title": "ChatGPT planı kullanılamıyor",
+      "description": "Bu hesap veya çalışma alanı için ChatGPT planı kullanılamıyor."
+    },
+    "reconnect": {
+      "title": "Yeniden oturum açın",
+      "description": "Bu sohbete devam etmek için ChatGPT'ye yeniden bağlanın."
+    }
+  }
+}

@@ -48,10 +48,10 @@ describe('ProviderModelManager', () => {
     const wrapper = mount(ProviderModelManager, {
       props: {
         provider: {
-          id: 'openai-codex',
-          name: 'OpenAI Codex',
-          apiType: 'openai-codex',
-          baseUrl: 'https://chatgpt.com/backend-api/codex',
+          id: 'chatgpt',
+          name: 'ChatGPT',
+          apiType: 'chatgpt',
+          baseUrl: 'https://api.openai.com/v1',
           enable: true,
           custom: false
         },

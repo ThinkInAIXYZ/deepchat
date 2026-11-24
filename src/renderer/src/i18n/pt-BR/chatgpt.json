@@ -1,0 +1,38 @@
+{
+  "continue": "Continuar com o ChatGPT",
+  "opening": "Abrindo o ChatGPT…",
+  "connected": "Conectado ao ChatGPT",
+  "connectedAs": "Conectado como {email}",
+  "planEnabled": "O uso do plano do ChatGPT está ativado",
+  "manageUsage": "Gerenciar uso",
+  "signOut": "Sair",
+  "offerTitle": "Use seu plano do ChatGPT",
+  "offerDescription": "Solicitações de IA elegíveis no DeepChat usam o uso incluído no seu plano do ChatGPT ou saldo de créditos. Isso é separado da cobrança por chave de API.",
+  "planDisabled": "Conectado, mas o uso do plano do ChatGPT não foi permitido. Continue com o ChatGPT para permitir que o DeepChat use seu plano.",
+  "reauthRequired": "Seu login do ChatGPT expirou. Continue com o ChatGPT para reconectar.",
+  "waiting": "Aguardando autorização no navegador…",
+  "reopenBrowser": "Reabrir navegador",
+  "revocationUnconfirmed": "Você saiu localmente. A revogação remota não foi confirmada; desconecte o DeepChat nas configurações do ChatGPT.",
+  "startChatting": "Começar a conversar",
+  "signInFailed": "Não foi possível entrar com o ChatGPT. Tente novamente.",
+  "welcomeHint": "Use seu plano do ChatGPT. Sem chave de API.",
+  "orAddProvider": "ou adicione um provedor",
+  "codexRetiredTitle": "O login do OpenAI Codex foi descontinuado",
+  "codexRetiredDescription": "O DeepChat agora oferece o Sign in with ChatGPT oficial. Reconecte para continuar usando seu plano do ChatGPT. Suas conversas são mantidas.",
+  "later": "Mais tarde",
+  "reconnect": "Reconectar ChatGPT",
+  "recovery": {
+    "usageLimit": {
+      "title": "Limite de uso atingido",
+      "description": "Revise seu plano ou o limite do DeepChat nas configurações do ChatGPT."
+    },
+    "notEligible": {
+      "title": "Plano do ChatGPT indisponível",
+      "description": "O uso do plano do ChatGPT não está disponível para esta conta ou workspace."
+    },
+    "reconnect": {
+      "title": "Entre novamente",
+      "description": "Reconecte o ChatGPT para continuar esta conversa."
+    }
+  }
+}

@@ -27,6 +27,7 @@ import AcpElicitationDialog from '@/components/acp/AcpElicitationDialog.vue'
 import McpElicitationDialog from '@/components/mcp/McpElicitationDialog.vue'
 import McpAppConsentDialog from '@/components/mcp/McpAppConsentDialog.vue'
 import CliApprovalDialog from '@/components/cli/CliApprovalDialog.vue'
+import ChatGPTNoticeDialog from '@/components/chatgpt/ChatGPTNoticeDialog.vue'
 import { initAppStores, useMcpInstallDeeplinkHandler } from '@/lib/storeInitializer'
 import { ensureIconsLoaded } from '@/lib/iconLoader'
 import { useFontManager } from '@/composables/useFontManager'
@@ -568,6 +569,7 @@ onBeforeUnmount(() => {
       <AcpElicitationDialog />
       <McpAppConsentDialog />
       <CliApprovalDialog />
+      <ChatGPTNoticeDialog />
       <NotificationHost surface="main" :theme="toasterTheme" :dir="langStore.dir" />
       <SelectedTextContextMenu />
       <TranslatePopup />

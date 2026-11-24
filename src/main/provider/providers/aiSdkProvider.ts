@@ -25,7 +25,8 @@ import { providerDbLoader } from '../../provider/providerDbLoader'
 import { BaseLLMProvider } from '../baseProvider'
 import { isOpenCodeGoAnthropicRoute, resolveCapabilityFamilyHint } from '../capabilityIdentity'
 import { modelCapabilities } from '../modelCapabilities'
-import { OPENAI_CODEX_RECOMMENDED_MODEL_IDS } from '../openaiCodexAdapter'
+import { getGlobalChatGPTAuth } from '../../provider/auth/chatgpt'
+import { CHATGPT_API_BASE_URL } from '../../provider/auth/chatgpt/constants'
 import type { ProviderLocalePort } from '../ports'
 import type { ProviderTransportKind } from '../providerEndpoints'
 import { normalizeAzureBaseUrl, normalizeGeminiBaseUrl } from '../providerEndpoints'
@@ -585,15 +586,85 @@ export class AiSdkProvider extends BaseLLMProvider {
     }))
   }
 
-  private mapOpenAICodexModels(): MODEL_META[] {
-    const models = this.mapProviderDbModels(this.definition.providerDbGroup || 'Codex')
-    const modelsById = new Map(models.map((model) => [model.id, model]))
-    return OPENAI_CODEX_RECOMMENDED_MODEL_IDS.flatMap((id) => {
-      const model = modelsById.get(id)
-      if (model) return [model]
-      if (!isOpenAIImageGenerationModelId(id)) return []
-      return [{ id, name: id, group: 'Codex', providerId: this.provider.id, isCustom: false }]
+  /** The signed-in account's own model list, in server order; hidden and media models are omitted. */
+  private async fetchChatGPTModels(): Promise<MODEL_META[]> {
+    const accessToken = await getGlobalChatGPTAuth().getAccessToken()
+    const { signal, dispose } = this.createModelRequestSignal({
+      timeout: this.getModelFetchTimeout()
     })
+    try {
+      const response = await fetch(`${CHATGPT_API_BASE_URL}/models`, {
+        method: 'GET',
+        headers: { Accept: 'application/json', Authorization: `Bearer ${accessToken}` },
+        redirect: 'error',
+        signal
+      })
+      if (!response.ok) {
+        throw new ProviderHttpError(
+          `ChatGPT model list request failed with status ${response.status}`,
+          response.status
+        )
+      }
+      const payload: unknown = await response.json()
+      // An invalid envelope must not pass as an empty catalog and delete the saved models.
+      if (
+        !payload ||
+        typeof payload !== 'object' ||
+        !Array.isArray((payload as { models?: unknown }).models)
+      ) {
+        throw new Error('Invalid ChatGPT model list JSON response')
+      }
+      const list = (payload as { models: unknown[] }).models
+      // One malformed entry must not hide the account's other models.
+      const records = list.filter(
+        (record): record is Record<string, unknown> =>
+          Boolean(record) && typeof record === 'object' && !Array.isArray(record)
+      )
+      const seen = new Set<string>()
+      return records.flatMap((record) => {
+        const id = typeof record.slug === 'string' ? record.slug.trim() : ''
+        if (
+          !id ||
+          record.visibility !== 'list' ||
+          seen.has(id) ||
+          isOpenAIImageGenerationModelId(id)
+        ) {
+          return []
+        }
+        seen.add(id)
+        const name =
+          typeof record.display_name === 'string' && record.display_name.trim()
+            ? record.display_name.trim()
+            : id
+        // The account catalog states these limits for this plan; they take precedence over the
+        // public API catalog, whose context window is larger than the plan grants.
+        const contextLength =
+          typeof record.context_window === 'number' && record.context_window > 0
+            ? record.context_window
+            : undefined
+        const modalities = Array.isArray(record.input_modalities) ? record.input_modalities : null
+        const reasoningLevels = Array.isArray(record.supported_reasoning_levels)
+          ? record.supported_reasoning_levels
+          : null
+        return [
+          {
+            id,
+            name,
+            group: 'ChatGPT',
+            providerId: this.provider.id,
+            isCustom: false,
+            type: ModelType.Chat,
+            // Every listed model runs local tools through Responses function calls.
+            functionCall: true,
+            ...(contextLength ? { contextLength } : {}),
+            ...(modalities ? { vision: modalities.includes('image') } : {}),
+            ...(reasoningLevels ? { reasoning: reasoningLevels.length > 0 } : {})
+          } satisfies MODEL_META
+        ]
+      })
+    } finally {
+      dispose()
+    }
   }
 
   private mapKimiForCodingModels(): MODEL_META[] {
@@ -610,8 +681,8 @@ export class AiSdkProvider extends BaseLLMProvider {
         return this.fetchConfigDbModels()
       case 'provider-db':
         return this.mapProviderDbModels(this.definition.providerDbGroup || 'default')
-      case 'openai-codex':
-        return this.mapOpenAICodexModels()
+      case 'chatgpt':
+        return this.fetchChatGPTModels()
       case 'opencode-go':
         return this.fetchOpenCodeGoModels()
       case 'kimi-for-coding':

@@ -37,7 +37,32 @@
         </div>
       </div>
     </div>
-    <div v-if="errorExplanation" class="mt-2 text-red-400 font-medium">
+    <div
+      v-if="chatgptRecovery"
+      data-testid="chatgpt-error-recovery"
+      class="mt-2 flex flex-col gap-2"
+    >
+      <div class="flex items-center gap-1.5 text-sm font-medium text-foreground">
+        <img :src="chatgptMark" alt="" aria-hidden="true" class="size-4 dark:invert" />
+        <span>ChatGPT · {{ t(`chatgpt.recovery.${chatgptRecovery}.title`) }}</span>
+      </div>
+      <p class="text-xs leading-5 text-muted-foreground">
+        {{ t(`chatgpt.recovery.${chatgptRecovery}.description`) }}
+      </p>
+      <div v-if="chatgptRecovery !== 'notEligible'" class="flex flex-wrap gap-2">
+        <DcButton v-if="chatgptRecovery === 'usageLimit'" size="sm" @click="chatgpt?.openUsage()">
+          {{ t('chatgpt.manageUsage') }}
+        </DcButton>
+        <DcButton
+          v-else
+          size="sm"
+          @click="chatgpt?.startLogin(chatgpt.status.value.state === 'plan-disabled')"
+        >
+          {{ t('chatgpt.reconnect') }}
+        </DcButton>
+      </div>
+    </div>
+    <div v-else-if="errorExplanation" class="mt-2 text-red-400 font-medium">
       {{ t('common.error.causeOfError') }} {{ t(errorExplanation) }}
     </div>
   </div>
@@ -48,11 +73,35 @@ import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { computed, ref, useId } from 'vue'
 import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
+import { DcButton } from '@dc-ui/components/button'
+import chatgptMark from '@/assets/chatgpt/chatgpt-mark-black.svg?url'
+import { useChatGPTAuth } from '@/composables/useChatGPTAuth'
 const { t } = useI18n()
 
 const props = defineProps<{
   block: DisplayAssistantMessageBlock
+  providerId?: string
 }>()
+
+// A message's provider never changes; only ChatGPT messages need the account status.
+const chatgpt = props.providerId === 'chatgpt' ? useChatGPTAuth() : null
+
+// The native turn reports only a message: Aimux's ChatGPT usage-limit reason links the usage page,
+// and plan error codes are carried through verbatim. Sign-in state comes from the account owner.
+const chatgptRecovery = computed<'usageLimit' | 'notEligible' | 'reconnect' | null>(() => {
+  if (!chatgpt) return null
+  const content = props.block.content || ''
+  if (
+    content.includes('subscription_sharing_usage_limit_exceeded') ||
+    content.includes('chatgpt.com/settings/usage')
+  )
+    return 'usageLimit'
+  if (content.includes('subscription_sharing_user_not_eligible')) return 'notEligible'
+  const state = chatgpt.status.value.state
+  if (state === 'reauth-required' || state === 'signed-out' || state === 'plan-disabled')
+    return 'reconnect'
+  return null
+})
 
 const isExpanded = ref(false)
 const detailsId = `message-error-details-${useId()}`

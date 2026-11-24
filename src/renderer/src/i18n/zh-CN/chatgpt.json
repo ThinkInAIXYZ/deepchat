@@ -1,0 +1,38 @@
+{
+  "continue": "使用 ChatGPT 继续",
+  "opening": "正在打开 ChatGPT…",
+  "connected": "已连接 ChatGPT",
+  "connectedAs": "已连接：{email}",
+  "planEnabled": "已启用 ChatGPT 套餐用量",
+  "manageUsage": "管理用量",
+  "signOut": "退出登录",
+  "offerTitle": "使用你的 ChatGPT 套餐",
+  "offerDescription": "DeepChat 中符合条件的 AI 请求将使用你的 ChatGPT 套餐或额度余额完成，与 API Key 计费相互独立。",
+  "planDisabled": "已登录，但尚未允许使用 ChatGPT 套餐。请使用 ChatGPT 继续，授权 DeepChat 使用你的套餐。",
+  "reauthRequired": "ChatGPT 登录已过期，请使用 ChatGPT 继续以重新连接。",
+  "waiting": "正在等待浏览器授权…",
+  "reopenBrowser": "重新打开浏览器",
+  "revocationUnconfirmed": "已在本地退出登录，但未能确认远端撤销；请在 ChatGPT 设置中断开 DeepChat。",
+  "startChatting": "开始对话",
+  "signInFailed": "无法使用 ChatGPT 登录，请重试。",
+  "welcomeHint": "使用你的 ChatGPT 套餐，无需 API Key。",
+  "orAddProvider": "或添加服务商",
+  "codexRetiredTitle": "OpenAI Codex 登录已下线",
+  "codexRetiredDescription": "DeepChat 现已支持官方的 Sign in with ChatGPT。重新连接即可继续使用你的 ChatGPT 套餐，现有对话都会保留。",
+  "later": "稍后",
+  "reconnect": "重新连接 ChatGPT",
+  "recovery": {
+    "usageLimit": {
+      "title": "已达到用量上限",
+      "description": "请在 ChatGPT 设置中查看你的套餐或 DeepChat 的用量限制。"
+    },
+    "notEligible": {
+      "title": "无法使用 ChatGPT 套餐",
+      "description": "此账号或工作区不支持使用 ChatGPT 套餐。"
+    },
+    "reconnect": {
+      "title": "请重新登录",
+      "description": "重新连接 ChatGPT 以继续此对话。"
+    }
+  }
+}
