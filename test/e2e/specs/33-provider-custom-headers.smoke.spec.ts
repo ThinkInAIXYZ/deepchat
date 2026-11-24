@@ -42,6 +42,10 @@ test('provider headers use a JSON editor above the model list @smoke', async ({ 
   }
   await expect(editor).toBeVisible()
   await expect(editor.locator('[data-file]')).toBeVisible()
+  await expect(editor).toHaveAttribute('role', 'group')
+  await expect(editor).toHaveAttribute('tabindex', '-1')
+  await expect(editorInput).toHaveAttribute('role', 'textbox')
+  await expect(editorInput).toHaveAttribute('aria-label', /.+/)
   await expect(editorInput).toBeFocused()
 
   await replaceEditorText('[]')

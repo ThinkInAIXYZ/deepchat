@@ -42,5 +42,8 @@ test('workspace text files render through the stream-diffs surface @smoke', asyn
   await expect(codePane).toBeVisible()
   await expect(codePane.locator('[data-file]')).toBeVisible()
   await expect(codePane).toContainText('export const answer = 42')
+  await expect(codePane).toHaveAttribute('role', 'region')
+  await expect(codePane).toHaveAttribute('tabindex', '0')
+  await expect(codePane).toHaveAttribute('aria-label', /sample\.ts$/)
   await expect(codePane.locator('.monaco-editor')).toHaveCount(0)
 })
