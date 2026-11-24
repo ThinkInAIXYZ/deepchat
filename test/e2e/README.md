@@ -22,7 +22,9 @@ workflow also runs this spec against the packaged executable to cover loading fr
 
 ## Commands
 
-Use Node >=20.19 and pnpm >=10.11. Build before running:
+Use Node.js and pnpm versions that satisfy the `engines` ranges in
+[package.json](../../package.json). For exact versions, see [mise.toml](../../mise.toml).
+Build before running:
 
 ```bash
 pnpm run build
