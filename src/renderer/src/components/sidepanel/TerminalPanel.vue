@@ -565,6 +565,11 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.terminal-host {
+  /* Ghostty makes the host editable for IME and draws its own cursor on the canvas. */
+  caret-color: transparent;
+}
+
 .terminal-host :deep(canvas) {
   display: block;
 }
