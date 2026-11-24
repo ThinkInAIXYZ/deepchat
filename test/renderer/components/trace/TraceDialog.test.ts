@@ -635,6 +635,18 @@ describe('TraceDialog', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('view_only_manifest')
+
+    wrapper.getComponent({ name: 'Select' }).vm.$emit('update:modelValue', 2)
+    await flushPromises()
+    const requestTab = wrapper
+      .findAll('button')
+      .find((btn) => btn.text().trim() === 'traceDialog.tabs.request')
+    expect(requestTab).toBeDefined()
+
+    await requestTab!.trigger('click')
+    await flushPromises()
+
+    expect(createEditorMock).toHaveBeenCalledTimes(2)
   })
 
   it('surfaces an invalid integrity badge with a warning', async () => {
