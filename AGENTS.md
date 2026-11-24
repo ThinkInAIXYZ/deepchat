@@ -2,7 +2,8 @@
 
 - Prefer the smallest correct change; add no abstraction or dependency without a real need.
 - Preserve unrelated worktree changes; avoid destructive Git unless explicitly requested.
-- Use pnpm only; require Node >=20.19 and pnpm >=10.11.
+- Use pnpm only. Check the Node.js and pnpm ranges in [package.json](./package.json);
+  [mise.toml](./mise.toml) pins known-good versions.
 - Core code: `src/main`, `src/preload`, `src/renderer`, `src/shared`; stack: Electron/Vue 3/TS.
 - Tests: use Vitest in `test/main`, Vitest with Vue Test Utils in `test/renderer`, and Playwright in
   `test/e2e`; run the smallest relevant suite.
