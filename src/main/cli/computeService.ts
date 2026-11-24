@@ -707,10 +707,10 @@ export class CliComputeService {
       ...(metadata?.statusCode !== undefined ? { statusCode: metadata.statusCode } : {}),
       retryable: providerFailureIsRetryable(metadata?.statusCode, metadata?.retryable)
     })
-    if (metadata?.code === 'openai_codex_sign_in_required') {
+    if (metadata?.code === 'chatgpt_sign_in_required') {
       return new CliRequestError(
         'authentication_failed',
-        'OpenAI Codex sign-in is required. Sign in again.',
+        'ChatGPT sign-in is required. Reconnect ChatGPT in DeepChat.',
         { httpStatus: 401, details: { providerFailure: failure } }
       )
     }

@@ -590,7 +590,7 @@ describe('ModelCapabilities reasoning portraits', () => {
     const capabilities = new ModelCapabilities()
 
     expect(
-      capabilities.getCatalogCapabilitySnapshot('openai-codex', 'gpt-5.6-sol').defaultToolMode
+      capabilities.getCatalogCapabilitySnapshot('chatgpt', 'gpt-5.6-sol').defaultToolMode
     ).toBe('code')
     expect(
       capabilities.getCatalogCapabilitySnapshot('openai', 'gpt-5.6-sol-preview').defaultToolMode

@@ -104,7 +104,7 @@ const catalogSourceForProvider = (provider: LLM_PROVIDER): ProviderCatalogSource
       return 'provider-db'
     case 'config-db':
       return 'config'
-    case 'openai-codex':
+    case 'chatgpt':
       return 'runtime'
     default:
       return 'remote'
@@ -341,6 +341,11 @@ export class ProviderCatalogService {
     this.deps.source.reloadModels(providerId)
     this.deps.settings.notifyModelsChanged(providerId)
     this.publishChanged(providerId, state, source, reason, true, undefined, null)
+  }
+
+  /** The catalog's owner changed; a fetch started for the previous owner must not commit. */
+  supersedeRefresh(providerId: string): void {
+    this.invalidateGeneration(providerId)
   }
 
   forgetCatalog(providerId: string): void {

@@ -73,7 +73,7 @@ import { AgentInvocationAdmission } from '@/agent/invocationAdmission'
 import { ProviderImportService } from '../provider/providerImportService'
 import { ProviderDatabase } from '../provider/data/database'
 import { createProviderRoutes } from '../provider/routes'
-import { ProviderSettings } from '../provider/settings'
+import { CODEX_RETIRED_NOTICE_PENDING_KEY, ProviderSettings } from '../provider/settings'
 import type { SettingsStore } from '../config/settingsStore'
 import type { SecretStore } from '../config/secretStore'
 import { providerDbLoader } from '../provider/providerDbLoader'
@@ -110,6 +110,8 @@ import { TabPresenter } from '../desktop/tab'
 import { DesktopSessionBinding } from '@/desktop/sessionBinding'
 import { TrayPresenter } from '../desktop/tray'
 import { OAuthService } from '../provider/auth'
+import { CHATGPT_PROVIDER_ID } from '../provider/auth/chatgpt/constants'
+
 import { FloatingButtonPresenter } from '../desktop/floatingButton'
 import { YoBrowserPresenter } from '../desktop/browser/YoBrowserPresenter'
 import { ComputerUsePreviewPresenter } from '@/desktop/computerUse/ComputerUsePreviewPresenter'
@@ -342,6 +344,9 @@ import {
   TimeoutNotificationScheduler,
   systemNotificationClock
 } from '@shared/notifications'
+
+/** Settings value: opaque keys of the ChatGPT accounts whose default models were enabled. */
+const CHATGPT_DEFAULT_MODELS_APPLIED_KEY = 'chatgptDefaultModelsApplied'
 
 type ApplicationDatabaseMaintenancePort = SyncImportDatabasePort &
   DatabaseSecurityMigrationDatabasePort
@@ -873,7 +878,63 @@ export async function createMainProcessControl(dependencies: {
       setProviderById: (providerId, provider) =>
         providerRuntime.setProviderById(providerId, provider)
     },
-    publishDeepchatEvent
+    publishDeepchatEvent,
+    {
+      codexRetiredNotice: {
+        pending: () =>
+          dependencies.settingsStore.get<boolean>(CODEX_RETIRED_NOTICE_PENDING_KEY) === true,
+        dismiss: () => dependencies.settingsStore.set(CODEX_RETIRED_NOTICE_PENDING_KEY, false)
+      },
+      // The catalog belongs to the signed-in account: enable and refresh on sign-in, empty on
+      // sign-out so no other account's models remain selectable.
+      onAccountChanged: (signedIn, accountKey) => {
+        const provider = providerSettings.getProviderById(CHATGPT_PROVIDER_ID)
+        if (!provider) return
+        if (!signedIn) {
+          providerRuntime.supersedeProviderCatalogRefresh(CHATGPT_PROVIDER_ID)
+          providerRuntime.replaceProviderCatalogFromSource(CHATGPT_PROVIDER_ID, [], 'config')
+          return
+        }
+        // Enabling rebuilds the instance and starts a config refresh; joining it keeps one fetch.
+        if (!provider.enable) {
+          providerRuntime.updateProviderAtomic(CHATGPT_PROVIDER_ID, { enable: true })
+        }
+        void providerRuntime
+          .refreshProviderCatalog(CHATGPT_PROVIDER_ID, 'config')
+          .then(async () => {
+            // An account's first sign-in should be ready to chat: enable its leading models, in
+            // server order. This happens once per account; later sign-ins of the same account
+            // keep the user's choices, including disabling every model.
+            const account = accountKey ?? ''
+            const applied = dependencies.settingsStore.get<unknown>(
+              CHATGPT_DEFAULT_MODELS_APPLIED_KEY
+            )
+            const appliedAccounts = Array.isArray(applied)
+              ? applied.filter((entry): entry is string => typeof entry === 'string')
+              : []
+            if (appliedAccounts.includes(account) || (applied === true && !account)) return
+            const models = providerSettings.getProviderModels(CHATGPT_PROVIDER_ID)
+            if (models.length === 0) return
+            const statuses = providerSettings.getBatchModelStatus(
+              CHATGPT_PROVIDER_ID,
+              models.map((model) => model.id)
+            )
+            if (!Object.values(statuses).some(Boolean)) {
+              providerSettings.batchSetModelStatus(
+                CHATGPT_PROVIDER_ID,
+                Object.fromEntries(models.slice(0, 3).map((model) => [model.id, true]))
+              )
+            }
+            dependencies.settingsStore.set(CHATGPT_DEFAULT_MODELS_APPLIED_KEY, [
+              ...appliedAccounts,
+              account
+            ])
+          })
+          .catch((error) => {
+            logger.warn('[ChatGPT] Model refresh after sign-in failed:', error)
+          })
+      }
+    }
   )
   const agentSettings = new AgentSettings(
     dependencies.settingsStore,

@@ -5,9 +5,13 @@ import * as http from 'http'
 import { URL } from 'url'
 import { createGitHubCopilotOAuth } from './githubCopilotOAuth'
 import { getGitHubCopilotToken, getGlobalGitHubCopilotDeviceFlow } from './githubCopilotDeviceFlow'
-import { getGlobalOpenAICodexAuth, initializeGlobalOpenAICodexAuth } from './openaiCodex'
+import {
+  getGlobalChatGPTAuth,
+  initializeGlobalChatGPTAuth,
+  type ChatGPTAuthOptions
+} from './chatgpt'
 import { getGlobalXaiGrokAuth, initializeGlobalXaiGrokAuth } from './xaiGrok'
-import type { OpenAICodexAuthStatus } from '@shared/types/openai-codex'
+import type { ChatGPTAuthStatus, ChatGPTLogoutResult, ChatGPTNotice } from '@shared/types/chatgpt'
 import type { XaiGrokAuthStatus } from '@shared/types/xai-grok'
 import type { DeepchatEventPublisher } from '@shared/contracts/events'
 import type { LLM_PROVIDER } from '@shared/types/provider'
@@ -24,9 +28,10 @@ export class OAuthService implements OAuthServicePort {
       ProviderSettingsPort,
       'getProviderById' | 'setProviderById'
     >,
-    publishEvent: DeepchatEventPublisher
+    publishEvent: DeepchatEventPublisher,
+    chatgpt: Omit<ChatGPTAuthOptions, 'publishEvent'> = {}
   ) {
-    initializeGlobalOpenAICodexAuth(publishEvent)
+    initializeGlobalChatGPTAuth({ ...chatgpt, publishEvent })
     initializeGlobalXaiGrokAuth(publishEvent)
   }
 
@@ -66,26 +71,28 @@ export class OAuthService implements OAuthServicePort {
     }
   }
 
-  async getOpenAICodexStatus(): Promise<OpenAICodexAuthStatus> {
-    return getGlobalOpenAICodexAuth().getStatus()
+  async getChatGPTStatus(): Promise<ChatGPTAuthStatus> {
+    return getGlobalChatGPTAuth().getStatus()
   }
 
-  async startOpenAICodexBrowserLogin(): Promise<OpenAICodexAuthStatus> {
-    return getGlobalOpenAICodexAuth().startBrowserLogin()
+  async startChatGPTLogin(options?: { requestPlanConsent?: boolean }): Promise<ChatGPTAuthStatus> {
+    return getGlobalChatGPTAuth().startLogin(options)
   }
 
-  async completeOpenAICodexBrowserLoginFromUrl(
-    callbackUrl: string
-  ): Promise<OpenAICodexAuthStatus> {
-    return getGlobalOpenAICodexAuth().completeBrowserLoginFromCallbackUrl(callbackUrl)
+  async reopenChatGPTBrowser(): Promise<ChatGPTAuthStatus> {
+    return getGlobalChatGPTAuth().reopenBrowser()
   }
 
-  async cancelOpenAICodexLogin(): Promise<OpenAICodexAuthStatus> {
-    return getGlobalOpenAICodexAuth().cancelLogin()
+  async cancelChatGPTLogin(): Promise<ChatGPTAuthStatus> {
+    return getGlobalChatGPTAuth().cancelLogin()
   }
 
-  async logoutOpenAICodex(): Promise<OpenAICodexAuthStatus> {
-    return getGlobalOpenAICodexAuth().logout()
+  async logoutChatGPT(): Promise<ChatGPTLogoutResult> {
+    return getGlobalChatGPTAuth().logout()
+  }
+
+  async dismissChatGPTNotice(notice: ChatGPTNotice): Promise<ChatGPTAuthStatus> {
+    return getGlobalChatGPTAuth().dismissNotice(notice)
   }
 
   async getXaiGrokStatus(): Promise<XaiGrokAuthStatus> {

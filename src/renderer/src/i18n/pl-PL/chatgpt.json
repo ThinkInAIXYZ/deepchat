@@ -1,0 +1,38 @@
+{
+  "continue": "Kontynuuj z ChatGPT",
+  "opening": "Otwieranie ChatGPT…",
+  "connected": "Połączono z ChatGPT",
+  "connectedAs": "Połączono jako {email}",
+  "planEnabled": "Korzystanie z planu ChatGPT jest włączone",
+  "manageUsage": "Zarządzaj użyciem",
+  "signOut": "Wyloguj",
+  "offerTitle": "Korzystaj ze swojego planu ChatGPT",
+  "offerDescription": "Kwalifikujące się żądania AI w DeepChat korzystają z limitu Twojego planu ChatGPT lub salda kredytów. Jest to niezależne od rozliczeń kluczem API.",
+  "planDisabled": "Zalogowano, ale korzystanie z planu ChatGPT nie jest dozwolone. Kontynuuj z ChatGPT, aby zezwolić DeepChat na korzystanie z planu.",
+  "reauthRequired": "Logowanie do ChatGPT wygasło. Kontynuuj z ChatGPT, aby połączyć ponownie.",
+  "waiting": "Oczekiwanie na autoryzację w przeglądarce…",
+  "reopenBrowser": "Otwórz przeglądarkę ponownie",
+  "revocationUnconfirmed": "Wylogowano lokalnie. Nie potwierdzono zdalnego unieważnienia; odłącz DeepChat w ustawieniach ChatGPT.",
+  "startChatting": "Zacznij rozmowę",
+  "signInFailed": "Nie udało się zalogować przez ChatGPT. Spróbuj ponownie.",
+  "welcomeHint": "Korzystaj z planu ChatGPT. Bez klucza API.",
+  "orAddProvider": "lub dodaj dostawcę",
+  "codexRetiredTitle": "Logowanie OpenAI Codex zostało wycofane",
+  "codexRetiredDescription": "DeepChat obsługuje teraz oficjalne Sign in with ChatGPT. Połącz się ponownie, aby dalej korzystać z planu ChatGPT. Twoje czaty zostaną zachowane.",
+  "later": "Później",
+  "reconnect": "Połącz ponownie ChatGPT",
+  "recovery": {
+    "usageLimit": {
+      "title": "Osiągnięto limit użycia",
+      "description": "Sprawdź swój plan lub limit DeepChat w ustawieniach ChatGPT."
+    },
+    "notEligible": {
+      "title": "Plan ChatGPT niedostępny",
+      "description": "Korzystanie z planu ChatGPT nie jest dostępne dla tego konta lub obszaru roboczego."
+    },
+    "reconnect": {
+      "title": "Zaloguj się ponownie",
+      "description": "Połącz ponownie ChatGPT, aby kontynuować ten czat."
+    }
+  }
+}

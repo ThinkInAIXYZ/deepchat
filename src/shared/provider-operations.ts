@@ -40,7 +40,6 @@ export const REBUILD_REQUIRED_FIELDS = [
   'enable',
   'apiKey',
   'apiType', // protocol: a live instance cannot change protocol
-  'openaiAuthMode', // switches between the OpenAI API and ChatGPT Codex backends
   'copilotClientId',
   'baseUrl',
   'oauthToken',

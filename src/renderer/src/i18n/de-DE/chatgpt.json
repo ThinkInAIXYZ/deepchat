@@ -1,0 +1,38 @@
+{
+  "continue": "Mit ChatGPT fortfahren",
+  "opening": "ChatGPT wird geöffnet…",
+  "connected": "Mit ChatGPT verbunden",
+  "connectedAs": "Verbunden als {email}",
+  "planEnabled": "Nutzung des ChatGPT-Tarifs ist aktiviert",
+  "manageUsage": "Nutzung verwalten",
+  "signOut": "Abmelden",
+  "offerTitle": "ChatGPT-Tarif verwenden",
+  "offerDescription": "Berechtigte KI-Anfragen in DeepChat werden mit der in deinem ChatGPT-Tarif oder Guthaben enthaltenen Nutzung ausgeführt. Dies ist unabhängig von der Abrechnung per API-Schlüssel.",
+  "planDisabled": "Angemeldet, aber die Nutzung des ChatGPT-Tarifs ist nicht erlaubt. Fahre mit ChatGPT fort, um DeepChat die Nutzung deines Tarifs zu erlauben.",
+  "reauthRequired": "Deine ChatGPT-Anmeldung ist abgelaufen. Fahre mit ChatGPT fort, um die Verbindung wiederherzustellen.",
+  "waiting": "Warte auf Autorisierung im Browser…",
+  "reopenBrowser": "Browser erneut öffnen",
+  "revocationUnconfirmed": "Lokal abgemeldet. Der Widerruf auf dem Server wurde nicht bestätigt; trenne DeepChat in den ChatGPT-Einstellungen.",
+  "startChatting": "Chat starten",
+  "signInFailed": "Anmeldung mit ChatGPT fehlgeschlagen. Bitte erneut versuchen.",
+  "welcomeHint": "Nutze deinen ChatGPT-Tarif. Kein API-Schlüssel nötig.",
+  "orAddProvider": "oder Anbieter hinzufügen",
+  "codexRetiredTitle": "Die OpenAI-Codex-Anmeldung wurde eingestellt",
+  "codexRetiredDescription": "DeepChat unterstützt jetzt das offizielle Sign in with ChatGPT. Verbinde dich erneut, um deinen ChatGPT-Tarif weiter zu nutzen. Deine Chats bleiben erhalten.",
+  "later": "Später",
+  "reconnect": "ChatGPT erneut verbinden",
+  "recovery": {
+    "usageLimit": {
+      "title": "Nutzungslimit erreicht",
+      "description": "Prüfe deinen Tarif oder das Limit von DeepChat in den ChatGPT-Einstellungen."
+    },
+    "notEligible": {
+      "title": "ChatGPT-Tarif nicht verfügbar",
+      "description": "Die Nutzung des ChatGPT-Tarifs ist für dieses Konto oder diesen Workspace nicht verfügbar."
+    },
+    "reconnect": {
+      "title": "Erneut anmelden",
+      "description": "Verbinde ChatGPT erneut, um diesen Chat fortzusetzen."
+    }
+  }
+}

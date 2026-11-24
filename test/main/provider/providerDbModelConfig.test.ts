@@ -350,10 +350,10 @@ describe('Provider DB strict matching and user overrides', () => {
     ).toMatchObject({ requestModelId: 'cursor/auto', catalogMatched: false })
   })
 
-  it('resolves OpenAI Codex models through the OpenAI catalog identity', () => {
+  it('resolves ChatGPT models through the OpenAI catalog identity', () => {
     const helper = new ModelConfigHelper()
 
-    const config = helper.getModelConfig('gpt-5.6-sol', 'openai-codex')
+    const config = helper.getModelConfig('gpt-5.6-sol', 'chatgpt')
 
     expect(config).toMatchObject({
       contextLength: 1_050_000,
@@ -361,51 +361,6 @@ describe('Provider DB strict matching and user overrides', () => {
       reasoning: true
     })
   })
-
-  it('resolves the OpenAI Codex image model through the OpenAI catalog identity', () => {
-    const helper = new ModelConfigHelper()
-
-    const config = helper.getModelConfig('gpt-image-2', 'openai-codex')
-
-    expect(config).toMatchObject({
-      type: ModelType.ImageGeneration,
-      apiEndpoint: ApiEndpointType.Image,
-      vision: false,
-      functionCall: false
-    })
-
-    expect(helper.getModelConfig('gpt-image-2', 'openai').vision).toBe(true)
-  })
-
-  it.each(['gpt-image-2.5-sunburst', 'gpt-image-2.5-flare'])(
-    'routes Codex image model %s without catalog metadata and preserves user settings',
-    (modelId) => {
-      const helper = new ModelConfigHelper()
-      expect(helper.getModelConfig(modelId, 'openai-codex')).toMatchObject({
-        type: ModelType.ImageGeneration,
-        apiEndpoint: ApiEndpointType.Image,
-        vision: false,
-        functionCall: false,
-        reasoning: false,
-        isUserDefined: false
-      })
-      expect(helper.getModelConfig(modelId, 'openai')).toMatchObject({
-        type: ModelType.Chat,
-        apiEndpoint: ApiEndpointType.Chat
-      })
-
-      helper.setModelConfig(modelId, 'openai-codex', {
-        ...helper.getModelConfig(modelId, 'openai-codex'),
-        type: ModelType.Chat,
-        apiEndpoint: ApiEndpointType.Chat
-      })
-      expect(helper.getModelConfig(modelId, 'openai-codex')).toMatchObject({
-        type: ModelType.Chat,
-        apiEndpoint: ApiEndpointType.Chat,
-        isUserDefined: true
-      })
-    }
-  )
 
   it('applies partial fallbacks when limit fields are missing', () => {
     const helper = new ModelConfigHelper()

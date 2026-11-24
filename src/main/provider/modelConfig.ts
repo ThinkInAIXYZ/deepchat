@@ -1,4 +1,4 @@
-import { ApiEndpointType, ModelType, isOpenAIImageGenerationModelId } from '@shared/model'
+import { ApiEndpointType, ModelType } from '@shared/model'
 import type {
   IModelConfig,
   MODEL_META,
@@ -158,15 +158,6 @@ export class ModelConfigHelper {
     const policyConfig = applyMoonshotKimiReasoningTemperaturePolicy(providerId, modelId, config)
 
     if (isTextOnlyInputProvider(providerId)) {
-      return { ...policyConfig, vision: false }
-    }
-
-    if (
-      normalizeProviderKind(providerId) === 'openai-codex' &&
-      (policyConfig.type === ModelType.ImageGeneration ||
-        policyConfig.apiEndpoint === ApiEndpointType.Image ||
-        policyConfig.endpointType === 'image-generation')
-    ) {
       return { ...policyConfig, vision: false }
     }
 
@@ -501,8 +492,6 @@ export class ModelConfigHelper {
     }
 
     if (!finalConfig) {
-      const isCodexImage =
-        normProviderId === 'openai-codex' && isOpenAIImageGenerationModelId(normModelId)
       finalConfig = {
         ...this.resolveCapabilityFallbacks(
           normProviderId,
@@ -510,12 +499,11 @@ export class ModelConfigHelper {
           capabilityIdentity,
           providerApiType
         ),
-        ...(isCodexImage ? { functionCall: false } : {}),
         timeout: DEFAULT_MODEL_TIMEOUT,
         temperature: 0.6,
         topP: undefined,
-        type: isCodexImage ? ModelType.ImageGeneration : ModelType.Chat,
-        apiEndpoint: isCodexImage ? ApiEndpointType.Image : ApiEndpointType.Chat,
+        type: ModelType.Chat,
+        apiEndpoint: ApiEndpointType.Chat,
         endpointType: undefined,
         thinkingBudget: undefined,
         reasoningEffort: undefined,

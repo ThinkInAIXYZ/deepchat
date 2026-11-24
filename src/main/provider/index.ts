@@ -379,6 +379,10 @@ export class ProviderRuntime
     this.providerCatalogService.onExternalCatalogWrite(providerId, reason)
   }
 
+  supersedeProviderCatalogRefresh(providerId: string): void {
+    this.providerCatalogService.supersedeRefresh(providerId)
+  }
+
   invalidateProviderCatalogFromSync(providerId: string): void {
     this.providerCatalogService.invalidateFromSync(providerId)
   }

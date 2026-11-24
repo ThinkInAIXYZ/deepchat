@@ -1,11 +1,11 @@
 import { z } from 'zod'
 import { TimestampMsSchema, defineEventContract } from '../common'
-import { OpenAICodexAuthStatusSchema, XaiGrokAuthStatusSchema } from '../routes/oauth.routes'
+import { ChatGPTAuthStatusSchema, XaiGrokAuthStatusSchema } from '../routes/oauth.routes'
 
-export const oauthOpenAICodexStatusChangedEvent = defineEventContract({
-  name: 'oauth.openaiCodex.statusChanged',
+export const oauthChatGPTStatusChangedEvent = defineEventContract({
+  name: 'oauth.chatgpt.statusChanged',
   payload: z.object({
-    status: OpenAICodexAuthStatusSchema,
+    status: ChatGPTAuthStatusSchema,
     version: TimestampMsSchema
   })
 })

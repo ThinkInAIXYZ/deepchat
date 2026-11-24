@@ -175,7 +175,7 @@ async function setup(provider = createProvider()) {
     global: {
       stubs: {
         GitHubCopilotOAuth: true,
-        OpenAICodexOAuth: true,
+        ChatGPTAuth: true,
         GrokOAuth: true
       }
     }
@@ -332,28 +332,19 @@ describe('ProviderApiConfig', () => {
     expect(save).not.toHaveBeenCalled()
   })
 
-  it('switches OpenAI between API key and ChatGPT OAuth modes', async () => {
-    const provider = createProvider({ id: 'openai', apiType: 'openai' })
-    const { wrapper } = await setup(provider)
+  it('uses OAuth without generic key controls for ChatGPT and Copilot', async () => {
+    const chatgpt = await setup(createProvider({ id: 'chatgpt', apiType: 'chatgpt', apiKey: '' }))
+    expect(chatgpt.wrapper.find('[data-testid="provider-api-key-summary"]').exists()).toBe(false)
+    expect(chatgpt.wrapper.find('[data-testid="provider-connection-edit"]').exists()).toBe(false)
+    expect(chatgpt.wrapper.findComponent({ name: 'ChatGPTAuth' }).exists()).toBe(true)
+    chatgpt.wrapper.unmount()
 
-    await wrapper.get('[data-testid="openai-chatgpt-mode-button"]').trigger('click')
-    expect(wrapper.emitted('auth-mode-change')?.[0]).toEqual(['chatgpt'])
-    await wrapper.setProps({ provider: { ...provider, openaiAuthMode: 'chatgpt' } })
-    expect(wrapper.find('[data-testid="provider-api-key-summary"]').exists()).toBe(false)
-    expect(wrapper.findComponent({ name: 'OpenAICodexOAuth' }).exists()).toBe(true)
-  })
-
-  it('uses OAuth without generic key controls for Codex and Copilot', async () => {
-    for (const provider of [
-      createProvider({ id: 'openai-codex', apiType: 'openai-codex', apiKey: '' }),
+    const { wrapper } = await setup(
       createProvider({ id: 'github-copilot', apiType: 'github-copilot', apiKey: '' })
-    ]) {
-      const { wrapper } = await setup(provider)
-      expect(wrapper.find('[data-testid="provider-api-key-summary"]').exists()).toBe(false)
-      await openEditor(wrapper)
-      expect(wrapper.find('[data-testid="provider-api-key-input"]').exists()).toBe(false)
-      wrapper.unmount()
-    }
+    )
+    expect(wrapper.find('[data-testid="provider-api-key-summary"]').exists()).toBe(false)
+    await openEditor(wrapper)
+    expect(wrapper.find('[data-testid="provider-api-key-input"]').exists()).toBe(false)
   })
 
   it('shows Grok OAuth only for xAI endpoints while retaining the API key fallback', async () => {

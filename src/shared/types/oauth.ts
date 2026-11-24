@@ -1,4 +1,4 @@
-import type { OpenAICodexAuthStatus } from './openai-codex'
+import type { ChatGPTAuthStatus, ChatGPTLogoutResult, ChatGPTNotice } from './chatgpt'
 import type { XaiGrokAuthStatus } from './xai-grok'
 
 export interface OAuthConfig {
@@ -14,11 +14,12 @@ export interface OAuthServicePort {
   startOAuthLogin(providerId: string, config: OAuthConfig): Promise<boolean>
   startGitHubCopilotLogin(providerId: string): Promise<boolean>
   startGitHubCopilotDeviceFlowLogin(providerId: string): Promise<boolean>
-  getOpenAICodexStatus(): Promise<OpenAICodexAuthStatus>
-  startOpenAICodexBrowserLogin(): Promise<OpenAICodexAuthStatus>
-  completeOpenAICodexBrowserLoginFromUrl(callbackUrl: string): Promise<OpenAICodexAuthStatus>
-  cancelOpenAICodexLogin(): Promise<OpenAICodexAuthStatus>
-  logoutOpenAICodex(): Promise<OpenAICodexAuthStatus>
+  getChatGPTStatus(): Promise<ChatGPTAuthStatus>
+  startChatGPTLogin(options?: { requestPlanConsent?: boolean }): Promise<ChatGPTAuthStatus>
+  reopenChatGPTBrowser(): Promise<ChatGPTAuthStatus>
+  cancelChatGPTLogin(): Promise<ChatGPTAuthStatus>
+  logoutChatGPT(): Promise<ChatGPTLogoutResult>
+  dismissChatGPTNotice(notice: ChatGPTNotice): Promise<ChatGPTAuthStatus>
   getXaiGrokStatus(): Promise<XaiGrokAuthStatus>
   startXaiGrokDeviceLogin(): Promise<XaiGrokAuthStatus>
   cancelXaiGrokLogin(): Promise<XaiGrokAuthStatus>

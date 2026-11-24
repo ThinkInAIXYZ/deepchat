@@ -341,7 +341,7 @@ it('validates OAuth recovery leases and redacts connection-owner failures', asyn
       if (providerId === 'ordinary') return null
       if (providerId !== 'bound' || modelId !== 'model') throw new Error('private OAuth token')
       expect(rejectedLease).toBe('a'.repeat(64))
-      return { preset: 'openai-codex', bearer: 'private OAuth token', lease: 'b'.repeat(64) }
+      return { preset: 'openai-chatgpt', bearer: 'private OAuth token', lease: 'b'.repeat(64) }
     }
   })
   try {
@@ -369,7 +369,7 @@ it('validates OAuth recovery leases and redacts connection-owner failures', asyn
         modelId: 'model',
         rejectedLease: 'a'.repeat(64)
       })
-    ).toMatchObject({ result: { preset: 'openai-codex', bearer: 'private OAuth token' } })
+    ).toMatchObject({ result: { preset: 'openai-chatgpt', bearer: 'private OAuth token' } })
   } finally {
     await gateway.stop()
   }

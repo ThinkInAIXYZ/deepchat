@@ -17,6 +17,9 @@ const isKeylessLocalOpenLLM = (provider: LLM_PROVIDER) => {
 export const isProviderReadyForOnboarding = (provider: LLM_PROVIDER) => {
   if (!provider.enable) return false
 
+  // The main process enables ChatGPT only after a validated sign-in with plan permission.
+  if (provider.id === 'chatgpt') return true
+
   if (provider.apiType === 'ollama') {
     return Boolean(provider.baseUrl?.trim())
   }
@@ -40,9 +43,6 @@ export const isProviderReadyForOnboarding = (provider: LLM_PROVIDER) => {
   }
 
   if (provider.custom && !provider.baseUrl?.trim()) return false
-  if (provider.id === 'openai' && provider.openaiAuthMode === 'chatgpt') {
-    return Boolean(provider.oauthToken)
-  }
   if (isKeylessLocalOpenLLM(provider)) return true
   return Boolean(provider.apiKey?.trim() || provider.oauthToken)
 }

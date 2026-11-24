@@ -1,0 +1,38 @@
+{
+  "continue": "Teruskan dengan ChatGPT",
+  "opening": "Membuka ChatGPT…",
+  "connected": "Disambungkan ke ChatGPT",
+  "connectedAs": "Disambungkan sebagai {email}",
+  "planEnabled": "Penggunaan pelan ChatGPT didayakan",
+  "manageUsage": "Urus penggunaan",
+  "signOut": "Log keluar",
+  "offerTitle": "Gunakan pelan ChatGPT anda",
+  "offerDescription": "Permintaan AI yang layak dalam DeepChat menggunakan kuota daripada pelan ChatGPT atau baki kredit anda. Ini berasingan daripada pengebilan kunci API.",
+  "planDisabled": "Sudah log masuk, tetapi penggunaan pelan ChatGPT belum dibenarkan. Teruskan dengan ChatGPT untuk membenarkan DeepChat menggunakan pelan anda.",
+  "reauthRequired": "Log masuk ChatGPT anda telah tamat tempoh. Teruskan dengan ChatGPT untuk menyambung semula.",
+  "waiting": "Menunggu kebenaran dalam pelayar…",
+  "reopenBrowser": "Buka semula pelayar",
+  "revocationUnconfirmed": "Log keluar secara setempat. Pembatalan jauh tidak disahkan; putuskan DeepChat dalam tetapan ChatGPT.",
+  "startChatting": "Mula berbual",
+  "signInFailed": "Tidak dapat log masuk dengan ChatGPT. Cuba lagi.",
+  "welcomeHint": "Gunakan pelan ChatGPT anda. Tiada kunci API diperlukan.",
+  "orAddProvider": "atau tambah penyedia",
+  "codexRetiredTitle": "Log masuk OpenAI Codex telah ditamatkan",
+  "codexRetiredDescription": "DeepChat kini menyokong Sign in with ChatGPT rasmi. Sambung semula untuk terus menggunakan pelan ChatGPT anda. Sembang anda dikekalkan.",
+  "later": "Kemudian",
+  "reconnect": "Sambung semula ChatGPT",
+  "recovery": {
+    "usageLimit": {
+      "title": "Had penggunaan dicapai",
+      "description": "Semak pelan anda atau had DeepChat dalam tetapan ChatGPT."
+    },
+    "notEligible": {
+      "title": "Pelan ChatGPT tidak tersedia",
+      "description": "Penggunaan pelan ChatGPT tidak tersedia untuk akaun atau ruang kerja ini."
+    },
+    "reconnect": {
+      "title": "Log masuk semula",
+      "description": "Sambung semula ChatGPT untuk meneruskan sembang ini."
+    }
+  }
+}
