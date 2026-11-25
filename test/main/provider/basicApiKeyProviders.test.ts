@@ -899,6 +899,25 @@ describe('basic API-key provider registrations', () => {
     })
   })
 
+  it('resolves TeamoRouter through authenticated OpenAI-compatible model discovery', () => {
+    expect(
+      resolveAiSdkProviderDefinition(
+        createProvider({
+          id: 'teamorouter',
+          name: 'TeamoRouter',
+          baseUrl: 'https://api.teamorouter.com/v1'
+        })
+      )
+    ).toMatchObject({
+      runtimeKind: 'openai-compatible',
+      modelSource: 'openai',
+      checkStrategy: 'fetch-models',
+      credentialStrategy: 'api-key',
+      routeStrategy: 'none',
+      embeddingStrategy: 'none'
+    })
+  })
+
   it('resolves AtmoRouter through authenticated OpenAI-compatible model discovery', () => {
     expect(
       resolveAiSdkProviderDefinition(

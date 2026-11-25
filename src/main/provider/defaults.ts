@@ -819,6 +819,20 @@ const PROVIDER_DEFAULTS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'teamorouter',
+    name: 'TeamoRouter',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://api.teamorouter.com/v1',
+    enable: false,
+    websites: {
+      official: 'https://teamorouter.com/?utm_source=deepchat',
+      apiKey: 'https://teamorouter.com/dashboard?utm_source=deepchat',
+      docs: 'https://teamorouter.com/docs?utm_source=deepchat',
+      models: 'https://teamorouter.com/models?utm_source=deepchat'
+    }
+  },
+  {
     id: 'obscurify',
     name: 'Obscurify.ai',
     apiType: 'openai-completions',
