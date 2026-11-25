@@ -56,6 +56,8 @@ export class SVGSanitizer {
         return null
       }
 
+      svgContent = this.stripProlog(svgContent)
+
       // Basic SVG structure validation
       if (!this.isValidSVGStructure(svgContent)) {
         console.warn('Invalid SVG structure')
@@ -95,6 +97,57 @@ export class SVGSanitizer {
       console.error('SVG sanitization error:', error)
       return null
     }
+  }
+
+  /**
+   * Strip XML declarations, XML-prefixed processing instructions (such as xml-stylesheet),
+   * comments, and DOCTYPE declarations without an internal subset before the SVG root.
+   */
+  private stripProlog(content: string): string {
+    let index = 0
+
+    while (index < content.length) {
+      while (index < content.length && /\s/.test(content[index])) {
+        index += 1
+      }
+
+      let end = -1
+      if (content.startsWith('<?xml', index)) {
+        end = this.findEnd(content, index, '?>')
+      } else if (content.startsWith('<!--', index)) {
+        end = this.findEnd(content, index + 4, '-->')
+      } else if (content.slice(index, index + 9).toUpperCase() === '<!DOCTYPE') {
+        end = this.findDoctypeEnd(content, index + 9)
+      }
+
+      if (end === -1) {
+        break
+      }
+      index = end
+    }
+
+    return /^<svg/i.test(content.slice(index, index + 4)) ? content.slice(index) : content
+  }
+
+  private findEnd(content: string, from: number, terminator: string): number {
+    const position = content.indexOf(terminator, from)
+    return position === -1 ? -1 : position + terminator.length
+  }
+
+  private findDoctypeEnd(content: string, from: number): number {
+    for (let index = from; index < content.length; index += 1) {
+      const char = content[index]
+      if (char === '"' || char === "'") {
+        index = content.indexOf(char, index + 1)
+        if (index === -1) return -1
+      } else if (char === '[') {
+        // Reject internal subsets because they can declare entities.
+        return -1
+      } else if (char === '>') {
+        return index + 1
+      }
+    }
+    return -1
   }
 
   /**

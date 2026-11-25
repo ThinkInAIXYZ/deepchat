@@ -35,4 +35,45 @@ describe('SVGSanitizer', () => {
 
     expect(result).toContain('href="#shape"')
   })
+
+  it('accepts an XML declaration, DOCTYPE and comments before the svg element', () => {
+    const sanitizer = new SVGSanitizer()
+    const result = sanitizer.sanitize(
+      '\uFEFF<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n' +
+        '<?xml-stylesheet type="text/css" href="icon.css"?>\n' +
+        '<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">\n' +
+        '<!-- Created with Inkscape -->\n' +
+        '<svg xmlns="http://www.w3.org/2000/svg"><rect width="10" height="10"/></svg>'
+    )
+
+    expect(result).toBe(
+      '<svg xmlns="http://www.w3.org/2000/svg"><rect width="10" height="10"/></svg>'
+    )
+  })
+
+  it('still rejects a DOCTYPE with an internal subset and non-svg roots', () => {
+    const sanitizer = new SVGSanitizer()
+
+    expect(
+      sanitizer.sanitize(
+        '<?xml version="1.0"?><!DOCTYPE svg [<!ENTITY x "y">]><svg xmlns="http://www.w3.org/2000/svg"></svg>'
+      )
+    ).toBeNull()
+    expect(sanitizer.sanitize('<?xml version="1.0"?><html><svg></svg></html>')).toBeNull()
+  })
+
+  it('ignores DOCTYPE delimiters inside quoted identifiers', () => {
+    const sanitizer = new SVGSanitizer()
+
+    expect(sanitizer.sanitize('<!DOCTYPE svg SYSTEM "http://[::1]/svg.dtd"><svg></svg>')).toBe(
+      '<svg></svg>'
+    )
+    expect(sanitizer.sanitize('<!DOCTYPE svg SYSTEM "a>b.dtd"><svg></svg>')).toBe('<svg></svg>')
+    expect(
+      sanitizer.sanitize("<!DOCTYPE svg PUBLIC '-//[x]//EN' 'http://[::1]/a>b.dtd'><svg></svg>")
+    ).toBe('<svg></svg>')
+    expect(
+      sanitizer.sanitize('<!DOCTYPE svg SYSTEM "a.dtd" [<!ENTITY x "y">]><svg></svg>')
+    ).toBeNull()
+  })
 })

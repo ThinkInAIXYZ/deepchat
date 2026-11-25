@@ -131,6 +131,24 @@ describe('AcpRegistryService', () => {
     expect(mockNetFetch).not.toHaveBeenCalled()
   })
 
+  it('renders a bundled icon that starts with an XML declaration', async () => {
+    writeBuiltInIcon(
+      'sigit',
+      '<?xml version="1.0" standalone="no" ?>\n<svg viewBox="0 0 16 16"><path d="M0 0h16v16H0z" /></svg>'
+    )
+
+    const AcpRegistryService = await importService()
+    const service = new AcpRegistryService()
+
+    const markup = await service.getIconMarkup(
+      'sigit',
+      'https://cdn.agentclientprotocol.com/registry/v1/latest/sigit.svg'
+    )
+
+    expect(markup).toContain('<svg')
+    expect(markup).not.toContain('<?xml')
+  })
+
   it('skips the automatic registry refresh when privacy mode is enabled', async () => {
     const manifest = createManifest()
     writeBuiltInManifest(manifest)
