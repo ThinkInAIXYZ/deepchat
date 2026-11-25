@@ -56,6 +56,9 @@ export class SVGSanitizer {
         return null
       }
 
+      // Drop the XML declaration, a plain DOCTYPE and comments that stand before <svg>
+      svgContent = this.stripProlog(svgContent)
+
       // Basic SVG structure validation
       if (!this.isValidSVGStructure(svgContent)) {
         console.warn('Invalid SVG structure')
@@ -95,6 +98,45 @@ export class SVGSanitizer {
       console.error('SVG sanitization error:', error)
       return null
     }
+  }
+
+  /**
+   * Strip the XML declaration, a DOCTYPE without an internal subset and comments
+   * that precede the root element, as written by Inkscape, Illustrator and similar tools
+   */
+  private stripProlog(content: string): string {
+    let index = 0
+
+    while (index < content.length) {
+      while (index < content.length && /\s/.test(content[index])) {
+        index += 1
+      }
+
+      let end = -1
+      if (content.startsWith('<?xml', index)) {
+        end = this.findEnd(content, index, '?>')
+      } else if (content.startsWith('<!--', index)) {
+        end = this.findEnd(content, index + 4, '-->')
+      } else if (content.slice(index, index + 9).toUpperCase() === '<!DOCTYPE') {
+        end = this.findEnd(content, index, '>')
+        // A DOCTYPE with an internal subset can declare entities, so it is left in place
+        if (end !== -1 && content.slice(index, end).includes('[')) {
+          end = -1
+        }
+      }
+
+      if (end === -1) {
+        break
+      }
+      index = end
+    }
+
+    return /^<svg/i.test(content.slice(index, index + 4)) ? content.slice(index) : content
+  }
+
+  private findEnd(content: string, from: number, terminator: string): number {
+    const position = content.indexOf(terminator, from)
+    return position === -1 ? -1 : position + terminator.length
   }
 
   /**
