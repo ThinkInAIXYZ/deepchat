@@ -56,7 +56,6 @@ export class SVGSanitizer {
         return null
       }
 
-      // Drop the XML declaration, a plain DOCTYPE and comments that stand before <svg>
       svgContent = this.stripProlog(svgContent)
 
       // Basic SVG structure validation
@@ -101,8 +100,8 @@ export class SVGSanitizer {
   }
 
   /**
-   * Strip the XML declaration, a DOCTYPE without an internal subset and comments
-   * that precede the root element, as written by Inkscape, Illustrator and similar tools
+   * Strip XML declarations, XML-prefixed processing instructions (such as xml-stylesheet),
+   * comments, and DOCTYPE declarations without an internal subset before the SVG root.
    */
   private stripProlog(content: string): string {
     let index = 0
@@ -118,13 +117,7 @@ export class SVGSanitizer {
       } else if (content.startsWith('<!--', index)) {
         end = this.findEnd(content, index + 4, '-->')
       } else if (content.slice(index, index + 9).toUpperCase() === '<!DOCTYPE') {
-        end = this.findEnd(content, index, '>')
-        // A DOCTYPE with an internal subset can declare entities, so it is left in place.
-        // A [ inside a quoted system or public identifier is not a subset.
-        const unquoted = content.slice(index, end).replace(/"[^"]*"|'[^']*'/g, '')
-        if (end !== -1 && unquoted.includes('[')) {
-          end = -1
-        }
+        end = this.findDoctypeEnd(content, index + 9)
       }
 
       if (end === -1) {
@@ -139,6 +132,22 @@ export class SVGSanitizer {
   private findEnd(content: string, from: number, terminator: string): number {
     const position = content.indexOf(terminator, from)
     return position === -1 ? -1 : position + terminator.length
+  }
+
+  private findDoctypeEnd(content: string, from: number): number {
+    for (let index = from; index < content.length; index += 1) {
+      const char = content[index]
+      if (char === '"' || char === "'") {
+        index = content.indexOf(char, index + 1)
+        if (index === -1) return -1
+      } else if (char === '[') {
+        // Reject internal subsets because they can declare entities.
+        return -1
+      } else if (char === '>') {
+        return index + 1
+      }
+    }
+    return -1
   }
 
   /**
