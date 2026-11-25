@@ -1,8 +1,16 @@
 # Changelog
 
-## Unreleased
+## v1.1.5-beta.1 (2026-11-25)
 - Retired SQLite database encryption. The migration notice explains how the change affects chat history, stored provider API keys, and new backups. Users can quit before conversion. DeepChat keeps the original encrypted database as a recovery copy.
+- The built-in Agent now runs on the Rust-based Dim runtime. Tool activity appears at the end of the transcript, and pending questions can be resumed after reloading a chat.
+- Open a terminal in the chat side panel. Each session has its own terminal, which can be toggled with a keyboard shortcut.
+- Added Sign in with ChatGPT and support for AIGROW, onomeo, TeamoRouter, and WorldRouter. Refreshed Codex model support and enabled the xhigh reasoning level for Gemini 4 Hydrogen.
+- Workspace files, provider headers, ACP debug output, and traces now use the stream-diffs editor. Fixed SVG previews for files with XML declarations and preserved executable permissions when installing ACP agents from ZIP archives.
 - 停用 SQLite 数据库加密。迁移提示说明对聊天记录、已保存的服务商 API 密钥和新建备份的影响。用户可以在转换前退出，DeepChat 会保留原加密数据库作为恢复副本。
+- 内置 Agent 改用 Rust 实现的 Dim 运行时。工具活动显示在聊天记录末尾，重新加载会话后可以继续回答待处理的问题。
+- 可在聊天侧栏打开终端。每个会话都有独立终端，支持用快捷键显示或隐藏。
+- 支持使用 ChatGPT 账号登录，新增 AIGROW、onomeo、TeamoRouter 和 WorldRouter 服务商。更新 Codex 模型支持，并为 Gemini 4 Hydrogen 启用 xhigh 推理强度。
+- 工作区文件、服务商请求头、ACP 调试输出和追踪记录改用 stream-diffs 编辑器。修复带 XML 声明的 SVG 文件预览，并在从 ZIP 安装 ACP Agent 时保留可执行权限。
 
 ## v1.1.4 (2026-11-12)
 - Refreshed the desktop interface with a unified sidebar, searchable settings, compact ACP Agent details, and a message minimap with scrollable previews
