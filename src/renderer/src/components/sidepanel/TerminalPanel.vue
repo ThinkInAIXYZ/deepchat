@@ -249,7 +249,7 @@ function hostHasSize(): boolean {
   return Boolean(host && host.clientWidth > 0 && host.clientHeight > 0)
 }
 
-async function createView(): Promise<TerminalView | null> {
+async function createView(): Promise<{ terminal: TerminalView; addon: { fit(): void } }> {
   const fontFamily = 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace'
   if (accessibilityEnabled.value) {
     // ghostty-web renders to canvas without an accessible buffer; xterm keeps screen readers working.
@@ -268,13 +268,7 @@ async function createView(): Promise<TerminalView | null> {
     })
     const fit = new FitAddon()
     terminal.loadAddon(fit)
-    fitView = () => {
-      // The fit addon clamps a collapsed host to 2x1; never send that to a live shell.
-      if (!hostHasSize()) return undefined
-      fit.fit()
-      return { cols: terminal.cols, rows: terminal.rows }
-    }
-    return terminal as unknown as TerminalView
+    return { terminal: terminal as unknown as TerminalView, addon: fit }
   }
   await loadGhostty()
   const { Terminal, FitAddon } = await import('ghostty-web')
@@ -287,12 +281,7 @@ async function createView(): Promise<TerminalView | null> {
   })
   const fit = new FitAddon()
   terminal.loadAddon(fit)
-  fitView = () => {
-    if (!hostHasSize()) return undefined
-    fit.fit()
-    return { cols: terminal.cols, rows: terminal.rows }
-  }
-  return terminal as unknown as TerminalView
+  return { terminal: terminal as unknown as TerminalView, addon: fit }
 }
 
 function disposeView() {
@@ -336,16 +325,22 @@ function scheduleFit() {
   })
 }
 
-async function ensureView(): Promise<TerminalView | null> {
+async function ensureView(generation: number): Promise<TerminalView | null> {
   if (view) return view
   await nextTick()
-  const generation = attachGeneration
-  const created = await createView()
-  if (!created || disposed || generation !== attachGeneration || !terminalHost.value) {
-    created?.dispose()
+  if (disposed || generation !== attachGeneration || !terminalHost.value) return null
+  const { terminal: created, addon } = await createView()
+  if (disposed || generation !== attachGeneration || !terminalHost.value) {
+    created.dispose()
     return null
   }
   view = created
+  fitView = () => {
+    // The xterm fit addon clamps a collapsed host to 2x1.
+    if (!hostHasSize()) return undefined
+    addon.fit()
+    return { cols: created.cols, rows: created.rows }
+  }
   const host = terminalHost.value
   // Keep the toggle shortcut away from the terminal so the shell never sees it. This runs before
   // either backend's own handler (their custom key handlers use opposite return semantics) and
@@ -425,7 +420,7 @@ async function open(mode: 'attach' | 'restart') {
     // The renderer choice depends on the native accessibility status; wait for it once.
     if (!accessibilityReady.value) await until(accessibilityReady).toBe(true)
     if (disposed || generation !== attachGeneration) return
-    const terminal = await ensureView()
+    const terminal = await ensureView(generation)
     if (!terminal || generation !== attachGeneration) return
     const size = fitView?.() ?? { cols: terminal.cols, rows: terminal.rows }
     const input = {

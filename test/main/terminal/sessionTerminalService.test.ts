@@ -169,20 +169,19 @@ describe('SessionTerminalService', () => {
     ])
   })
 
-  it('does not spawn when the session is deleted or the app quits during bootstrap', async () => {
+  it.each([
+    ['the session is deleted', () => service.disposeSession('session-1')],
+    ['the owner closes', () => rendererDestroyed.get(7)!()],
+    ['the app quits', () => service.shutdown()]
+  ])('does not spawn when %s during bootstrap', async (_, cancel) => {
     let releaseEnvironment!: () => void
     resolveEnvironment.mockImplementation(
       () => new Promise((resolve) => (releaseEnvironment = () => resolve({ PATH: '/usr/bin' })))
     )
     const pending = service.attach('session-1', 7, size)
-    service.disposeSession('session-1')
+    cancel()
     releaseEnvironment()
     await expect(pending).rejects.toThrow('[terminal:not_found]')
-
-    const pendingShutdown = service.attach('session-1', 7, size)
-    service.shutdown()
-    releaseEnvironment()
-    await expect(pendingShutdown).rejects.toThrow('[terminal:not_found]')
     expect(ptyMock.spawn).not.toHaveBeenCalled()
   })
 
@@ -249,6 +248,29 @@ describe('SessionTerminalService', () => {
     await expect(service.attach('overflow', 7, size)).resolves.toMatchObject({
       status: 'running'
     })
+  })
+
+  it('restarts at capacity and keeps the slot until the replacement is running', async () => {
+    const initial = await service.attach('session-1', 7, size)
+    for (let index = 1; index < TERMINAL_MAX_LIVE; index += 1) {
+      workdirs.set(`live-${index}`, workdir)
+      await service.attach(`live-${index}`, 7, size)
+    }
+    workdirs.set('overflow', workdir)
+
+    const restarted = service.restart('session-1', 7, size)
+    const attached = service.attach('session-1', 7, size)
+    expect(ptyMock.instances[0].kill).toHaveBeenCalledOnce()
+    await expect(service.attach('overflow', 7, size)).rejects.toThrow('[terminal:capacity]')
+    expect(ptyMock.spawn).toHaveBeenCalledTimes(TERMINAL_MAX_LIVE)
+
+    ptyMock.instances[0].emitExit(0)
+    await expect(service.attach('overflow', 7, size)).rejects.toThrow('[terminal:capacity]')
+    const replacement = await restarted
+    expect(replacement.terminalId).not.toBe(initial.terminalId)
+    expect(replacement.status).toBe('running')
+    await expect(attached).resolves.toEqual(replacement)
+    expect(ptyMock.spawn).toHaveBeenCalledTimes(TERMINAL_MAX_LIVE + 1)
   })
 
   it('evicts the oldest exited terminals', async () => {

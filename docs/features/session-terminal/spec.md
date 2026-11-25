@@ -77,10 +77,12 @@ workspace, browser, MCP app, and tape inspector tabs; `node-pty` is a production
   other `webContents` are rejected and output events go only to the owner. A second window
   showing the same session gets a typed `forbidden` error rather than a shared PTY.
 - **Capacity**: at most 8 PTYs across the app, counting in-flight creates and shells that are
-  still terminating. Concurrent attaches for one session share a single in-flight create. Exited
-  terminals keep their replay until restart; beyond 8 the oldest are evicted.
-- **Cancellation**: session deletion and shutdown cancel an in-flight create, so a shell is never
-  spawned after its session is gone.
+  still terminating. Restart reserves the existing PTY's slot until the replacement starts and
+  waits for the old PTY to settle before spawning. Concurrent attaches for one session share a
+  single in-flight create. Exited terminals keep their replay until restart; beyond 8 the oldest
+  are evicted.
+- **Cancellation**: session deletion, owner window destruction, and shutdown cancel in-flight
+  creates.
 - **Termination**: user kill, shell exit, session deletion (`destroySessionTerminal` stage of
   `SessionDeletion`, which also covers discarded drafts), owner `webContents` destruction, and
   application shutdown. Kill sends the default signal, escalates to `SIGKILL` after 2 s on POSIX,
@@ -145,8 +147,9 @@ its replay buffer. Callers outside chat windows (settings, plugin, CLI, remote) 
 ## Validation
 
 - Main tests with mocked `node-pty`: owner and session-view enforcement, cwd resolution, replay
-  bound and boundary, surrogate-safe chunks, cancellation during bootstrap, capacity (concurrent and
-  terminating), exited eviction, termination on deletion / renderer destruction / shutdown.
+  bound and boundary, surrogate-safe chunks, cancellation during bootstrap, capacity (concurrent,
+  terminating, and restart at the limit), exited eviction, termination on deletion / renderer
+  destruction / shutdown.
 - Renderer tests: key handling in both backends, early output, hidden-panel attach, missing-workdir
   recovery, accessibility readiness.
 - Manual on macOS: CJK IME input, vim/htop/less, resize, large output (`pnpm install`, `cat` of a

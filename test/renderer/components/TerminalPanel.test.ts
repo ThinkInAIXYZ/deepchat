@@ -36,7 +36,9 @@ class FakeTerminal {
   }
   focus() {}
   dispose() {}
-  loadAddon() {}
+  loadAddon(addon: FakeFitAddon) {
+    addon.terminal = this
+  }
   onData(listener: (data: string) => void) {
     this.dataListener = listener
     return { dispose: () => (this.dataListener = null) }
@@ -47,9 +49,10 @@ class FakeTerminal {
 }
 
 class FakeFitAddon {
-  fits = 0
+  terminal: FakeTerminal | null = null
   fit() {
-    this.fits += 1
+    const host = this.terminal?.element?.parentElement
+    if (host) this.terminal?.resize(Math.floor(host.clientWidth / 10), this.terminal.rows)
   }
 }
 
@@ -69,6 +72,7 @@ async function setup(options: {
   active?: boolean
   workspacePath?: string | null
   attach?: (input: unknown) => Promise<unknown>
+  initGhostty?: () => Promise<void>
 }) {
   vi.resetModules()
   vi.stubGlobal(
@@ -118,7 +122,7 @@ async function setup(options: {
   }))
   vi.doMock('@/stores/theme', () => ({ useThemeStore: () => reactive({ isDark: true }) }))
   vi.doMock('ghostty-web', () => ({
-    init: vi.fn(async () => {}),
+    init: options.initGhostty ?? (async () => {}),
     Terminal: FakeTerminal,
     FitAddon: FakeFitAddon
   }))
@@ -202,6 +206,38 @@ describe('TerminalPanel', () => {
     await wrapper.setProps({ active: true })
     await flushPromises()
     expect(client.attach).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 'session-2' }))
+  })
+
+  it('opens a single renderer when opening the panel switches sessions', async () => {
+    const { wrapper, client } = await setup({ active: false })
+
+    await wrapper.setProps({ active: true, sessionId: 'session-2' })
+    await flushPromises()
+
+    expect(wrapper.findAll('[data-testid="terminal-host"] textarea')).toHaveLength(1)
+    expect(client.attach).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ sessionId: 'session-2' })
+    )
+  })
+
+  it('fits the active terminal after a superseded renderer finishes loading', async () => {
+    let finishGhostty!: () => void
+    const initGhostty = vi.fn(() => new Promise<void>((resolve) => (finishGhostty = resolve)))
+    const { wrapper, client, accessibilityEnabled } = await setup({ initGhostty })
+    expect(initGhostty).toHaveBeenCalledOnce()
+
+    accessibilityEnabled.value = true
+    await flushPromises()
+    expect(client.attach).toHaveBeenCalledOnce()
+    finishGhostty()
+    await flushPromises()
+
+    const host = wrapper.get('[data-testid="terminal-host"]').element
+    Object.defineProperties(host, { clientWidth: { value: 920 }, clientHeight: { value: 480 } })
+    await wrapper.get('[data-testid="terminal-restart"]').trigger('click')
+    await flushPromises()
+
+    expect(client.restart).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ cols: 92 }))
   })
 
   it('recovers from a missing workdir when another folder is chosen', async () => {

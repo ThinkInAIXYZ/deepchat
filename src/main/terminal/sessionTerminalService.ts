@@ -75,6 +75,7 @@ export interface SessionTerminalDependencies {
 interface PendingCreate {
   ownerWebContentsId: number
   cancelled: boolean
+  replacing?: TerminalRecord
   promise: Promise<SessionTerminalSnapshot>
 }
 
@@ -92,6 +93,7 @@ interface TerminalRecord {
   flushTimer: ReturnType<typeof setTimeout> | null
   forceKillTimer: ReturnType<typeof setTimeout> | null
   exitFallbackTimer: ReturnType<typeof setTimeout> | null
+  onPtyReleased?: () => void
   exitCode?: number
   disposables: Array<{ dispose(): void }>
 }
@@ -133,13 +135,10 @@ export class SessionTerminalService {
     input: SessionTerminalOpenInput
   ): Promise<SessionTerminalSnapshot> {
     const existing = this.bySession.get(sessionId)
-    if (existing) {
-      if (existing.ownerWebContentsId !== ownerWebContentsId) {
-        throw new SessionTerminalError('forbidden', 'Terminal belongs to another window')
-      }
-      this.dispose(existing)
+    if (existing && existing.ownerWebContentsId !== ownerWebContentsId) {
+      throw new SessionTerminalError('forbidden', 'Terminal belongs to another window')
     }
-    return await this.create(sessionId, ownerWebContentsId, input)
+    return await this.create(sessionId, ownerWebContentsId, input, existing)
   }
 
   write(terminalId: string, ownerWebContentsId: number, data: string): void {
@@ -169,6 +168,9 @@ export class SessionTerminalService {
   }
 
   disposeOwnedBy(webContentsId: number): void {
+    for (const [sessionId, pending] of this.pendingCreates) {
+      if (pending.ownerWebContentsId === webContentsId) this.cancelPending(sessionId)
+    }
     for (const record of this.bySession.values()) {
       if (record.ownerWebContentsId === webContentsId) this.dispose(record)
     }
@@ -185,7 +187,8 @@ export class SessionTerminalService {
   private async create(
     sessionId: string,
     ownerWebContentsId: number,
-    input: SessionTerminalOpenInput
+    input: SessionTerminalOpenInput,
+    replacing?: TerminalRecord
   ): Promise<SessionTerminalSnapshot> {
     if (this.shuttingDown) throw new SessionTerminalError('not_found', 'Terminals are shut down')
     const inFlight = this.pendingCreates.get(sessionId)
@@ -196,18 +199,22 @@ export class SessionTerminalService {
       return await inFlight.promise
     }
     this.resolveCwd(sessionId, ownerWebContentsId, input)
-    this.assertCapacity()
+    this.assertCapacity(replacing)
     const pending: PendingCreate = {
       ownerWebContentsId,
       cancelled: false,
+      replacing,
       promise: undefined as unknown as Promise<SessionTerminalSnapshot>
     }
     pending.promise = this.spawnAfterEnvironment(sessionId, ownerWebContentsId, input, pending)
     this.pendingCreates.set(sessionId, pending)
+    this.watchRenderer(ownerWebContentsId)
+    if (replacing) this.dispose(replacing)
     try {
       return await pending.promise
     } finally {
       if (this.pendingCreates.get(sessionId) === pending) this.pendingCreates.delete(sessionId)
+      this.releaseRendererListener(ownerWebContentsId)
     }
   }
 
@@ -216,6 +223,7 @@ export class SessionTerminalService {
     if (!pending) return
     pending.cancelled = true
     this.pendingCreates.delete(sessionId)
+    this.releaseRendererListener(pending.ownerWebContentsId)
   }
 
   private async spawnAfterEnvironment(
@@ -224,7 +232,11 @@ export class SessionTerminalService {
     input: SessionTerminalOpenInput,
     pending: PendingCreate
   ): Promise<SessionTerminalSnapshot> {
-    const env = sanitizeEnvironment(await this.dependencies.resolveEnvironment())
+    const replacing = pending.replacing
+    const released = replacing?.pty
+      ? new Promise<void>((resolve) => (replacing.onPtyReleased = resolve))
+      : undefined
+    const [environment] = await Promise.all([this.dependencies.resolveEnvironment(), released])
     if (pending.cancelled || this.shuttingDown) {
       throw new SessionTerminalError('not_found', 'Terminal request was cancelled')
     }
@@ -238,7 +250,7 @@ export class SessionTerminalService {
       cols: input.cols,
       rows: input.rows,
       cwd,
-      env
+      env: sanitizeEnvironment(environment)
     })
     const record: TerminalRecord = {
       terminalId: randomUUID(),
@@ -259,7 +271,6 @@ export class SessionTerminalService {
     this.bySession.set(sessionId, record)
     this.byId.set(record.terminalId, record)
     this.livePtys.add(record)
-    this.watchRenderer(ownerWebContentsId)
 
     record.disposables.push(
       pty.onData((data) => this.handleData(record, data)),
@@ -285,8 +296,13 @@ export class SessionTerminalService {
     return cwd
   }
 
-  private assertCapacity(): void {
-    if (this.livePtys.size + this.pendingCreates.size >= TERMINAL_MAX_LIVE) {
+  private assertCapacity(replacing?: TerminalRecord): void {
+    // A restart reserves the old PTY's slot and waits for it to be released before spawning.
+    let occupied = this.livePtys.size - Number(Boolean(replacing?.pty))
+    for (const pending of this.pendingCreates.values()) {
+      if (!pending.replacing?.pty) occupied += 1
+    }
+    if (occupied >= TERMINAL_MAX_LIVE) {
       throw new SessionTerminalError('capacity', 'Too many terminals are running')
     }
   }
@@ -388,6 +404,8 @@ export class SessionTerminalService {
     record.exitFallbackTimer = null
     record.pty = null
     this.livePtys.delete(record)
+    record.onPtyReleased?.()
+    record.onPtyReleased = undefined
   }
 
   private resizePty(record: TerminalRecord, size: { cols: number; rows: number }): void {
@@ -427,6 +445,9 @@ export class SessionTerminalService {
   }
 
   private releaseRendererListener(webContentsId: number): void {
+    for (const pending of this.pendingCreates.values()) {
+      if (pending.ownerWebContentsId === webContentsId) return
+    }
     for (const record of this.bySession.values()) {
       if (record.ownerWebContentsId === webContentsId) return
     }
