@@ -3,7 +3,7 @@ import { defineComponent, nextTick } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import ProviderCustomHeadersEditor from '../../../src/renderer/settings/components/ProviderCustomHeadersEditor.vue'
 
-const monacoMock = vi.hoisted(() => {
+const streamDiffEditorMock = vi.hoisted(() => {
   let value = ''
   let changeListener: (() => void) | null = null
   const createEditor = vi.fn(async (_host: HTMLElement, nextValue: string) => {
@@ -24,7 +24,13 @@ const monacoMock = vi.hoisted(() => {
     createEditor,
     updateCode,
     cleanupEditor,
-    getEditorView: vi.fn(() => ({ onDidChangeModelContent, getValue, focus })),
+    getEditorView: vi.fn(() => ({
+      onDidChangeModelContent,
+      getValue,
+      focus,
+      updateOptions: vi.fn()
+    })),
+    getEditor: vi.fn(() => ({ setTheme: vi.fn() })),
     setValue(nextValue: string) {
       value = nextValue
       changeListener?.()
@@ -43,8 +49,12 @@ const monacoMock = vi.hoisted(() => {
   }
 })
 
-vi.mock('stream-monaco', () => ({
-  useMonaco: () => monacoMock
+vi.mock('@/composables/useStreamDiffEditor', () => ({
+  useStreamDiffEditor: () => streamDiffEditorMock
+}))
+
+vi.mock('@/stores/theme', () => ({
+  useThemeStore: () => ({ isDark: false })
 }))
 
 vi.mock('@/stores/uiSettingsStore', () => ({
@@ -97,7 +107,7 @@ const InlineErrorStub = defineComponent({
 })
 
 const mountEditor = (save = vi.fn().mockResolvedValue({ isOk: true, errorMsg: null })) => {
-  monacoMock.reset()
+  streamDiffEditorMock.reset()
   const wrapper = mount(ProviderCustomHeadersEditor, {
     props: {
       providerId: 'gateway',
@@ -131,18 +141,18 @@ describe('ProviderCustomHeadersEditor', () => {
     dialog.vm.$emit('update:open', true)
     await flushPromises()
     expect(wrapper.get('[data-testid="provider-custom-headers-editor"]').exists()).toBe(true)
-    expect(monacoMock.readValue()).toBe('{\n  "X-Tenant-ID": "team-a"\n}')
+    expect(streamDiffEditorMock.readValue()).toBe('{\n  "X-Tenant-ID": "team-a"\n}')
 
-    monacoMock.setValue('[]')
+    streamDiffEditorMock.setValue('[]')
     await nextTick()
     expect(wrapper.get('[data-testid="provider-custom-headers-save"]').attributes('disabled')).toBe(
       ''
     )
 
-    monacoMock.setValue('{"X-Tenant-ID":"team-b"}')
+    streamDiffEditorMock.setValue('{"X-Tenant-ID":"team-b"}')
     await nextTick()
     await wrapper.get('[data-testid="provider-custom-headers-format"]').trigger('click')
-    expect(monacoMock.readValue()).toBe('{\n  "X-Tenant-ID": "team-b"\n}')
+    expect(streamDiffEditorMock.readValue()).toBe('{\n  "X-Tenant-ID": "team-b"\n}')
     expect(
       wrapper.get('[data-testid="provider-custom-headers-save"]').attributes('disabled')
     ).toBeUndefined()
@@ -160,16 +170,16 @@ describe('ProviderCustomHeadersEditor', () => {
 
     dialog.vm.$emit('update:open', true)
     await flushPromises()
-    monacoMock.setValue('{"X-Tenant-ID":"unsaved"}')
+    streamDiffEditorMock.setValue('{"X-Tenant-ID":"unsaved"}')
     await nextTick()
     await wrapper.get('[data-testid="provider-custom-headers-cancel"]').trigger('click')
     expect(dialog.props('open')).toBe(false)
 
     dialog.vm.$emit('update:open', true)
     await flushPromises()
-    expect(monacoMock.readValue()).toBe('{\n  "X-Tenant-ID": "team-a"\n}')
+    expect(streamDiffEditorMock.readValue()).toBe('{\n  "X-Tenant-ID": "team-a"\n}')
 
-    monacoMock.setValue('{"X-Tenant-ID":"team-b"}')
+    streamDiffEditorMock.setValue('{"X-Tenant-ID":"team-b"}')
     await nextTick()
     await wrapper.get('[data-testid="provider-custom-headers-save"]').trigger('click')
     await flushPromises()

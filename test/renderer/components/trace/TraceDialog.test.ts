@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
+import { createDeferred } from '../../utils/deferred'
 
 const {
   listMessageTraceDiagnosticsMock,
@@ -9,27 +10,24 @@ const {
   updateCodeMock,
   cleanupEditorMock,
   updateOptionsMock,
-  layoutMock,
   setThemeMock,
   getEditorViewMock,
   getEditorMock,
-  useMonacoMock,
+  useStreamDiffEditorMock,
   themeStoreMock
 } = vi.hoisted(() => {
   const createEditorMock = vi.fn()
   const updateCodeMock = vi.fn()
   const cleanupEditorMock = vi.fn()
   const updateOptionsMock = vi.fn()
-  const layoutMock = vi.fn()
   const setThemeMock = vi.fn()
   const getEditorViewMock = vi.fn().mockReturnValue({
-    updateOptions: updateOptionsMock,
-    layout: layoutMock
+    updateOptions: updateOptionsMock
   })
   const getEditorMock = vi.fn().mockReturnValue({
     setTheme: setThemeMock
   })
-  const useMonacoMock = vi.fn(() => ({
+  const useStreamDiffEditorMock = vi.fn(() => ({
     createEditor: createEditorMock,
     updateCode: updateCodeMock,
     cleanupEditor: cleanupEditorMock,
@@ -45,11 +43,10 @@ const {
     updateCodeMock,
     cleanupEditorMock,
     updateOptionsMock,
-    layoutMock,
     setThemeMock,
     getEditorViewMock,
     getEditorMock,
-    useMonacoMock,
+    useStreamDiffEditorMock,
     themeStoreMock: {
       isDark: false
     }
@@ -80,8 +77,8 @@ vi.mock('@/stores/theme', () => ({
   useThemeStore: () => themeStoreMock
 }))
 
-vi.mock('stream-monaco', () => ({
-  useMonaco: useMonacoMock
+vi.mock('@/composables/useStreamDiffEditor', () => ({
+  useStreamDiffEditor: useStreamDiffEditorMock
 }))
 
 vi.mock(
@@ -296,19 +293,17 @@ describe('TraceDialog', () => {
     updateCodeMock.mockReset()
     cleanupEditorMock.mockReset()
     updateOptionsMock.mockReset()
-    layoutMock.mockReset()
     setThemeMock.mockReset()
     getEditorViewMock.mockReset()
     getEditorViewMock.mockReturnValue({
-      updateOptions: updateOptionsMock,
-      layout: layoutMock
+      updateOptions: updateOptionsMock
     })
     getEditorMock.mockReset()
     getEditorMock.mockReturnValue({
       setTheme: setThemeMock
     })
-    useMonacoMock.mockReset()
-    useMonacoMock.mockImplementation(() => ({
+    useStreamDiffEditorMock.mockReset()
+    useStreamDiffEditorMock.mockImplementation(() => ({
       createEditor: createEditorMock,
       updateCode: updateCodeMock,
       cleanupEditor: cleanupEditorMock,
@@ -369,7 +364,7 @@ describe('TraceDialog', () => {
     expect(requestContent.classes()).not.toContain('min-h-[300px]')
   })
 
-  it('initializes Monaco with the resolved light theme', async () => {
+  it('initializes the stream-diffs surface with the resolved light theme', async () => {
     listMessageTraceDiagnosticsMock.mockResolvedValue({
       traces: [
         {
@@ -393,9 +388,9 @@ describe('TraceDialog', () => {
     await wrapper.setProps({ messageId: 'm1' })
     await flushPromises()
 
-    expect(useMonacoMock).toHaveBeenCalledWith(
+    expect(useStreamDiffEditorMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        themes: ['vitesse-dark', 'vitesse-light'],
+        readOnly: true,
         theme: 'vitesse-light'
       })
     )
@@ -600,6 +595,8 @@ describe('TraceDialog', () => {
   )
 
   it('does not fall back to a different request when selected manifest has no trace', async () => {
+    const pendingEditor = createDeferred<void>()
+    createEditorMock.mockReturnValueOnce(pendingEditor.promise)
     listMessageTraceDiagnosticsMock.mockResolvedValue({
       traces: [
         {
@@ -624,11 +621,15 @@ describe('TraceDialog', () => {
     await wrapper.setProps({ messageId: 'm1' })
     await flushPromises()
 
+    expect(createEditorMock).toHaveBeenCalledTimes(1)
     expect(wrapper.text()).toContain('https://api.example.com/second')
 
     wrapper.getComponent({ name: 'Select' }).vm.$emit('update:modelValue', 1)
     await flushPromises()
+    pendingEditor.resolve()
+    await flushPromises()
 
+    expect(setThemeMock).not.toHaveBeenCalled()
     expect(wrapper.text()).toContain('traceDialog.requestUnavailable')
     expect(wrapper.text()).not.toContain('https://api.example.com/second')
 
@@ -641,6 +642,18 @@ describe('TraceDialog', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('view_only_manifest')
+
+    wrapper.getComponent({ name: 'Select' }).vm.$emit('update:modelValue', 2)
+    await flushPromises()
+    const requestTab = wrapper
+      .findAll('button')
+      .find((btn) => btn.text().trim() === 'traceDialog.tabs.request')
+    expect(requestTab).toBeDefined()
+
+    await requestTab!.trigger('click')
+    await flushPromises()
+
+    expect(createEditorMock).toHaveBeenCalledTimes(2)
   })
 
   it('surfaces an invalid integrity badge with a warning', async () => {

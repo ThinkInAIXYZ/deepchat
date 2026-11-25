@@ -1,7 +1,7 @@
 import { getLanguageFromFilename } from '@shared/utils/codeLanguage'
 import { normalizeLanguageIdentifier } from 'markstream-vue'
 
-// The shared filename map also serves Monaco and contains IDs that Shiki does not provide.
+// The shared filename map also serves stream-diffs and contains IDs that Shiki does not provide.
 const MARKSTREAM_LANGUAGE_REPLACEMENTS: Readonly<Record<string, string>> = {
   apacheconf: 'apache',
   configuration: 'ini',

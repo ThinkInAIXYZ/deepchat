@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
+import { createDeferred } from '../utils/deferred'
 
 const buttonStub = defineComponent({
   name: 'Button',
@@ -75,16 +76,22 @@ async function setup(
   vi.doMock('@api/runtime', () => ({
     getRuntimeWebContentsId: () => Promise.resolve(88)
   }))
-  vi.doMock('stream-monaco', () => ({
-    useMonaco: () => ({
+  vi.doMock('@/composables/useStreamDiffEditor', () => ({
+    useStreamDiffEditor: () => ({
       createEditor,
       updateCode: vi.fn(),
       getEditorView: vi.fn(() => ({
         onDidChangeModelContent: vi.fn(),
-        getValue: vi.fn(() => '{}')
+        getValue: vi.fn(() => '{}'),
+        focus: vi.fn(),
+        updateOptions: vi.fn()
       })),
+      getEditor: vi.fn(() => ({ setTheme: vi.fn() })),
       cleanupEditor
     })
+  }))
+  vi.doMock('@/stores/theme', () => ({
+    useThemeStore: () => ({ isDark: false })
   }))
   vi.doMock('@/stores/uiSettingsStore', () => ({
     useUiSettingsStore: () => ({
@@ -304,22 +311,23 @@ describe('AcpDebugDialog', () => {
     wrapper.unmount()
   })
 
-  it('disposes an editor that finishes initializing after the dialog closes', async () => {
-    let resolveEditor: (() => void) | undefined
-    const createEditor = vi.fn(
-      () =>
-        new Promise<void>((resolve) => {
-          resolveEditor = resolve
-        })
-    )
+  it('cancels a pending editor without disposing its replacement after reopening', async () => {
+    const pendingEditor = createDeferred<void>()
+    const createEditor = vi.fn().mockReturnValueOnce(pendingEditor.promise)
     const { wrapper, cleanupEditor } = await setup(undefined, createEditor)
 
     expect(createEditor).toHaveBeenCalledTimes(1)
     await wrapper.setProps({ open: false })
-    resolveEditor?.()
-    await flushPromises()
+    expect(cleanupEditor).toHaveBeenCalled()
 
-    expect(cleanupEditor).toHaveBeenCalledTimes(1)
+    await wrapper.setProps({ open: true })
+    await flushPromises()
+    expect(createEditor).toHaveBeenCalledTimes(2)
+
+    cleanupEditor.mockClear()
+    pendingEditor.resolve()
+    await flushPromises()
+    expect(cleanupEditor).not.toHaveBeenCalled()
 
     wrapper.unmount()
   })

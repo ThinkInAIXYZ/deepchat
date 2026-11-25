@@ -112,7 +112,7 @@
             <div v-if="selectedTrace" class="relative h-full min-h-0 bg-muted/30">
               <div
                 ref="jsonEditor"
-                class="absolute inset-0"
+                class="absolute inset-0 overflow-auto"
                 :class="{ 'opacity-0': !editorInitialized }"
               ></div>
               <div
@@ -363,7 +363,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onBeforeUnmount, onMounted, nextTick } from 'vue'
+import { ref, computed, watch, onBeforeUnmount, onMounted } from 'vue'
 import {
   Dialog,
   DialogContent,
@@ -386,7 +386,7 @@ import { Spinner } from '@shadcn/components/ui/spinner'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import { createSessionClient } from '@api/SessionClient'
-import { useMonaco } from 'stream-monaco'
+import { useStreamDiffEditor } from '@/composables/useStreamDiffEditor'
 import { useThemeStore } from '@/stores/theme'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import type { MessageTraceRecord } from '@shared/types/agent-interface'
@@ -416,25 +416,15 @@ const themeStore = useThemeStore()
 const resolvedTheme = computed(() => (themeStore.isDark ? 'vitesse-dark' : 'vitesse-light'))
 
 const jsonEditor = ref<HTMLElement | null>(null)
-const { createEditor, updateCode, cleanupEditor, getEditorView, getEditor } = useMonaco({
+const { createEditor, updateCode, cleanupEditor, getEditorView, getEditor } = useStreamDiffEditor({
   readOnly: true,
-  wordWrap: 'off',
-  wrappingIndent: 'same',
+  wordWrap: false,
   fontFamily: uiSettingsStore.formattedCodeFontFamily,
-  themes: ['vitesse-dark', 'vitesse-light'],
   theme: resolvedTheme.value,
-  minimap: { enabled: false },
-  scrollBeyondLastLine: true,
   fontSize: 12,
-  lineNumbers: 'on',
-  folding: true,
-  automaticLayout: true,
-  scrollbar: {
-    horizontal: 'visible',
-    vertical: 'visible',
-    horizontalScrollbarSize: 10,
-    verticalScrollbarSize: 10
-  }
+  lineNumbers: true,
+  fileName: 'trace-request.json',
+  ariaLabel: t('traceDialog.tabs.request')
 })
 
 const props = defineProps<{
@@ -681,84 +671,67 @@ watch(isOpen, (newValue) => {
 })
 
 const editorInitialized = ref(false)
-const applyFontFamily = (fontFamily: string) => {
-  const editor = getEditorView()
-  if (editor) {
-    editor.updateOptions({ fontFamily })
-  }
+let editorHost: HTMLElement | null = null
+
+const resetEditor = () => {
+  cleanupEditor()
+  editorInitialized.value = false
+  editorHost = null
 }
 
-const applyTheme = async () => {
+const applyFontFamily = (fontFamily: string) => {
+  getEditorView().updateOptions({ fontFamily })
+}
+
+const applyTheme = () => {
   try {
     getEditor().setTheme(resolvedTheme.value)
   } catch (err) {
-    console.warn('Failed to apply Monaco theme:', err)
+    console.warn('Failed to apply stream-diffs theme:', err)
   }
 }
 
-const layoutEditor = () => {
+const syncEditor = async () => {
+  const host = jsonEditor.value
+  const trace = selectedTrace.value
+  const json = formattedJson.value
+  if (!isOpen.value || activeTab.value !== 'request' || !trace || !json || !host) {
+    if (editorInitialized.value || editorHost) resetEditor()
+    return
+  }
+
+  if (editorHost === host) {
+    if (editorInitialized.value) await updateCode(json, 'json')
+    return
+  }
+
+  resetEditor()
+  editorHost = host
   try {
-    getEditorView()?.layout()
+    await createEditor(host, json, 'json')
+    if (editorHost !== host) return
+    editorInitialized.value = true
+    applyTheme()
+    applyFontFamily(uiSettingsStore.formattedCodeFontFamily)
+    const latestJson = formattedJson.value
+    if (latestJson && latestJson !== json) await updateCode(latestJson, 'json')
   } catch (err) {
-    console.warn('Failed to layout Monaco Editor:', err)
+    if (editorHost !== host) return
+    resetEditor()
+    console.error('Failed to initialize the stream-diffs request editor:', err)
   }
 }
-
-watch(activeTab, (tab) => {
-  if (tab !== 'request') {
-    cleanupEditor()
-    editorInitialized.value = false
-  }
-})
 
 watch(
   [isOpen, activeTab, selectedTrace, formattedJson, jsonEditor],
-  async ([open, tab, trace, json, editorEl]) => {
-    if (open && tab === 'request' && trace && json && editorEl) {
-      await nextTick()
-      await nextTick()
-      const hasEditor = editorEl.querySelector('.monaco-editor')
-      if (!hasEditor && !editorInitialized.value) {
-        try {
-          await createEditor(editorEl, json, 'json')
-          editorInitialized.value = true
-          await applyTheme()
-          applyFontFamily(uiSettingsStore.formattedCodeFontFamily)
-          layoutEditor()
-        } catch (err) {
-          console.error('Failed to create Monaco Editor:', err)
-        }
-      } else if (hasEditor && editorInitialized.value) {
-        updateCode(json, 'json')
-        layoutEditor()
-      }
-    }
+  () => {
+    void syncEditor()
   },
   { flush: 'post' }
 )
 
-onMounted(async () => {
-  if (
-    isOpen.value &&
-    activeTab.value === 'request' &&
-    selectedTrace.value &&
-    formattedJson.value &&
-    jsonEditor.value
-  ) {
-    await nextTick()
-    await nextTick()
-    if (!jsonEditor.value.querySelector('.monaco-editor') && !editorInitialized.value) {
-      try {
-        await createEditor(jsonEditor.value, formattedJson.value, 'json')
-        editorInitialized.value = true
-        await applyTheme()
-        applyFontFamily(uiSettingsStore.formattedCodeFontFamily)
-        layoutEditor()
-      } catch (err) {
-        console.error('Failed to create Monaco Editor on mount:', err)
-      }
-    }
-  }
+onMounted(() => {
+  void syncEditor()
 })
 
 watch(
@@ -771,17 +744,12 @@ watch(
 watch(
   resolvedTheme,
   () => {
-    if (isOpen.value && editorInitialized.value) {
-      void applyTheme()
-    }
+    applyTheme()
   },
   { flush: 'post' }
 )
 
-onBeforeUnmount(() => {
-  cleanupEditor()
-  editorInitialized.value = false
-})
+onBeforeUnmount(resetEditor)
 
 const loadTraces = async (messageId: string, preferredRequestSeq?: number) => {
   requestId.value += 1
@@ -834,8 +802,7 @@ const resetState = () => {
   nestedExecutionAudit.value = emptyNestedExecutionAudit()
   selectedRequestSeq.value = null
   activeTab.value = 'request'
-  cleanupEditor()
-  editorInitialized.value = false
+  resetEditor()
 }
 
 const formatNullable = (value: string | number | null): string => {

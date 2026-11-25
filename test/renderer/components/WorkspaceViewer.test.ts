@@ -278,6 +278,29 @@ describe('WorkspaceViewer', () => {
     expect(wrapper.text()).not.toContain('artifacts.code')
   })
 
+  it('reuses the code editor for edits to a file and replaces it when the file changes', async () => {
+    const { wrapper } = await setup({
+      sessionState: textFileSession,
+      props: { filePreview: textFilePreview }
+    })
+    const selector = '[data-testid="code-pane"]'
+    const originalPane = wrapper.get(selector).element
+
+    await wrapper.setProps({ filePreview: { ...textFilePreview, content: 'export const app = 2' } })
+    expect(wrapper.get(selector).element).toBe(originalPane)
+
+    await wrapper.setProps({
+      filePreview: {
+        ...textFilePreview,
+        path: 'C:/repo/src/other.ts',
+        relativePath: 'src/other.ts',
+        name: 'other.ts'
+      }
+    })
+    expect(wrapper.get(selector).element).not.toBe(originalPane)
+    wrapper.unmount()
+  })
+
   it('shows preview and code tabs for markdown files', async () => {
     const { wrapper, sidepanelStore } = await setup({
       sessionState: {

@@ -33,29 +33,33 @@ test('provider headers use a JSON editor above the model list @smoke', async ({ 
   await trigger.click()
 
   const editor = settingsPage.getByTestId('provider-custom-headers-editor')
-  const editorInput = editor.locator('.native-edit-context, textarea.inputarea').first()
+  const editorInput = editor.locator('[contenteditable="true"]').first()
   const save = settingsPage.getByTestId('provider-custom-headers-save')
   const replaceEditorText = async (value: string) => {
-    await editor.locator('.view-lines').click()
+    await editorInput.click()
     await settingsPage.keyboard.press('ControlOrMeta+A')
-    await editorInput.evaluate((element, text) => {
-      const clipboardData = new DataTransfer()
-      clipboardData.setData('text/plain', text)
-      element.dispatchEvent(
-        new ClipboardEvent('paste', {
-          bubbles: true,
-          cancelable: true,
-          clipboardData
-        })
-      )
-    }, value)
+    await settingsPage.keyboard.insertText(value)
   }
   await expect(editor).toBeVisible()
-  await expect(editor.locator('.monaco-editor')).toBeVisible()
+  await expect(editor.locator('[data-file]')).toBeVisible()
+  await expect(editor).toHaveAttribute('role', 'group')
+  await expect(editor).toHaveAttribute('tabindex', '-1')
+  await expect(editorInput).toHaveAttribute('role', 'textbox')
+  await expect(editorInput).toHaveAttribute('aria-label', /.+/)
   await expect(editorInput).toBeFocused()
 
   await replaceEditorText('[]')
   await expect(save).toBeDisabled()
+
+  await replaceEditorText('{\n  "a": 1\n}')
+  await settingsPage.keyboard.press('ControlOrMeta+End')
+  await settingsPage.keyboard.press('ArrowUp')
+  await settingsPage.keyboard.press('End')
+  await settingsPage.keyboard.press('Tab')
+  await expect(editorInput).toBeFocused()
+  expect(
+    await editorInput.locator('[data-line="2"]').evaluate((element) => element.textContent)
+  ).toBe('  "a": 1  ')
 
   await replaceEditorText('{"X-Tenant-ID":"team-a"}')
   await expect(save).toBeEnabled()
@@ -65,7 +69,7 @@ test('provider headers use a JSON editor above the model list @smoke', async ({ 
   await expect(trigger).toBeFocused()
 
   await trigger.click()
-  await expect(editor.locator('.view-lines')).toContainText('X-Tenant-ID')
+  await expect(editorInput).toContainText('X-Tenant-ID')
   await replaceEditorText('{}')
   await save.click()
   await expect(editor).not.toBeVisible()

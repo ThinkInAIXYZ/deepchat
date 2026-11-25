@@ -325,17 +325,14 @@ importers:
         specifier: ^0.18.7
         version: 0.18.7
       markstream-vue:
-        specifier: 2.0.24
-        version: 2.0.24(@antv/infographic@0.2.20)(katex@0.18.7)(mermaid@11.17.2)(stream-diffs@0.0.2(@shikijs/themes@4.3.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2)))(vue-i18n@11.4.17(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2)))(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2))
+        specifier: 2.0.32
+        version: 2.0.32(@antv/infographic@0.2.20)(katex@0.18.7)(mermaid@11.17.2)(stream-diffs@0.0.5(@shikijs/themes@4.3.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2)))(vue-i18n@11.4.17(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2)))(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2))
       mermaid:
         specifier: ^11.17.2
         version: 11.17.2
       minimatch:
         specifier: ^11.0.1
         version: 11.0.4
-      monaco-editor:
-        specifier: ^0.55.1
-        version: 0.55.1
       oxfmt:
         specifier: ^0.56.0
         version: 0.56.0
@@ -352,11 +349,8 @@ importers:
         specifier: ^2.10.4
         version: 2.10.4(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2))
       stream-diffs:
-        specifier: 0.0.2
-        version: 0.0.2(@shikijs/themes@4.3.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2))
-      stream-monaco:
-        specifier: ^0.0.49
-        version: 0.0.49(monaco-editor@0.55.1)
+        specifier: 0.0.5
+        version: 0.0.5(@shikijs/themes@4.3.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2))
       tailwind-merge:
         specifier: ^3.6.0
         version: 3.6.0
@@ -387,9 +381,6 @@ importers:
       vite:
         specifier: ^7.3.7
         version: 7.3.7(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.32.0)(yaml@2.9.0)
-      vite-plugin-monaco-editor-esm:
-        specifier: ^2.0.3
-        version: 2.0.3(monaco-editor@0.55.1)
       vite-plugin-vue-devtools:
         specifier: ^8.2.1
         version: 8.2.1(vite@7.3.7(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.32.0)(yaml@2.9.0))(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2))
@@ -776,8 +767,8 @@ packages:
   '@braintree/sanitize-url@7.1.2':
     resolution: {integrity: sha512-jigsZK+sMF/cuiB7sERuo9V7N9jx+dhmHHnQyDSVdpZwVutaBu7WvNYqMDLSgFgfB30n452TP3vjDAvFC973mA==}
 
-  '@chenglou/pretext@0.0.9':
-    resolution: {integrity: sha512-vInlpC//3vjRfWTs78k2BBIq/0bUdpjIp8TIn9fXe0NvnChhTQZfjioVzERQQbkQvCVpPpw7PDOrTWMHpq27VA==}
+  '@chenglou/pretext@1.0.0':
+    resolution: {integrity: sha512-BxKiDMxWJhyzL8asvcgg3T9YnUU7OUFsKO8oRaR2SYAPX4Sh2wM9gqTBjrBaZ4fnl84cEQ8czC0Q1M83z3chsA==}
 
   '@chevrotain/types@11.1.2':
     resolution: {integrity: sha512-U+HFai5+zmJCkK86QsaJtoITlboZHBqrVketcO2ROv865xfCMSFpELQoz1GkX5GzME8pTa+3kbKrZHQtI0gdbw==}
@@ -2277,12 +2268,53 @@ packages:
       react-dom:
         optional: true
 
+  '@pierre/diffs@1.7.1':
+    resolution: {integrity: sha512-saKteoCq9tWbRqLruIixV6sKgxIcY0OK6RkKcr8lYv7r4iJhXQJbmVPN3VBmjBHivgMIG2Att6tV/AOXXzEvvg==}
+    peerDependencies:
+      react: ^18.3.1 || ^19.0.0
+      react-dom: ^18.3.1 || ^19.0.0
+    peerDependenciesMeta:
+      react:
+        optional: true
+      react-dom:
+        optional: true
+
+  '@pierre/highlights@0.5.2':
+    resolution: {integrity: sha512-CV+yFa8dodaU3w7U42FR+AfoavrsfcH0/n3rckDu1A/UXan1Dzo6OdM/MPOAAsGM/EbKhDxD6k+qMcNUtnLfsg==}
+
+  '@pierre/patches@0.0.1':
+    resolution: {integrity: sha512-NycJQVQNuqmBdr7u1LsUcmkiIz1fRm9xhWZyRbm21oJYd0MVVCa45t9Lsuj5IKrTMBonxOuh4LMv+R3BpL4bmQ==}
+
   '@pierre/theme@2.0.0':
     resolution: {integrity: sha512-yNDd9GYLQl1mEUJR8AneJ5e4ohLIHQd/wZLWr4fagt78vS2RwwZNW530vVgHqXFAyFVcFlRmGUD5ramXH46OXw==}
     engines: {vscode: ^1.0.0}
 
+  '@pierre/theme@2.1.0':
+    resolution: {integrity: sha512-GIE3AD8eqUlZN2sFrMmp9gt+rNZsT+EhrdwB0KmLcwkqunrp2jU2j14SeAb64Ol/srWo4rHyNaWf20+bPzFbvg==}
+    engines: {vscode: ^1.0.0}
+
   '@pierre/theming@1.0.1':
     resolution: {integrity: sha512-WCI5Qd7iprDpISL9fBYOLe8RV53+b7mFNA3bPzl60/2CKCSrsKN8zEcep6Y3BAzvARlmca50zGjDodqPGiTUKA==}
+    peerDependencies:
+      '@pierre/theme': ^1.1.0 || ^2.0.0
+      '@shikijs/themes': ^3.0.0 || ^4.0.0
+      react: ^18.3.1 || ^19.0.0
+      react-dom: ^18.3.1 || ^19.0.0
+      shiki: ^3.0.0 || ^4.0.0
+    peerDependenciesMeta:
+      '@pierre/theme':
+        optional: true
+      '@shikijs/themes':
+        optional: true
+      react:
+        optional: true
+      react-dom:
+        optional: true
+      shiki:
+        optional: true
+
+  '@pierre/theming@1.0.2':
+    resolution: {integrity: sha512-RmXLLqtx31UGcR8kZyO5hGAQ1EXz6loT1Cu0BFAGsbnBboIxp2BlomkLfWyvdT4WZXnBGyu25onL1gKpFQuSUw==}
     peerDependencies:
       '@pierre/theme': ^1.1.0 || ^2.0.0
       '@shikijs/themes': ^3.0.0 || ^4.0.0
@@ -2493,43 +2525,25 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@shikijs/core@3.23.0':
-    resolution: {integrity: sha512-NSWQz0riNb67xthdm5br6lAkvpDJRTgB36fxlo37ZzM2yq0PQFFzbd8psqC2XMPgCzo1fW6cVi18+ArJ44wqgA==}
-
   '@shikijs/core@4.3.1':
     resolution: {integrity: sha512-ANMDxuaPsNMdDC1m4vfvhlDmJweMwkE5XitTwrq2rWHx5jM+dlm4MmHt2PP6t0uejfR77SuhrhJ0zEijIF/uhA==}
     engines: {node: '>=20'}
-
-  '@shikijs/engine-javascript@3.23.0':
-    resolution: {integrity: sha512-aHt9eiGFobmWR5uqJUViySI1bHMqrAgamWE1TYSUoftkAeCCAiGawPMwM+VCadylQtF4V3VNOZ5LmfItH5f3yA==}
 
   '@shikijs/engine-javascript@4.3.1':
     resolution: {integrity: sha512-JBItcnPuYq7jVJdZo/vMj94r+szT7XEjHFX+mvFDGSEIbVAXAGyHAHzhbWzpGOwYidCZrErJLLgn2PVeiokHnQ==}
     engines: {node: '>=20'}
 
-  '@shikijs/engine-oniguruma@3.23.0':
-    resolution: {integrity: sha512-1nWINwKXxKKLqPibT5f4pAFLej9oZzQTsby8942OTlsJzOBZ0MWKiwzMsd+jhzu8YPCHAswGnnN1YtQfirL35g==}
-
   '@shikijs/engine-oniguruma@4.3.1':
     resolution: {integrity: sha512-OXyNMzg0pews+msMj4cHeqT4xiYKKvbnn6VbdAXxfoFl3SSx4fJTc8FadECuc5/H9p3BzhNAoAUXKwAu9rWYhg==}
     engines: {node: '>=20'}
-
-  '@shikijs/langs@3.23.0':
-    resolution: {integrity: sha512-2Ep4W3Re5aB1/62RSYQInK9mM3HsLeB91cHqznAJMuylqjzNVAVCMnNWRHFtcNHXsoNRayP9z1qj4Sq3nMqYXg==}
 
   '@shikijs/langs@4.3.1':
     resolution: {integrity: sha512-m0l9nsDqgBHvbZbk7A0/kXz/impK3uB/c6rAn6Gpg/uPtdZRQ+alsN/17MU5thb68XTj/4DxkZAotrM0GGSpDQ==}
     engines: {node: '>=20'}
 
-  '@shikijs/monaco@3.23.0':
-    resolution: {integrity: sha512-OCApTdAGTHMFUXSYwGztW6EnlxXsWNrpnGf+uO+AznE+khC6V1/8QjuJESIcvZUIq9iAp4ZCNYosZKSVj1Hctg==}
-
   '@shikijs/primitive@4.3.1':
     resolution: {integrity: sha512-CXQRQOYy1leqQ8ceTeJdmXv/bsUY++6QyLpXJ94LZAAYj5X2SKRdc5ipguv4NPyGVKItB2PPwUpRNe0Sjh5S1A==}
     engines: {node: '>=20'}
-
-  '@shikijs/themes@3.23.0':
-    resolution: {integrity: sha512-5qySYa1ZgAT18HR/ypENL9cUSGOeI2x+4IvYJu4JgVJdizn6kG4ia5Q1jDEOi7gTbN4RbuYtmHh0W3eccOrjMA==}
 
   '@shikijs/themes@4.3.1':
     resolution: {integrity: sha512-dgpoJ4WqNi2yTmizQHBJ5zcX6j2lE6icN/0yt4l1kkf16jrY/pwPLoTb1ETsWMz0OBLf9ZNvwmxft+cH+N9qSA==}
@@ -2538,9 +2552,6 @@ packages:
   '@shikijs/transformers@4.3.1':
     resolution: {integrity: sha512-z6ir0bGDgWcF2FduktEfPgIsdOtIlDiLAjFBgBzE42Q9xHbkkIXZtORHzlLVB71iZP9elEcqKg6keajvOUwE2A==}
     engines: {node: '>=20'}
-
-  '@shikijs/types@3.23.0':
-    resolution: {integrity: sha512-3JZ5HXOZfYjsYSk0yPwBrkupyYSLpAE26Qc0HLghhZNGTZg/SKxXIIgoxOpmmeQP0RRSDJTk1/vPfw9tbw+jSQ==}
 
   '@shikijs/types@4.3.1':
     resolution: {integrity: sha512-CHFxE0jztBIZRHH6gxXE7DXUCFXjReEGxZ/j0rfSLGKZuwp2xBYycEP14875DSa9KLL/6700oxIq6oO6ef9K2g==}
@@ -3367,9 +3378,6 @@ packages:
 
   ajv@8.20.0:
     resolution: {integrity: sha512-Thbli+OlOj+iMPYFBVBfJ3OmCAnaSyNn4M1vz9T6Gka5Jt9ba/HIR56joy65tY6kx/FCF5VXNB819Y7/GUrBGA==}
-
-  alien-signals@2.0.8:
-    resolution: {integrity: sha512-844G1VLkk0Pe2SJjY0J8vp8ADI73IM4KliNu2OGlYzWpO28NexEUvjHTcFjFX3VXoiUtwTbHxLNI9ImkcoBqzA==}
 
   alien-signals@3.2.1:
     resolution: {integrity: sha512-I8FjmltrfnDFoZedi5CG8DghVYNhzb/Ijluz7tCSJH0xpd0484Kowhbb1XDYOxfJpU1p5wnM2X54dA+IfGyD1g==}
@@ -5254,31 +5262,26 @@ packages:
   markdown-it-task-checkbox@1.0.6:
     resolution: {integrity: sha512-7pxkHuvqTOu3iwVGmDPeYjQg+AIS9VQxzyLP9JCg9lBjgPAJXGEkChK6A2iFuj3tS0GV3HG2u5AMNhcQqwxpJw==}
 
-  markdown-it-ts@1.1.3:
-    resolution: {integrity: sha512-SbESZWanQt/SLspTRPnzi2mKXatM35KHjkIy9QF0w2LZX8Gxu/37n9jiYccolE2OaMf8ikc0BK7LcFSNY/1GHQ==}
+  markdown-it-ts@1.1.8:
+    resolution: {integrity: sha512-8QVim/mINOfv8eE6OT97aM7WYyo+G2P/hAr0tujwEGnAYztG6cJQ0X5B6PqtnjsXjRqDxtQWjWdvrn1DPbgGAw==}
     engines: {node: '>=20.19'}
-
-  marked@14.0.0:
-    resolution: {integrity: sha512-uIj4+faQ+MgHgwUW1l2PsPglZLOLOT1uErt06dAPtx2kjteLAkbsd/0FiYg/MGS+i7ZKLb7w2WClxHkzOOuryQ==}
-    engines: {node: '>= 18'}
-    hasBin: true
 
   marked@16.4.2:
     resolution: {integrity: sha512-TI3V8YYWvkVf3KJe1dRkpnjs68JUPyEa5vjKrp1XEEJUAOaQc+Qj+L1qWbPd0SJuAdQkFU0h73sXXqwDYxsiDA==}
     engines: {node: '>= 20'}
     hasBin: true
 
-  markstream-core@2.0.24:
-    resolution: {integrity: sha512-RgboNZO9Wm5a+mgE0eHalTCczWTZ5SUtfgIjm4NJImj04p2V5aS4Tv/+I4P8y5KzcoJBDSpwzSKxeTTKfKI6OA==}
+  markstream-core@2.0.32:
+    resolution: {integrity: sha512-4cEb5vwcy3/kZO9PT8XpxFhP+OUAYbtUXXOKh8bJsCDB2RgLZqKx3+NZKwDTuD2H9xDBnceLfQGuNx+NWmTXcw==}
 
-  markstream-vue@2.0.24:
-    resolution: {integrity: sha512-YxaV5awT4VHG9szXyj9CVYpp5aszsuzJfKWozs5pUQDpdZQbj+N2/HQQcgWjBpJ0zKdwvcW+hKZtW0SnuSw8zw==}
+  markstream-vue@2.0.32:
+    resolution: {integrity: sha512-4vLacyQZPLFVi+hFkHcwt/HZRCjSzDiHoWnb3Ngp1vRl6fzE/gtRxqobPKsO7I3DHBmh60TKuNa6JikhlwoSjA==}
     peerDependencies:
       '@antv/infographic': ^0.2.3
       '@terrastruct/d2': '>=0.1.33'
       katex: '>=0.16.22'
       mermaid: '>=11'
-      stream-diffs: '>=0.0.2'
+      stream-diffs: '>=0.0.5'
       vue: '>=3.0.0'
       vue-i18n: '>=9'
     peerDependenciesMeta:
@@ -5444,9 +5447,6 @@ packages:
   module-error@1.0.2:
     resolution: {integrity: sha512-0yuvsqSCv8LbaOKhnsQ/T5JhyFlCYLPXK3U2sgV10zoKQwzs/MyfuQUOZQ1V/6OCOJsK/TRgNVrPuPDqtdMFtA==}
     engines: {node: '>=10'}
-
-  monaco-editor@0.55.1:
-    resolution: {integrity: sha512-jz4x+TJNFHwHtwuV9vA9rMujcZRb0CEilTEwG2rRSpe/A7Jdkuj8xPKttCgOh+v/lkHy7HsZ64oj+q3xoAFl9A==}
 
   mrmime@2.0.1:
     resolution: {integrity: sha512-Y3wQdFg2Va6etvQ5I82yUhGdsKrcYox6p7FfL1LbK2J4V01F9TGlepTIhnK24t7koZibmg82KGglhA1XK5IsLQ==}
@@ -6196,9 +6196,6 @@ packages:
     resolution: {integrity: sha512-7++dFhtcx3353uBaq8DDR4NuxBetBzC7ZQOhmTQInHEd6bSrXdiEyzCvG07Z44UYdLShWUyXt5M/yhz8ekcb1A==}
     engines: {node: '>=8'}
 
-  shiki@3.23.0:
-    resolution: {integrity: sha512-55Dj73uq9ZXL5zyeRPzHQsK7Nbyt6Y10k5s7OjuFZGMhpp4r/rsLBH0o/0fstIzX1Lep9VxefWljK/SKCzygIA==}
-
   shiki@4.3.1:
     resolution: {integrity: sha512-oR+qDVi2OjX1tmDpyv+3KviX01KzO6Af+0NNnKnsp9491UEGz2YpxTuJboS/6VhYpTdqzmuJBuiTlrAWWJAssw==}
     engines: {node: '>=20'}
@@ -6282,22 +6279,16 @@ packages:
   std-env@4.2.0:
     resolution: {integrity: sha512-oCUKSupKTHX53EyjDtuZQ64pjLJ6yYCtpmEw0goYxtjG9KpbRe8KAsl2tBUGU9DyMcJ0RwJ8GqJAFzMXcXW1Rw==}
 
-  stream-diffs@0.0.2:
-    resolution: {integrity: sha512-mYH+kBCmrN2ebVPNkvQIFUSPemFxUPPPk+NT4H/wEzZ9NCt5Eaa8OE05f/1MA5HofZ64LYbTOliQTU6VghHeVA==}
+  stream-diffs@0.0.5:
+    resolution: {integrity: sha512-cjR31urlo6i2VeJevhN46GHR8GNzKZZ3dX6Cx/l6D1SMvrsOMSVitN1QOsltpWHnjwwH5Bcu8RqJvVlUAwSXyw==}
     peerDependencies:
       vue: ^3.3.0
     peerDependenciesMeta:
       vue:
         optional: true
 
-  stream-markdown-parser@1.2.25:
-    resolution: {integrity: sha512-ChP47WMbx5E4fx70Q/8qrhsWyC4OdhwWxGiZRcCClRUmt7/farJkqYyVaVGBByFDeSS2uG+6E1bCH/vYZ7g+JA==}
-
-  stream-monaco@0.0.49:
-    resolution: {integrity: sha512-ksZYJXw45NralnpgWqcptqrgDdbGZaTyYmvATvhlK8eY0tyeTxs0iuQzMTF4cpGf5OlIgkNJOfbFh4M97OozSw==}
-    hasBin: true
-    peerDependencies:
-      monaco-editor: '>=0.52.2 <0.56.0'
+  stream-markdown-parser@1.2.31:
+    resolution: {integrity: sha512-RwyPkPTNYjfbKhQns93L5IyPnxU7ZRZy1ope4iXVKedksTFVwX0P7Xs0Pgjq8Gbz0BlfUHJwX7v+6kV2To3miA==}
 
   strictdom@1.0.1:
     resolution: {integrity: sha512-cEmp9QeXXRmjj/rVp9oyiqcvyocWab/HaoN4+bwFeZ7QzykJD6L3yD4v12K1x0tHpqRqVpJevN3gW7kyM39Bqg==}
@@ -6695,11 +6686,6 @@ packages:
     peerDependenciesMeta:
       '@nuxt/kit':
         optional: true
-
-  vite-plugin-monaco-editor-esm@2.0.3:
-    resolution: {integrity: sha512-9nA73gcWtO+XDsLmBBQXoY4NMv6D2ZKDZHdHgVl1lfADnXEwdBPr1iL8qGqDKXGgEmYo1F12rFPEnymFe2aibA==}
-    peerDependencies:
-      monaco-editor: '>=0.33.0'
 
   vite-plugin-vue-devtools@8.2.1:
     resolution: {integrity: sha512-5JLxXWWCo5lJMw16/xVeNvJ8k2zLwZPf1vITLzya/2IePrCBeGe/p/iAokgXHZpEi39fcYtPXmO8SaKeXmqCAA==}
@@ -7576,7 +7562,7 @@ snapshots:
 
   '@braintree/sanitize-url@7.1.2': {}
 
-  '@chenglou/pretext@0.0.9': {}
+  '@chenglou/pretext@1.0.0': {}
 
   '@chevrotain/types@11.1.2': {}
 
@@ -8825,11 +8811,41 @@ snapshots:
     transitivePeerDependencies:
       - '@shikijs/themes'
 
+  '@pierre/diffs@1.7.1(@shikijs/themes@4.3.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
+    dependencies:
+      '@pierre/highlights': 0.5.2
+      '@pierre/patches': 0.0.1
+      '@pierre/theme': 2.1.0
+      '@pierre/theming': 1.0.2(@pierre/theme@2.1.0)(@shikijs/themes@4.3.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(shiki@4.3.1)
+      diff: 9.0.0
+      hast-util-to-html: 9.0.5
+      lru_map: 0.4.1
+      shiki: 4.3.1
+    optionalDependencies:
+      react: 19.2.8
+      react-dom: 19.2.8(react@19.2.8)
+    transitivePeerDependencies:
+      - '@shikijs/themes'
+
+  '@pierre/highlights@0.5.2': {}
+
+  '@pierre/patches@0.0.1': {}
+
   '@pierre/theme@2.0.0': {}
+
+  '@pierre/theme@2.1.0': {}
 
   '@pierre/theming@1.0.1(@pierre/theme@2.0.0)(@shikijs/themes@4.3.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(shiki@4.3.1)':
     optionalDependencies:
       '@pierre/theme': 2.0.0
+      '@shikijs/themes': 4.3.1
+      react: 19.2.8
+      react-dom: 19.2.8(react@19.2.8)
+      shiki: 4.3.1
+
+  '@pierre/theming@1.0.2(@pierre/theme@2.1.0)(@shikijs/themes@4.3.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(shiki@4.3.1)':
+    optionalDependencies:
+      '@pierre/theme': 2.1.0
       '@shikijs/themes': 4.3.1
       react: 19.2.8
       react-dom: 19.2.8(react@19.2.8)
@@ -8953,13 +8969,6 @@ snapshots:
   '@rollup/rollup-win32-x64-msvc@4.62.2':
     optional: true
 
-  '@shikijs/core@3.23.0':
-    dependencies:
-      '@shikijs/types': 3.23.0
-      '@shikijs/vscode-textmate': 10.0.2
-      '@types/hast': 3.0.5
-      hast-util-to-html: 9.0.5
-
   '@shikijs/core@4.3.1':
     dependencies:
       '@shikijs/primitive': 4.3.1
@@ -8968,51 +8977,26 @@ snapshots:
       '@types/hast': 3.0.5
       hast-util-to-html: 9.0.5
 
-  '@shikijs/engine-javascript@3.23.0':
-    dependencies:
-      '@shikijs/types': 3.23.0
-      '@shikijs/vscode-textmate': 10.0.2
-      oniguruma-to-es: 4.3.6
-
   '@shikijs/engine-javascript@4.3.1':
     dependencies:
       '@shikijs/types': 4.3.1
       '@shikijs/vscode-textmate': 10.0.2
       oniguruma-to-es: 4.3.6
 
-  '@shikijs/engine-oniguruma@3.23.0':
-    dependencies:
-      '@shikijs/types': 3.23.0
-      '@shikijs/vscode-textmate': 10.0.2
-
   '@shikijs/engine-oniguruma@4.3.1':
     dependencies:
       '@shikijs/types': 4.3.1
       '@shikijs/vscode-textmate': 10.0.2
 
-  '@shikijs/langs@3.23.0':
-    dependencies:
-      '@shikijs/types': 3.23.0
-
   '@shikijs/langs@4.3.1':
     dependencies:
       '@shikijs/types': 4.3.1
-
-  '@shikijs/monaco@3.23.0':
-    dependencies:
-      '@shikijs/core': 3.23.0
-      '@shikijs/types': 3.23.0
-      '@shikijs/vscode-textmate': 10.0.2
 
   '@shikijs/primitive@4.3.1':
     dependencies:
       '@shikijs/types': 4.3.1
       '@shikijs/vscode-textmate': 10.0.2
       '@types/hast': 3.0.5
-
-  '@shikijs/themes@3.23.0':
-    dependencies:
-      '@shikijs/types': 3.23.0
 
   '@shikijs/themes@4.3.1':
     dependencies:
@@ -9022,11 +9006,6 @@ snapshots:
     dependencies:
       '@shikijs/core': 4.3.1
       '@shikijs/types': 4.3.1
-
-  '@shikijs/types@3.23.0':
-    dependencies:
-      '@shikijs/vscode-textmate': 10.0.2
-      '@types/hast': 3.0.5
 
   '@shikijs/types@4.3.1':
     dependencies:
@@ -10010,8 +9989,6 @@ snapshots:
       fast-uri: 3.1.9
       json-schema-traverse: 1.0.0
       require-from-string: 2.0.2
-
-  alien-signals@2.0.8: {}
 
   alien-signals@3.2.1: {}
 
@@ -12087,31 +12064,29 @@ snapshots:
 
   markdown-it-task-checkbox@1.0.6: {}
 
-  markdown-it-ts@1.1.3:
+  markdown-it-ts@1.1.8:
     dependencies:
       entities: 8.0.0
       linkify-it: 6.1.0
       mdurl: 2.1.0
       punycode.js: 2.3.1
 
-  marked@14.0.0: {}
-
   marked@16.4.2: {}
 
-  markstream-core@2.0.24: {}
+  markstream-core@2.0.32: {}
 
-  markstream-vue@2.0.24(@antv/infographic@0.2.20)(katex@0.18.7)(mermaid@11.17.2)(stream-diffs@0.0.2(@shikijs/themes@4.3.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2)))(vue-i18n@11.4.17(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2)))(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2)):
+  markstream-vue@2.0.32(@antv/infographic@0.2.20)(katex@0.18.7)(mermaid@11.17.2)(stream-diffs@0.0.5(@shikijs/themes@4.3.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2)))(vue-i18n@11.4.17(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2)))(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2)):
     dependencies:
-      '@chenglou/pretext': 0.0.9
+      '@chenglou/pretext': 1.0.0
       '@floating-ui/dom': 1.8.0
-      markstream-core: 2.0.24
-      stream-markdown-parser: 1.2.25
+      markstream-core: 2.0.32
+      stream-markdown-parser: 1.2.31
       vue: 3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2)
     optionalDependencies:
       '@antv/infographic': 0.2.20
       katex: 0.18.7
       mermaid: 11.17.2
-      stream-diffs: 0.0.2(@shikijs/themes@4.3.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2))
+      stream-diffs: 0.0.5(@shikijs/themes@4.3.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2))
       vue-i18n: 11.4.17(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2))
 
   matcher@3.0.0:
@@ -12278,11 +12253,6 @@ snapshots:
       ufo: 1.6.4
 
   module-error@1.0.2: {}
-
-  monaco-editor@0.55.1:
-    dependencies:
-      dompurify: 3.4.17
-      marked: 14.0.0
 
   mrmime@2.0.1: {}
 
@@ -13118,17 +13088,6 @@ snapshots:
 
   shebang-regex@3.0.0: {}
 
-  shiki@3.23.0:
-    dependencies:
-      '@shikijs/core': 3.23.0
-      '@shikijs/engine-javascript': 3.23.0
-      '@shikijs/engine-oniguruma': 3.23.0
-      '@shikijs/langs': 3.23.0
-      '@shikijs/themes': 3.23.0
-      '@shikijs/types': 3.23.0
-      '@shikijs/vscode-textmate': 10.0.2
-      '@types/hast': 3.0.5
-
   shiki@4.3.1:
     dependencies:
       '@shikijs/core': 4.3.1
@@ -13214,9 +13173,9 @@ snapshots:
 
   std-env@4.2.0: {}
 
-  stream-diffs@0.0.2(@shikijs/themes@4.3.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2)):
+  stream-diffs@0.0.5(@shikijs/themes@4.3.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2)):
     dependencies:
-      '@pierre/diffs': 1.4.1(@shikijs/themes@4.3.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      '@pierre/diffs': 1.7.1(@shikijs/themes@4.3.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
     optionalDependencies:
       vue: 3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2)
     transitivePeerDependencies:
@@ -13224,7 +13183,7 @@ snapshots:
       - react
       - react-dom
 
-  stream-markdown-parser@1.2.25:
+  stream-markdown-parser@1.2.31:
     dependencies:
       markdown-it-container: 4.0.0
       markdown-it-footnote: 4.0.0
@@ -13232,14 +13191,7 @@ snapshots:
       markdown-it-mark: 4.0.0
       markdown-it-sup: 2.0.0
       markdown-it-task-checkbox: 1.0.6
-      markdown-it-ts: 1.1.3
-
-  stream-monaco@0.0.49(monaco-editor@0.55.1):
-    dependencies:
-      '@shikijs/monaco': 3.23.0
-      alien-signals: 2.0.8
-      monaco-editor: 0.55.1
-      shiki: 3.23.0
+      markdown-it-ts: 1.1.8
 
   strictdom@1.0.1: {}
 
@@ -13619,10 +13571,6 @@ snapshots:
       unplugin-utils: 0.3.2
       vite: 7.3.7(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.32.0)(yaml@2.9.0)
       vite-dev-rpc: 2.0.0(vite@7.3.7(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.32.0)(yaml@2.9.0))
-
-  vite-plugin-monaco-editor-esm@2.0.3(monaco-editor@0.55.1):
-    dependencies:
-      monaco-editor: 0.55.1
 
   vite-plugin-vue-devtools@8.2.1(vite@7.3.7(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.32.0)(yaml@2.9.0))(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2)):
     dependencies:
