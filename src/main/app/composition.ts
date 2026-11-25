@@ -324,6 +324,7 @@ import {
 } from '@/cli'
 import { AcpRegistryMigrationService } from '@/agent/acp/catalog/acpRegistryMigrationService'
 import { AcpAuthService } from '@/agent/acp/auth/acpAuthService'
+import { createTerminalRoutes, resolveInteractiveShell, SessionTerminalService } from '@/terminal'
 import { backgroundExecSessionManager } from '@/agent/shared/process/backgroundExecSessionManager'
 import {
   runBuiltinMcpAllowlistCompatibilityMigration,
@@ -1011,6 +1012,58 @@ export async function createMainProcessControl(dependencies: {
       const target = electronWebContents.fromId(webContentsId)
       if (!target || target.isDestroyed()) return
       target.send(DEEPCHAT_EVENT_CHANNEL, createDeepchatEventEnvelope(name, payload))
+    },
+    onRendererDestroyed: (webContentsId, callback) => {
+      const target = electronWebContents.fromId(webContentsId)
+      if (!target || target.isDestroyed()) {
+        queueMicrotask(callback)
+        return () => {}
+      }
+      target.once('destroyed', callback)
+      return () => target.removeListener('destroyed', callback)
+    }
+  })
+  const sessionTerminalService = new SessionTerminalService({
+    resolveWorkdir: (sessionId, ownerWebContentsId, draftWorkdir) => {
+      const session = appSessionService.get(sessionId)
+      if (!session) return null
+      if (
+        draftWorkdir &&
+        session.isDraft &&
+        sessionLifecycle.ownsDraftSession(sessionId, ownerWebContentsId)
+      ) {
+        return path.isAbsolute(draftWorkdir) ? draftWorkdir : null
+      }
+      return session.projectDir ?? null
+    },
+    resolveShell: () => resolveInteractiveShell(),
+    resolveEnvironment: async () => ({
+      ...Object.fromEntries(
+        Object.entries(process.env).filter(
+          (entry): entry is [string, string] => typeof entry[1] === 'string'
+        )
+      ),
+      ...(await getShellEnvironment())
+    }),
+    sendOutput: (webContentsId, terminalId, offset, data) => {
+      const target = electronWebContents.fromId(webContentsId)
+      if (!target || target.isDestroyed()) return
+      target.send(
+        DEEPCHAT_EVENT_CHANNEL,
+        createDeepchatEventEnvelope('terminal.output', { terminalId, offset, data })
+      )
+    },
+    sendExit: (webContentsId, terminalId, exitCode, signal) => {
+      const target = electronWebContents.fromId(webContentsId)
+      if (!target || target.isDestroyed()) return
+      target.send(
+        DEEPCHAT_EVENT_CHANNEL,
+        createDeepchatEventEnvelope('terminal.exit', {
+          terminalId,
+          exitCode,
+          ...(signal ? { signal } : {})
+        })
+      )
     },
     onRendererDestroyed: (webContentsId, callback) => {
       const target = electronWebContents.fromId(webContentsId)
@@ -2696,7 +2749,8 @@ export async function createMainProcessControl(dependencies: {
       cleanupSessionBackends: async (sessionId) =>
         await agentManager.cleanupSessionBackends(sessionId),
       destroySessionBrowser: async (sessionId) =>
-        await yoBrowserPresenter.destroySessionBrowser(sessionId)
+        await yoBrowserPresenter.destroySessionBrowser(sessionId),
+      destroySessionTerminal: (sessionId) => sessionTerminalService.disposeSession(sessionId)
     },
     state: { destroySession: (id) => dimAgent.backend.destroySession(toAppSessionId(id)) },
     permissions: sessionPermissionPort,
@@ -3863,6 +3917,16 @@ export async function createMainProcessControl(dependencies: {
         agentRoutes,
         promptRoutes,
         acpRoutes,
+        createTerminalRoutes({
+          terminals: sessionTerminalService,
+          isChatWindowContext: (caller) =>
+            caller.windowId !== null &&
+            windowPresenter.getAllWindows().some((window) => window.id === caller.windowId) &&
+            tabPresenter.getWindowType(caller.windowId) === 'chat',
+          isViewingSession: (caller, sessionId) =>
+            desktopSessionBinding.getActiveId(caller.webContentsId) === sessionId ||
+            sessionLifecycle.ownsDraftSession(sessionId, caller.webContentsId)
+        }),
         deviceRoutes,
         onboardingRoutes,
         upgradeRoutes,
@@ -4068,6 +4132,7 @@ export async function createMainProcessControl(dependencies: {
       windowPresenter.setApplicationQuitting(true)
       startupWorkloadCoordinator.cancelTarget('main')
       await runDestroyStep('acpAuth.shutdown', () => acpAuthService.shutdown())
+      await runDestroyStep('terminal.shutdown', () => sessionTerminalService.shutdown())
       try {
         await destroy()
       } finally {

@@ -560,6 +560,10 @@ export class WindowPresenter implements IWindowPresenter {
         return createDeepchatEventEnvelope('appRuntime.shortcutRequested', {
           action: 'toggleWorkspace'
         })
+      case SHORTCUT_EVENTS.TOGGLE_TERMINAL:
+        return createDeepchatEventEnvelope('appRuntime.shortcutRequested', {
+          action: 'toggleTerminal'
+        })
       case SHORTCUT_EVENTS.TOGGLE_SPOTLIGHT:
         return createDeepchatEventEnvelope('appRuntime.shortcutRequested', {
           action: 'toggleSpotlight'

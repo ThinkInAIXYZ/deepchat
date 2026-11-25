@@ -718,5 +718,27 @@
     "parentTask": "父任务",
     "parentRun": "父运行",
     "contextWindow": "上下文窗口"
+  },
+  "terminal": {
+    "title": "终端",
+    "label": "会话终端",
+    "restart": "重启",
+    "kill": "结束",
+    "workdirChanged": "目录已变更 · 重启后生效",
+    "status": {
+      "starting": "正在启动 shell…",
+      "exited": "进程已退出（code {code}）",
+      "error": "终端不可用",
+      "capacity": "运行中的终端过多，请先关闭一个再试。",
+      "otherWindow": "此终端已在另一个窗口中打开"
+    },
+    "noWorkdir": {
+      "title": "没有工作目录",
+      "description": "选择一个文件夹，在其中打开终端"
+    },
+    "workdirMissing": {
+      "title": "找不到工作目录",
+      "description": "文件夹可能已被移动或删除，请重新选择。"
+    }
   }
 }

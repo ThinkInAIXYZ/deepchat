@@ -41,6 +41,7 @@ export const SHORTCUT_EVENTS = {
   TOGGLE_SPOTLIGHT: 'shortcut:toggle-spotlight',
   TOGGLE_SIDEBAR: 'shortcut:toggle-sidebar',
   TOGGLE_WORKSPACE: 'shortcut:toggle-workspace',
+  TOGGLE_TERMINAL: 'shortcut:toggle-terminal',
   GO_SETTINGS: 'shortcut:go-settings',
   CLEAN_CHAT_HISTORY: 'shortcut:clean-chat-history',
   DELETE_CONVERSATION: 'shortcut:delete-conversation'

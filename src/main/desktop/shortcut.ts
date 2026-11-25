@@ -143,6 +143,9 @@ export class ShortcutPresenter implements IShortcutPresenter {
           this.createCommandItem(labels.toggleWorkspace, this.shortcutKeys.ToggleWorkspace, () =>
             this.sendFocusedChatWindowShortcut(SHORTCUT_EVENTS.TOGGLE_WORKSPACE)
           ),
+          this.createCommandItem(labels.toggleTerminal, this.shortcutKeys.ToggleTerminal, () =>
+            this.sendFocusedChatWindowShortcut(SHORTCUT_EVENTS.TOGGLE_TERMINAL)
+          ),
           { type: 'separator' },
           this.createCommandItem(labels.cleanChatHistory, this.shortcutKeys.CleanChatHistory, () =>
             this.sendFocusedChatWindowShortcut(SHORTCUT_EVENTS.CLEAN_CHAT_HISTORY)

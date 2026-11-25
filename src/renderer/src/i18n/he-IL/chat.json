@@ -718,5 +718,27 @@
     "parentTask": "Parent task",
     "parentRun": "Parent run",
     "contextWindow": "Context window"
+  },
+  "terminal": {
+    "title": "מסוף",
+    "label": "מסוף השיחה",
+    "restart": "הפעלה מחדש",
+    "kill": "סיום",
+    "workdirChanged": "התיקייה השתנתה · הפעילו מחדש כדי להחיל",
+    "status": {
+      "starting": "מפעיל מעטפת…",
+      "exited": "התהליך הסתיים (קוד {code})",
+      "error": "המסוף אינו זמין",
+      "capacity": "פועלים יותר מדי מסופים. סגרו אחד ונסו שוב.",
+      "otherWindow": "המסוף פתוח בחלון אחר"
+    },
+    "noWorkdir": {
+      "title": "אין תיקיית עבודה",
+      "description": "בחרו תיקייה כדי לפתוח בה מסוף"
+    },
+    "workdirMissing": {
+      "title": "תיקיית העבודה לא נמצאה",
+      "description": "ייתכן שהתיקייה הועברה או נמחקה. בחרו תיקייה אחרת."
+    }
   }
 }

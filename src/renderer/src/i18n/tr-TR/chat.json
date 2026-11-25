@@ -718,5 +718,27 @@
     "parentTask": "Parent task",
     "parentRun": "Parent run",
     "contextWindow": "Context window"
+  },
+  "terminal": {
+    "title": "Terminal",
+    "label": "Oturum terminali",
+    "restart": "Yeniden başlat",
+    "kill": "Sonlandır",
+    "workdirChanged": "Dizin değişti · uygulamak için yeniden başlatın",
+    "status": {
+      "starting": "Kabuk başlatılıyor…",
+      "exited": "İşlem sonlandı (kod {code})",
+      "error": "Terminal kullanılamıyor",
+      "capacity": "Çok fazla terminal çalışıyor. Birini kapatıp tekrar deneyin.",
+      "otherWindow": "Bu terminal başka bir pencerede açık"
+    },
+    "noWorkdir": {
+      "title": "Çalışma dizini yok",
+      "description": "Terminal açmak için bir klasör seçin"
+    },
+    "workdirMissing": {
+      "title": "Çalışma dizini bulunamadı",
+      "description": "Klasör taşınmış veya silinmiş olabilir. Başka bir klasör seçin."
+    }
   }
 }

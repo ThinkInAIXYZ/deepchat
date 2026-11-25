@@ -718,5 +718,27 @@
     "parentTask": "Parent task",
     "parentRun": "Parent run",
     "contextWindow": "Context window"
+  },
+  "terminal": {
+    "title": "Terminal",
+    "label": "Terminal sesji",
+    "restart": "Uruchom ponownie",
+    "kill": "Zakończ",
+    "workdirChanged": "Zmieniono katalog · uruchom ponownie, aby zastosować",
+    "status": {
+      "starting": "Uruchamianie powłoki…",
+      "exited": "Proces zakończony (kod {code})",
+      "error": "Terminal niedostępny",
+      "capacity": "Uruchomiono zbyt wiele terminali. Zamknij jeden i spróbuj ponownie.",
+      "otherWindow": "Ten terminal jest otwarty w innym oknie"
+    },
+    "noWorkdir": {
+      "title": "Brak katalogu roboczego",
+      "description": "Wybierz folder, aby otworzyć w nim terminal"
+    },
+    "workdirMissing": {
+      "title": "Nie znaleziono katalogu roboczego",
+      "description": "Folder mógł zostać przeniesiony lub usunięty. Wybierz inny."
+    }
   }
 }

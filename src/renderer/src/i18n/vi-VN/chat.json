@@ -718,5 +718,27 @@
     "parentTask": "Parent task",
     "parentRun": "Parent run",
     "contextWindow": "Context window"
+  },
+  "terminal": {
+    "title": "Terminal",
+    "label": "Terminal phiên",
+    "restart": "Khởi động lại",
+    "kill": "Dừng",
+    "workdirChanged": "Đã đổi thư mục · khởi động lại để áp dụng",
+    "status": {
+      "starting": "Đang khởi động shell…",
+      "exited": "Tiến trình đã thoát (mã {code})",
+      "error": "Terminal không khả dụng",
+      "capacity": "Có quá nhiều terminal đang chạy. Hãy đóng bớt một terminal rồi thử lại.",
+      "otherWindow": "Terminal này đang mở trong một cửa sổ khác"
+    },
+    "noWorkdir": {
+      "title": "Chưa có thư mục làm việc",
+      "description": "Chọn một thư mục để mở terminal tại đó"
+    },
+    "workdirMissing": {
+      "title": "Không tìm thấy thư mục làm việc",
+      "description": "Thư mục có thể đã bị di chuyển hoặc xóa. Hãy chọn thư mục khác."
+    }
   }
 }

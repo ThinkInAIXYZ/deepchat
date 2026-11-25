@@ -79,6 +79,20 @@
             {{ t('common.browser.name') }}
           </button>
           <button
+            data-testid="terminal-sidepanel-tab"
+            class="rounded-md px-2.5 py-1 text-xs transition-colors duration-200 ease-out"
+            :class="
+              sidepanelStore.activeTab === 'terminal'
+                ? 'bg-accent text-foreground'
+                : 'text-muted-foreground'
+            "
+            type="button"
+            :aria-pressed="sidepanelStore.activeTab === 'terminal'"
+            @click="sidepanelStore.openTerminal(props.sessionId)"
+          >
+            {{ t('chat.terminal.title') }}
+          </button>
+          <button
             v-if="sidepanelStore.mcpAppPreviewOwnerId"
             data-testid="mcp-app-sidepanel-tab"
             class="rounded-md px-2.5 py-1 text-xs transition-colors duration-200 ease-out"
@@ -143,6 +157,13 @@
           :is-fullscreen="isBrowserFullscreenActive"
           @toggle-fullscreen="toggleBrowserFullscreen"
         />
+        <TerminalPanel
+          v-else-if="sidepanelStore.activeTab === 'terminal'"
+          :session-id="props.sessionId"
+          :workspace-path="props.workspacePath"
+          :active="shouldShow"
+          @update:workspace-path="emit('update:workspacePath', $event)"
+        />
         <TapeInspectorPanel
           v-else-if="
             sidepanelStore.activeTab === 'tape-inspector' &&
@@ -178,6 +199,7 @@ import { DcButton } from '@dc-ui/components/button'
 import { createBrowserClient } from '@api/BrowserClient'
 import BrowserPanel from './BrowserPanel.vue'
 import WorkspacePanel from './WorkspacePanel.vue'
+import TerminalPanel from './TerminalPanel.vue'
 import TapeInspectorPanel from '@/components/tape-inspector/TapeInspectorPanel.vue'
 import type { TapeInspectorMessageDiagnosticsTarget } from '@/components/tape-inspector/model'
 import TraceDialog from '@/components/trace/TraceDialog.vue'
@@ -210,6 +232,7 @@ const panelId = useId()
 let returnFocus: HTMLElement | null = null
 const panelTitle = computed(() => {
   if (sidepanelStore.activeTab === 'browser') return t('common.browser.name')
+  if (sidepanelStore.activeTab === 'terminal') return t('chat.terminal.title')
   if (sidepanelStore.activeTab === 'mcp-app') return t('mcp.apps.title')
   if (sidepanelStore.activeTab === 'tape-inspector') return t('tapeInspector.title')
   return t('chat.workspace.title')

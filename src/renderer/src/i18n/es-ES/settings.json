@@ -2007,6 +2007,7 @@
     "quitApp": "Salir de la aplicación",
     "toggleSidebar": "Alternar barra lateral",
     "toggleWorkspace": "Alternar espacio de trabajo",
+    "toggleTerminal": "Mostrar/ocultar terminal",
     "newWindow": "Abrir una nueva ventana",
     "showHideWindow": "Mostrar/Ocultar ventana",
     "newConversation": "Nueva conversación",

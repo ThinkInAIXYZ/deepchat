@@ -718,5 +718,27 @@
     "parentTask": "Parent task",
     "parentRun": "Parent run",
     "contextWindow": "Context window"
+  },
+  "terminal": {
+    "title": "Terminal",
+    "label": "Sessionsterminal",
+    "restart": "Genstart",
+    "kill": "Afslut",
+    "workdirChanged": "Mappe ændret · genstart for at anvende",
+    "status": {
+      "starting": "Starter shell…",
+      "exited": "Processen afsluttede (kode {code})",
+      "error": "Terminal utilgængelig",
+      "capacity": "Der kører for mange terminaler. Luk en og prøv igen.",
+      "otherWindow": "Denne terminal er åben i et andet vindue"
+    },
+    "noWorkdir": {
+      "title": "Ingen arbejdsmappe",
+      "description": "Vælg en mappe for at åbne en terminal i den"
+    },
+    "workdirMissing": {
+      "title": "Arbejdsmappen blev ikke fundet",
+      "description": "Mappen er muligvis flyttet eller slettet. Vælg en anden."
+    }
   }
 }

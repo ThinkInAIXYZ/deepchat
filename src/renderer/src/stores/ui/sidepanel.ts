@@ -125,6 +125,24 @@ export const useSidepanelStore = defineStore('sidepanel', () => {
     activeTab.value = 'browser'
   }
 
+  const terminalFocusToken = ref(0)
+  const openTerminal = (sessionId?: string | null) => {
+    if (sessionId) {
+      ensureSessionState(sessionId)
+    }
+    open.value = true
+    activeTab.value = 'terminal'
+    terminalFocusToken.value += 1
+  }
+
+  const toggleTerminal = (sessionId?: string | null) => {
+    if (open.value && activeTab.value === 'terminal') {
+      open.value = false
+      return
+    }
+    openTerminal(sessionId)
+  }
+
   let nextTapeInspectorRequestToken = 0
   const openTapeInspector = (
     sessionId: string,
@@ -254,6 +272,9 @@ export const useSidepanelStore = defineStore('sidepanel', () => {
     setWidth,
     openWorkspace,
     openBrowser,
+    terminalFocusToken,
+    openTerminal,
+    toggleTerminal,
     openTapeInspector,
     openMcpAppPreview,
     closeMcpAppPreview,

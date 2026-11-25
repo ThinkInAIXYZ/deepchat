@@ -236,6 +236,7 @@ export const GENERATED_ICON_WHITELIST: Record<GeneratedIconCollectionKey, readon
     'sparkles',
     'square',
     'square-pen',
+    'square-terminal',
     'star',
     'sun-moon',
     'terminal',

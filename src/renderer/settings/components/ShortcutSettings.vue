@@ -196,6 +196,10 @@ const shortcutMapping: Record<
     icon: 'lucide:panel-right-close',
     label: 'settings.shortcuts.toggleWorkspace'
   },
+  ToggleTerminal: {
+    icon: 'lucide:square-terminal',
+    label: 'settings.shortcuts.toggleTerminal'
+  },
   NewWindow: {
     icon: 'lucide:app-window',
     label: 'settings.shortcuts.newWindow'
