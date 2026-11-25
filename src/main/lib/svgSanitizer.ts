@@ -119,8 +119,10 @@ export class SVGSanitizer {
         end = this.findEnd(content, index + 4, '-->')
       } else if (content.slice(index, index + 9).toUpperCase() === '<!DOCTYPE') {
         end = this.findEnd(content, index, '>')
-        // A DOCTYPE with an internal subset can declare entities, so it is left in place
-        if (end !== -1 && content.slice(index, end).includes('[')) {
+        // A DOCTYPE with an internal subset can declare entities, so it is left in place.
+        // A [ inside a quoted system or public identifier is not a subset.
+        const unquoted = content.slice(index, end).replace(/"[^"]*"|'[^']*'/g, '')
+        if (end !== -1 && unquoted.includes('[')) {
           end = -1
         }
       }

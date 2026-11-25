@@ -60,4 +60,18 @@ describe('SVGSanitizer', () => {
     ).toBeNull()
     expect(sanitizer.sanitize('<?xml version="1.0"?><html><svg></svg></html>')).toBeNull()
   })
+
+  it('accepts a DOCTYPE whose quoted identifier holds a bracket', () => {
+    const sanitizer = new SVGSanitizer()
+
+    expect(sanitizer.sanitize('<!DOCTYPE svg SYSTEM "http://[::1]/svg.dtd"><svg></svg>')).toBe(
+      '<svg></svg>'
+    )
+    expect(
+      sanitizer.sanitize("<!DOCTYPE svg PUBLIC '-//[x]//EN' 'http://[::1]/a.dtd'><svg></svg>")
+    ).toBe('<svg></svg>')
+    expect(
+      sanitizer.sanitize('<!DOCTYPE svg SYSTEM "a.dtd" [<!ENTITY x "y">]><svg></svg>')
+    ).toBeNull()
+  })
 })
