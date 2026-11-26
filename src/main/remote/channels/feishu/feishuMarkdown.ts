@@ -67,12 +67,12 @@ function optimizeMarkdownStyleCore(text: string, cardVersion = 2): string {
 
     // 5. Restore code blocks with blank line before and after
     codeBlocks.forEach((block, i) => {
-      r = r.replace(`${MARK}${i}___`, `\n\n${block}\n\n`)
+      r = r.replace(`${MARK}${i}___`, () => `\n\n${block}\n\n`)
     })
   } else {
     // 5. Restore code blocks
     codeBlocks.forEach((block, i) => {
-      r = r.replace(`${MARK}${i}___`, block)
+      r = r.replace(`${MARK}${i}___`, () => block)
     })
   }
 
