@@ -22,6 +22,7 @@
     "cloudNotConfigured": "הענן אינו מוגדר. מלא ושמור תחילה את חיבור הענן.",
     "cloudNoBackup": "אין גיבוי זמין בדלי הענן",
     "cloudDownloadFailed": "נכשל בהורדת הגיבוי מהענן",
+    "cloudComponentUnavailable": "לא ניתן לטעון את רכיב הגיבוי ל־S3. ב־Linux amd64 נדרשת glibc בגרסה 2.38 ומעלה.",
     "cloudOperationFailed": "פעולת הענן נכשלה",
     "noLocalBackup": "אין גיבוי מקומי להעלאה. הפעל גיבוי תחילה.",
     "safeStorageUnavailable": "מחזיק המפתחות של המערכת אינו זמין; אי אפשר לשמור את המפתח הסודי באופן מאובטח.",

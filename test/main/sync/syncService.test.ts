@@ -771,6 +771,22 @@ describe('SyncService backup import', () => {
     expect(importDatabase.reopen).not.toHaveBeenCalled()
   })
 
+  it('reports an unavailable S3 component without blocking local backups', async () => {
+    const original = await import('../../../src/main/sync/cloudStorageService')
+    vi.doMock('../../../src/main/sync/cloudStorageService', () => {
+      throw new Error('Cannot find native binding')
+    })
+    try {
+      await expect(service.testCloudConnection()).resolves.toEqual({
+        success: false,
+        message: 'sync.error.cloudComponentUnavailable'
+      })
+      await expect(service.listBackups()).resolves.toEqual([])
+    } finally {
+      vi.doMock('../../../src/main/sync/cloudStorageService', () => original)
+    }
+  })
+
   it('normalizes R2 unauthorized cloud errors to a user-facing error key', async () => {
     cloudStorageMocks.testConnection.mockRejectedValue(
       new Error(

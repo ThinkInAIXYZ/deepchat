@@ -116,6 +116,7 @@ assembly fails closed against an explicit six-target contract.
 - The initial baseline records successful run `29978292769` and source commit
   `dfb4ba0f34c008c27cfb6bd98a08fdbd36f7b343`.
 - Windows EXE, Linux AppImage and tarball, and macOS ZIP and DMG enforce upper and lower delta bounds.
+- Add Debian installers to the next size baseline once both architectures have distribution artifact sizes and digests.
 - `package-regression.yml` supports reusable, manual, and scheduled execution, always covers all six
   targets, and uploads reports rather than complete unsigned installers.
 - A scheduled failure opens or updates one package-regression issue; the next fully successful

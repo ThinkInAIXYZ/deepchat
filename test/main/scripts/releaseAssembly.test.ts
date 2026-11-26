@@ -63,8 +63,9 @@ interface PackageManifest {
 
 interface FinalUpdaterMetadata {
   releaseDate: unknown
-  files: Array<{ url: string; blockMapSize?: number }>
+  files: Array<{ url: string; sha512: string; blockMapSize?: number }>
   path: string
+  sha512: string
 }
 
 describe('fail-closed release assembly', () => {
@@ -459,6 +460,20 @@ describe('fail-closed release assembly', () => {
       files[0].sha512 = Buffer.alloc(64, 1).toString('base64')
     })
     await expect(assemble()).rejects.toThrow(/SHA-512 mismatch/)
+  })
+
+  it('publishes the AppImage as the legacy updater even if the deb finishes first', async () => {
+    await updateRawMetadata('linux-x64', (metadata) => {
+      const files = metadata.files as Array<{ url: string; sha512: string }>
+      files.reverse()
+      metadata.path = files[0].url
+      metadata.sha512 = files[0].sha512
+    })
+    await assemble()
+    const metadata = await readFinalMetadata('latest-linux.yml')
+    expect(metadata.files[0].url).toMatch(/\.AppImage$/)
+    expect(metadata.path).toBe(metadata.files[0].url)
+    expect(metadata.sha512).toBe(metadata.files[0].sha512)
   })
 
   it('rejects incomplete updater metadata and invalid macOS evidence', async () => {

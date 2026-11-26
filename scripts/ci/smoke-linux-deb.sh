@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Debian 10 provides the glibc in the UOS report. Its kernel is shared with the CI runner.
-docker run --rm -i -v "$PWD:/source:ro" -w /source \
+docker run --rm -i --shm-size=256m -v "$PWD:/source:ro" -w /source \
   -v /etc/ssl/certs/ca-certificates.crt:/tmp/archive-ca.pem:ro \
   debian:buster-slim@sha256:bb3dc79fddbca7e8903248ab916bb775c96ec61014b3d02b4f06043b604726dc bash -seu <<'SMOKE'
 test "$(getconf GNU_LIBC_VERSION)" = 'glibc 2.28'

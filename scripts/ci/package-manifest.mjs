@@ -206,11 +206,6 @@ function validateUpdaterFile(file, payload, label) {
       `${label} updater file has unsupported fields: ${unexpectedFileFields.join(', ')}`
     )
   }
-  if (file.url !== payload.name) {
-    throw new Error(
-      `Updater metadata URL mismatch for ${label}: ${file.url} != ${payload.name}`
-    )
-  }
   if (
     typeof file.sha512 !== 'string' ||
     !SHA512_BASE64_PATTERN.test(file.sha512) ||
@@ -305,10 +300,12 @@ export function validateRawUpdateMetadata({
   if (!Array.isArray(metadata.files) || metadata.files.length !== payloads.length) {
     throw new Error(`${label} must contain exactly ${payloads.length} updater files`)
   }
-  const files = payloads.map((payload, index) =>
-    validateUpdaterFile(metadata.files[index], payload, label)
-  )
-  if (metadata.path !== files[0].url || metadata.sha512 !== files[0].sha512) {
+  const files = payloads.map((payload) => {
+    const file = metadata.files.find((candidate) => candidate?.url === payload.name)
+    if (!file) throw new Error(`Updater metadata URL mismatch for ${label}: missing ${payload.name}`)
+    return validateUpdaterFile(file, payload, label)
+  })
+  if (!files.some((file) => metadata.path === file.url && metadata.sha512 === file.sha512)) {
     throw new Error(`Updater metadata legacy fields mismatch for ${definition.id}`)
   }
   if (

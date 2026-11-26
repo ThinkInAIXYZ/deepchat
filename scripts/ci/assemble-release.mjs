@@ -418,8 +418,8 @@ function mergeArchitectureMetadata(packages, version) {
   return metadata
 }
 
-function normalizeSingleArchitectureMetadata(packageEntry, version) {
-  const file = packageEntry.rawMetadata.files[0]
+function normalizeLinuxMetadata(packageEntry, version) {
+  const file = packageEntry.rawMetadata.files.find(({ url }) => url.endsWith('.AppImage'))
   const metadata = {
     version,
     files: packageEntry.rawMetadata.files,
@@ -619,11 +619,11 @@ export async function assembleRelease({
     },
     {
       name: 'latest-linux.yml',
-      metadata: normalizeSingleArchitectureMetadata(linuxX64, version)
+      metadata: normalizeLinuxMetadata(linuxX64, version)
     },
     {
       name: 'latest-linux-arm64.yml',
-      metadata: normalizeSingleArchitectureMetadata(linuxArm64, version)
+      metadata: normalizeLinuxMetadata(linuxArm64, version)
     }
   ]
   const metadataAssets = await Promise.all(

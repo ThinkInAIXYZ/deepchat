@@ -22,6 +22,7 @@
     "cloudNotConfigured": "Cloud is not configured. Fill in and save the cloud connection first.",
     "cloudNoBackup": "No backup available in the cloud bucket",
     "cloudDownloadFailed": "Failed to download backup from cloud",
+    "cloudComponentUnavailable": "S3 백업 구성 요소를 불러올 수 없습니다. Linux amd64에서는 glibc 2.38 이상이 필요합니다.",
     "cloudOperationFailed": "Cloud operation failed",
     "noLocalBackup": "No local backup to upload. Run a backup first.",
     "safeStorageUnavailable": "시스템 키체인을 사용할 수 없어 비밀 키를 안전하게 저장할 수 없습니다.",

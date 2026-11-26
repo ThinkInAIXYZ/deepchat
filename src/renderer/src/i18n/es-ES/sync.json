@@ -22,6 +22,7 @@
     "cloudNotConfigured": "Cloud is not configured. Fill in and save the cloud connection first.",
     "cloudNoBackup": "No backup available in the cloud bucket",
     "cloudDownloadFailed": "Failed to download backup from cloud",
+    "cloudComponentUnavailable": "No se pudo cargar el componente de copias de seguridad S3. En Linux amd64 requiere glibc 2.38 o posterior.",
     "cloudOperationFailed": "Cloud operation failed",
     "noLocalBackup": "No local backup to upload. Run a backup first.",
     "safeStorageUnavailable": "El llavero del sistema no está disponible; no se puede guardar la clave secreta de forma segura.",

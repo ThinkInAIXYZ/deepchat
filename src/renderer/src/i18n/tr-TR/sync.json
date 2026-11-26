@@ -22,6 +22,7 @@
     "cloudNotConfigured": "Cloud is not configured. Fill in and save the cloud connection first.",
     "cloudNoBackup": "No backup available in the cloud bucket",
     "cloudDownloadFailed": "Failed to download backup from cloud",
+    "cloudComponentUnavailable": "S3 yedekleme bileşeni yüklenemedi. Linux amd64 üzerinde glibc 2.38 veya daha yeni bir sürüm gerekir.",
     "cloudOperationFailed": "Cloud operation failed",
     "noLocalBackup": "No local backup to upload. Run a backup first.",
     "safeStorageUnavailable": "Sistem anahtarlığı kullanılamıyor; gizli anahtar güvenli şekilde saklanamıyor.",

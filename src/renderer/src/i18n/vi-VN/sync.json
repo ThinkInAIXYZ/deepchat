@@ -22,6 +22,7 @@
     "cloudNotConfigured": "Cloud is not configured. Fill in and save the cloud connection first.",
     "cloudNoBackup": "No backup available in the cloud bucket",
     "cloudDownloadFailed": "Failed to download backup from cloud",
+    "cloudComponentUnavailable": "Không thể tải thành phần sao lưu S3. Trên Linux amd64, thành phần này yêu cầu glibc 2.38 trở lên.",
     "cloudOperationFailed": "Cloud operation failed",
     "noLocalBackup": "No local backup to upload. Run a backup first.",
     "safeStorageUnavailable": "Keychain hệ thống không khả dụng; không thể lưu khóa bí mật một cách an toàn.",

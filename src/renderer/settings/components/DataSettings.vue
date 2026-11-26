@@ -1212,12 +1212,13 @@ const handleSaveAndTestCloud = () => {
     }
     const result = await syncStore.testCloud()
     if (!result?.success) {
-      throw new Error(t('settings.data.cloudSync.testFailedTitle'))
+      cloudOperationError.value = cloudResultDescription(result?.message) ?? null
+      throw new Error('Cloud connection test failed')
     }
   })
     .catch((error: unknown) => {
       console.error('[DataSettings] Failed to save or test cloud config', error)
-      cloudOperationError.value = t('settings.data.cloudSync.testFailedTitle')
+      cloudOperationError.value ??= t('settings.data.cloudSync.testFailedTitle')
     })
     .finally(() => {
       isCloudFeedbackPending.value = false
@@ -1270,7 +1271,8 @@ const handlePullFromCloud = async () => {
       notifyRenderer({
         kind: 'error',
         code: 'settings.data.cloud.pullFailed',
-        title: t('settings.data.importErrorTitle')
+        title: t('settings.data.importErrorTitle'),
+        description: cloudResultDescription(result?.message)
       })
       return
     }

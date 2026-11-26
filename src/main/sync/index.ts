@@ -169,7 +169,11 @@ export class SyncService {
     if (!resolved) {
       throw new Error('sync.error.cloudNotConfigured')
     }
-    const { CloudStorageService } = await import('./cloudStorageService')
+    const { CloudStorageService } = await import('./cloudStorageService').catch(
+      (cause: unknown) => {
+        throw new Error('sync.error.cloudComponentUnavailable', { cause })
+      }
+    )
     return new CloudStorageService(resolved)
   }
 
