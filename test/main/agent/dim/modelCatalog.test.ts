@@ -428,3 +428,252 @@ it.each([
     db.sqlite.close()
   }
 })
+
+function canonicalFingerprint(value: unknown): string {
+  const canonical = (input: unknown): unknown =>
+    Array.isArray(input)
+      ? input.map(canonical)
+      : input && typeof input === 'object'
+        ? Object.fromEntries(
+            Object.keys(input)
+              .sort()
+              .map((key) => [key, canonical((input as Record<string, unknown>)[key])])
+          )
+        : input
+  return createHash('sha256')
+    .update(JSON.stringify(canonical(value)))
+    .digest('hex')
+}
+
+function grantCatalogSettings(provider: LLM_PROVIDER) {
+  return {
+    getProviderById: (id: string) => (id === provider.id ? provider : undefined),
+    getModelStatus: () => true,
+    getModelConfig: () =>
+      ({
+        contextLength: 8192,
+        maxTokens: 1024,
+        functionCall: true,
+        vision: false,
+        reasoning: false
+      }) as ModelConfig,
+    getProviderModelRouteMetadata: () => undefined,
+    getCapabilitySnapshot: () =>
+      ({
+        supportsAudioInput: false,
+        supportsReasoning: false,
+        reasoningPortrait: null
+      }) as ReturnType<ProviderSettingsPort['getCapabilitySnapshot']>
+  }
+}
+
+it('upgrades pre-#2539 api-key grant fingerprints in place while rejecting connection changes', async () => {
+  const db = dimDatabase()
+  const provider: LLM_PROVIDER = {
+    id: 'deepseek',
+    name: 'DeepSeek',
+    apiType: 'deepseek',
+    baseUrl: 'https://api.deepseek.com',
+    apiKey: 'sk-deepseek',
+    enable: true
+  }
+  const reference = 'deepchat/provider/v1/deepseek'
+  const canonicalScope = {
+    id: provider.id,
+    apiType: provider.apiType,
+    baseUrl: provider.baseUrl,
+    anonymous: false,
+    copilotClientId: '',
+    customHeaders: {}
+  }
+  const legacyFingerprint = canonicalFingerprint({ ...canonicalScope, openaiAuthMode: 'api-key' })
+  const currentFingerprint = canonicalFingerprint(canonicalScope)
+  const catalog = new DimModelCatalog({
+    settings: grantCatalogSettings(provider),
+    models: {
+      configure: async () => ({ providerId: 'native-deepseek', modelId: 'deepseek-chat' })
+    },
+    grants: db.data.dimProviderGrantsTable,
+    credential: async (current) => current.apiKey
+  })
+  const signal = new AbortController().signal
+  try {
+    db.data.dimProviderGrantsTable.put({
+      nativeProviderId: 'native-deepseek',
+      providerId: 'deepseek',
+      modelId: 'deepseek-chat',
+      reference,
+      connectionFingerprint: legacyFingerprint
+    })
+
+    expect(await catalog.credential('native-deepseek', reference, signal)).toBe('sk-deepseek')
+    expect(
+      await catalog.connectionAuth('native-deepseek', 'deepseek-chat', undefined, signal)
+    ).toBeNull()
+
+    await catalog.admit('deepseek', 'deepseek-chat')
+    expect(db.data.dimProviderGrantsTable.get('native-deepseek')?.connectionFingerprint).toBe(
+      currentFingerprint
+    )
+    expect(await catalog.credential('native-deepseek', reference, signal)).toBe('sk-deepseek')
+
+    provider.baseUrl = 'https://replaced.example/v1'
+    await expect(catalog.credential('native-deepseek', reference, signal)).rejects.toThrow(
+      'replaced'
+    )
+    await expect(catalog.admit('deepseek', 'deepseek-chat')).rejects.toThrow(
+      'Native provider grant cannot be repointed'
+    )
+  } finally {
+    db.sqlite.close()
+  }
+})
+
+it('keeps canonical beta grants valid and excludes ChatGPT from legacy fingerprint fallback', async () => {
+  const db = dimDatabase()
+  const chatgpt: LLM_PROVIDER = {
+    id: 'chatgpt',
+    name: 'ChatGPT',
+    apiType: 'chatgpt',
+    baseUrl: 'https://api.openai.com/v1',
+    apiKey: '',
+    enable: true
+  }
+  const canonicalScope = {
+    id: chatgpt.id,
+    apiType: chatgpt.apiType,
+    baseUrl: chatgpt.baseUrl,
+    anonymous: false,
+    copilotClientId: '',
+    customHeaders: {}
+  }
+  const currentFingerprint = canonicalFingerprint(canonicalScope)
+  const legacyFingerprint = canonicalFingerprint({ ...canonicalScope, openaiAuthMode: 'api-key' })
+  const reference = `deepchat/chatgpt/v1/chatgpt/${currentFingerprint}`
+  let nativeProviderId = 'native-chatgpt-current'
+  const catalog = new DimModelCatalog({
+    settings: grantCatalogSettings(chatgpt),
+    models: {
+      configure: async () => ({ providerId: nativeProviderId, modelId: 'gpt-5' })
+    },
+    grants: db.data.dimProviderGrantsTable,
+    credential: async () => 'chatgpt-bearer',
+    connectionAuth: async () => ({
+      preset: 'openai-chatgpt',
+      bearer: 'chatgpt-bearer',
+      lease: createHash('sha256').update('chatgpt-bearer').digest('hex')
+    })
+  })
+  const signal = new AbortController().signal
+  try {
+    await catalog.admit('chatgpt', 'gpt-5')
+    await catalog.admit('chatgpt', 'gpt-5')
+    expect(await catalog.credential('native-chatgpt-current', reference, signal)).toBe(
+      'chatgpt-bearer'
+    )
+    expect(
+      await catalog.connectionAuth('native-chatgpt-current', 'gpt-5', undefined, signal)
+    ).toMatchObject({ preset: 'openai-chatgpt', bearer: 'chatgpt-bearer' })
+
+    db.data.dimProviderGrantsTable.put({
+      nativeProviderId: 'native-chatgpt-legacy',
+      providerId: 'chatgpt',
+      modelId: 'gpt-5',
+      reference,
+      connectionFingerprint: legacyFingerprint
+    })
+    nativeProviderId = 'native-chatgpt-legacy'
+    await expect(
+      catalog.connectionAuth('native-chatgpt-legacy', 'gpt-5', undefined, signal)
+    ).rejects.toThrow('replaced')
+    await expect(catalog.credential('native-chatgpt-legacy', reference, signal)).rejects.toThrow(
+      'replaced'
+    )
+    await expect(catalog.admit('chatgpt', 'gpt-5')).rejects.toThrow(
+      'Native provider grant cannot be repointed'
+    )
+  } finally {
+    db.sqlite.close()
+  }
+})
+
+it('still rejects retired openaiAuthMode chatgpt grants and arbitrary grant repointing', async () => {
+  const db = dimDatabase()
+  const openai: LLM_PROVIDER = {
+    id: 'openai',
+    name: 'OpenAI',
+    apiType: 'openai',
+    baseUrl: 'https://api.openai.com/v1',
+    apiKey: 'sk-openai',
+    enable: true
+  }
+  const reference = 'deepchat/provider/v1/openai'
+  const canonicalScope = {
+    id: openai.id,
+    apiType: openai.apiType,
+    baseUrl: openai.baseUrl,
+    anonymous: false,
+    copilotClientId: '',
+    customHeaders: {}
+  }
+  const retiredChatgptModeFingerprint = canonicalFingerprint({
+    ...canonicalScope,
+    openaiAuthMode: 'chatgpt'
+  })
+  const legacyApiKeyFingerprint = canonicalFingerprint({
+    ...canonicalScope,
+    openaiAuthMode: 'api-key'
+  })
+  const currentFingerprint = canonicalFingerprint(canonicalScope)
+  let nativeProviderId = 'native-openai-retired'
+  const catalog = new DimModelCatalog({
+    settings: grantCatalogSettings(openai),
+    models: {
+      configure: async (_config) => ({ providerId: nativeProviderId, modelId: 'gpt-5' })
+    },
+    grants: db.data.dimProviderGrantsTable,
+    credential: async (current) => current.apiKey
+  })
+  const signal = new AbortController().signal
+  try {
+    db.data.dimProviderGrantsTable.put({
+      nativeProviderId: 'native-openai-retired',
+      providerId: 'openai',
+      modelId: 'gpt-5',
+      reference,
+      connectionFingerprint: retiredChatgptModeFingerprint
+    })
+    await expect(catalog.credential('native-openai-retired', reference, signal)).rejects.toThrow(
+      'replaced'
+    )
+    await expect(catalog.admit('openai', 'gpt-5')).rejects.toThrow(
+      'Native provider grant cannot be repointed'
+    )
+
+    db.data.dimProviderGrantsTable.put({
+      nativeProviderId: 'native-openai-model-mismatch',
+      providerId: 'openai',
+      modelId: 'gpt-4.1',
+      reference,
+      connectionFingerprint: legacyApiKeyFingerprint
+    })
+    nativeProviderId = 'native-openai-model-mismatch'
+    await expect(catalog.admit('openai', 'gpt-5')).rejects.toThrow(
+      'Native provider grant cannot be repointed'
+    )
+    expect(() =>
+      db.data.dimProviderGrantsTable.put(
+        {
+          nativeProviderId: 'native-openai-model-mismatch',
+          providerId: 'other-provider',
+          modelId: 'gpt-4.1',
+          reference,
+          connectionFingerprint: currentFingerprint
+        },
+        { previousConnectionFingerprint: legacyApiKeyFingerprint }
+      )
+    ).toThrow('Native provider grant cannot be repointed')
+  } finally {
+    db.sqlite.close()
+  }
+})
