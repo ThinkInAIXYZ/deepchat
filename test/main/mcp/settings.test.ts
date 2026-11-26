@@ -349,6 +349,25 @@ describe('McpSettings', () => {
     })
   })
 
+  it('adds the disabled SpecStream MCP server with a key placeholder for existing users', async () => {
+    const { McpSettings } = await loadHelper('darwin')
+    const helper = new McpSettings()
+    const mcpStore = (helper as any).mcpStore
+
+    mcpStore.set('mcpServers', {})
+
+    const servers = await helper.getMcpServers()
+
+    expect(servers['specstream-search']).toMatchObject({
+      type: 'http',
+      baseUrl: 'https://api.specstream.ai/mcp',
+      customHeaders: {
+        Authorization: 'Bearer YOUR_SPECSTREAM_API_KEY'
+      },
+      enabled: false
+    })
+  })
+
   it('does not recreate the Apple built-in server after the user removed it', async () => {
     const { McpSettings } = await loadHelper('darwin')
     const helper = new McpSettings()
