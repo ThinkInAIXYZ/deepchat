@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { BrowserWindow } from 'electron'
-import { SETTINGS_EVENTS } from '@/events'
+import { DEEPLINK_EVENTS, SETTINGS_EVENTS } from '@/events'
+import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'
 
 const activateAppOnMacMock = vi.hoisted(() => vi.fn())
 const originalBrowserWindowFromId = (BrowserWindow as any).fromId
@@ -60,8 +61,10 @@ describe('WindowPresenter', () => {
         routeName: 'settings-about'
       })
     ).toBe(true)
+    const payload = { mcpConfig: JSON.stringify({ mcpServers: { demo: { command: 'demo' } } }) }
+    expect(presenter.sendToWindow(9, DEEPLINK_EVENTS.MCP_INSTALL, payload)).toBe(true)
     expect(send).not.toHaveBeenCalled()
-    expect((presenter as any).pendingSettingsMessages).toHaveLength(2)
+    expect((presenter as any).pendingSettingsMessages).toHaveLength(3)
 
     presenter.notifySettingsReady(99)
 
@@ -70,6 +73,10 @@ describe('WindowPresenter', () => {
     })
     expect(send).toHaveBeenNthCalledWith(2, SETTINGS_EVENTS.NAVIGATE, {
       routeName: 'settings-about'
+    })
+    expect(send).toHaveBeenNthCalledWith(3, DEEPCHAT_EVENT_CHANNEL, {
+      name: 'appRuntime.mcpInstallRequested',
+      payload
     })
     expect((presenter as any).pendingSettingsMessages).toHaveLength(0)
   })

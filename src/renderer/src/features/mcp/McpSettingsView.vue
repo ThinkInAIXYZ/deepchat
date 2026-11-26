@@ -25,7 +25,7 @@
         <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div :dir="languageStore.dir" class="min-w-0">
             <h1 class="text-lg font-semibold">{{ t('settings.mcp.center.title') }}</h1>
-            <p class="text-xs text-muted-foreground">
+            <p v-if="!isAgentScope" class="text-xs text-muted-foreground">
               {{ t('settings.mcp.enabledDescription') }}
             </p>
           </div>
@@ -34,19 +34,28 @@
             class="flex shrink-0 items-center gap-3"
             @click="handleMcpGuideTargetInteract"
           >
-            <DcButton v-if="mcpEnabled" size="sm" @click="openAddServerDialog">
+            <DcButton v-if="!isAgentScope && mcpEnabled" size="sm" @click="openAddServerDialog">
               <Icon icon="lucide:plus" class="size-4" />
               {{ t('common.add') }}
             </DcButton>
-            <DcButton variant="outline" size="sm" @click="emit('open-market')">
+            <DcButton v-if="!isAgentScope" variant="outline" size="sm" @click="emit('open-market')">
               <Icon icon="lucide:shopping-bag" class="size-4" />
               {{ t('routes.settings-mcp-market') }}
             </DcButton>
+            <DcButton
+              v-if="isAgentScope"
+              variant="outline"
+              size="sm"
+              @click="emit('open-global-settings')"
+            >
+              {{ t('settings.userPlugins.manageMcp') }}
+            </DcButton>
             <Switch
+              v-else
               dir="ltr"
               :model-value="mcpEnabled"
               :aria-label="t('settings.mcp.center.title')"
-              :disabled="isAgentScope || mcpMasterSaving"
+              :disabled="mcpMasterSaving"
               @update:model-value="handleMcpEnabledChange"
             />
           </div>
@@ -58,8 +67,15 @@
     <!-- Server list -->
     <div class="min-h-0 flex-1 overflow-hidden">
       <div v-if="mcpEnabled" class="h-full min-h-0">
+        <p
+          v-if="isAgentScope && !targetAgentId"
+          role="status"
+          class="p-4 text-sm text-muted-foreground"
+        >
+          {{ t('dialog.agentTransfer.selectTarget') }}
+        </p>
         <div
-          v-if="agentPolicyError"
+          v-else-if="agentPolicyError"
           role="alert"
           class="m-4 flex items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-3"
         >
@@ -279,6 +295,7 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   'agent-policy-saved': [agentId: string]
+  'open-global-settings': []
   'open-market': []
   'close-market': []
   'continue-onboarding': [state: GuidedOnboardingState | null]
@@ -350,12 +367,9 @@ const isDeepChatTarget = computed(() =>
 )
 const globallyAvailableServerIds = computed(() =>
   normalizeList(
-    mcpStore.serverList
-      .filter((server) => {
-        const config = mcpStore.config.mcpServers[server.name]
-        return config?.enabled !== false && !config?.disable
-      })
-      .map((server) => server.name)
+    Object.entries(mcpStore.config.mcpServers)
+      .filter(([, config]) => config.enabled !== false && !config.disable)
+      .map(([name]) => name)
   )
 )
 const agentEnabledMcpServerIds = computed(() => targetAgentConfig.value.enabledMcpServerIds)
@@ -467,7 +481,6 @@ const loadAgentPolicy = async () => {
     targetAgent.value = null
     targetAgentConfig.value = {}
     agentPolicyLoading.value = false
-    agentPolicyError.value = t('settings.pluginsHub.agentScopeUnsupported')
     return
   }
   try {
@@ -530,7 +543,7 @@ const buildNextAgentMcpServerIds = (serverName: string, enabled: boolean): strin
 const handleToggleAgentServer = async (serverName: string, enabled: boolean) => {
   if (agentToggleServerName.value) return
   const agent = targetAgent.value
-  if (!agent || !isDeepChatTarget.value) {
+  if (!agent || !isDeepChatTarget.value || agent.id !== targetAgentId.value) {
     agentPolicyError.value = t('settings.pluginsHub.agentScopeUnsupported')
     return
   }
@@ -798,7 +811,7 @@ onBeforeUnmount(() => {
 })
 
 onMounted(() => {
-  void loadNpmRegistryStatus()
+  if (!isAgentScope.value) void loadNpmRegistryStatus()
   void loadAgentPolicy()
 })
 </script>

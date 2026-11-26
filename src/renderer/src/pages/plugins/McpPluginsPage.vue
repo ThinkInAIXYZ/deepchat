@@ -1,37 +1,28 @@
 <template>
   <McpSettingsView
-    :market="route.query.view === 'market'"
-    @open-market="openMarket"
-    @close-market="closeMarket"
+    scope="agent"
+    :agent-id="agentStore.selectedAgentId ?? undefined"
+    @open-global-settings="settingsClient.openSettings({ routeName: 'settings-mcp' })"
     @continue-onboarding="continueOnboarding"
-    @open-knowledge-settings="openKnowledgeSettings"
   />
 </template>
 
 <script setup lang="ts">
-import { useRoute, useRouter } from 'vue-router'
+import { useRouter } from 'vue-router'
 import { createOnboardingClient } from '@api/OnboardingClient'
 import { createSettingsClient } from '@api/SettingsClient'
 import { createWindowClient } from '@api/WindowClient'
 import type { GuidedOnboardingState } from '@shared/contracts/routes'
 import { resolveGuidedOnboardingStepTarget } from '@shared/guidedOnboarding'
 import McpSettingsView from '@/features/mcp/McpSettingsView.vue'
+import { useAgentStore } from '@/stores/ui/agent'
 import { persistGuidedOnboardingResumeIntent } from '@/lib/onboardingResume'
 
-const route = useRoute()
 const router = useRouter()
+const agentStore = useAgentStore()
 const settingsClient = createSettingsClient()
 const onboardingClient = createOnboardingClient()
 const windowClient = createWindowClient()
-
-const openMarket = () =>
-  router.push({ name: 'plugins-mcp', query: { ...route.query, view: 'market' } })
-
-const closeMarket = () => {
-  const query = { ...route.query }
-  delete query.view
-  return router.replace({ name: 'plugins-mcp', query })
-}
 
 const continueOnboarding = async (state: GuidedOnboardingState | null) => {
   if (state?.status !== 'completed' && (state?.status !== 'active' || !state.currentStepId)) {
@@ -61,7 +52,4 @@ const continueOnboarding = async (state: GuidedOnboardingState | null) => {
     await windowClient.resumeGuidedOnboarding()
   }
 }
-
-const openKnowledgeSettings = (subtab: string) =>
-  settingsClient.openSettings({ routeName: 'settings-knowledge-base', section: subtab })
 </script>

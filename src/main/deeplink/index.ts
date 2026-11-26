@@ -345,7 +345,7 @@ export class DeeplinkService {
 
       const sent = await this.mcpInstall.requestInstall(JSON.stringify(completeMcpConfig))
       if (!sent) {
-        console.error('Failed to resolve main window for MCP install deeplink')
+        console.error('Failed to open settings for MCP install deeplink')
         return
       }
 

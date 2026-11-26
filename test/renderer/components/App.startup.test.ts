@@ -36,8 +36,6 @@ const mountApp = async (options?: {
   const onboardingStatus = options?.onboardingStatus ?? 'idle'
   const onboardingCurrentStepId = options?.onboardingCurrentStepId ?? null
   const trackRuntimeLifecycle = options?.trackRuntimeLifecycle ?? false
-  const setupMcpDeeplink = vi.fn()
-  const cleanupMcpDeeplink = vi.fn()
   const setupAppIpcRuntime = vi.fn()
   const cleanupAppIpcRuntime = vi.fn()
   const route = reactive({
@@ -408,11 +406,7 @@ const mountApp = async (options?: {
     useModelStore: () => modelStore
   }))
   vi.doMock('@/lib/storeInitializer', () => ({
-    initAppStores: vi.fn().mockResolvedValue(undefined),
-    useMcpInstallDeeplinkHandler: () => ({
-      setup: setupMcpDeeplink,
-      cleanup: cleanupMcpDeeplink
-    })
+    initAppStores: vi.fn().mockResolvedValue(undefined)
   }))
   if (trackRuntimeLifecycle) {
     vi.doMock('@/composables/useAppIpcRuntime', () => ({
@@ -475,8 +469,6 @@ const mountApp = async (options?: {
     ipcOn,
     spotlightStore,
     wrapper,
-    setupMcpDeeplink,
-    cleanupMcpDeeplink,
     setupAppIpcRuntime,
     cleanupAppIpcRuntime
   }
@@ -488,26 +480,18 @@ afterEach(() => {
 })
 
 describe('App startup welcome flow', () => {
-  it('registers runtime and MCP deeplink listeners on mount and cleans them up on unmount', async () => {
-    const {
-      wrapper,
-      setupMcpDeeplink,
-      cleanupMcpDeeplink,
-      setupAppIpcRuntime,
-      cleanupAppIpcRuntime
-    } = await mountApp({
+  it('registers runtime listeners on mount and cleans them up on unmount', async () => {
+    const { wrapper, setupAppIpcRuntime, cleanupAppIpcRuntime } = await mountApp({
       initComplete: true,
       routeName: 'chat',
       trackRuntimeLifecycle: true
     })
 
-    expect(setupMcpDeeplink).toHaveBeenCalledTimes(1)
     expect(setupAppIpcRuntime).toHaveBeenCalledTimes(1)
 
     wrapper.unmount()
 
     expect(cleanupAppIpcRuntime).toHaveBeenCalledTimes(1)
-    expect(cleanupMcpDeeplink).toHaveBeenCalledTimes(1)
   }, 30000)
 
   it('leaves the initial session request to the chat route host', async () => {
