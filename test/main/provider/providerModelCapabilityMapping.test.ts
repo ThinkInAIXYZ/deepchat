@@ -461,14 +461,17 @@ describe('ProviderSettings provider model capability mapping', () => {
     ['manually added', 'xK9fQ2mZ', 'custom'],
     ['user-configured', 'xK9fQ2mZ', 'config'],
     ['provider-listed', 'lowercase-provider', 'provider'],
-    ['manually added', 'lowercase-provider', 'custom']
+    ['manually added', 'lowercase-provider', 'custom'],
+    ['user-configured', 'lowercase-provider', 'config']
   ] as const)(
     'resolves a %s model stored under provider ID %s for cross-agent assignment',
     async (_label, providerId, source) => {
       const { ProviderSettings, modelCapabilities } = await loadProviderSettings()
       const { SessionAssignmentPolicy } = await import('../../../src/main/session/assignmentPolicy')
       vi.spyOn(modelCapabilities, 'getProviderCapabilityModelMatch').mockReturnValue(undefined)
-      // Provider IDs are matched case-sensitively, like the SQLite provider_models lookup.
+      // Provider IDs are matched case-sensitively, like the SQLite provider_models lookup for
+      // provider-listed and manually added models. The config stub is stricter than the real
+      // ModelConfigHelper, which also tries a lowercased key.
       const stored = { provider: new Map(), custom: new Map(), config: new Map() }
       stored[source].set(providerId, [{ id: 'my-local-model', name: 'My Local Model' }])
       const hasUserConfig = (mid: string, pid: string) =>
