@@ -66,6 +66,7 @@ export function createChatClient(bridge: DeepchatBridge = getDeepchatBridge()) {
     return await bridge.invoke(chatRespondToolInteractionRoute.name, normalizedInput)
   }
 
+  /** Explicitly abandons a request. An unacknowledged response can still be retried. */
   async function dismissToolInteraction(input: {
     sessionId: string
     messageId: string

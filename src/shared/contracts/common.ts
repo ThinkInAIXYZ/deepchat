@@ -396,7 +396,8 @@ export const SendMessageInputSchema = z.object({
 export const ToolInteractionResponseSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('permission'),
-    granted: z.boolean()
+    granted: z.boolean(),
+    permissionRequestId: z.string().min(1).optional()
   }),
   z.object({
     kind: z.literal('question_option'),

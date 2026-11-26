@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import {
   ref,
   shallowRef,
+  shallowReactive,
   computed,
   onScopeDispose,
   getCurrentScope,
@@ -65,6 +66,16 @@ export const useMessageStore = defineStore('message', () => {
   // --- State ---
   const messageIds = ref<string[]>([])
   const messageCache = ref<Map<string, ChatMessageRecord>>(new Map())
+  // Approvals can outlive a ChatPage while IPC responds or the transcript catches up.
+  const acknowledgedInteractions = shallowReactive(
+    new Map<string, { sessionId: string; keys: Set<string> }>()
+  )
+  const inFlightInteractions = shallowReactive(
+    new Map<
+      string,
+      { sessionId: string; messageId: string; displaySessionId: string; token: symbol }
+    >()
+  )
   const lastPersistedRevision = ref(0)
   // Active selection may change before its message view is prepared. Keep the
   // committed owner separate so old and target-session records never mix.
@@ -890,6 +901,10 @@ export const useMessageStore = defineStore('message', () => {
   }
 
   function removeMessages(sessionId: string, ids: string[]): void {
+    for (const id of ids) acknowledgedInteractions.delete(id)
+    for (const [key, entry] of inFlightInteractions) {
+      if (ids.includes(entry.messageId)) inFlightInteractions.delete(key)
+    }
     if (committedSessionId.value !== sessionId) return
     const removedIds = new Set(ids.filter((id) => messageCache.value.has(id)))
     if (removedIds.size === 0) return
@@ -976,6 +991,8 @@ export const useMessageStore = defineStore('message', () => {
     committedSession.value = null
     messageIds.value = []
     messageCache.value.clear()
+    acknowledgedInteractions.clear()
+    inFlightInteractions.clear()
     nextCursor.value = null
     hasMoreHistory.value = false
     isLoadingHistory.value = false
@@ -1136,6 +1153,12 @@ export const useMessageStore = defineStore('message', () => {
   registerStoreCleanup(messageIpcBinding.cleanup)
 
   function purgeSessionTracking(sessionId: string): void {
+    for (const [id, entry] of acknowledgedInteractions) {
+      if (entry.sessionId === sessionId) acknowledgedInteractions.delete(id)
+    }
+    for (const [key, entry] of inFlightInteractions) {
+      if (entry.sessionId === sessionId) inFlightInteractions.delete(key)
+    }
     for (const [id, record] of messageCache.value) {
       if (record.sessionId === sessionId) {
         appliedStreamRevision.delete(id)
@@ -1152,6 +1175,8 @@ export const useMessageStore = defineStore('message', () => {
     connect: messageIpcBinding.connect,
     messageIds,
     messageCache,
+    acknowledgedInteractions,
+    inFlightInteractions,
     isStreaming,
     streamingBlocks,
     currentStreamSessionId,

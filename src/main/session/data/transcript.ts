@@ -595,19 +595,20 @@ export class SessionTranscript implements SessionTranscriptPort, TapeTranscriptP
     return this.toRecord(row)
   }
 
-  updateMessageContent(messageId: string, content: string): void {
-    this.runInDatabaseTransaction(() => this.applyMessageContentUpdate(messageId, content))
-  }
-
-  private applyMessageContentUpdate(messageId: string, content: string): void {
-    const row = this.database.deepchatMessagesTable.get(messageId)
-    if (!row) {
-      return
-    }
-    this.commitReplacement(
-      this.terminalRecord({ ...this.recordFromRow(row), content, updatedAt: Date.now() }),
-      { reason: 'message_content_updated', revisionKind: 'record' }
-    )
+  updateMessageContent(messageId: string, content: string, expectedContent?: string): boolean {
+    return this.runInDatabaseTransaction(() => {
+      const row = this.database.deepchatMessagesTable.get(messageId)
+      if (
+        !row ||
+        (expectedContent !== undefined && this.materializeContent(row) !== expectedContent)
+      )
+        return false
+      this.commitReplacement(
+        this.terminalRecord({ ...this.recordFromRow(row), content, updatedAt: Date.now() }),
+        { reason: 'message_content_updated', revisionKind: 'record' }
+      )
+      return true
+    })
   }
 
   getNextOrderSeq(sessionId: string): number {

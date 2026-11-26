@@ -79,6 +79,40 @@ describeIfSqlite('SessionTranscript keeps transcript and Tape writes atomic', ()
     }
   }
 
+  it('preserves final output and status when repairing a stale permission snapshot', () => {
+    const { close, transcript } = createTranscript()
+    try {
+      const messageId = transcript.createAssistantMessage('s1', 1)
+      const permission = {
+        type: 'action',
+        action_type: 'tool_call_permission',
+        status: 'pending',
+        timestamp: 1
+      } as const
+      transcript.updateAssistantContent(messageId, [permission])
+      const stale = transcript.getMessage(messageId)!.content
+      transcript.finalizeAssistantMessage(messageId, [permission, ...blocks], '{}')
+      const final = transcript.getMessage(messageId)!
+      const closed = { ...permission, status: 'error' }
+
+      expect(transcript.updateMessageContent(messageId, JSON.stringify([closed]), stale)).toBe(
+        false
+      )
+      expect(transcript.getMessage(messageId)).toEqual(final)
+      const repaired = JSON.parse(final.content)
+      repaired[0].status = 'error'
+      expect(
+        transcript.updateMessageContent(messageId, JSON.stringify(repaired), final.content)
+      ).toBe(true)
+      expect(transcript.getMessage(messageId)).toMatchObject({
+        status: 'sent',
+        content: JSON.stringify(repaired)
+      })
+    } finally {
+      close()
+    }
+  })
+
   it('does not commit a user message whose Tape fact failed to append', () => {
     const { close, database, transcript, setTapeFailing } = createTranscript()
     try {

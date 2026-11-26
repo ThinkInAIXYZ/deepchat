@@ -844,6 +844,7 @@ export type ToolInteractionResponse =
   | {
       kind: 'permission'
       granted: boolean
+      permissionRequestId?: string
     }
   | {
       kind: 'question_option'

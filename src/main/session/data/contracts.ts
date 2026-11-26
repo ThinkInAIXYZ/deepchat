@@ -384,7 +384,7 @@ export interface SessionTranscriptPort {
   getMessageIds(sessionId: string): string[]
   getMessage(messageId: string): ChatMessageRecord | null
   getLastUserMessageBeforeOrAt(sessionId: string, orderSeq: number): ChatMessageRecord | null
-  updateMessageContent(messageId: string, content: string): void
+  updateMessageContent(messageId: string, content: string, expectedContent?: string): boolean
   getNextOrderSeq(sessionId: string): number
   deleteBySession(sessionId: string): void
   deleteMessage(messageId: string): void

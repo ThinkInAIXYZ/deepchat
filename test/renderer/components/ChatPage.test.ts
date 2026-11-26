@@ -123,6 +123,8 @@ const setup = async (options: SetupOptions = {}) => {
     selectSession: vi.fn().mockResolvedValue(undefined)
   })
   const messageStore = reactive({
+    acknowledgedInteractions: new Map(),
+    inFlightInteractions: new Map(),
     messages: options.messages ?? [
       buildAssistantMessage([
         {
