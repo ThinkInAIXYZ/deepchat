@@ -15,7 +15,7 @@ import {
   DARWIN_DISTRIBUTION_CHECK_NAMES,
   getMeasuredRoles,
   getTargetDefinition,
-  getUpdaterPayloadRole,
+  getUpdaterPayloadRoles,
   PACKAGE_MANIFEST_SCHEMA_VERSION,
   resolvePackageSizeExpectedDelta,
   SHA256_PATTERN,
@@ -189,11 +189,7 @@ export async function verifyMacZipDistribution(
   return true
 }
 
-function normalizeMetadataFiles(metadata, label) {
-  if (!Array.isArray(metadata.files) || metadata.files.length !== 1) {
-    throw new Error(`${label} must contain exactly one updater file`)
-  }
-  const file = metadata.files[0]
+function validateUpdaterFile(file, payload, label) {
   if (!file || typeof file !== 'object' || Array.isArray(file)) {
     throw new Error(`${label} updater file must be an object`)
   }
@@ -209,6 +205,37 @@ function normalizeMetadataFiles(metadata, label) {
     throw new Error(
       `${label} updater file has unsupported fields: ${unexpectedFileFields.join(', ')}`
     )
+  }
+  if (file.url !== payload.name) {
+    throw new Error(
+      `Updater metadata URL mismatch for ${label}: ${file.url} != ${payload.name}`
+    )
+  }
+  if (
+    typeof file.sha512 !== 'string' ||
+    !SHA512_BASE64_PATTERN.test(file.sha512) ||
+    file.sha512 !== payload.sha512
+  ) {
+    throw new Error(`Updater metadata SHA-512 mismatch for ${label}`)
+  }
+  if (!Number.isSafeInteger(file.size) || file.size < 0 || file.size !== payload.bytes) {
+    throw new Error(`Updater metadata size mismatch for ${label}`)
+  }
+  const blockMapSize = file.blockMapSize
+  if (
+    blockMapSize !== undefined &&
+    (!Number.isSafeInteger(blockMapSize) ||
+      blockMapSize <= 0 ||
+      blockMapSize >= payload.bytes)
+  ) {
+    throw new Error(`Updater metadata blockMapSize is invalid for ${label}`)
+  }
+  if (payload.name.endsWith('.AppImage') && blockMapSize === undefined) {
+    throw new Error(`Linux updater metadata is missing blockMapSize for ${label}`)
+  }
+  const isAdminRightsRequired = file.isAdminRightsRequired
+  if (isAdminRightsRequired !== undefined && typeof isAdminRightsRequired !== 'boolean') {
+    throw new Error(`Updater metadata isAdminRightsRequired is invalid for ${label}`)
   }
   return file
 }
@@ -240,7 +267,7 @@ export function validateRawUpdateMetadata({
   metadataName,
   target,
   version,
-  updaterPayload
+  packageFiles
 }) {
   const definition =
     typeof target === 'string' ? getTargetDefinition(target) : getTargetDefinition(target.id)
@@ -271,46 +298,18 @@ export function validateRawUpdateMetadata({
       `Updater metadata version mismatch for ${definition.id}: ${metadata.version} != ${version}`
     )
   }
-  const file = normalizeMetadataFiles(metadata, `${definition.id}/${metadataName}`)
-  if (file.url !== updaterPayload.name) {
-    throw new Error(
-      `Updater metadata URL mismatch for ${definition.id}: ${file.url} != ${updaterPayload.name}`
-    )
+  const label = `${definition.id}/${metadataName}`
+  const payloads = getUpdaterPayloadRoles(definition).map(({ name }) =>
+    packageFiles.find(({ role }) => role === name)
+  )
+  if (!Array.isArray(metadata.files) || metadata.files.length !== payloads.length) {
+    throw new Error(`${label} must contain exactly ${payloads.length} updater files`)
   }
-  if (
-    typeof file.sha512 !== 'string' ||
-    !SHA512_BASE64_PATTERN.test(file.sha512) ||
-    file.sha512 !== updaterPayload.sha512
-  ) {
-    throw new Error(`Updater metadata SHA-512 mismatch for ${definition.id}`)
-  }
-  if (!Number.isSafeInteger(file.size) || file.size < 0 || file.size !== updaterPayload.bytes) {
-    throw new Error(`Updater metadata size mismatch for ${definition.id}`)
-  }
-  if (metadata.path !== updaterPayload.name || metadata.sha512 !== updaterPayload.sha512) {
+  const files = payloads.map((payload, index) =>
+    validateUpdaterFile(metadata.files[index], payload, label)
+  )
+  if (metadata.path !== files[0].url || metadata.sha512 !== files[0].sha512) {
     throw new Error(`Updater metadata legacy fields mismatch for ${definition.id}`)
-  }
-  const blockMapSize = file.blockMapSize
-  if (
-    blockMapSize !== undefined &&
-    (!Number.isSafeInteger(blockMapSize) ||
-      blockMapSize <= 0 ||
-      blockMapSize >= updaterPayload.bytes)
-  ) {
-    throw new Error(`Updater metadata blockMapSize is invalid for ${definition.id}`)
-  }
-  if (definition.platform === 'linux' && blockMapSize === undefined) {
-    throw new Error(`Linux updater metadata is missing blockMapSize for ${definition.id}`)
-  }
-  const isAdminRightsRequired = file.isAdminRightsRequired
-  if (isAdminRightsRequired !== undefined && typeof isAdminRightsRequired !== 'boolean') {
-    throw new Error(`Updater metadata isAdminRightsRequired is invalid for ${definition.id}`)
-  }
-  if (
-    definition.platform === 'darwin' &&
-    metadata.files.some(({ url }) => typeof url === 'string' && url.endsWith('.dmg'))
-  ) {
-    throw new Error('macOS updater metadata must not contain a DMG')
   }
   if (
     typeof metadata.releaseDate !== 'string' ||
@@ -348,15 +347,7 @@ export function validateRawUpdateMetadata({
 
   return {
     version,
-    files: [
-      {
-        url: file.url,
-        sha512: file.sha512,
-        size: file.size,
-        ...(blockMapSize === undefined ? {} : { blockMapSize }),
-        ...(isAdminRightsRequired === undefined ? {} : { isAdminRightsRequired })
-      }
-    ],
+    files,
     path: metadata.path,
     sha512: metadata.sha512,
     releaseDate: metadata.releaseDate,
@@ -637,8 +628,6 @@ export async function createPackageManifest({
     })
   }
 
-  const updaterRole = getUpdaterPayloadRole(definition)
-  const updaterPayload = discoveredFiles.find(({ role }) => role === updaterRole.name)
   const metadataFile = discoveredFiles.find(({ role }) => role === 'update-metadata')
   const rawMetadata = parseYamlObject(
     await readFile(path.join(resolvedOutputDirectory, metadataFile.storagePath), 'utf8'),
@@ -649,7 +638,7 @@ export async function createPackageManifest({
     metadataName: metadataFile.name,
     target: definition,
     version: packageInfo.version,
-    updaterPayload
+    packageFiles: discoveredFiles
   })
 
   const stagedReports = []
@@ -689,7 +678,8 @@ export async function createPackageManifest({
         'DeepChat.app'
       )
     const resolvedDmgPath = path.join(resolvedDistDirectory, dmg.name)
-    const resolvedZipPath = path.join(resolvedOutputDirectory, updaterPayload.storagePath)
+    const zip = discoveredFiles.find(({ role }) => role === 'updater-payload')
+    const resolvedZipPath = path.join(resolvedOutputDirectory, zip.storagePath)
     await verifyCuaMacHelper(resolvedAppPath, { teamId: appleTeamId })
     await verifyMacApp(resolvedAppPath, { teamId: appleTeamId })
     await verifyMacZip(resolvedZipPath, { teamId: appleTeamId })

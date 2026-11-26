@@ -62,7 +62,7 @@ describe('CI package contract', () => {
       'darwin-x64',
       'darwin-arm64'
     ])
-    expect(expectedReleaseAssetCount()).toBe(19)
+    expect(expectedReleaseAssetCount()).toBe(21)
     expect(PACKAGE_MANIFEST_SCHEMA_VERSION).toBe(2)
     expect(RELEASE_INDEX_SCHEMA_VERSION).toBe(2)
     expect(SHA512_BASE64_PATTERN.test(Buffer.alloc(64).toString('base64'))).toBe(true)

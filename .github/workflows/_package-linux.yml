@@ -135,6 +135,9 @@ jobs:
       - name: Package Linux
         run: pnpm exec electron-builder --linux --${{ inputs.arch }} --publish=never
 
+      - name: Install Debian package and exercise glibc 2.28 runtime
+        run: bash scripts/ci/smoke-linux-deb.sh
+
       - name: Verify packaged DuckDB VSS
         run: |
           extension_path="dist/${UNPACKED_DIRECTORY}/resources/app.asar.unpacked/runtime/duckdb/extensions/vss.duckdb_extension"

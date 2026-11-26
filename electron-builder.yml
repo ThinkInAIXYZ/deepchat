@@ -140,11 +140,31 @@ linux:
   target:
     - AppImage
     - tar.gz
+    - deb
   maintainer: ThinkInAIXYZ
   category: Utility
   artifactName: ${name}-${version}-linux-${arch}.${ext}
   mimeTypes:
     - x-scheme-handler/deepchat
+deb:
+  packageName: deepchat
+  compression: xz
+  depends:
+    - libc6 (>= 2.28)
+    - libstdc++6 (>= 8)
+    - libgtk-3-0
+    - libnotify4
+    - libnss3
+    - libxss1
+    - libxtst6
+    - xdg-utils
+    - libatspi2.0-0
+    - libuuid1
+    - libsecret-1-0
+    - libgbm1
+    - libcups2
+    - libudev1
+    - libasound2
 npmRebuild: true
 publish:
   provider: github

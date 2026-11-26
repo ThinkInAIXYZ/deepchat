@@ -97,6 +97,7 @@ const targetDefinitions = [
         measured: true,
         updaterPayload: true
       }),
+      role('debian', 'files', ['-linux-amd64.deb'], { updaterPayload: true }),
       role('archive', 'files', ['-linux-x64.tar.gz', '-linux-x86_64.tar.gz'], {
         measured: true
       }),
@@ -116,6 +117,7 @@ const targetDefinitions = [
         measured: true,
         updaterPayload: true
       }),
+      role('debian', 'files', ['-linux-arm64.deb'], { updaterPayload: true }),
       role('archive', 'files', ['-linux-arm64.tar.gz', '-linux-aarch64.tar.gz'], {
         measured: true
       }),
@@ -223,14 +225,10 @@ export function getPublicRoles(target) {
   return definition.roles.filter(({ public: isPublic }) => isPublic)
 }
 
-export function getUpdaterPayloadRole(target) {
+export function getUpdaterPayloadRoles(target) {
   const definition =
     typeof target === 'string' ? getTargetDefinition(target) : getTargetDefinition(target.id)
-  const matches = definition.roles.filter(({ updaterPayload }) => updaterPayload)
-  if (matches.length !== 1) {
-    throw new Error(`Target ${definition.id} must define exactly one updater payload`)
-  }
-  return matches[0]
+  return definition.roles.filter(({ updaterPayload }) => updaterPayload)
 }
 
 export function matchesRoleFileName(fileName, roleDefinition) {
