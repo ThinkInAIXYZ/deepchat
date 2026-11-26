@@ -1,4 +1,4 @@
-import { effectScope, nextTick, ref } from 'vue'
+import { effectScope, nextTick, ref, shallowReactive } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useToolInteraction } from '@/features/chat-page/composables/useToolInteraction'
 import { createDeferred } from '../../../utils/deferred'
@@ -13,18 +13,25 @@ function createAssistantMessage(id: string, blocks: unknown[], status = 'pending
   }
 }
 
-function createHarness(messages: Array<Record<string, unknown>>, onResponseFailed?: any) {
+function createHarness(
+  messages: Array<Record<string, unknown>>,
+  onResponseFailed?: any,
+  interactionState = {
+    acknowledgedInteractions: shallowReactive(new Map()),
+    inFlightInteractions: shallowReactive(new Map())
+  }
+) {
   const sessionId = ref('s1')
   const messageRecords = ref(messages)
   const messageStore = {
+    ...interactionState,
     get messages() {
       return messageRecords.value
     },
     getAssistantMessageBlocks: vi.fn((message: { content: string }) => JSON.parse(message.content))
   }
   const chatClient = {
-    respondToolInteraction: vi.fn().mockResolvedValue({ handledInline: false }),
-    dismissToolInteraction: vi.fn().mockResolvedValue({ dismissed: true })
+    respondToolInteraction: vi.fn().mockResolvedValue({ handledInline: false })
   }
   const loadMessagesForSession = vi.fn().mockResolvedValue({ id: 'restored' })
   const applyRestoredSessionSummary = vi.fn()
@@ -51,6 +58,7 @@ function createHarness(messages: Array<Record<string, unknown>>, onResponseFaile
 
   return {
     toolInteraction,
+    interactionState,
     sessionId,
     messageRecords,
     chatClient,
@@ -171,7 +179,11 @@ describe('useToolInteraction', () => {
 
     harness.sessionId.value = 's2'
     harness.stop()
-    const restored = createHarness(harness.messageRecords.value)
+    const restored = createHarness(
+      harness.messageRecords.value,
+      undefined,
+      harness.interactionState
+    )
     expect(restored.toolInteraction.isHandlingInteraction.value).toBe(true)
     await restored.toolInteraction.onToolInteractionRespond({ kind: 'permission', granted: false })
     expect(restored.chatClient.respondToolInteraction).not.toHaveBeenCalled()
@@ -189,6 +201,41 @@ describe('useToolInteraction', () => {
     expect(harness.applyRestoredSessionSummary).not.toHaveBeenCalled()
     expect(restored.toolInteraction.isHandlingInteraction.value).toBe(false)
     expect(restored.toolInteraction.activePendingInteraction.value).toBeNull()
+    restored.stop()
+  })
+
+  it('ignores an old response after a session is removed and restored with the same IDs', async () => {
+    const messages = [
+      createAssistantMessage('restored', [
+        {
+          type: 'action',
+          action_type: 'tool_call_permission',
+          status: 'pending',
+          tool_call: { id: 'tool', name: 'agent', params: '{}' }
+        }
+      ])
+    ]
+    const original = createHarness(messages)
+    const allow = { kind: 'permission', granted: true } as const
+    const first = createDeferred<{ resumed: boolean }>()
+    original.chatClient.respondToolInteraction.mockReturnValue(first.promise)
+    const oldResponse = original.toolInteraction.onToolInteractionRespond(allow)
+    original.stop()
+    original.interactionState.inFlightInteractions.clear()
+    const restored = createHarness(messages, undefined, original.interactionState)
+    const second = createDeferred<{ resumed: boolean }>()
+    restored.chatClient.respondToolInteraction.mockReturnValue(second.promise)
+    const newResponse = restored.toolInteraction.onToolInteractionRespond(allow)
+
+    first.resolve({ resumed: true })
+    await oldResponse
+    expect(original.loadMessagesForSession).not.toHaveBeenCalled()
+    expect(restored.toolInteraction.isHandlingInteraction.value).toBe(true)
+    expect(restored.toolInteraction.activePendingInteraction.value?.toolCallId).toBe('tool')
+    second.resolve({ resumed: false })
+    await newResponse
+    expect(restored.toolInteraction.isHandlingInteraction.value).toBe(false)
+    expect(restored.toolInteraction.activePendingInteraction.value?.toolCallId).toBe('tool')
     restored.stop()
   })
 
@@ -213,7 +260,6 @@ describe('useToolInteraction', () => {
     } as any)
 
     expect(harness.loadMessagesForSession).toHaveBeenCalledWith('s1')
-    expect(harness.chatClient.dismissToolInteraction).not.toHaveBeenCalled()
     expect(harness.toolInteraction.activePendingInteraction.value?.toolCallId).toBe('tool-1')
     expect(harness.toolInteraction.isHandlingInteraction.value).toBe(false)
     expect(consoleError).toHaveBeenCalledWith('[ChatPage] respond tool interaction failed:', error)
@@ -262,7 +308,6 @@ describe('useToolInteraction', () => {
       expect.objectContaining({ toolCallId: 'tool-2', response })
     )
     expect(harness.toolInteraction.activePendingInteraction.value).toBeNull()
-    expect(harness.chatClient.dismissToolInteraction).not.toHaveBeenCalled()
 
     harness.messageRecords.value = [
       createAssistantMessage(
@@ -313,7 +358,6 @@ describe('useToolInteraction', () => {
       expect(onResponseFailed).toHaveBeenCalledWith(expect.objectContaining({ actionType }), error)
       expect(harness.toolInteraction.activePendingInteraction.value).toBeNull()
       expect(harness.toolInteraction.isHandlingInteraction.value).toBe(false)
-      expect(harness.chatClient.dismissToolInteraction).not.toHaveBeenCalled()
       consoleError.mockRestore()
       harness.stop()
     }
@@ -358,6 +402,7 @@ describe('useToolInteraction', () => {
           type: 'action',
           action_type: 'tool_call_permission',
           status: 'pending',
+          extra: { permissionRequestId: 'acp-request' },
           tool_call: { id: 'tool-1', name: 'agent', params: '{}' }
         }
       ]),
@@ -387,9 +432,8 @@ describe('useToolInteraction', () => {
       sessionId: 's1',
       messageId: 'delegation',
       toolCallId: 'tool-1',
-      response: allow
+      response: { ...allow, permissionRequestId: 'acp-request' }
     })
-    expect(harness.chatClient.dismissToolInteraction).not.toHaveBeenCalled()
     expect(harness.toolInteraction.pendingInteractions.value).toMatchObject([
       { messageId: 'm2', toolCallId: 'tool-2', actionType: 'question_request' }
     ])
@@ -435,7 +479,6 @@ describe('useToolInteraction', () => {
 
     expect(harness.toolInteraction.pendingInteractions.value).toEqual([])
     expect(harness.toolInteraction.activePendingInteraction.value).toBeNull()
-    expect(harness.chatClient.dismissToolInteraction).not.toHaveBeenCalled()
     expect(harness.loadMessagesForSession).toHaveBeenCalledWith('s1')
     harness.stop()
   })

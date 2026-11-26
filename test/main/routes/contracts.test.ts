@@ -1461,25 +1461,15 @@ describe('main kernel contracts', () => {
       customModels: []
     })
 
-    expect(
-      chatRespondToolInteractionRoute.input.parse({
+    for (const permission of [{}, { permissionRequestId: 'acp-request-1' }]) {
+      const decision = {
         sessionId: 'session-1',
         messageId: 'message-1',
         toolCallId: 'tool-1',
-        response: {
-          kind: 'permission',
-          granted: true
-        }
-      })
-    ).toEqual({
-      sessionId: 'session-1',
-      messageId: 'message-1',
-      toolCallId: 'tool-1',
-      response: {
-        kind: 'permission',
-        granted: true
+        response: { kind: 'permission', granted: true, ...permission }
       }
-    })
+      expect(chatRespondToolInteractionRoute.input.parse(decision)).toEqual(decision)
+    }
 
     expect(() =>
       providersTestConnectionRoute.input.parse({

@@ -1,5 +1,6 @@
 import type {
   AssistantMessageBlock,
+  ChatMessageRecord,
   DeepChatSessionState,
   MessageStartResult
 } from '@shared/types/agent-interface'
@@ -9,6 +10,7 @@ import type { AcpAgentRuntime, AcpAgentRuntimeSessionInput } from '@/agent/acp/i
 import type {
   SessionStatePort,
   SessionTapePort,
+  SessionTranscriptPort,
   SessionTranscriptReadPort
 } from '@/session/data/contracts'
 import type {
@@ -21,13 +23,8 @@ import type {
 export interface DirectAcpAgentBackendOptions {
   runtime: AcpAgentRuntime
   sessionState: SessionStatePort
-  transcript: Pick<SessionTranscriptReadPort, 'getMessage' | 'hasMessages'> & {
-    updateAssistantContent(
-      messageId: string,
-      blocks: AssistantMessageBlock[],
-      metadata?: string
-    ): void
-  }
+  transcript: Pick<SessionTranscriptReadPort, 'getMessage' | 'hasMessages'> &
+    Pick<SessionTranscriptPort, 'updateMessageContent'>
   tape: Pick<SessionTapePort, 'linkSubagentTape'>
   deleteDurableSession(sessionId: AppSessionId): Promise<void>
   resolveInput(
@@ -69,6 +66,21 @@ const toSessionState = async (
   }
 }
 
+function findPermission(message: ChatMessageRecord, toolCallId: string, requestId?: string) {
+  const blocks = JSON.parse(message.content) as AssistantMessageBlock[]
+  const matches = blocks.filter(
+    (block) =>
+      block.type === 'action' &&
+      block.action_type === 'tool_call_permission' &&
+      block.tool_call?.id === toolCallId &&
+      (requestId === undefined || block.extra?.permissionRequestId === requestId)
+  )
+  if (matches.length !== 1) return null
+  const block = matches[0]!
+  const persistedId = block.extra?.permissionRequestId?.trim()
+  return persistedId ? { block, blocks, requestId: persistedId } : null
+}
+
 export const createDirectAcpAgentBackend = (
   options: DirectAcpAgentBackendOptions
 ): DirectAcpSessionBackend => {
@@ -76,6 +88,24 @@ export const createDirectAcpAgentBackend = (
   const resolve = async (sessionId: AppSessionId, descriptor: AcpAgentDescriptor) => {
     const input = await options.resolveInput(sessionId, descriptor)
     return { input, instance: await runtime.getOrHydrate(input) }
+  }
+
+  function closeOrphanedPermission(
+    sessionId: AppSessionId,
+    message: ChatMessageRecord,
+    blocks: AssistantMessageBlock[],
+    block: AssistantMessageBlock
+  ): boolean {
+    if (
+      block.status !== 'pending' ||
+      runtime.getHydrated(sessionId)?.getActiveGeneration()?.eventId === message.id
+    )
+      return false
+
+    // A missing waiter has no known decision. Close its prompt without recording a user denial.
+    block.status = 'error'
+    block.extra = { ...block.extra, needsUserAction: false }
+    return transcript.updateMessageContent(message.id, JSON.stringify(blocks), message.content)
   }
 
   const cleanupSession = async (sessionId: AppSessionId): Promise<void> => {
@@ -191,28 +221,19 @@ export const createDirectAcpAgentBackend = (
           if (!message || message.sessionId !== sessionId || message.role !== 'assistant') {
             throw new Error(`Assistant message not found: ${messageId}`)
           }
-          const blocks = JSON.parse(message.content) as AssistantMessageBlock[]
-          const block = blocks.find(
-            (candidate) =>
-              candidate.type === 'action' &&
-              candidate.action_type === 'tool_call_permission' &&
-              candidate.tool_call?.id === toolCallId
-          )
-          const requestId = block?.extra?.permissionRequestId?.trim()
-          if (!requestId) {
+          const permission = findPermission(message, toolCallId, response.permissionRequestId)
+          if (!permission) {
             throw new Error(`ACP permission request not found for tool call: ${toolCallId}`)
           }
-          const instance = runtime.getHydrated(sessionId)
-          if (!instance?.resolvePermissionRequest(requestId, response.granted)) {
-            // A live turn owns its projection. Only repair a pending block left by a gone turn.
-            if (
-              block?.status === 'pending' &&
-              instance?.getActiveGeneration()?.eventId !== messageId
-            ) {
-              block.status = 'denied'
-              block.extra = { ...block.extra, needsUserAction: false }
-              transcript.updateAssistantContent(messageId, blocks)
-            }
+          const { block, blocks, requestId } = permission
+          if (block.status === (response.granted ? 'granted' : 'denied')) {
+            return { resumed: false, handledInline: true }
+          }
+          if (
+            block.status !== 'pending' ||
+            !runtime.getHydrated(sessionId)?.resolvePermissionRequest(requestId, response.granted)
+          ) {
+            closeOrphanedPermission(sessionId, message, blocks, block)
             throw new Error(`Unknown ACP permission request: ${requestId}`)
           }
           return { resumed: false, handledInline: true }
@@ -222,25 +243,12 @@ export const createDirectAcpAgentBackend = (
           if (!message || message.sessionId !== sessionId || message.role !== 'assistant') {
             return false
           }
-          const blocks = JSON.parse(message.content) as AssistantMessageBlock[]
-          const block = blocks.find(
-            (candidate) =>
-              candidate.type === 'action' &&
-              candidate.action_type === 'tool_call_permission' &&
-              candidate.tool_call?.id === toolCallId
-          )
-          const requestId = block?.extra?.permissionRequestId?.trim()
-          if (!requestId) return false
-          if (runtime.getHydrated(sessionId)?.resolvePermissionRequest(requestId, false)) {
+          const permission = findPermission(message, toolCallId)
+          if (!permission || permission.block.status !== 'pending') return false
+          const { block, blocks, requestId } = permission
+          if (runtime.getHydrated(sessionId)?.resolvePermissionRequest(requestId, false))
             return true
-          }
-          // No live ACP runtime can resolve the request: persist a durable denied
-          // block so the stale approval does not reappear after a reload.
-          if (!block) return false
-          block.status = 'denied'
-          block.extra = { ...block.extra, needsUserAction: false }
-          transcript.updateAssistantContent(messageId, blocks)
-          return true
+          return closeOrphanedPermission(sessionId, message, blocks, block)
         }
       },
       async send(input): Promise<MessageStartResult> {

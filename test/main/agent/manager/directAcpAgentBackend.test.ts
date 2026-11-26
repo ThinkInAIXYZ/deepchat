@@ -82,7 +82,7 @@ function createHarness() {
         }
       ])
     }),
-    updateAssistantContent: vi.fn()
+    updateMessageContent: vi.fn().mockReturnValue(true)
   }
   const tape = {
     linkSubagentTape: vi.fn().mockImplementation(async (input) => ({
@@ -344,35 +344,99 @@ describe('direct ACP agent backend', () => {
         true
       )
       expect(harness.instance.resolvePermissionRequest).toHaveBeenCalledTimes(1)
-      if (active) expect(harness.transcript.updateAssistantContent).not.toHaveBeenCalled()
-      else
-        expect(harness.transcript.updateAssistantContent).toHaveBeenCalledWith('assistant', [
-          expect.objectContaining({
-            status: 'denied',
-            extra: expect.objectContaining({ needsUserAction: false })
-          })
-        ])
+      if (active) expect(harness.transcript.updateMessageContent).not.toHaveBeenCalled()
+      else {
+        const { content } = await harness.transcript.getMessage()
+        const [pending] = JSON.parse(content)
+        expect(harness.transcript.updateMessageContent).toHaveBeenCalledWith(
+          'assistant',
+          JSON.stringify([
+            { ...pending, status: 'error', extra: { ...pending.extra, needsUserAction: false } }
+          ]),
+          content
+        )
+      }
     }
   )
 
-  it('durably dismisses an ACP permission when the runtime is unavailable', async () => {
+  it('acknowledges a repeated grant without changing the settled decision', async () => {
+    const harness = createHarness()
+    const message = await harness.transcript.getMessage()
+    const [permission] = JSON.parse(message.content)
+    harness.transcript.getMessage.mockResolvedValue({
+      ...message,
+      status: 'sent',
+      content: JSON.stringify([{ ...permission, status: 'granted' }])
+    })
+    const { toolInteractions } = harness.backend.open(sessionId, descriptor)
+
+    await expect(
+      toolInteractions.respond('assistant', 'tool-call', {
+        kind: 'permission',
+        granted: true
+      })
+    ).resolves.toEqual({ resumed: false, handledInline: true })
+    await expect(
+      toolInteractions.respond('assistant', 'tool-call', {
+        kind: 'permission',
+        granted: false
+      })
+    ).rejects.toThrow('Unknown ACP permission request')
+    await expect(toolInteractions.dismiss('assistant', 'tool-call')).resolves.toBe(false)
+    expect(harness.instance.resolvePermissionRequest).not.toHaveBeenCalled()
+    expect(harness.transcript.updateMessageContent).not.toHaveBeenCalled()
+  })
+
+  it('routes another approval on the same tool call to its own request', async () => {
+    const harness = createHarness()
+    const message = await harness.transcript.getMessage()
+    const [first] = JSON.parse(message.content)
+    harness.transcript.getMessage.mockResolvedValue({
+      ...message,
+      content: JSON.stringify([
+        { ...first, status: 'granted' },
+        { ...first, extra: { permissionRequestId: 'second' } }
+      ])
+    })
+    const { toolInteractions } = harness.backend.open(sessionId, descriptor)
+    const allow = { kind: 'permission', granted: true } as const
+
+    await expect(toolInteractions.respond('assistant', 'tool-call', allow)).rejects.toThrow(
+      'ACP permission request not found'
+    )
+    await expect(toolInteractions.dismiss('assistant', 'tool-call')).resolves.toBe(false)
+    await toolInteractions.respond('assistant', 'tool-call', {
+      ...allow,
+      permissionRequestId: 'permission-request'
+    })
+    expect(harness.instance.resolvePermissionRequest).not.toHaveBeenCalled()
+    await toolInteractions.respond('assistant', 'tool-call', {
+      ...allow,
+      permissionRequestId: 'second'
+    })
+    expect(harness.instance.resolvePermissionRequest).toHaveBeenCalledExactlyOnceWith(
+      'second',
+      true
+    )
+  })
+
+  it('dismisses an orphan only while its stored content matches', async () => {
     const harness = createHarness()
     harness.runtime.getHydrated.mockReturnValue(undefined)
-    const handle = harness.backend.open(sessionId, descriptor)
+    const { toolInteractions } = harness.backend.open(sessionId, descriptor)
+    const { content } = await harness.transcript.getMessage()
+    const [pending] = JSON.parse(content)
+    harness.transcript.updateMessageContent.mockReturnValueOnce(false)
 
-    await expect(handle.toolInteractions.dismiss('assistant', 'tool-call')).resolves.toBe(true)
-
-    expect(harness.transcript.updateAssistantContent).toHaveBeenCalledTimes(1)
-    const [messageId, blocks] = harness.transcript.updateAssistantContent.mock.calls[0] as [
-      string,
-      AssistantMessageBlock[]
-    ]
-    expect(messageId).toBe('assistant')
-    const block = blocks.find(
-      (candidate) => candidate.type === 'action' && candidate.action_type === 'tool_call_permission'
+    await expect(toolInteractions.dismiss('assistant', 'tool-call')).resolves.toBe(false)
+    await expect(toolInteractions.dismiss('assistant', 'tool-call')).resolves.toBe(true)
+    expect(harness.transcript.updateMessageContent).toHaveBeenCalledWith(
+      'assistant',
+      JSON.stringify([
+        { ...pending, status: 'error', extra: { ...pending.extra, needsUserAction: false } }
+      ]),
+      content
     )
-    expect(block?.status).toBe('denied')
-    expect(block?.extra?.needsUserAction).toBe(false)
   })
 
   it('exposes direct transfer, pending, subagent, generation, and close facets', async () => {
