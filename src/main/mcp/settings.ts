@@ -397,6 +397,20 @@ const DEFAULT_MCP_SERVERS = {
       customHeaders: {
         Authorization: 'Bearer YOUR_SOFYA_API_KEY'
       }
+    },
+    'specstream-search': {
+      command: '',
+      args: [],
+      env: {},
+      descriptions:
+        'SpecStream MCP: search the live web with ranked sources and the passages of each page closest to the question, read pages as text, and build tables from the web with a source page for every value. Requires a SpecStream API key from https://specstream.ai/workspace (Agents & API), set as an Authorization: Bearer header. Docs: https://specstream.ai/agents.md.',
+      icons: '🛰️',
+      disable: false,
+      type: 'http' as MCPServerType,
+      baseUrl: 'https://api.specstream.ai/mcp',
+      customHeaders: {
+        Authorization: 'Bearer YOUR_SPECSTREAM_API_KEY'
+      }
     }
   } satisfies Record<string, Omit<MCPServerConfig, 'enabled'>>,
   mcpEnabled: false // MCP functionality is disabled by default
