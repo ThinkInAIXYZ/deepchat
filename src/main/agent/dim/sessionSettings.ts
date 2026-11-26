@@ -10,6 +10,7 @@ import type { DimSessionBinding } from '@/session/data/tables/dimSessionBindings
 import type { SessionDatabase } from '@/session/data/database'
 import { DesktopSessionState } from '@/session/desktopSessionState'
 import { DimAgentProfiles } from './agentProfiles'
+import type { DimModelId } from './modelBridge'
 import { DimModelCatalog } from './modelCatalog'
 import { DimSessionControls } from './sessionControls'
 import type { DimScopeCreation } from './scopeTransitions'
@@ -43,25 +44,29 @@ export class DimSessionSettings {
   async launch(sessionId: string, historyOnly = false): Promise<JsonValue> {
     const row = this.require(sessionId)
     const generation = (await this.options.state.getGenerationSettings(sessionId))!
-    const creation = await this.creation(sessionId)
     const model = await this.options.models[historyOnly ? 'registerForHistory' : 'admit'](
       row.provider_id,
       row.model_id,
       { timeout: generation.timeout, session: true }
     )
+    const creation = await this.creation(sessionId, model)
     return { ...creation, model: { ...model } }
   }
 
   /** Creation identity can be read for a data-only edit even when a provider is disabled. */
-  async creation(sessionId: string): Promise<DimScopeCreation> {
+  async creation(sessionId: string, model?: DimModelId): Promise<DimScopeCreation> {
     const row = this.require(sessionId)
     const generation = (await this.options.state.getGenerationSettings(sessionId))!
     const identity = await this.options.identity(sessionId)
+    const target =
+      model ??
+      (await this.tryRegisterProfileModel(row.provider_id, row.model_id, generation.timeout))
     const agent = await this.options.profiles.ensure({
       name: identity.name,
       description: identity.description,
       systemPrompt: generation.systemPrompt,
-      ...(identity.tools ? { tools: identity.tools } : {})
+      ...(identity.tools ? { tools: identity.tools } : {}),
+      ...(target ? { model: { ...target } } : {})
     })
     return {
       agent,
@@ -87,21 +92,23 @@ export class DimSessionSettings {
     const generation = (await this.options.state.getGenerationSettings(sessionId))!
     const identity = await this.options.identity(sessionId)
     const ref = { sessionId: binding.dimSessionId, branchId: binding.branchId }
+    const target = await this.options.models.admit(row.provider_id, row.model_id, {
+      timeout: generation.timeout,
+      session: true
+    })
+    currentScope()
     const agentId = await this.options.profiles.ensure({
       name: identity.name,
       description: identity.description,
       systemPrompt: generation.systemPrompt,
-      ...(identity.tools ? { tools: identity.tools } : {})
+      ...(identity.tools ? { tools: identity.tools } : {}),
+      model: { ...target }
     })
     const adopted = await this.options.controls.call<{ agentId?: string }>('agent', ref)
     currentScope()
     if (adopted.agentId !== agentId)
       checkOutcome(await this.options.controls.call('set_agent', ref, { agentId }))
     const parameters = this.options.models.parameters(row.provider_id, row.model_id, generation)
-    const target = await this.options.models.admit(row.provider_id, row.model_id, {
-      timeout: generation.timeout,
-      session: true
-    })
     const current = await this.options.controls.call<{ providerId: string; modelId: string }>(
       'native_settings',
       ref
@@ -263,6 +270,21 @@ export class DimSessionSettings {
   private disabledTools(sessionId: string): string[] {
     return dimDisabledTools(this.options.database.newSessionsTable.getDisabledAgentTools(sessionId))
   }
+  private async tryRegisterProfileModel(
+    providerId: string,
+    modelId: string,
+    timeout?: number
+  ): Promise<DimModelId | undefined> {
+    try {
+      return await this.options.models.registerForHistory(providerId, modelId, {
+        timeout,
+        session: true
+      })
+    } catch {
+      return undefined
+    }
+  }
+
   private require(sessionId: string) {
     const row = this.options.database.deepchatSessionsTable.get(sessionId)
     if (!row) throw new Error('Session is not initialized')

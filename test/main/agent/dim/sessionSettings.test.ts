@@ -83,16 +83,25 @@ function createFixture(providerId: string, apiType: 'anthropic' | 'gemini', mode
     providerSettings: settings,
     promptSettings: { getDefaultSystemPrompt: async () => 'fixture prompt' }
   })
+  const profilesEnsure = vi.fn(async () => profile.agentId)
   const sessionSettings = new DimSessionSettings({
     state,
     database: database.data,
-    profiles: { ensure: vi.fn(async () => profile.agentId) } as never,
+    profiles: { ensure: profilesEnsure } as never,
     models: catalog,
     controls: { call: controlsCall } as never,
     identity: async () => ({ name: 'Fixture', description: '', cwd: 'C:\\fixture' }),
     configurationChanged: async () => {}
   })
-  return { database, sessionSettings, controlsCall, nativeConfigure, providerId }
+  return {
+    database,
+    sessionSettings,
+    controlsCall,
+    nativeConfigure,
+    profilesEnsure,
+    provider,
+    providerId
+  }
 }
 
 async function prepare(
@@ -177,4 +186,53 @@ it('prepares Gemini effort without leaking its budget', async () => {
 
   expect(payload.config).toMatchObject({ reasoning: { effort: 'high' } })
   expect(payload.config).not.toMatchObject({ reasoning: { budgetTokens: expect.anything() } })
+})
+
+it('includes the configured native model when ensuring agent profiles', async () => {
+  const fixture = createFixture('anthropic', 'anthropic', 'claude-fable-5')
+  await fixture.sessionSettings.initSession('session', {
+    providerId: fixture.providerId,
+    modelId: 'claude-fable-5'
+  })
+
+  await fixture.sessionSettings.creation('session')
+  expect(fixture.profilesEnsure).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      name: 'Fixture',
+      model: { providerId: fixture.providerId, modelId: 'claude-fable-5' }
+    })
+  )
+
+  const binding = fixture.database.data.dimSessionBindingsTable.bind('session', 'native-session')
+  await fixture.sessionSettings.prepare(binding)
+  expect(fixture.profilesEnsure).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      name: 'Fixture',
+      model: { providerId: fixture.providerId, modelId: 'claude-fable-5' }
+    })
+  )
+})
+
+it('preserves creation model when provider is disabled and tolerates missing providers', async () => {
+  const fixture = createFixture('anthropic', 'anthropic', 'claude-fable-5')
+  await fixture.sessionSettings.initSession('session', {
+    providerId: fixture.providerId,
+    modelId: 'claude-fable-5'
+  })
+
+  fixture.provider.enable = false
+  await fixture.sessionSettings.creation('session')
+  expect(fixture.profilesEnsure).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      model: { providerId: fixture.providerId, modelId: 'claude-fable-5' }
+    })
+  )
+
+  await fixture.sessionSettings.initSession('missing-provider', {
+    providerId: 'deleted-provider',
+    modelId: 'claude-fable-5'
+  })
+  const scope = await fixture.sessionSettings.creation('missing-provider')
+  expect(scope.agent).toBe(profile.agentId)
+  expect(fixture.profilesEnsure.mock.lastCall![0]).not.toHaveProperty('model')
 })

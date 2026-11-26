@@ -1,4 +1,5 @@
 import type { JsonValue } from '@shared/contracts/json'
+import type { DimModelId } from './modelBridge'
 import type { DimRuntimeSupervisor } from './runtimeSupervisor'
 
 export interface DimAgentProfile {
@@ -6,6 +7,7 @@ export interface DimAgentProfile {
   description: string
   systemPrompt: string
   tools?: string[]
+  model?: DimModelId
 }
 
 export class DimAgentProfiles {
