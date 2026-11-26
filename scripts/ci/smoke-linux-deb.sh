@@ -45,7 +45,12 @@ child.onExit(({ exitCode }) => {
 })
 SQLITE
 "$node" scripts/smoke-dim-runtime.mjs --resources-path "$resources"
-xvfb-run -a /opt/DeepChat/deepchat --user-data-dir=/tmp/deepchat-profile --disable-gpu \
+if [[ "$(dpkg --print-architecture)" == arm64 ]]; then
+  "$node" scripts/smoke-opendal-native.js --project-dir "$unpacked"
+fi
+install -d -m 0700 -o nobody -g nogroup /tmp/deepchat-user /tmp/deepchat-user/runtime
+runuser -u nobody -- env HOME=/tmp/deepchat-user XDG_RUNTIME_DIR=/tmp/deepchat-user/runtime \
+  xvfb-run -a /opt/DeepChat/deepchat --disable-gpu \
   --remote-debugging-address=127.0.0.1 --remote-debugging-port=9222 >/tmp/deepchat.log 2>&1 &
 app_pid=$!
 trap 'kill "$app_pid" 2>/dev/null || true' EXIT

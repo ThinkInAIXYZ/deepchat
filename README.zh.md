@@ -96,6 +96,8 @@ DeepChat 的会话与 Agent 过程基于 Tape.systems 的哲学设计：把过�
 - macOS: `.dmg`安装文件
 - Linux: `.AppImage`或`.deb`安装文件
 
+Linux 的 amd64 和 arm64 安装包中，自带的 Light OCR 需要 glibc 2.38 及提供 `GLIBCXX_3.4.32` 的 libstdc++。amd64 上的 S3 兼容云备份也需要 glibc 2.38。
+
 **方式二：官网下载**
 
 从[官网下载页面](https://deepchatai.cn/#/download)获取安装包。

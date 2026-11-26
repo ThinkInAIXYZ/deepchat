@@ -149,6 +149,9 @@ linux:
 deb:
   packageName: deepchat
   synopsis: Local-first AI desktop assistant
+  description: >-
+    Run local agents and chat with AI models. Bundled Light OCR on amd64 and arm64 requires
+    glibc 2.38 and GLIBCXX_3.4.32. S3-compatible cloud backup on amd64 requires glibc 2.38.
   packageCategory: utils
   compression: xz
   depends:
