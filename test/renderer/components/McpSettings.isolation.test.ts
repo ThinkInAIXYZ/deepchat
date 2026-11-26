@@ -7,6 +7,7 @@ import { createMemoryHistory, createRouter, RouterView } from 'vue-router'
 import type { GuidedOnboardingState } from '@shared/contracts/routes'
 import { GUIDED_ONBOARDING_STEP_IDS, GUIDED_ONBOARDING_VERSION } from '@shared/guidedOnboarding'
 import { settingsRouteComponents } from '../../../src/renderer/settings/settingsRouteComponents'
+import { useAgentStore } from '@/stores/ui/agent'
 
 vi.unmock('pinia')
 vi.unmock('vue-i18n')
@@ -16,6 +17,10 @@ it.each(['settings', 'plugins'])(
   'keeps MCP, market and onboarding isolated in the %s host across reentry',
   async (entry) => {
     const pinia = createPinia()
+    const agentStore = entry === 'plugins' ? useAgentStore(pinia) : null
+    agentStore?.setSelectedAgent('agent-a')
+    const selections = new Map<string, string[]>()
+    let demoEnabled = true
     const listeners = new Map<string, Set<unknown>>()
     let onboardingState: GuidedOnboardingState = {
       version: GUIDED_ONBOARDING_VERSION,
@@ -36,6 +41,13 @@ it.each(['settings', 'plugins'])(
     const originalInvoke = vi.mocked(window.deepchat.invoke).getMockImplementation()!
     const invoke = vi.spyOn(window.deepchat, 'invoke').mockImplementation(async (name, input) => {
       switch (name) {
+        case 'config.listAgents':
+          return { agents: input.ids.map((id: string) => ({ id, type: 'deepchat' })) }
+        case 'config.resolveDeepChatAgentConfig':
+          return { config: { enabledMcpServerIds: selections.get(input.agentId) } }
+        case 'config.updateDeepChatAgent':
+          selections.set(input.agentId, input.updates.config.enabledMcpServerIds)
+          return { agent: { id: input.agentId, type: 'deepchat', config: input.updates.config } }
         case 'onboarding.getState':
           return { state: onboardingState }
         case 'onboarding.setStepStatus':
@@ -55,7 +67,16 @@ it.each(['settings', 'plugins'])(
           return { servers: [] }
 
         case 'mcp.getServers':
-          return { servers: { demo: { type: 'stdio', command: 'demo', enabled: true } } }
+          return {
+            servers: {
+              demo: { type: 'stdio', command: 'demo', enabled: demoEnabled },
+              offline: { type: 'stdio', command: 'offline', enabled: false },
+              managed: { type: 'stdio', source: 'plugin', enabled: true }
+            }
+          }
+        case 'mcp.setServerEnabled':
+          demoEnabled = input.enabled
+          return { enabled: demoEnabled }
         case 'mcp.getEnabled':
           return { enabled: true }
         case 'mcp.getClients':
@@ -127,6 +148,34 @@ it.each(['settings', 'plugins'])(
       await clickButton('common.back')
       expect(router.currentRoute.value.query).toEqual({ foo: '1' })
       await vi.waitFor(() => expect(wrapper.text()).toContain('demo'))
+      const demoSwitch = () => wrapper.get('[role="switch"][aria-label="demo"]')
+      if (agentStore) {
+        expect(
+          wrapper.get('[role="switch"][aria-label="offline"]').attributes('disabled')
+        ).toBeDefined()
+        await clickButton('chat.input.mcp.openSettings')
+        expect(invoke).toHaveBeenCalledWith('system.openSettings', { routeName: 'settings-mcp' })
+        await demoSwitch().trigger('click')
+        await flushPromises()
+        expect(invoke).not.toHaveBeenCalledWith('mcp.setServerEnabled', expect.anything())
+        expect(selections.get('agent-a')).toEqual(['managed'])
+        expect(demoSwitch().attributes('aria-checked')).toBe('false')
+        agentStore.setSelectedAgent('agent-b')
+        await flushPromises()
+        expect(demoSwitch().attributes('aria-checked')).toBe('true')
+        agentStore.setSelectedAgent('agent-a')
+        await flushPromises()
+        expect(demoSwitch().attributes('aria-checked')).toBe('false')
+      } else {
+        await demoSwitch().trigger('click')
+        await flushPromises()
+        expect(invoke).toHaveBeenCalledWith('mcp.setServerEnabled', {
+          serverName: 'demo',
+          enabled: false
+        })
+        expect(demoSwitch().attributes('aria-checked')).toBe('false')
+        expect(selections.size).toBe(0)
+      }
       await clickButton('routes.settings-mcp-market')
       expect(router.currentRoute.value.query).toEqual({ foo: '1', view: 'market' })
       await clickButton('common.back')
@@ -135,7 +184,7 @@ it.each(['settings', 'plugins'])(
       const assertIsolated = () => {
         expect(pinia.state.value).not.toHaveProperty('session')
         expect(pinia.state.value).not.toHaveProperty('message')
-        expect(pinia.state.value).not.toHaveProperty('agent')
+        if (entry === 'settings') expect(pinia.state.value).not.toHaveProperty('agent')
         expect(
           on.mock.calls
             .map(([name]) => name)

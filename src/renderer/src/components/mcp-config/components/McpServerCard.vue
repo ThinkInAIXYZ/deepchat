@@ -41,6 +41,7 @@ interface Props {
   isManaged?: boolean
   isLoading?: boolean
   disabled?: boolean
+  toggleDisabled?: boolean
   toolsCount?: number
   promptsCount?: number
   resourcesCount?: number
@@ -281,9 +282,9 @@ watch(watchDescription, () => {
             {{ t('settings.mcp.authenticate') }}
           </DcButton>
           <Switch
-            :model-value="server.enabled"
+            :model-value="server.enabled && !toggleDisabled"
             :aria-label="isBuiltIn ? getLocalizedServerName(server.name) : server.name"
-            :disabled="disabled || isLoading"
+            :disabled="disabled || isLoading || toggleDisabled"
             @update:model-value="$emit('toggle')"
           />
         </div>

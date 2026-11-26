@@ -42,11 +42,20 @@
               <Icon icon="lucide:shopping-bag" class="size-4" />
               {{ t('routes.settings-mcp-market') }}
             </DcButton>
+            <DcButton
+              v-if="isAgentScope"
+              variant="outline"
+              size="sm"
+              @click="emit('open-global-settings')"
+            >
+              {{ t('chat.input.mcp.openSettings') }}
+            </DcButton>
             <Switch
+              v-else
               dir="ltr"
               :model-value="mcpEnabled"
               :aria-label="t('settings.mcp.center.title')"
-              :disabled="isAgentScope || mcpMasterSaving"
+              :disabled="mcpMasterSaving"
               @update:model-value="handleMcpEnabledChange"
             />
           </div>
@@ -279,6 +288,7 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   'agent-policy-saved': [agentId: string]
+  'open-global-settings': []
   'open-market': []
   'close-market': []
   'continue-onboarding': [state: GuidedOnboardingState | null]
@@ -350,12 +360,9 @@ const isDeepChatTarget = computed(() =>
 )
 const globallyAvailableServerIds = computed(() =>
   normalizeList(
-    mcpStore.serverList
-      .filter((server) => {
-        const config = mcpStore.config.mcpServers[server.name]
-        return config?.enabled !== false && !config?.disable
-      })
-      .map((server) => server.name)
+    Object.entries(mcpStore.config.mcpServers)
+      .filter(([, config]) => config.enabled !== false && !config.disable)
+      .map(([name]) => name)
   )
 )
 const agentEnabledMcpServerIds = computed(() => targetAgentConfig.value.enabledMcpServerIds)

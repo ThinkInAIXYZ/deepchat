@@ -631,6 +631,9 @@ defineExpose({
               mcpStore.serverLoadingStates[server.name] || props.serverLoadingOverrides[server.name]
             "
             :disabled="mcpStore.configLoading || (props.agentScopedToggle && props.agentScopedBusy)"
+            :toggle-disabled="
+              props.agentScopedToggle && (server.enabled === false || server.disable)
+            "
             :tools-count="getServerToolsCount(server.name)"
             :prompts-count="getServerPromptsCount(server.name)"
             :resources-count="getServerResourcesCount(server.name)"

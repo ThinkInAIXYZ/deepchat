@@ -1,6 +1,9 @@
 <template>
   <McpSettingsView
+    scope="agent"
+    :agent-id="agentStore.selectedAgentId ?? undefined"
     :market="route.query.view === 'market'"
+    @open-global-settings="settingsClient.openSettings({ routeName: 'settings-mcp' })"
     @open-market="openMarket"
     @close-market="closeMarket"
     @continue-onboarding="continueOnboarding"
@@ -16,10 +19,12 @@ import { createWindowClient } from '@api/WindowClient'
 import type { GuidedOnboardingState } from '@shared/contracts/routes'
 import { resolveGuidedOnboardingStepTarget } from '@shared/guidedOnboarding'
 import McpSettingsView from '@/features/mcp/McpSettingsView.vue'
+import { useAgentStore } from '@/stores/ui/agent'
 import { persistGuidedOnboardingResumeIntent } from '@/lib/onboardingResume'
 
 const route = useRoute()
 const router = useRouter()
+const agentStore = useAgentStore()
 const settingsClient = createSettingsClient()
 const onboardingClient = createOnboardingClient()
 const windowClient = createWindowClient()
