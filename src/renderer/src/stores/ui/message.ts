@@ -71,7 +71,10 @@ export const useMessageStore = defineStore('message', () => {
     new Map<string, { sessionId: string; keys: Set<string> }>()
   )
   const inFlightInteractions = shallowReactive(
-    new Map<string, { sessionId: string; messageId: string; token: symbol }>()
+    new Map<
+      string,
+      { sessionId: string; messageId: string; displaySessionId: string; token: symbol }
+    >()
   )
   const lastPersistedRevision = ref(0)
   // Active selection may change before its message view is prepared. Keep the

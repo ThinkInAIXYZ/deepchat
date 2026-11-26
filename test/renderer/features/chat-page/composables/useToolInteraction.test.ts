@@ -22,9 +22,13 @@ function createHarness(
   }
 ) {
   const sessionId = ref('s1')
+  const sessionKind = ref('regular')
   const messageRecords = ref(messages)
   const messageStore = {
     ...interactionState,
+    get committedSession() {
+      return { id: sessionId.value, sessionKind: sessionKind.value }
+    },
     get messages() {
       return messageRecords.value
     },
@@ -59,6 +63,7 @@ function createHarness(
   return {
     toolInteraction,
     interactionState,
+    sessionKind,
     sessionId,
     messageRecords,
     chatClient,
@@ -150,6 +155,75 @@ describe('useToolInteraction', () => {
     )
     harness.stop()
   })
+
+  it.each(['parent', 'child'] as const)(
+    'keeps the same child approval acknowledged when submitted from %s',
+    async (source) => {
+      const snapshot = (view: 'parent' | 'child', permissionRequestId: string) => {
+        const actionBlock = {
+          type: 'action',
+          action_type: 'tool_call_permission',
+          status: 'pending',
+          tool_call: { id: 'shared-call', name: 'agent', params: '{}' },
+          extra: { permissionRequestId }
+        }
+        const waitingInteraction = {
+          type: 'permission',
+          messageId: 'CM',
+          toolCallId: 'shared-call',
+          actionBlock
+        }
+        const progress = {
+          type: 'tool_call',
+          tool_call: { name: 'subagent_orchestrator' },
+          extra: {
+            subagentProgress: JSON.stringify({
+              tasks: [{ sessionId: 'child', waitingInteraction }]
+            })
+          }
+        }
+        const row =
+          view === 'child'
+            ? createAssistantMessage('CM', [actionBlock])
+            : createAssistantMessage('PM', [progress])
+        return { ...row, sessionId: view }
+      }
+      const first = snapshot(source, 'original')
+      const other = source === 'parent' ? 'child' : 'parent'
+      const harness = createHarness([first])
+      harness.sessionId.value = source
+      harness.sessionKind.value = source === 'parent' ? 'regular' : 'subagent'
+      const allow = { kind: 'permission', granted: true } as const
+      harness.chatClient.respondToolInteraction.mockImplementationOnce(async () => {
+        // The submitting view can settle before the other projection is refreshed.
+        harness.messageRecords.value = [{ ...first, content: '[]', status: 'sent' }]
+        return { handledInline: true }
+      })
+      await harness.toolInteraction.onToolInteractionRespond(allow)
+      harness.stop()
+      const mirrored = snapshot(other, 'original')
+      const next = createHarness([mirrored], undefined, harness.interactionState)
+      next.sessionId.value = other
+      next.sessionKind.value = other === 'parent' ? 'regular' : 'subagent'
+      next.messageRecords.value = [
+        mirrored,
+        { ...createAssistantMessage('unrelated', [], 'sent'), sessionId: other }
+      ]
+      await nextTick()
+      expect(next.toolInteraction.activePendingInteraction.value).toBeNull()
+      await next.toolInteraction.onToolInteractionRespond(allow)
+      expect(next.chatClient.respondToolInteraction).not.toHaveBeenCalled()
+      next.messageRecords.value = [snapshot(other, 'next')]
+      await next.toolInteraction.onToolInteractionRespond(allow)
+      expect(next.chatClient.respondToolInteraction).toHaveBeenCalledExactlyOnceWith({
+        sessionId: 'child',
+        messageId: 'CM',
+        toolCallId: 'shared-call',
+        response: { ...allow, permissionRequestId: 'next' }
+      })
+      next.stop()
+    }
+  )
 
   it('submits one decision across navigation while the first response is in flight', async () => {
     const response = createDeferred<{ handledInline?: boolean }>()

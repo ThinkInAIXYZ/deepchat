@@ -11,7 +11,6 @@ type MessageStore = ReturnType<typeof useMessageStore>
 type PendingInteractionView = {
   sessionId: string
   messageId: string
-  progressMessageId?: string
   toolCallId: string
   actionType: 'question_request' | 'tool_call_permission'
   toolName: string
@@ -84,9 +83,22 @@ export function useToolInteraction(options: UseToolInteractionOptions) {
   watch(
     () => options.messageStore.messages,
     (messages) => {
-      if (acknowledgedInteractions.size === 0) return
+      const session = options.messageStore.committedSession
+      // Child approvals can still appear in an older parent progress snapshot.
+      if (
+        !acknowledgedInteractions.size ||
+        session?.sessionKind !== 'regular' ||
+        session.parentSessionId
+      )
+        return
       for (const message of messages) {
-        if (message.status !== 'pending') acknowledgedInteractions.delete(message.id)
+        if (
+          message.sessionId === session.id &&
+          message.status !== 'pending' &&
+          acknowledgedInteractions.get(message.id)?.sessionId === session.id &&
+          !options.messageStore.getAssistantMessageBlocks(message).some(projectPendingInteraction)
+        )
+          acknowledgedInteractions.delete(message.id)
       }
     },
     { immediate: true }
@@ -99,7 +111,12 @@ export function useToolInteraction(options: UseToolInteractionOptions) {
   const staleInteractionKeys = ref<Set<string>>(new Set())
 
   const interactionKey = ({ sessionId, messageId, toolCallId, block }: PendingInteractionView) =>
-    `${sessionId}:${messageId}:${toolCallId}:${block.extra?.dimRequestId ?? block.extra?.permissionRequestId ?? ''}`
+    JSON.stringify([
+      sessionId,
+      messageId,
+      toolCallId,
+      block.extra?.dimRequestId ?? block.extra?.permissionRequestId
+    ])
 
   const markStale = (interaction: PendingInteractionView) => {
     const key = interactionKey(interaction)
@@ -145,7 +162,6 @@ export function useToolInteraction(options: UseToolInteractionOptions) {
           list.push({
             sessionId: task.sessionId,
             messageId: waiting.messageId,
-            progressMessageId: message.id,
             toolCallId: waiting.toolCallId,
             actionType: waiting.type === 'question' ? 'question_request' : 'tool_call_permission',
             toolName: waiting.actionBlock.tool_call?.name || block.tool_call?.name || '',
@@ -160,7 +176,7 @@ export function useToolInteraction(options: UseToolInteractionOptions) {
       const key = interactionKey(entry)
       return (
         !staleInteractionKeys.value.has(key) &&
-        !acknowledgedInteractions.get(entry.progressMessageId ?? entry.messageId)?.keys.has(key)
+        !acknowledgedInteractions.get(entry.messageId)?.keys.has(key)
       )
     })
   })
@@ -170,7 +186,9 @@ export function useToolInteraction(options: UseToolInteractionOptions) {
   const isHandlingInteraction = computed(() => {
     const interaction = activePendingInteraction.value
     return (
-      [...inFlightInteractions.values()].some((entry) => entry.sessionId === options.sessionId()) ||
+      [...inFlightInteractions.values()].some(
+        (entry) => entry.displaySessionId === options.sessionId()
+      ) ||
       (interaction !== null && inFlightInteractions.has(interactionKey(interaction)))
     )
   })
@@ -187,13 +205,15 @@ export function useToolInteraction(options: UseToolInteractionOptions) {
       interaction.actionType === 'question_request' &&
       typeof interaction.block.extra?.dimRequestId === 'string'
     const key = interactionKey(interaction)
-    const messageId = interaction.progressMessageId ?? interaction.messageId
     const token = Symbol()
-    inFlightInteractions.set(key, { sessionId, messageId, token })
+    inFlightInteractions.set(key, {
+      sessionId: interaction.sessionId,
+      messageId: interaction.messageId,
+      displaySessionId: sessionId,
+      token
+    })
     const ownsSubmission = () => inFlightInteractions.get(key)?.token === token
     const isCurrentView = () => options.canWriteSessionView(sessionId, requestId)
-    const isStillPending = () =>
-      pendingInteractions.value.some((entry) => interactionKey(entry) === key)
     try {
       const permissionRequestId = interaction.block.extra?.permissionRequestId
       const result = await options.chatClient.respondToolInteraction({
@@ -213,10 +233,11 @@ export function useToolInteraction(options: UseToolInteractionOptions) {
         (interaction.actionType === 'tool_call_permission' &&
           (result.resumed || result.handledInline))
       ) {
-        if (!isCurrentView() || isStillPending()) {
-          const keys = new Set(acknowledgedInteractions.get(messageId)?.keys)
-          acknowledgedInteractions.set(messageId, { sessionId, keys: keys.add(key) })
-        }
+        const keys = new Set(acknowledgedInteractions.get(interaction.messageId)?.keys)
+        acknowledgedInteractions.set(interaction.messageId, {
+          sessionId: interaction.sessionId,
+          keys: keys.add(key)
+        })
       }
     } catch (error) {
       if (!ownsSubmission()) return
