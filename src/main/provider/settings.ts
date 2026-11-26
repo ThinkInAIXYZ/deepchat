@@ -1437,21 +1437,15 @@ export class ProviderSettings implements ProviderSettingsPort {
     const hasRawModel = (models: Array<{ id: string }> | undefined): boolean =>
       Array.isArray(models) &&
       models.some((model) => normalizeKnownModelId(model.id) === normalizedModelId)
-    const hasStoredModel = (storedProviderId: string): boolean => {
-      const exactModel = this.providerModelHelper.getProviderModel(storedProviderId, modelId.trim())
-      if (exactModel && normalizeKnownModelId(exactModel.id) === normalizedModelId) {
-        return true
-      }
-      return (
-        hasRawModel(this.providerModelHelper.getProviderModels(storedProviderId)) ||
-        hasRawModel(this.providerModelHelper.getCustomModels(storedProviderId))
-      )
-    }
 
     // Stored models keep the provider's original, possibly mixed-case ID.
+    const exactModel = this.providerModelHelper.getProviderModel(rawProviderId, modelId.trim())
+    if (exactModel && normalizeKnownModelId(exactModel.id) === normalizedModelId) {
+      return true
+    }
     return (
-      hasStoredModel(rawProviderId) ||
-      (rawProviderId !== normalizedProviderId && hasStoredModel(normalizedProviderId))
+      hasRawModel(this.providerModelHelper.getProviderModels(rawProviderId)) ||
+      hasRawModel(this.providerModelHelper.getCustomModels(rawProviderId))
     )
   }
 
