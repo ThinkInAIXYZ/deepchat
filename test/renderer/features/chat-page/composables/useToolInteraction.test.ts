@@ -6,6 +6,7 @@ import { createDeferred } from '../../../utils/deferred'
 function createAssistantMessage(id: string, blocks: unknown[], status = 'pending') {
   return {
     id,
+    sessionId: 's1',
     role: 'assistant',
     status,
     content: JSON.stringify(blocks)
@@ -145,7 +146,7 @@ describe('useToolInteraction', () => {
   it('submits one response at a time and refreshes the current page session afterwards', async () => {
     const response = createDeferred<{ handledInline?: boolean }>()
     const harness = createHarness([
-      createAssistantMessage('m1', [
+      createAssistantMessage('in-flight', [
         {
           type: 'action',
           action_type: 'tool_call_permission',
@@ -174,7 +175,7 @@ describe('useToolInteraction', () => {
 
     expect(harness.chatClient.respondToolInteraction).toHaveBeenCalledWith({
       sessionId: 's1',
-      messageId: 'm1',
+      messageId: 'in-flight',
       toolCallId: 'tool-1',
       response: { kind: 'permission', granted: true }
     })
@@ -184,7 +185,7 @@ describe('useToolInteraction', () => {
     harness.stop()
   })
 
-  it('drops an unresolvable interaction when the client rejects', async () => {
+  it('keeps an approval retryable when the response fails', async () => {
     const error = new Error('response failed')
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     const harness = createHarness([
@@ -204,16 +205,9 @@ describe('useToolInteraction', () => {
       granted: true
     } as any)
 
-    // A rejected respond is treated as a stale interaction: the page refreshes
-    // and, because the block is still pending, releases the approval UI.
     expect(harness.loadMessagesForSession).toHaveBeenCalledWith('s1')
-    expect(harness.chatClient.dismissToolInteraction).toHaveBeenCalledWith({
-      sessionId: 's1',
-      messageId: 'm1',
-      toolCallId: 'tool-1'
-    })
-    expect(harness.toolInteraction.pendingInteractions.value).toEqual([])
-    expect(harness.toolInteraction.activePendingInteraction.value).toBeNull()
+    expect(harness.chatClient.dismissToolInteraction).not.toHaveBeenCalled()
+    expect(harness.toolInteraction.activePendingInteraction.value?.toolCallId).toBe('tool-1')
     expect(harness.toolInteraction.isHandlingInteraction.value).toBe(false)
     expect(consoleError).toHaveBeenCalledWith('[ChatPage] respond tool interaction failed:', error)
     consoleError.mockRestore()
@@ -275,43 +269,48 @@ describe('useToolInteraction', () => {
     harness.stop()
   })
 
-  it('releases a native question from a replaced scope without declining on the host', async () => {
-    const error = new Error(
-      "Error invoking remote method 'deepchat:route:invoke': Error: Native interaction belongs to a replaced session scope"
-    )
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
-    const onResponseFailed = vi.fn()
-    const harness = createHarness(
-      [
-        createAssistantMessage('m1', [
-          {
-            type: 'action',
-            action_type: 'question_request',
-            status: 'pending',
-            extra: { dimRequestId: 'replaced-request' },
-            tool_call: { id: 'tool-1', name: 'ask_user', params: '{}' }
-          }
-        ])
-      ],
-      onResponseFailed
-    )
-    harness.chatClient.respondToolInteraction.mockRejectedValueOnce(error)
+  it.each(['question_request', 'tool_call_permission'] as const)(
+    'releases a %s from a replaced scope without declining on the host',
+    async (actionType) => {
+      const error = new Error(
+        "Error invoking remote method 'deepchat:route:invoke': Error: Native interaction belongs to a replaced session scope"
+      )
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+      const onResponseFailed = vi.fn()
+      const harness = createHarness(
+        [
+          createAssistantMessage('m1', [
+            {
+              type: 'action',
+              action_type: actionType,
+              status: 'pending',
+              extra: actionType === 'question_request' ? { dimRequestId: 'replaced-request' } : {},
+              tool_call: {
+                id: 'replaced-tool',
+                name: actionType === 'question_request' ? 'ask_user' : 'agent',
+                params: '{}'
+              }
+            }
+          ])
+        ],
+        onResponseFailed
+      )
+      harness.chatClient.respondToolInteraction.mockRejectedValueOnce(error)
 
-    await harness.toolInteraction.onToolInteractionRespond({
-      kind: 'question_option',
-      optionLabel: 'Yes'
-    })
+      await harness.toolInteraction.onToolInteractionRespond(
+        actionType === 'question_request'
+          ? { kind: 'question_option', optionLabel: 'Yes' }
+          : { kind: 'permission', granted: true }
+      )
 
-    expect(onResponseFailed).toHaveBeenCalledWith(
-      expect.objectContaining({ actionType: 'question_request' }),
-      error
-    )
-    expect(harness.toolInteraction.activePendingInteraction.value).toBeNull()
-    expect(harness.toolInteraction.isHandlingInteraction.value).toBe(false)
-    expect(harness.chatClient.dismissToolInteraction).not.toHaveBeenCalled()
-    consoleError.mockRestore()
-    harness.stop()
-  })
+      expect(onResponseFailed).toHaveBeenCalledWith(expect.objectContaining({ actionType }), error)
+      expect(harness.toolInteraction.activePendingInteraction.value).toBeNull()
+      expect(harness.toolInteraction.isHandlingInteraction.value).toBe(false)
+      expect(harness.chatClient.dismissToolInteraction).not.toHaveBeenCalled()
+      consoleError.mockRestore()
+      harness.stop()
+    }
+  )
 
   it('reports a rejected response to the page instead of only dropping the interaction', async () => {
     const error = new Error('response failed')
@@ -345,14 +344,14 @@ describe('useToolInteraction', () => {
     harness.stop()
   })
 
-  it('drops a responded interaction that stays pending after reload so the UI advances', async () => {
+  it('retries an unacknowledged Allow in its owning session and advances once acknowledged', async () => {
     const harness = createHarness([
-      createAssistantMessage('m1', [
+      createAssistantMessage('delegation', [
         {
           type: 'action',
           action_type: 'tool_call_permission',
           status: 'pending',
-          tool_call: { id: 'tool-1', name: 'write_file', params: '{}' }
+          tool_call: { id: 'tool-1', name: 'agent', params: '{}' }
         }
       ]),
       createAssistantMessage('m2', [
@@ -364,23 +363,26 @@ describe('useToolInteraction', () => {
         }
       ])
     ])
-    // The main process returns without resolving the first interaction (its
-    // backing run is gone): the block stays pending after the reload.
-    harness.chatClient.respondToolInteraction.mockResolvedValue({ resumed: false })
+    harness.chatClient.respondToolInteraction
+      .mockResolvedValueOnce({ resumed: false })
+      .mockResolvedValueOnce({ resumed: true })
+    const allow = { kind: 'permission', granted: true } as const
 
-    await harness.toolInteraction.onToolInteractionRespond({
-      kind: 'permission',
-      granted: true
-    } as any)
-
+    harness.sessionId.value = 's2'
+    expect(harness.toolInteraction.activePendingInteraction.value).toBeNull()
+    harness.sessionId.value = 's1'
+    await harness.toolInteraction.onToolInteractionRespond(allow)
     expect(harness.loadMessagesForSession).toHaveBeenCalledWith('s1')
-    // The stale approval is dropped, durably dismissed on the main process, and
-    // the next pending interaction surfaces.
-    expect(harness.chatClient.dismissToolInteraction).toHaveBeenCalledWith({
+    expect(harness.toolInteraction.activePendingInteraction.value?.toolCallId).toBe('tool-1')
+    await harness.toolInteraction.onToolInteractionRespond(allow)
+    expect(harness.chatClient.respondToolInteraction).toHaveBeenCalledTimes(2)
+    expect(harness.chatClient.respondToolInteraction).toHaveBeenLastCalledWith({
       sessionId: 's1',
-      messageId: 'm1',
-      toolCallId: 'tool-1'
+      messageId: 'delegation',
+      toolCallId: 'tool-1',
+      response: allow
     })
+    expect(harness.chatClient.dismissToolInteraction).not.toHaveBeenCalled()
     expect(harness.toolInteraction.pendingInteractions.value).toMatchObject([
       { messageId: 'm2', toolCallId: 'tool-2', actionType: 'question_request' }
     ])

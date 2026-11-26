@@ -202,11 +202,20 @@ export const createDirectAcpAgentBackend = (
           if (!requestId) {
             throw new Error(`ACP permission request not found for tool call: ${toolCallId}`)
           }
-          const resolved = runtime
-            .getHydrated(sessionId)
-            ?.resolvePermissionRequest(requestId, response.granted)
-          if (!resolved) throw new Error(`Unknown ACP permission request: ${requestId}`)
-          return { resumed: false }
+          const instance = runtime.getHydrated(sessionId)
+          if (!instance?.resolvePermissionRequest(requestId, response.granted)) {
+            // A live turn owns its projection. Only repair a pending block left by a gone turn.
+            if (
+              block?.status === 'pending' &&
+              instance?.getActiveGeneration()?.eventId !== messageId
+            ) {
+              block.status = 'denied'
+              block.extra = { ...block.extra, needsUserAction: false }
+              transcript.updateAssistantContent(messageId, blocks)
+            }
+            throw new Error(`Unknown ACP permission request: ${requestId}`)
+          }
+          return { resumed: false, handledInline: true }
         },
         async dismiss(messageId: string, toolCallId: string) {
           const message = await transcript.getMessage(messageId)

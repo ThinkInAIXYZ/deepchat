@@ -76,6 +76,7 @@ function createHarness() {
         {
           type: 'action',
           action_type: 'tool_call_permission',
+          status: 'pending',
           tool_call: { id: 'tool-call' },
           extra: { permissionRequestId: 'permission-request' }
         }
@@ -253,7 +254,7 @@ describe('direct ACP agent backend', () => {
         kind: 'permission',
         granted: true
       })
-    ).resolves.toEqual({ resumed: false })
+    ).resolves.toEqual({ resumed: false, handledInline: true })
     expect(harness.instance.resolvePermissionRequest).toHaveBeenCalledWith(
       'permission-request',
       true
@@ -321,23 +322,38 @@ describe('direct ACP agent backend', () => {
     expect(harness.instance.resolvePermissionRequest).not.toHaveBeenCalled()
   })
 
-  it('rejects permission requests that are no longer hydrated', async () => {
-    const harness = createHarness()
-    harness.instance.resolvePermissionRequest.mockReturnValueOnce(false)
-    const handle = harness.backend.open(sessionId, descriptor)
+  it.each([true, false])(
+    'repairs an orphan only after its turn ends (active=%s)',
+    async (active) => {
+      const harness = createHarness()
+      harness.instance.getActiveGeneration.mockReturnValue(
+        active ? { eventId: 'assistant', runId: 'run' } : null
+      )
+      harness.instance.resolvePermissionRequest.mockReturnValueOnce(false)
+      const handle = harness.backend.open(sessionId, descriptor)
 
-    await expect(
-      handle.toolInteractions.respond('assistant', 'tool-call', {
-        kind: 'permission',
-        granted: false
-      })
-    ).rejects.toThrow('Unknown ACP permission request: permission-request')
+      await expect(
+        handle.toolInteractions.respond('assistant', 'tool-call', {
+          kind: 'permission',
+          granted: true
+        })
+      ).rejects.toThrow('Unknown ACP permission request: permission-request')
 
-    expect(harness.instance.resolvePermissionRequest).toHaveBeenCalledWith(
-      'permission-request',
-      false
-    )
-  })
+      expect(harness.instance.resolvePermissionRequest).toHaveBeenCalledWith(
+        'permission-request',
+        true
+      )
+      expect(harness.instance.resolvePermissionRequest).toHaveBeenCalledTimes(1)
+      if (active) expect(harness.transcript.updateAssistantContent).not.toHaveBeenCalled()
+      else
+        expect(harness.transcript.updateAssistantContent).toHaveBeenCalledWith('assistant', [
+          expect.objectContaining({
+            status: 'denied',
+            extra: expect.objectContaining({ needsUserAction: false })
+          })
+        ])
+    }
+  )
 
   it('durably dismisses an ACP permission when the runtime is unavailable', async () => {
     const harness = createHarness()

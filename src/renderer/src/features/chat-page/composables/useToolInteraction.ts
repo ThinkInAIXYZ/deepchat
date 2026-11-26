@@ -8,12 +8,13 @@ import type { ToolInteractionResponse, ToolInteractionResult } from '@shared/typ
 
 type MessageStore = ReturnType<typeof useMessageStore>
 
-// Answers may still be awaiting their batch result when the chat page is remounted.
-const answeredNativeQuestions = shallowReactive(new Map<string, Set<string>>())
+// Acknowledged decisions can precede their transcript update, including across page remounts.
+const acknowledgedInteractions = shallowReactive(new Map<string, Set<string>>())
 
 type PendingInteractionView = {
   sessionId: string
   messageId: string
+  progressMessageId?: string
   toolCallId: string
   actionType: 'question_request' | 'tool_call_permission'
   toolName: string
@@ -40,11 +41,6 @@ type ChatClientLike = {
     toolCallId: string
     response: ToolInteractionResponse
   }) => Promise<ToolInteractionResult>
-  dismissToolInteraction: (input: {
-    sessionId: string
-    messageId: string
-    toolCallId: string
-  }) => Promise<{ dismissed: boolean }>
 }
 
 type UseToolInteractionOptions = {
@@ -91,9 +87,9 @@ export function useToolInteraction(options: UseToolInteractionOptions) {
   watch(
     () => options.messageStore.messages,
     (messages) => {
-      if (answeredNativeQuestions.size === 0) return
+      if (acknowledgedInteractions.size === 0) return
       for (const message of messages) {
-        if (message.status !== 'pending') answeredNativeQuestions.delete(message.id)
+        if (message.status !== 'pending') acknowledgedInteractions.delete(message.id)
       }
     },
     { immediate: true }
@@ -106,7 +102,7 @@ export function useToolInteraction(options: UseToolInteractionOptions) {
   const staleInteractionKeys = ref<Set<string>>(new Set())
 
   const interactionKey = ({ sessionId, messageId, toolCallId, block }: PendingInteractionView) =>
-    `${sessionId}:${messageId}:${toolCallId}:${block.extra?.dimRequestId ?? ''}`
+    `${sessionId}:${messageId}:${toolCallId}:${block.extra?.dimRequestId ?? block.extra?.permissionRequestId ?? ''}`
 
   const markStale = (interaction: PendingInteractionView) => {
     const key = interactionKey(interaction)
@@ -118,7 +114,7 @@ export function useToolInteraction(options: UseToolInteractionOptions) {
     const list: PendingInteractionView[] = []
 
     for (const message of options.messageStore.messages) {
-      if (message.role !== 'assistant') continue
+      if (message.role !== 'assistant' || message.sessionId !== options.sessionId()) continue
       const blocks = options.messageStore.getAssistantMessageBlocks(message)
 
       for (const block of blocks) {
@@ -126,7 +122,7 @@ export function useToolInteraction(options: UseToolInteractionOptions) {
         if (!pending) continue
 
         list.push({
-          sessionId: options.sessionId(),
+          sessionId: message.sessionId,
           messageId: message.id,
           ...pending,
           block
@@ -152,6 +148,7 @@ export function useToolInteraction(options: UseToolInteractionOptions) {
           list.push({
             sessionId: task.sessionId,
             messageId: waiting.messageId,
+            progressMessageId: message.id,
             toolCallId: waiting.toolCallId,
             actionType: waiting.type === 'question' ? 'question_request' : 'tool_call_permission',
             toolName: waiting.actionBlock.tool_call?.name || block.tool_call?.name || '',
@@ -166,7 +163,7 @@ export function useToolInteraction(options: UseToolInteractionOptions) {
       const key = interactionKey(entry)
       return (
         !staleInteractionKeys.value.has(key) &&
-        !answeredNativeQuestions.get(entry.messageId)?.has(key)
+        !acknowledgedInteractions.get(entry.progressMessageId ?? entry.messageId)?.has(key)
       )
     })
   })
@@ -186,32 +183,10 @@ export function useToolInteraction(options: UseToolInteractionOptions) {
       typeof interaction.block.extra?.dimRequestId === 'string'
     isHandlingInteraction.value = true
     const isCurrentView = () => options.canWriteSessionView(sessionId, requestId)
-    const refreshAfterResponse = async () => {
-      if (!isCurrentView()) return false
-      const restoredSession = await options.loadMessagesForSession(sessionId)
-      if (!isCurrentView()) return false
-      options.applyRestoredSessionSummary(restoredSession)
-      return true
-    }
     const isStillPending = () =>
       pendingInteractions.value.some(
         (entry) => interactionKey(entry) === interactionKey(interaction)
       )
-    // Best-effort durable close on the main-process transcript so the orphaned
-    // block stops blocking new turns and does not reappear after a session reload.
-    const dismissStale = async () => {
-      if (!isStillPending()) return
-      markStale(interaction)
-      try {
-        await options.chatClient.dismissToolInteraction({
-          sessionId: interaction.sessionId,
-          messageId: interaction.messageId,
-          toolCallId: interaction.toolCallId
-        })
-      } catch (error) {
-        console.error('[ChatPage] dismiss stale tool interaction failed:', error)
-      }
-    }
     try {
       const result = await options.chatClient.respondToolInteraction({
         sessionId: interaction.sessionId,
@@ -219,43 +194,30 @@ export function useToolInteraction(options: UseToolInteractionOptions) {
         toolCallId: interaction.toolCallId,
         response
       })
-      if (isNativeQuestion) {
-        // The batch result can be blocked on a sibling question that the dock must show next.
+      if (
+        isNativeQuestion ||
+        (interaction.actionType === 'tool_call_permission' &&
+          (result.resumed || result.handledInline))
+      ) {
         if (!isCurrentView() || isStillPending()) {
-          const { messageId } = interaction
-          const keys = new Set(answeredNativeQuestions.get(messageId))
-          answeredNativeQuestions.set(messageId, keys.add(interactionKey(interaction)))
+          const messageId = interaction.progressMessageId ?? interaction.messageId
+          const keys = new Set(acknowledgedInteractions.get(messageId))
+          acknowledgedInteractions.set(messageId, keys.add(interactionKey(interaction)))
         }
-        return
       }
-      const refreshed = await refreshAfterResponse()
-      if (!refreshed || result.handledInline || result.waitingForUserMessage) {
-        return
-      }
-      // The main process resolves a handled interaction by persisting a
-      // non-pending block status. If it is still pending after the reload, its
-      // backing run is gone and the approval can never be closed here. Drop it
-      // so the UI advances to the next pending approval instead of staying stuck.
-      await dismissStale()
     } catch (error) {
       console.error('[ChatPage] respond tool interaction failed:', error)
       options.onResponseFailed?.(interaction, error)
-      if (isNativeQuestion) {
-        if (isStaleDimInteraction(error)) markStale(interaction)
-        return
-      }
-      // A rejected respond is itself a strong staleness signal (a resolvable
-      // interaction would not be rejected). Reload once and, if the interaction
-      // is still pending, release the UI from the uncloseable approval.
-      try {
-        const refreshed = await refreshAfterResponse()
-        if (refreshed) {
-          await dismissStale()
-        }
-      } catch (refreshError) {
-        console.error('[ChatPage] refresh after failed tool interaction response:', refreshError)
-      }
+      if (isStaleDimInteraction(error)) markStale(interaction)
     } finally {
+      if (!isNativeQuestion && isCurrentView()) {
+        try {
+          const restoredSession = await options.loadMessagesForSession(sessionId)
+          if (isCurrentView()) options.applyRestoredSessionSummary(restoredSession)
+        } catch (refreshError) {
+          console.error('[ChatPage] refresh after tool interaction response failed:', refreshError)
+        }
+      }
       isHandlingInteraction.value = false
     }
   }
