@@ -1416,6 +1416,7 @@ export class ProviderSettings implements ProviderSettingsPort {
   }
 
   isKnownModel(providerId: string, modelId: string): boolean {
+    const rawProviderId = providerId.trim()
     const normalizedProviderId = normalizeKnownProviderId(providerId)
     const normalizedModelId = normalizeKnownModelId(modelId)
 
@@ -1423,7 +1424,7 @@ export class ProviderSettings implements ProviderSettingsPort {
       return false
     }
 
-    if (this.hasUserModelConfig(normalizedModelId, normalizedProviderId)) {
+    if (this.hasUserModelConfig(modelId.trim(), rawProviderId)) {
       return true
     }
 
@@ -1433,20 +1434,18 @@ export class ProviderSettings implements ProviderSettingsPort {
       return true
     }
 
-    const exactModel = this.providerModelHelper.getProviderModel(
-      normalizedProviderId,
-      modelId.trim()
-    )
-    if (exactModel && normalizeKnownModelId(exactModel.id) === normalizedModelId) {
-      return true
-    }
-
     const hasRawModel = (models: Array<{ id: string }> | undefined): boolean =>
       Array.isArray(models) &&
       models.some((model) => normalizeKnownModelId(model.id) === normalizedModelId)
+
+    // Stored models keep the provider's original, possibly mixed-case ID.
+    const exactModel = this.providerModelHelper.getProviderModel(rawProviderId, modelId.trim())
+    if (exactModel && normalizeKnownModelId(exactModel.id) === normalizedModelId) {
+      return true
+    }
     return (
-      hasRawModel(this.providerModelHelper.getProviderModels(normalizedProviderId)) ||
-      hasRawModel(this.providerModelHelper.getCustomModels(normalizedProviderId))
+      hasRawModel(this.providerModelHelper.getProviderModels(rawProviderId)) ||
+      hasRawModel(this.providerModelHelper.getCustomModels(rawProviderId))
     )
   }
 

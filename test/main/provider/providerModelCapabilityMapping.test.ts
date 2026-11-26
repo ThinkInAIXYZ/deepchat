@@ -456,6 +456,65 @@ describe('ProviderSettings provider model capability mapping', () => {
     expect(getCustomModels).not.toHaveBeenCalled()
   })
 
+  it.each([
+    ['provider-listed', 'xK9fQ2mZ', 'provider'],
+    ['manually added', 'xK9fQ2mZ', 'custom'],
+    ['user-configured', 'xK9fQ2mZ', 'config'],
+    ['provider-listed', 'lowercase-provider', 'provider'],
+    ['manually added', 'lowercase-provider', 'custom'],
+    ['user-configured', 'lowercase-provider', 'config']
+  ] as const)(
+    'resolves a %s model stored under provider ID %s for cross-agent assignment',
+    async (_label, providerId, source) => {
+      const { ProviderSettings, modelCapabilities } = await loadProviderSettings()
+      const { SessionAssignmentPolicy } = await import('../../../src/main/session/assignmentPolicy')
+      vi.spyOn(modelCapabilities, 'getProviderCapabilityModelMatch').mockReturnValue(undefined)
+      // Provider IDs are matched case-sensitively, like the SQLite provider_models lookup for
+      // provider-listed and manually added models. The config stub is stricter than the real
+      // ModelConfigHelper, which also tries a lowercased key.
+      const stored = { provider: new Map(), custom: new Map(), config: new Map() }
+      stored[source].set(providerId, [{ id: 'my-local-model', name: 'My Local Model' }])
+      const hasUserConfig = (mid: string, pid: string) =>
+        (stored.config.get(pid) ?? []).some((model) => model.id === mid)
+      const findModel = (pid: string, mid: string) =>
+        [...(stored.custom.get(pid) ?? []), ...(stored.provider.get(pid) ?? [])].find(
+          (model) => model.id === mid
+        )
+      const presenter = Object.assign(Object.create(ProviderSettings.prototype), {
+        modelConfigHelper: { hasUserConfig: vi.fn(hasUserConfig) },
+        providerModelHelper: {
+          getProviderModel: vi.fn(findModel),
+          getProviderModels: vi.fn((pid: string) => stored.provider.get(pid) ?? []),
+          getCustomModels: vi.fn((pid: string) => stored.custom.get(pid) ?? [])
+        }
+      }) as InstanceType<typeof ProviderSettings>
+
+      expect(presenter.isKnownModel(providerId, 'my-local-model')).toBe(true)
+      expect(presenter.isKnownModel(providerId, 'missing-model')).toBe(false)
+
+      const policy = new SessionAssignmentPolicy(
+        { resolveAgent: (id: string) => ({ id, kind: 'deepchat' as const }) },
+        {
+          getDefaultModel: () => ({ providerId: 'openai', modelId: 'gpt-4' }),
+          getDefaultProjectPath: () => null,
+          resolveDeepChatAgentConfig: async () => ({
+            defaultModelPreset: { providerId, modelId: 'my-local-model' }
+          }),
+          isModelAvailable: (pid: string, mid: string) => presenter.isKnownModel(pid, mid)
+        } as any
+      )
+      await expect(
+        policy.resolveSubagentAssignment({
+          agentId: 'agent-b',
+          parentAgentId: 'agent-a',
+          projectDir: '/repo',
+          providerId: 'openai',
+          modelId: 'gpt-4'
+        })
+      ).resolves.toMatchObject({ providerId, modelId: 'my-local-model' })
+    }
+  )
+
   it('maps zenmux anthropic routes to anthropic capability semantics', async () => {
     const { ProviderSettings } = await loadProviderSettings()
     const presenter = Object.assign(Object.create(ProviderSettings.prototype), {
