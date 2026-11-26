@@ -53,7 +53,7 @@ export class DimSessionSettings {
     return { ...creation, model: { ...model } }
   }
 
-  /** Creation identity can be read for a data-only edit even when a provider is disabled. */
+  /** Registers the creation profile with a history-only model even when the provider is disabled. */
   async creation(sessionId: string, model?: DimModelId): Promise<DimScopeCreation> {
     const row = this.require(sessionId)
     const generation = (await this.options.state.getGenerationSettings(sessionId))!
@@ -280,8 +280,11 @@ export class DimSessionSettings {
         timeout,
         session: true
       })
-    } catch {
-      return undefined
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Provider is unavailable') {
+        return undefined
+      }
+      throw error
     }
   }
 

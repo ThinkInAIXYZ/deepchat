@@ -34,7 +34,7 @@ function createFixture(providerId: string, apiType: 'anthropic' | 'gemini', mode
     reasoning: true
   } as ModelConfig
   const settings = {
-    getProviderById: () => provider,
+    getProviderById: (id: string) => (id === providerId ? provider : undefined),
     getModelStatus: () => true,
     getModelConfig: () => modelConfig,
     getProviderModelRouteMetadata: () => undefined,
@@ -235,4 +235,7 @@ it('preserves creation model when provider is disabled and tolerates missing pro
   const scope = await fixture.sessionSettings.creation('missing-provider')
   expect(scope.agent).toBe(profile.agentId)
   expect(fixture.profilesEnsure.mock.lastCall![0]).not.toHaveProperty('model')
+
+  fixture.nativeConfigure.mockRejectedValueOnce(new Error('host unavailable'))
+  await expect(fixture.sessionSettings.creation('session')).rejects.toThrow('host unavailable')
 })
