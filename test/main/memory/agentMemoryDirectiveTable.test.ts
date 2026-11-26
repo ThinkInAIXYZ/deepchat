@@ -184,7 +184,7 @@ describeIfSqlite('AgentMemoryDirectiveTable', () => {
            ORDER BY updated_at DESC, id ASC
            LIMIT ?`
         )
-        .all('b', 64) as Array<{ detail: string }>
+        .all('b', AGENT_MEMORY_ACTIVE_DIRECTIVE_MAX_COUNT) as Array<{ detail: string }>
       expect(queryPlan.map((row) => row.detail).join('\n')).toContain(
         'idx_agent_memory_directive_status_v1'
       )
@@ -236,12 +236,12 @@ describeIfSqlite('AgentMemoryDirectiveTable', () => {
     }
   })
 
-  it('keeps active directives bounded without blocking updates or later approvals', () => {
+  it('allows approval past the former 64-directive limit and enforces the new capacity', () => {
     const db = new DatabaseCtor(':memory:')
     try {
       const table = new AgentMemoryDirectiveTableCtor(db)
       table.createTable()
-      for (let index = 0; index < AGENT_MEMORY_ACTIVE_DIRECTIVE_MAX_COUNT; index += 1) {
+      const createActive = (index: number) => {
         expect(
           table.upsertExplicitDirective(
             writeInput(
@@ -251,6 +251,18 @@ describeIfSqlite('AgentMemoryDirectiveTable', () => {
           ).action
         ).toBe('created')
       }
+      for (let index = 0; index < 64; index += 1) createActive(index)
+
+      table.insertDerivedDirectiveDraft(
+        writeInput(
+          { kind: 'instruction', content: 'Next instruction after upgrade' },
+          { id: 'after-upgrade', source: 'derived_suggestion', status: 'draft' }
+        )
+      )
+      expect(table.transitionDirective('a', 'after-upgrade', 'draft', 'active', 2_000).action).toBe(
+        'transitioned'
+      )
+      for (let index = 65; index < 128; index += 1) createActive(index)
 
       expect(
         table.upsertExplicitDirective(

@@ -190,7 +190,7 @@ describe('DirectiveService', () => {
     ).toMatchObject({ normalizedTopic: '工作' })
   })
 
-  it('returns typed capacity results for explicit creation and draft approval', () => {
+  it('bounds request tokens and rejects new activations at storage capacity', () => {
     const { presenter } = makePresenter({ memoryEnabled: true })
     for (let index = 0; index < AGENT_MEMORY_ACTIVE_DIRECTIVE_MAX_COUNT; index += 1) {
       expect(
@@ -200,6 +200,13 @@ describe('DirectiveService', () => {
         })
       ).not.toBeNull()
     }
+    const { content, manifest } = presenter.buildDirectiveContribution('a', 2_000)
+    expect(content).toBeTruthy()
+    expect(manifest?.tokenBudget).toBe(512)
+    expect(manifest!.estimatedTokens).toBeLessThanOrEqual(512)
+    expect(manifest!.selected.length + manifest!.dropped.length).toBe(128)
+    expect(manifest!.dropped.length).toBeGreaterThan(0)
+
     const draft = presenter.suggestDirective('a', {
       kind: 'instruction',
       content: 'Pending approval'
