@@ -41,6 +41,7 @@ interface Props {
   isManaged?: boolean
   isLoading?: boolean
   disabled?: boolean
+  agentScoped?: boolean
   toggleDisabled?: boolean
   toolsCount?: number
   promptsCount?: number
@@ -191,7 +192,7 @@ watch(watchDescription, () => {
         </div>
 
         <!-- 操作菜单 -->
-        <DropdownMenu>
+        <DropdownMenu v-if="!agentScoped">
           <DropdownMenuTrigger as-child>
             <DcButton
               variant="ghost"
@@ -270,7 +271,7 @@ watch(watchDescription, () => {
         <!-- 开关 -->
         <div class="flex shrink-0 items-center gap-2" @click.stop @keydown.stop>
           <DcButton
-            v-if="showAuthenticateButton"
+            v-if="!agentScoped && showAuthenticateButton"
             variant="outline"
             size="sm"
             class="h-6 px-2 text-[11px]"
@@ -290,7 +291,7 @@ watch(watchDescription, () => {
         </div>
       </div>
     </div>
-    <div class="flex flex-row border-t h-9 items-center">
+    <div v-if="!agentScoped" class="flex flex-row border-t h-9 items-center">
       <!-- 工具按钮 -->
       <DcButton
         v-if="toolsCount !== undefined"

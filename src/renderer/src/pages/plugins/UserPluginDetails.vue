@@ -6,6 +6,7 @@ import { DcButton } from '@dc-ui/components/button'
 import { Input } from '@shadcn/components/ui/input'
 import { DcConfirmDialog } from '@dc-ui/components/confirm-dialog'
 import { createPluginClient } from '@api/PluginClient'
+import { createSettingsClient } from '@api/SettingsClient'
 import { usePluginCatalogStore } from '@/stores/pluginCatalog'
 import type { PluginListItem, PluginActionResult } from '@shared/types/plugin'
 import UserPluginInstallDialog from './UserPluginInstallDialog.vue'
@@ -14,6 +15,7 @@ const props = defineProps<{ plugin: PluginListItem }>()
 const { t } = useI18n()
 const router = useRouter()
 const client = createPluginClient()
+const settingsClient = createSettingsClient()
 const catalog = usePluginCatalogStore()
 const details = computed(() => props.plugin.userPlugin!)
 const updateOpen = ref(false)
@@ -204,9 +206,12 @@ async function retry(invocationId: string): Promise<void> {
           >
         </form>
       </div>
-      <DcButton variant="outline" size="sm" @click="router.push({ name: 'plugins-mcp' })">{{
-        t('settings.userPlugins.manageMcp')
-      }}</DcButton>
+      <DcButton
+        variant="outline"
+        size="sm"
+        @click="settingsClient.openSettings({ routeName: 'settings-mcp' })"
+        >{{ t('settings.userPlugins.manageMcp') }}</DcButton
+      >
     </section>
     <UserPluginInstallDialog
       v-model:open="updateOpen"

@@ -8,6 +8,7 @@ import type { GuidedOnboardingState } from '@shared/contracts/routes'
 import { GUIDED_ONBOARDING_STEP_IDS, GUIDED_ONBOARDING_VERSION } from '@shared/guidedOnboarding'
 import { settingsRouteComponents } from '../../../src/renderer/settings/settingsRouteComponents'
 import { useAgentStore } from '@/stores/ui/agent'
+import { useMcpStore } from '@/stores/mcp'
 
 vi.unmock('pinia')
 vi.unmock('vue-i18n')
@@ -18,7 +19,6 @@ it.each(['settings', 'plugins'])(
   async (entry) => {
     const pinia = createPinia()
     const agentStore = entry === 'plugins' ? useAgentStore(pinia) : null
-    agentStore?.setSelectedAgent('agent-a')
     const selections = new Map<string, string[]>()
     let demoEnabled = true
     const listeners = new Map<string, Set<unknown>>()
@@ -142,27 +142,67 @@ it.each(['settings', 'plugins'])(
         await button!.trigger('click')
         await flushPromises()
       }
-      await vi.waitFor(() =>
-        expect(wrapper.text()).toContain(i18n.global.t('mcp.market.builtinTitle'))
-      )
-      await clickButton('common.back')
-      expect(router.currentRoute.value.query).toEqual({ foo: '1' })
+      if (agentStore) {
+        expect(wrapper.text()).toContain(i18n.global.t('dialog.agentTransfer.selectTarget'))
+        expect(wrapper.find('[role="switch"]').exists()).toBe(false)
+        expect(invoke).not.toHaveBeenCalledWith('config.listAgents', expect.anything())
+        expect(agentStore.selectedAgentId).toBeNull()
+        agentStore.setSelectedAgent('agent-a')
+      } else {
+        await vi.waitFor(() =>
+          expect(wrapper.text()).toContain(i18n.global.t('mcp.market.builtinTitle'))
+        )
+        await clickButton('common.back')
+        expect(router.currentRoute.value.query).toEqual({ foo: '1' })
+      }
       await vi.waitFor(() => expect(wrapper.text()).toContain('demo'))
       const demoSwitch = () => wrapper.get('[role="switch"][aria-label="demo"]')
       if (agentStore) {
         expect(
           wrapper.get('[role="switch"][aria-label="offline"]').attributes('disabled')
         ).toBeDefined()
-        await clickButton('chat.input.mcp.openSettings')
+        for (const key of [
+          'common.add',
+          'routes.settings-mcp-market',
+          'settings.mcp.npmRegistry.title'
+        ]) {
+          expect(wrapper.text()).not.toContain(i18n.global.t(key))
+        }
+        expect(wrapper.find('[aria-label$=": demo"]').exists()).toBe(false)
+        await wrapper
+          .findAll('h3')
+          .find((heading) => heading.text() === 'demo')!
+          .trigger('click')
+        expect(document.querySelector('[role="dialog"]')).toBeNull()
+        await clickButton('settings.userPlugins.manageMcp')
         expect(invoke).toHaveBeenCalledWith('system.openSettings', { routeName: 'settings-mcp' })
         await demoSwitch().trigger('click')
         await flushPromises()
         expect(invoke).not.toHaveBeenCalledWith('mcp.setServerEnabled', expect.anything())
+        expect(agentStore.selectedAgentId).toBe('agent-a')
         expect(selections.get('agent-a')).toEqual(['managed'])
         expect(demoSwitch().attributes('aria-checked')).toBe('false')
+        selections.set('agent-b', ['demo', 'managed'])
         agentStore.setSelectedAgent('agent-b')
         await flushPromises()
         expect(demoSwitch().attributes('aria-checked')).toBe('true')
+        const mcpStore = useMcpStore(pinia)
+        demoEnabled = false
+        await mcpStore.loadConfig({ force: true })
+        await flushPromises()
+        expect(demoSwitch().attributes('disabled')).toBeDefined()
+        expect(demoSwitch().attributes('aria-checked')).toBe('false')
+        demoEnabled = true
+        await mcpStore.loadConfig({ force: true })
+        await flushPromises()
+        expect(demoSwitch().attributes('aria-checked')).toBe('true')
+        expect(invoke).toHaveBeenCalledWith('config.updateDeepChatAgent', {
+          agentId: 'agent-a',
+          updates: { config: { enabledMcpServerIds: ['managed'] } }
+        })
+        expect(
+          invoke.mock.calls.filter(([name]) => name === 'config.updateDeepChatAgent')
+        ).toHaveLength(1)
         agentStore.setSelectedAgent('agent-a')
         await flushPromises()
         expect(demoSwitch().attributes('aria-checked')).toBe('false')
@@ -175,12 +215,12 @@ it.each(['settings', 'plugins'])(
         })
         expect(demoSwitch().attributes('aria-checked')).toBe('false')
         expect(selections.size).toBe(0)
+        await clickButton('routes.settings-mcp-market')
+        expect(router.currentRoute.value.query).toEqual({ foo: '1', view: 'market' })
+        await clickButton('common.back')
+        expect(router.currentRoute.value.name).toBe('settings-mcp')
+        await vi.waitFor(() => expect(wrapper.text()).toContain('demo'))
       }
-      await clickButton('routes.settings-mcp-market')
-      expect(router.currentRoute.value.query).toEqual({ foo: '1', view: 'market' })
-      await clickButton('common.back')
-      expect(router.currentRoute.value.name).toBe(`${entry}-mcp`)
-      await vi.waitFor(() => expect(wrapper.text()).toContain('demo'))
       const assertIsolated = () => {
         expect(pinia.state.value).not.toHaveProperty('session')
         expect(pinia.state.value).not.toHaveProperty('message')

@@ -28,7 +28,7 @@ import McpElicitationDialog from '@/components/mcp/McpElicitationDialog.vue'
 import McpAppConsentDialog from '@/components/mcp/McpAppConsentDialog.vue'
 import CliApprovalDialog from '@/components/cli/CliApprovalDialog.vue'
 import ChatGPTNoticeDialog from '@/components/chatgpt/ChatGPTNoticeDialog.vue'
-import { initAppStores, useMcpInstallDeeplinkHandler } from '@/lib/storeInitializer'
+import { initAppStores } from '@/lib/storeInitializer'
 import { ensureIconsLoaded } from '@/lib/iconLoader'
 import { useFontManager } from '@/composables/useFontManager'
 import { applyDocumentAppearance } from '@/foundation/appearance/documentAppearance'
@@ -120,7 +120,6 @@ let cleanupSemanticNotifications: (() => void) | undefined
 const toasterTheme = computed(() =>
   themeStore.themeMode === 'system' ? (themeStore.isDark ? 'dark' : 'light') : themeStore.themeMode
 )
-const { setup: setupMcpDeeplink, cleanup: cleanupMcpDeeplink } = useMcpInstallDeeplinkHandler()
 
 watch(
   [() => themeStore.themeMode, () => themeStore.isDark, () => uiSettingsStore.fontSizeClass],
@@ -522,7 +521,6 @@ onMounted(() => {
       performanceReporter.setEnabled(uiSettingsStore.loggingEnabled)
       performanceReporter.recordStartup('app-stores-ready', { outcome: 'failed' })
     })
-  setupMcpDeeplink()
   setupAppIpcRuntime()
 
   watch(
@@ -535,7 +533,6 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   cleanupAppIpcRuntime()
-  cleanupMcpDeeplink()
   cleanupSemanticNotifications?.()
   cleanupSemanticNotifications = undefined
   semanticNotificationController.dispose()

@@ -92,7 +92,7 @@ let diagnosticsRequestGeneration = 0
 watch(
   () => mcpStore.mcpInstallCache,
   (newCache) => {
-    if (newCache) {
+    if (newCache && !props.agentScopedToggle) {
       isAddServerDialogOpen.value = true
     }
   },
@@ -625,6 +625,7 @@ defineExpose({
               ...server,
               enabled: getServerEnabled(server.name, Boolean(server.enabled))
             }"
+            :agent-scoped="props.agentScopedToggle"
             :is-built-in="isBuiltInServer(server.name)"
             :is-managed="mcpStore.config.mcpServers[server.name]?.source === 'deepchat'"
             :is-loading="
@@ -637,7 +638,7 @@ defineExpose({
             :tools-count="getServerToolsCount(server.name)"
             :prompts-count="getServerPromptsCount(server.name)"
             :resources-count="getServerResourcesCount(server.name)"
-            @click="openDetail(server.name)"
+            @click="!props.agentScopedToggle && openDetail(server.name)"
             @toggle="handleToggleServer(server.name)"
             @edit="openEditServerDialog(server.name)"
             @remove="handleRemoveServer(server.name)"
@@ -681,8 +682,8 @@ defineExpose({
         </div>
 
         <!-- Action buttons -->
-        <div class="flex space-x-2">
-          <McpEnterpriseProfiles v-if="!props.agentScopedToggle" />
+        <div v-if="!props.agentScopedToggle" class="flex space-x-2">
+          <McpEnterpriseProfiles />
           <Dialog :open="isAddServerDialogOpen" @update:open="handleAddDialogOpenChange">
             <DialogTrigger v-if="props.showFooterAddButton" as-child>
               <DcButton size="sm" class="h-8 px-3 text-xs">

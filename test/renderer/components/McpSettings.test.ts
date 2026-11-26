@@ -267,7 +267,8 @@ describe('McpSettingsView', () => {
   it('requires an explicit target for agent scope', async () => {
     const { wrapper, configClient } = await setup({ scope: 'agent' })
     expect(configClient.listAgents).not.toHaveBeenCalled()
-    expect(wrapper.get('[role="alert"]').text()).toContain('agentScopeUnsupported')
+    expect(wrapper.get('[role="status"]').text()).toContain('dialog.agentTransfer.selectTarget')
+    expect(wrapper.find('[data-testid="servers-view"]').exists()).toBe(false)
   })
 
   it('ignores a policy load that returns after switching targets', async () => {

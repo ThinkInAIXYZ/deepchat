@@ -29,56 +29,6 @@ export const useMcpInstallDeeplinkHandler = () => {
   const mcpStore = useMcpStore()
   let cleanupIpcListeners: (() => void) | null = null
 
-  const navigateToMcpSettings = async () => {
-    await router.isReady()
-
-    const currentRoute = router.currentRoute.value
-    const hasPluginsMcpRoute = router.hasRoute('plugins-mcp')
-    const hasSettingsMcpRoute = router.hasRoute('settings-mcp')
-    const hasSettingsRootRoute = router.hasRoute('settings')
-
-    if (hasPluginsMcpRoute) {
-      if (currentRoute.name !== 'plugins-mcp') {
-        await router.push({ name: 'plugins-mcp' })
-      } else {
-        await router.replace({
-          name: 'plugins-mcp',
-          query: { ...currentRoute.query }
-        })
-      }
-      return
-    }
-
-    if (hasSettingsMcpRoute) {
-      if (currentRoute.name !== 'settings-mcp') {
-        await router.push({ name: 'settings-mcp' })
-      } else {
-        await router.replace({
-          name: 'settings-mcp',
-          query: { ...currentRoute.query }
-        })
-      }
-      return
-    }
-
-    if (hasSettingsRootRoute) {
-      if (currentRoute.name !== 'settings') {
-        await router.push({ name: 'settings' })
-      }
-      if (router.hasRoute('settings-mcp')) {
-        await router.push({ name: 'settings-mcp' })
-      }
-      return
-    }
-
-    const resolvedMcpRoute = router.resolve('/mcp')
-    if (resolvedMcpRoute.matched.length) {
-      await router.push(resolvedMcpRoute.fullPath)
-    } else {
-      console.warn('Received MCP install deeplink but MCP settings route is unavailable')
-    }
-  }
-
   const handleMcpInstall = async (data: { mcpConfig?: string }) => {
     const { mcpConfig } = data ?? {}
     if (!mcpConfig) return
@@ -87,7 +37,8 @@ export const useMcpInstallDeeplinkHandler = () => {
       await mcpStore.setMcpEnabled(true)
     }
 
-    await navigateToMcpSettings()
+    await router.isReady()
+    await router.push({ name: 'settings-mcp' })
 
     mcpStore.setMcpInstallCache(mcpConfig)
   }

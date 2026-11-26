@@ -82,9 +82,11 @@ class McpInstallActions implements DeeplinkMcpInstallPort {
   }
 
   async requestInstall(mcpConfig: string): Promise<boolean> {
-    const targetWindow = await resolveChatWindow(this.windowPresenter)
-    return targetWindow
-      ? this.windowPresenter.sendToWindow(targetWindow.id, DEEPLINK_EVENTS.MCP_INSTALL, {
+    const settingsWindowId = await this.windowPresenter.createSettingsWindow({
+      routeName: 'settings-mcp'
+    })
+    return settingsWindowId != null
+      ? this.windowPresenter.sendToWindow(settingsWindowId, DEEPLINK_EVENTS.MCP_INSTALL, {
           mcpConfig
         })
       : false
