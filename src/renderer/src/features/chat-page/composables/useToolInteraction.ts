@@ -10,6 +10,7 @@ type MessageStore = ReturnType<typeof useMessageStore>
 
 // Acknowledged decisions can precede their transcript update, including across page remounts.
 const acknowledgedInteractions = shallowReactive(new Map<string, Set<string>>())
+const inFlightInteractions = shallowReactive(new Set<string>())
 
 type PendingInteractionView = {
   sessionId: string
@@ -82,7 +83,7 @@ function isStaleDimInteraction(error: unknown): boolean {
  * while the page composes the returned state into its plan and composer gates.
  */
 export function useToolInteraction(options: UseToolInteractionOptions) {
-  const isHandlingInteraction = ref(false)
+  const submittingFromThisPage = ref(false)
 
   watch(
     () => options.messageStore.messages,
@@ -170,6 +171,14 @@ export function useToolInteraction(options: UseToolInteractionOptions) {
 
   const activePendingInteraction = computed(() => pendingInteractions.value[0] ?? null)
 
+  const isHandlingInteraction = computed(() => {
+    const interaction = activePendingInteraction.value
+    return (
+      submittingFromThisPage.value ||
+      (interaction !== null && inFlightInteractions.has(interactionKey(interaction)))
+    )
+  })
+
   async function onToolInteractionRespond(response: ToolInteractionResponse) {
     const interaction = activePendingInteraction.value
     if (!interaction || isHandlingInteraction.value) {
@@ -181,12 +190,12 @@ export function useToolInteraction(options: UseToolInteractionOptions) {
     const isNativeQuestion =
       interaction.actionType === 'question_request' &&
       typeof interaction.block.extra?.dimRequestId === 'string'
-    isHandlingInteraction.value = true
+    const key = interactionKey(interaction)
+    submittingFromThisPage.value = true
+    inFlightInteractions.add(key)
     const isCurrentView = () => options.canWriteSessionView(sessionId, requestId)
     const isStillPending = () =>
-      pendingInteractions.value.some(
-        (entry) => interactionKey(entry) === interactionKey(interaction)
-      )
+      pendingInteractions.value.some((entry) => interactionKey(entry) === key)
     try {
       const result = await options.chatClient.respondToolInteraction({
         sessionId: interaction.sessionId,
@@ -202,7 +211,7 @@ export function useToolInteraction(options: UseToolInteractionOptions) {
         if (!isCurrentView() || isStillPending()) {
           const messageId = interaction.progressMessageId ?? interaction.messageId
           const keys = new Set(acknowledgedInteractions.get(messageId))
-          acknowledgedInteractions.set(messageId, keys.add(interactionKey(interaction)))
+          acknowledgedInteractions.set(messageId, keys.add(key))
         }
       }
     } catch (error) {
@@ -218,7 +227,8 @@ export function useToolInteraction(options: UseToolInteractionOptions) {
           console.error('[ChatPage] refresh after tool interaction response failed:', refreshError)
         }
       }
-      isHandlingInteraction.value = false
+      inFlightInteractions.delete(key)
+      submittingFromThisPage.value = false
     }
   }
 

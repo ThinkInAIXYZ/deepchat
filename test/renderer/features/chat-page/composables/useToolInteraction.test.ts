@@ -143,7 +143,7 @@ describe('useToolInteraction', () => {
     harness.stop()
   })
 
-  it('submits one response at a time and refreshes the current page session afterwards', async () => {
+  it('submits one decision across navigation while the first response is in flight', async () => {
     const response = createDeferred<{ handledInline?: boolean }>()
     const harness = createHarness([
       createAssistantMessage('in-flight', [
@@ -170,6 +170,12 @@ describe('useToolInteraction', () => {
     expect(harness.chatClient.respondToolInteraction).toHaveBeenCalledTimes(1)
 
     harness.sessionId.value = 's2'
+    harness.stop()
+    const restored = createHarness(harness.messageRecords.value)
+    expect(restored.toolInteraction.isHandlingInteraction.value).toBe(true)
+    await restored.toolInteraction.onToolInteractionRespond({ kind: 'permission', granted: false })
+    expect(restored.chatClient.respondToolInteraction).not.toHaveBeenCalled()
+
     response.resolve({ handledInline: true })
     await firstResponse
 
@@ -181,8 +187,9 @@ describe('useToolInteraction', () => {
     })
     expect(harness.loadMessagesForSession).not.toHaveBeenCalled()
     expect(harness.applyRestoredSessionSummary).not.toHaveBeenCalled()
-    expect(harness.toolInteraction.isHandlingInteraction.value).toBe(false)
-    harness.stop()
+    expect(restored.toolInteraction.isHandlingInteraction.value).toBe(false)
+    expect(restored.toolInteraction.activePendingInteraction.value).toBeNull()
+    restored.stop()
   })
 
   it('keeps an approval retryable when the response fails', async () => {
