@@ -8,6 +8,7 @@ docker run --rm -i -v "$PWD:/source:ro" -w /source \
 test "$(getconf GNU_LIBC_VERSION)" = 'glibc 2.28'
 packages=(/source/dist/*-linux-"$(dpkg --print-architecture)".deb)
 test "${#packages[@]}" -eq 1
+test "$(dpkg-deb -f "${packages[0]}" Architecture)" = "$(dpkg --print-architecture)"
 test "$(dpkg-deb -f "${packages[0]}" Package)" = deepchat
 echo 'deb https://archive.debian.org/debian buster main' > /etc/apt/sources.list
 apt_options=(-o Acquire::https::CaInfo=/tmp/archive-ca.pem -o Acquire::Check-Valid-Until=false)
@@ -32,6 +33,16 @@ reopened.pragma("cipher='sqlcipher'")
 reopened.pragma("key='smoke-test'")
 assert.equal(reopened.prepare('SELECT value FROM example').get().value, 42)
 reopened.close()
+const pty = require(process.argv[2] + '/node_modules/node-pty')
+const child = pty.spawn('/bin/sh', ['-c', 'printf pty-ready'])
+let output = ''
+child.onData(data => { output += data })
+const timeout = setTimeout(() => process.exit(1), 5000)
+child.onExit(({ exitCode }) => {
+  clearTimeout(timeout)
+  assert.equal(exitCode, 0)
+  assert.match(output, /pty-ready/)
+})
 SQLITE
 "$node" scripts/smoke-dim-runtime.mjs --resources-path "$resources"
 xvfb-run -a /opt/DeepChat/deepchat --user-data-dir=/tmp/deepchat-profile --disable-gpu \

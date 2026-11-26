@@ -148,6 +148,8 @@ linux:
     - x-scheme-handler/deepchat
 deb:
   packageName: deepchat
+  synopsis: Local-first AI desktop assistant
+  packageCategory: utils
   compression: xz
   depends:
     - libc6 (>= 2.28)

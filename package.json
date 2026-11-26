@@ -4,6 +4,7 @@
   "description": "DeepChat，一个简单易用的 Agent 客户端",
   "main": "./out/main/index.js",
   "author": "ThinkInAIXYZ",
+  "license": "Apache-2.0",
   "homepage": "https://deepchatai.cn",
   "type": "module",
   "engines": {

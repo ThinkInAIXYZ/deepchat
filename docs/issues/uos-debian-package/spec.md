@@ -4,9 +4,9 @@
 
 ## Runtime boundary
 
-The Linux x64 v1.1.5-beta.1 tarball contains an Electron executable requiring GLIBC_2.25 and a Node executable requiring GLIBC_2.28. Its packaged SQLite binding requires GLIBC_2.34. Its native Dim host imports GLIBC_2.38 and has versioned references up to GLIBC_2.39. A different installer alone cannot make those binaries runnable on UOS.
+The Linux x64 v1.1.5-beta.1 tarball contains an Electron executable requiring GLIBC_2.25 and a Node executable requiring GLIBC_2.28. Its packaged SQLite binding requires GLIBC_2.34. A Debian 10 ARM64 guest running Linux 4.19 also reproduced the published SQLite and Dim loader failures. Its native x64 Dim host imports GLIBC_2.38 and has versioned references up to GLIBC_2.39. A different installer alone cannot make those binaries runnable on UOS.
 
-Build the startup SQLite binding and the local agent host against glibc 2.28 from the same pinned sources as other platforms. Exercise the built bindings with the packaged Node runtime. Load the S3 backup adapter on demand, so cloud storage dependencies are needed only when performing cloud operations. The packaged OpenDAL and Light OCR bindings currently require GLIBC_2.38 on x64. File search and the preview overlay have separate native dependencies. Their existing platform smoke tests remain on the supported modern Linux runner.
+Build the startup SQLite binding and the local agent host against glibc 2.28 from the same pinned sources as other platforms. Exercise the built bindings and a PTY subprocess with the packaged Node runtime. Load the S3 backup adapter on demand, so cloud storage dependencies are needed only when performing cloud operations. The packaged OpenDAL and Light OCR bindings currently require GLIBC_2.38 on x64. File search and the preview overlay have separate native dependencies. Their existing platform smoke tests remain on the supported modern Linux runner.
 
 ## Acceptance
 
