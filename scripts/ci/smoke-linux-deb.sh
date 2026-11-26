@@ -10,7 +10,8 @@ packages=(/source/dist/*-linux-"$(dpkg --print-architecture)".deb)
 test "${#packages[@]}" -eq 1
 test "$(dpkg-deb -f "${packages[0]}" Architecture)" = "$(dpkg --print-architecture)"
 test "$(dpkg-deb -f "${packages[0]}" Package)" = deepchat
-echo 'deb https://archive.debian.org/debian buster main' > /etc/apt/sources.list
+# The final slim image contains updates from Debian's security suite.
+sed -i 's|http://deb.debian.org|https://archive.debian.org|g' /etc/apt/sources.list
 apt_options=(-o Acquire::https::CaInfo=/tmp/archive-ca.pem -o Acquire::Check-Valid-Until=false)
 apt-get "${apt_options[@]}" update -qq
 DEBIAN_FRONTEND=noninteractive apt-get "${apt_options[@]}" install -y --no-install-recommends "${packages[0]}" xvfb xauth
