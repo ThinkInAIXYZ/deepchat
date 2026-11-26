@@ -66,6 +66,19 @@ describe('convertMarkdownToTelegramHtml', () => {
     )
   })
 
+  it('escapes an ampersand in a link URL only once', () => {
+    expect(
+      convertMarkdownToTelegramHtml(
+        '[Star History](https://star-history.dera.page/svg?repos=ThinkInAIXYZ/deepchat&type=Timeline)'
+      )
+    ).toBe(
+      '<a href="https://star-history.dera.page/svg?repos=ThinkInAIXYZ/deepchat&amp;type=Timeline">Star History</a>'
+    )
+    expect(convertMarkdownToTelegramHtml('[x](https://example.com/?a=1&b=2&c=<3>)')).toBe(
+      '<a href="https://example.com/?a=1&amp;b=2&amp;c=&lt;3&gt;">x</a>'
+    )
+  })
+
   it('normalizes unordered list markers to bullet points', () => {
     expect(convertMarkdownToTelegramHtml('- one\n* two\n+ three')).toBe('• one\n• two\n• three')
   })
