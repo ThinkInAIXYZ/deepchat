@@ -341,13 +341,17 @@ export class DimModelCatalog {
       throw new Error('Provider connection changed during native configuration')
     if (connection.credential) {
       const reference = this.credentialReference(provider)
-      this.options.grants.put({
-        nativeProviderId: target.providerId,
-        providerId,
-        modelId,
-        reference,
-        connectionFingerprint: fingerprint(this.credentialScope(provider))
-      })
+      const legacyFingerprint = this.legacyApiKeyConnectionFingerprint(provider)
+      this.options.grants.put(
+        {
+          nativeProviderId: target.providerId,
+          providerId,
+          modelId,
+          reference,
+          connectionFingerprint: fingerprint(this.credentialScope(provider))
+        },
+        legacyFingerprint ? { previousConnectionFingerprint: legacyFingerprint } : undefined
+      )
     }
     return target
   }
@@ -369,7 +373,7 @@ export class DimModelCatalog {
       const provider = this.requireProvider(grant.providerId)
       if (!this.options.settings.getModelStatus(grant.providerId, grant.modelId))
         throw new Error('Model is disabled')
-      if (fingerprint(this.credentialScope(provider)) !== grant.connectionFingerprint)
+      if (!this.matchesGrantFingerprint(provider, grant.connectionFingerprint))
         throw new Error('Provider connection was replaced')
       return provider
     }
@@ -393,7 +397,7 @@ export class DimModelCatalog {
     const provider = this.requireProvider(grant.providerId)
     if (!this.options.settings.getModelStatus(grant.providerId, grant.modelId))
       throw new Error('Model is disabled')
-    if (fingerprint(this.credentialScope(provider)) !== grant.connectionFingerprint)
+    if (!this.matchesGrantFingerprint(provider, grant.connectionFingerprint))
       throw new Error('Provider connection was replaced')
     let value: DimCredential
     if (reference === grant.reference) {
@@ -412,7 +416,7 @@ export class DimModelCatalog {
     const current = this.requireProvider(grant.providerId)
     if (!this.options.settings.getModelStatus(grant.providerId, grant.modelId))
       throw new Error('Model is disabled')
-    if (fingerprint(this.credentialScope(current)) !== grant.connectionFingerprint)
+    if (!this.matchesGrantFingerprint(current, grant.connectionFingerprint))
       throw new Error('Provider connection changed during credential lookup')
     return value
   }
@@ -421,6 +425,19 @@ export class DimModelCatalog {
     const provider = this.options.settings.getProviderById(id)
     if (!provider || (!historyOnly && !provider.enable)) throw new Error('Provider is unavailable')
     return provider
+  }
+
+  private matchesGrantFingerprint(provider: LLM_PROVIDER, storedFingerprint: string): boolean {
+    if (fingerprint(this.credentialScope(provider)) === storedFingerprint) return true
+    const legacy = this.legacyApiKeyConnectionFingerprint(provider)
+    return legacy !== null && legacy === storedFingerprint
+  }
+
+  private legacyApiKeyConnectionFingerprint(provider: LLM_PROVIDER): string | null {
+    // Pre-#2539 grants included `openaiAuthMode: 'api-key'` for all non-Codex providers;
+    // the `chatgpt` provider never existed under that format.
+    if (isChatGPT(provider)) return null
+    return fingerprint({ ...this.credentialScope(provider), openaiAuthMode: 'api-key' })
   }
 
   private credentialScope(provider: LLM_PROVIDER): JsonObject {

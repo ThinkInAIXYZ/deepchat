@@ -33,16 +33,35 @@ export class DimProviderGrantsTable extends BaseTable {
       .get(nativeProviderId)
     return (row as DimProviderGrant | undefined) ?? null
   }
-  put(grant: DimProviderGrant): void {
+  put(grant: DimProviderGrant, options?: { previousConnectionFingerprint?: string }): void {
     const previous = this.get(grant.nativeProviderId)
-    if (
-      previous &&
-      (previous.providerId !== grant.providerId ||
-        previous.modelId !== grant.modelId ||
-        previous.reference !== grant.reference ||
-        previous.connectionFingerprint !== grant.connectionFingerprint)
-    )
+    if (previous) {
+      const sameIdentity =
+        previous.providerId === grant.providerId &&
+        previous.modelId === grant.modelId &&
+        previous.reference === grant.reference
+      if (sameIdentity && previous.connectionFingerprint === grant.connectionFingerprint) return
+      if (
+        sameIdentity &&
+        options?.previousConnectionFingerprint &&
+        previous.connectionFingerprint === options.previousConnectionFingerprint
+      ) {
+        const result = this.db
+          .prepare(`UPDATE dim_provider_grants SET connection_fingerprint = ?
+          WHERE native_provider_id = ? AND provider_id = ? AND model_id = ? AND reference = ?
+          AND connection_fingerprint = ?`)
+          .run(
+            grant.connectionFingerprint,
+            grant.nativeProviderId,
+            grant.providerId,
+            grant.modelId,
+            grant.reference,
+            previous.connectionFingerprint
+          )
+        if (result.changes === 1) return
+      }
       throw new Error('Native provider grant cannot be repointed')
+    }
     this.db
       .prepare(`INSERT OR IGNORE INTO dim_provider_grants
       (native_provider_id, provider_id, model_id, reference, connection_fingerprint) VALUES (?, ?, ?, ?, ?)`)
