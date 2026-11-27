@@ -126,6 +126,17 @@ function calculateDurationHours(threadData: NowledgeMemThread): number {
   return Math.round((durationMs / (1000 * 60 * 60)) * 100) / 100
 }
 
+function fencedMarkdownBlock(content: string, language = ''): string[] {
+  // A closing fence can use at least as many backticks as its opening fence.
+  // Make the outer fence longer than anything in the literal payload.
+  let length = 3
+  for (const [run] of content.matchAll(/`+/g)) {
+    length = Math.max(length, run.length + 1)
+  }
+  const fence = '`'.repeat(length)
+  return [fence + language, content, fence]
+}
+
 function exportToMarkdown(conversation: CONVERSATION, messages: Message[]): string {
   const lines: string[] = []
 
@@ -190,9 +201,7 @@ function exportToMarkdown(conversation: CONVERSATION, messages: Message[]): stri
             if (block.content) {
               lines.push('### 🤔 思考过程')
               lines.push('')
-              lines.push('```')
-              lines.push(block.content)
-              lines.push('```')
+              lines.push(...fencedMarkdownBlock(block.content))
               lines.push('')
             }
             break
@@ -202,21 +211,18 @@ function exportToMarkdown(conversation: CONVERSATION, messages: Message[]): stri
               lines.push('')
               if (block.tool_call.params) {
                 lines.push('**参数:**')
-                lines.push('```json')
+                let paramsContent = block.tool_call.params
                 try {
-                  const params = JSON.parse(block.tool_call.params)
-                  lines.push(JSON.stringify(params, null, 2))
+                  paramsContent = JSON.stringify(JSON.parse(paramsContent), null, 2)
                 } catch {
-                  lines.push(block.tool_call.params)
+                  // Keep the original tool text if it is not valid JSON.
                 }
-                lines.push('```')
+                lines.push(...fencedMarkdownBlock(paramsContent, 'json'))
                 lines.push('')
               }
               if (block.tool_call.response) {
                 lines.push('**响应:**')
-                lines.push('```')
-                lines.push(block.tool_call.response)
-                lines.push('```')
+                lines.push(...fencedMarkdownBlock(block.tool_call.response))
                 lines.push('')
               }
             }
@@ -245,9 +251,7 @@ function exportToMarkdown(conversation: CONVERSATION, messages: Message[]): stri
             if (block.content) {
               lines.push('### 💭 创作思考')
               lines.push('')
-              lines.push('```')
-              lines.push(block.content)
-              lines.push('```')
+              lines.push(...fencedMarkdownBlock(block.content))
               lines.push('')
             }
             break
