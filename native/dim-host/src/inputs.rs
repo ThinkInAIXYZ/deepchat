@@ -445,3 +445,487 @@ impl DynPlugin for Inputs {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use dim_agent_capabilities::{
+        adapters::{DefaultPrepareModelPlugin, EchoModel, MockTools},
+        defaults,
+        history::HistoryRenderer,
+        host::{
+            CompactionStrategyHost, ContextModelHost, ContextSource, HostFuture, ModelChunk,
+            ModelConnection, ModelDriver, ModelHost, ModelStopReason, ModelStream, PrepareContext,
+            PrepareContextHost, ToolHost,
+        },
+    };
+    use dim_agent_runtime::{
+        AgentConfig, Session, SessionConfig,
+        testing::{MinimalHost, branch_events},
+    };
+    use dim_agent_types::{AgentEvent, ModelRequest, TurnEndData, TurnOutcome};
+    use std::{
+        collections::VecDeque,
+        sync::Mutex as StdMutex,
+        time::Duration,
+    };
+    use tokio::sync::Notify;
+    use tokio_util::sync::CancellationToken;
+
+    struct NoopPrepare;
+    impl PrepareContext for NoopPrepare {
+        fn prepare(
+            &self,
+            request: Arc<ModelRequest>,
+            _: ContextSource,
+            _: CancellationToken,
+        ) -> HostFuture<'_, Arc<ModelRequest>> {
+            Box::pin(async move { Ok(request) })
+        }
+    }
+
+    async fn soon<T>(future: impl std::future::Future<Output = T>) -> T {
+        tokio::time::timeout(Duration::from_secs(5), future)
+            .await
+            .expect("test future timed out")
+    }
+
+    struct HoldGate {
+        started: Notify,
+        release: Notify,
+    }
+
+    #[derive(Default)]
+    struct ScriptedModel {
+        gates: StdMutex<VecDeque<Arc<HoldGate>>>,
+    }
+
+    impl ScriptedModel {
+        fn hold_next(&self) -> Arc<HoldGate> {
+            let gate = Arc::new(HoldGate {
+                started: Notify::new(),
+                release: Notify::new(),
+            });
+            self.gates.lock().unwrap().push_back(gate.clone());
+            gate
+        }
+    }
+
+    impl ModelDriver for ScriptedModel {
+        fn invoke(
+            &self,
+            request: Arc<ModelRequest>,
+            connection: ModelConnection,
+            cancel: CancellationToken,
+        ) -> HostFuture<'_, ModelStream> {
+            let gate = self.gates.lock().unwrap().pop_front();
+            Box::pin(async move {
+                let Some(gate) = gate else {
+                    return EchoModel.invoke(request, connection, cancel).await;
+                };
+                let stream = futures_util::stream::unfold(
+                    (0u8, gate, cancel),
+                    |(step, gate, cancel)| async move {
+                        match step {
+                            0 => Some((
+                                Ok(ModelChunk::MessageStart {
+                                    message_id: "held-msg".into(),
+                                }),
+                                (1, gate, cancel),
+                            )),
+                            1 => {
+                                gate.started.notify_one();
+                                tokio::select! {
+                                    _ = gate.release.notified() => Some((
+                                        Ok(ModelChunk::Text("done".into())),
+                                        (2, gate, cancel),
+                                    )),
+                                    _ = cancel.cancelled() => None,
+                                }
+                            }
+                            2 => Some((
+                                Ok(ModelChunk::MessageStop {
+                                    message_id: "held-msg".into(),
+                                    reason: ModelStopReason::EndTurn,
+                                }),
+                                (3, gate, cancel),
+                            )),
+                            _ => None,
+                        }
+                    },
+                );
+                Ok(Box::pin(stream) as ModelStream)
+            })
+        }
+    }
+
+    async fn setup_session() -> (MinimalHost, Session, Arc<ScriptedModel>) {
+        let model = Arc::new(ScriptedModel::default());
+        let mut builder = AgentBuilder::new(AgentConfig::default());
+        builder
+            .session_value(Arc::new(HistoryRenderer::default()))
+            .process_value(Arc::new(ModelHost(model.clone())))
+            .session_value(Arc::new(ToolHost(Arc::new(MockTools))))
+            .session_value(Arc::new(PrepareContextHost(Arc::new(NoopPrepare))))
+            .session_value(Arc::new(ContextModelHost(None)))
+            .session_value(Arc::new(CompactionStrategyHost(None)))
+            .require_feature(
+                Feature::new("PrepareModelHost").session("PrepareModelHost", |names| {
+                    Ok(Box::new(DefaultPrepareModelPlugin::new(names)?))
+                }),
+            );
+        defaults::install(&mut builder);
+        install(&mut builder);
+        let agent = MinimalHost::start(&builder).await.unwrap();
+        let session = soon(agent.create_session(SessionConfig::default()))
+            .await
+            .unwrap();
+        (agent, session, model)
+    }
+
+    async fn call_method(
+        session: &Session,
+        method: &str,
+        params: Value,
+    ) -> Result<Value, RpcError> {
+        let provider = session
+            .session_service::<SessionMethods>()
+            .unwrap()
+            .provider(method)
+            .unwrap();
+        let accepted = provider
+            .accept(
+                method.into(),
+                params,
+                None,
+                CancellationToken::new(),
+                |_| {},
+            )
+            .unwrap();
+        soon(accepted.reply).await.unwrap()
+    }
+
+    fn submit_params(
+        session: &Session,
+        submission_id: &str,
+        text: &str,
+        mode: InputMode,
+        require_idle: bool,
+    ) -> Value {
+        let mut input = InputMessageData::text(text, Some(mode));
+        input.submission_id = Some(submission_id.to_owned());
+        json!({
+            "sessionId": session.id(),
+            "branchId": "main",
+            "input": input,
+            "requireIdle": require_idle
+        })
+    }
+
+    async fn wait_for_event<F>(session: &Session, predicate: F) -> Arc<AgentEvent>
+    where
+        F: Fn(&AgentEvent) -> bool,
+    {
+        for _ in 0..500 {
+            let existing = branch_events(session, "main", ..).await.unwrap();
+            if let Some(found) = existing.into_iter().find(|event| predicate(event)) {
+                return found;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        panic!("expected timeline event was not committed");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn cancel_submission_cancels_queued_input_and_is_idempotent() {
+        let (_host, session, model) = setup_session().await;
+        let gate1 = model.hold_next();
+
+        call_method(
+            &session,
+            "session.deepchat_inputs.submit",
+            submit_params(&session, "sub-1", "first", InputMode::Queue, false),
+        )
+        .await
+        .unwrap();
+        soon(gate1.started.notified()).await;
+
+        let queued = call_method(
+            &session,
+            "session.deepchat_inputs.submit",
+            submit_params(&session, "sub-2", "second", InputMode::Queue, false),
+        )
+        .await
+        .unwrap();
+        let queued_input_id = queued["inputId"].as_str().unwrap().to_owned();
+
+        let first_cancel = call_method(
+            &session,
+            "session.deepchat_inputs.cancel_submission",
+            json!({
+                "sessionId": session.id(),
+                "branchId": "main",
+                "submissionId": "sub-2",
+                "reason": "timeout"
+            }),
+        )
+        .await
+        .unwrap();
+        assert_eq!(first_cancel["cancelled"], json!(true));
+
+        let second_cancel = call_method(
+            &session,
+            "session.deepchat_inputs.cancel_submission",
+            json!({
+                "sessionId": session.id(),
+                "branchId": "main",
+                "submissionId": "sub-2"
+            }),
+        )
+        .await
+        .unwrap();
+        assert_eq!(second_cancel["cancelled"], json!(true));
+
+        gate1.release.notify_one();
+        wait_for_event(&session, |event| matches!(event.kind, EventKind::TurnEnd(_))).await;
+
+        let events = branch_events(&session, "main", ..).await.unwrap();
+        assert!(events.iter().any(|event| matches!(
+            &event.kind,
+            EventKind::InputDeleted(data) if data.input_id == queued_input_id
+        )));
+        assert!(!events.iter().any(|event| matches!(
+            &event.kind,
+            EventKind::InputConsumed(data) if data.input_id == queued_input_id
+        )));
+        assert_eq!(
+            events
+                .iter()
+                .filter(|event| matches!(event.kind, EventKind::TurnStart(_)))
+                .count(),
+            1
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn cancel_submission_cancels_applied_unconsumed_input() {
+        let (_host, session, model) = setup_session().await;
+        let gate1 = model.hold_next();
+
+        call_method(
+            &session,
+            "session.deepchat_inputs.submit",
+            submit_params(&session, "sub-1", "first", InputMode::Queue, false),
+        )
+        .await
+        .unwrap();
+        soon(gate1.started.notified()).await;
+
+        let applied = call_method(
+            &session,
+            "session.deepchat_inputs.submit",
+            submit_params(&session, "sub-append", "extra", InputMode::Append, false),
+        )
+        .await
+        .unwrap();
+        let applied_input_id = applied["inputId"].as_str().unwrap().to_owned();
+
+        wait_for_event(&session, |event| matches!(
+            &event.kind,
+            EventKind::InputApplied(data) if data.input_id == applied_input_id
+        ))
+        .await;
+
+        let cancel = call_method(
+            &session,
+            "session.deepchat_inputs.cancel_submission",
+            json!({
+                "sessionId": session.id(),
+                "branchId": "main",
+                "submissionId": "sub-append",
+                "reason": "timeout"
+            }),
+        )
+        .await
+        .unwrap();
+        assert_eq!(cancel["cancelled"], json!(true));
+
+        gate1.release.notify_one();
+        wait_for_event(&session, |event| matches!(event.kind, EventKind::TurnEnd(_))).await;
+
+        let events = branch_events(&session, "main", ..).await.unwrap();
+        assert!(events.iter().any(|event| matches!(
+            &event.kind,
+            EventKind::InputDeleted(data) if data.input_id == applied_input_id
+        )));
+        assert!(!events.iter().any(|event| matches!(
+            &event.kind,
+            EventKind::InputConsumed(data) if data.input_id == applied_input_id
+        )));
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn cancel_submission_stops_consumed_turn_without_affecting_later_turn() {
+        let (_host, session, model) = setup_session().await;
+        let gate1 = model.hold_next();
+        let gate2 = model.hold_next();
+
+        let first = call_method(
+            &session,
+            "session.deepchat_inputs.submit",
+            submit_params(&session, "sub-1", "first", InputMode::Queue, false),
+        )
+        .await
+        .unwrap();
+        let first_input_id = first["inputId"].as_str().unwrap().to_owned();
+        soon(gate1.started.notified()).await;
+        wait_for_event(&session, |event| matches!(
+            &event.kind,
+            EventKind::InputConsumed(data) if data.input_id == first_input_id
+        ))
+        .await;
+
+        let cancel1 = call_method(
+            &session,
+            "session.deepchat_inputs.cancel_submission",
+            json!({
+                "sessionId": session.id(),
+                "branchId": "main",
+                "submissionId": "sub-1",
+                "reason": "cron timeout"
+            }),
+        )
+        .await
+        .unwrap();
+        assert_eq!(cancel1["cancelled"], json!(true));
+
+        let turn1_end = wait_for_event(&session, |event| matches!(
+            &event.kind,
+            EventKind::TurnEnd(TurnEndData {
+                outcome: TurnOutcome::Cancelled { .. },
+                ..
+            })
+        ))
+        .await;
+        let turn1_id = match &turn1_end.kind {
+            EventKind::TurnEnd(data) => data.turn_id.clone(),
+            _ => unreachable!(),
+        };
+
+        // Subsequent user turn starts while a stale cancel for sub-1 arrives.
+        call_method(
+            &session,
+            "session.deepchat_inputs.submit",
+            submit_params(&session, "sub-2", "user follow-up", InputMode::Queue, false),
+        )
+        .await
+        .unwrap();
+        soon(gate2.started.notified()).await;
+
+        let stale_cancel = call_method(
+            &session,
+            "session.deepchat_inputs.cancel_submission",
+            json!({
+                "sessionId": session.id(),
+                "branchId": "main",
+                "submissionId": "sub-1"
+            }),
+        )
+        .await
+        .unwrap();
+        assert_eq!(stale_cancel["cancelled"], json!(false));
+
+        gate2.release.notify_one();
+        let turn2_end = wait_for_event(&session, |event| matches!(
+            &event.kind,
+            EventKind::TurnEnd(data) if data.turn_id != turn1_id
+        ))
+        .await;
+        assert!(matches!(
+            turn2_end.kind,
+            EventKind::TurnEnd(TurnEndData {
+                outcome: TurnOutcome::Completed { .. },
+                ..
+            })
+        ));
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn require_idle_rejects_concurrent_and_busy_then_admits_once_idle() {
+        let (_host, session, model) = setup_session().await;
+        let gate1 = model.hold_next();
+
+        let (res_a, res_b) = tokio::join!(
+            call_method(
+                &session,
+                "session.deepchat_inputs.submit",
+                submit_params(&session, "sub-a", "run a", InputMode::Queue, true),
+            ),
+            call_method(
+                &session,
+                "session.deepchat_inputs.submit",
+                submit_params(&session, "sub-b", "run b", InputMode::Queue, true),
+            )
+        );
+        let results = [res_a, res_b];
+        assert_eq!(results.iter().filter(|r| r.is_ok()).count(), 1);
+        let rejected = results
+            .iter()
+            .find_map(|r| r.as_ref().err())
+            .expect("second concurrent require_idle submit should fail");
+        assert_eq!(
+            rejected.data.as_ref().map(|d| d.app_error.as_str()),
+            Some("session_busy")
+        );
+
+        soon(gate1.started.notified()).await;
+        let busy_status = call_method(
+            &session,
+            "session.deepchat_inputs.is_busy",
+            json!({ "sessionId": session.id(), "branchId": "main" }),
+        )
+        .await
+        .unwrap();
+        assert_eq!(busy_status["busy"], json!(true));
+
+        let while_running = call_method(
+            &session,
+            "session.deepchat_inputs.submit",
+            submit_params(&session, "sub-c", "run c", InputMode::Queue, true),
+        )
+        .await
+        .expect_err("require_idle must reject while turn is running");
+        assert_eq!(
+            while_running.data.as_ref().map(|d| d.app_error.as_str()),
+            Some("session_busy")
+        );
+
+        gate1.release.notify_one();
+        wait_for_event(&session, |event| matches!(event.kind, EventKind::TurnEnd(_))).await;
+
+        let mut became_idle = false;
+        for _ in 0..50 {
+            let idle_status = call_method(
+                &session,
+                "session.deepchat_inputs.is_busy",
+                json!({ "sessionId": session.id(), "branchId": "main" }),
+            )
+            .await
+            .unwrap();
+            if idle_status["busy"] == json!(false) {
+                became_idle = true;
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        assert!(became_idle, "branch should report idle after turn ends");
+
+        let admitted = call_method(
+            &session,
+            "session.deepchat_inputs.submit",
+            submit_params(&session, "sub-d", "run d", InputMode::Queue, true),
+        )
+        .await;
+        assert!(admitted.is_ok());
+    }
+}

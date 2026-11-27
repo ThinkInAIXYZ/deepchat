@@ -84,6 +84,7 @@ const summarizeSessionResponse = (
 })
 
 export interface AcpSessionOpenOptions {
+  requireIdle?: boolean
   requireResume?: boolean
   requirePersistedSession?: boolean
   discardOnFailure?: boolean

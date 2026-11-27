@@ -195,6 +195,7 @@ export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
     this.dependencies.workdir.assertAcpSessionHasWorkdir(providerId, session.projectDir ?? null)
     if (options?.requireAcpResume && runtime.kind === 'acp') {
       await runtime.prepare?.({
+        ...(options.rejectIfBusy ? { requireIdle: true } : {}),
         requireResume: true,
         requirePersistedSession: hadMessages
       })
@@ -216,9 +217,10 @@ export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
         ...(options?.rejectIfBusy ? { requireIdle: true } : {}),
         ...(options?.requireAcpResume && runtime.kind === 'acp'
           ? {
-              acpRequireResume: true,
-              acpRequirePersistedSession: hadMessages,
-              acpDiscardOnFailure: true
+              acpResumePolicy: {
+                requirePersistedSession: hadMessages,
+                discardOnFailure: true
+              }
             }
           : {}),
         ...(options?.signal ? { signal: options.signal } : {})

@@ -1148,4 +1148,43 @@ describe('AcpAgentRuntime', () => {
     })
     expect(await harness.runtime.isBusy(input.sessionId)).toBe(false)
   })
+
+  it('rejects busy ACP prepare, send, and queuePendingInput with SessionBusyError when requireIdle is set', async () => {
+    const pendingInputs = new FakePendingInputs()
+    const harness = createHarness({
+      pendingInputs,
+      firstPromptNeverSettles: true
+    })
+    const input = createInput()
+
+    const activeSend = harness.runtime
+      .send(input, { text: 'active user turn', files: [] })
+      .catch(() => undefined)
+    await vi.waitFor(() => expect(harness.connection.prompt).toHaveBeenCalledTimes(1))
+
+    await expect(harness.runtime.prepare(input, { requireIdle: true })).rejects.toMatchObject({
+      name: 'SessionBusyError'
+    })
+    expect(harness.sessions.clear).not.toHaveBeenCalled()
+
+    await expect(
+      harness.runtime.send(input, { text: 'cron turn', files: [] }, { requireIdle: true })
+    ).rejects.toMatchObject({
+      name: 'SessionBusyError'
+    })
+
+    await expect(
+      harness.runtime.queuePendingInput(
+        input,
+        { text: 'cron queued turn', files: [] },
+        { requireIdle: true }
+      )
+    ).rejects.toMatchObject({
+      name: 'SessionBusyError'
+    })
+    expect(pendingInputs.records).toHaveLength(0)
+
+    await harness.runtime.closeAll()
+    await activeSend
+  })
 })

@@ -12,6 +12,7 @@ import type { AcpSessionOpenOptions } from '@/agent/acp/runtime'
 import { AcpAgentInstance, type AcpAgentInstanceDependencies } from './acpAgentInstance'
 import type { AcpAgentSnapshot, AcpInstanceScope } from './ports'
 import { isAcpAuthenticationRequiredError } from '../runtime/acpAuthentication'
+import { SessionBusyError } from '@/session/turn'
 
 export interface AcpAgentRuntimeSessionInput {
   sessionId: AppSessionId
@@ -55,7 +56,10 @@ export class AcpAgentRuntime {
   private readonly operations = new Map<AppSessionId, Set<Promise<unknown>>>()
   private readonly draining = new Set<AppSessionId>()
   private readonly steering = new Set<AppSessionId>()
-  private readonly pendingOpenOptions = new Map<string, AcpSessionOpenOptions>()
+  private readonly pendingOpenOptions = new Map<
+    string,
+    { sessionId: AppSessionId; options: AcpSessionOpenOptions }
+  >()
   private readonly submissionItems = new Map<string, { sessionId: AppSessionId; itemId: string }>()
   private readonly detachOwnerLifecycle: () => void
   private accepting = true
@@ -152,8 +156,14 @@ export class AcpAgentRuntime {
     input: AcpAgentRuntimeSessionInput,
     openOptions?: AcpSessionOpenOptions
   ): Promise<AcpAgentInstance> {
+    if (openOptions?.requireIdle && (await this.isBusy(input.sessionId))) {
+      throw new SessionBusyError(input.sessionId)
+    }
     const instance = await this.getOrHydrate(input, openOptions)
     this.assertAccepting()
+    if (openOptions?.requireIdle && (await this.isBusy(input.sessionId))) {
+      throw new SessionBusyError(input.sessionId)
+    }
     const operation = (async () => {
       try {
         await instance.prepare(openOptions)
@@ -167,6 +177,13 @@ export class AcpAgentRuntime {
         return instance
       } catch (error) {
         if (isAcpAuthenticationRequiredError(error)) throw error
+        if (
+          openOptions?.requireIdle &&
+          error instanceof Error &&
+          /already (?:generating|preparing)/.test(error.message)
+        ) {
+          throw new SessionBusyError(input.sessionId)
+        }
         try {
           await instance.close()
         } catch (closeError) {
@@ -184,11 +201,26 @@ export class AcpAgentRuntime {
     content: SendMessageInput,
     openOptions?: AcpSessionOpenOptions
   ): Promise<MessageStartResult> {
+    if (openOptions?.requireIdle && (await this.isBusy(input.sessionId))) {
+      throw new SessionBusyError(input.sessionId)
+    }
     const instance = await this.getOrHydrate(input, openOptions)
     this.assertAccepting()
+    if (openOptions?.requireIdle && (await this.isBusy(input.sessionId))) {
+      throw new SessionBusyError(input.sessionId)
+    }
     const operation = (async () => {
       try {
         return await instance.send(content, undefined, openOptions)
+      } catch (error) {
+        if (
+          openOptions?.requireIdle &&
+          error instanceof Error &&
+          error.message.includes('is already generating')
+        ) {
+          throw new SessionBusyError(input.sessionId)
+        }
+        throw error
       } finally {
         if (this.pendingInputs.hasPendingTurnInput(input.sessionId)) {
           void this.drainPendingInputs(input.sessionId, 'completed').then((started) => {
@@ -252,6 +284,9 @@ export class AcpAgentRuntime {
       for (const [submissionId, entry] of this.submissionItems) {
         if (entry.sessionId === sessionId) this.submissionItems.delete(submissionId)
       }
+      for (const [itemId, entry] of this.pendingOpenOptions) {
+        if (entry.sessionId === sessionId) this.pendingOpenOptions.delete(itemId)
+      }
     }
   }
 
@@ -313,12 +348,16 @@ export class AcpAgentRuntime {
       snapshot.status !== 'initializing' &&
       snapshot.status !== 'closed' &&
       !this.draining.has(input.sessionId) &&
+      !this.steering.has(input.sessionId) &&
       !pending.hasPendingTurnInput(input.sessionId)
+    if (!claimImmediately && openOptions?.requireIdle) {
+      throw new SessionBusyError(input.sessionId)
+    }
     const record = pending.queuePendingInput(input.sessionId, content, {
       state: claimImmediately ? 'claimed' : 'pending'
     })
     if (openOptions) {
-      this.pendingOpenOptions.set(record.id, openOptions)
+      this.pendingOpenOptions.set(record.id, { sessionId: input.sessionId, options: openOptions })
       if (openOptions.submissionId) {
         this.submissionItems.set(openOptions.submissionId, {
           sessionId: input.sessionId,
@@ -515,7 +554,7 @@ export class AcpAgentRuntime {
   }
 
   deletePendingInput(sessionId: AppSessionId, itemId: string): void {
-    const openOptions = this.pendingOpenOptions.get(itemId)
+    const openOptions = this.pendingOpenOptions.get(itemId)?.options
     this.pendingOpenOptions.delete(itemId)
     if (openOptions?.submissionId) {
       this.submissionItems.delete(openOptions.submissionId)
@@ -594,8 +633,9 @@ export class AcpAgentRuntime {
             assistantMessageId: claimed.assistantMessageId!
           }
         : undefined
-    const openOptions = this.pendingOpenOptions.get(claimed.id)
+    const openOptions = this.pendingOpenOptions.get(claimed.id)?.options
     this.pendingOpenOptions.delete(claimed.id)
+    let releasedOnBusy = false
     const operation = instance
       .send(claimed.payload, projectionContext, openOptions)
       .then(async () => {
@@ -613,8 +653,19 @@ export class AcpAgentRuntime {
         }
       })
       .catch((error) => {
+        const busyRejection =
+          error instanceof SessionBusyError ||
+          (error instanceof Error &&
+            (error.message.includes('already generating') ||
+              error.message.includes('busy with another operation')))
         if (claimed.mode === 'steer') {
           pending.consumeSteerInput(sessionId, claimed.id)
+        } else if (busyRejection) {
+          releasedOnBusy = true
+          if (openOptions) {
+            this.pendingOpenOptions.set(claimed.id, { sessionId, options: openOptions })
+          }
+          pending.releaseClaimedInput(sessionId, claimed.id)
         } else if (openOptions?.discardOnFailure) {
           pending.consumeQueuedInput(sessionId, claimed.id)
         } else {
@@ -623,7 +674,7 @@ export class AcpAgentRuntime {
         console.error('[ACP] Pending input failed:', error)
       })
       .finally(() => {
-        if (openOptions?.submissionId) {
+        if (!releasedOnBusy && openOptions?.submissionId) {
           this.submissionItems.delete(openOptions.submissionId)
         }
         this.draining.delete(sessionId)

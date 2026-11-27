@@ -258,20 +258,17 @@ export const createDirectAcpAgentBackend = (
         if (input.context?.projectDir !== undefined) {
           resolved.workdir = input.context.projectDir?.trim() ?? ''
         }
+        const resumePolicy = input.context?.acpResumePolicy
         const openOptions =
-          input.context?.acpRequireResume ||
-          input.context?.acpRequirePersistedSession ||
-          input.context?.acpDiscardOnFailure ||
-          input.queue?.submissionId
+          input.context?.requireIdle || resumePolicy || input.queue?.submissionId
             ? {
-                ...(input.context?.acpRequireResume
-                  ? { requireResume: input.context.acpRequireResume }
-                  : {}),
-                ...(input.context?.acpRequirePersistedSession
-                  ? { requirePersistedSession: input.context.acpRequirePersistedSession }
-                  : {}),
-                ...(input.context?.acpDiscardOnFailure
-                  ? { discardOnFailure: input.context.acpDiscardOnFailure }
+                ...(input.context?.requireIdle ? { requireIdle: true } : {}),
+                ...(resumePolicy
+                  ? {
+                      requireResume: true,
+                      requirePersistedSession: resumePolicy.requirePersistedSession,
+                      discardOnFailure: resumePolicy.discardOnFailure
+                    }
                   : {}),
                 ...(input.queue?.submissionId ? { submissionId: input.queue.submissionId } : {})
               }
