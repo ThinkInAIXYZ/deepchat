@@ -1637,7 +1637,14 @@
       "scheduleMonthDay": "毎月の日",
       "scheduleMinute": "毎時の分",
       "createEnabled": "作成後に有効化",
-      "createEnabledHint": "作成後すぐにスケジュールで実行を開始します。"
+      "createEnabledHint": "作成後すぐにスケジュールで実行を開始します。",
+      "session": "Session",
+      "sessionMode": "Session mode",
+      "newSessionEachRun": "New session each run",
+      "reuseSession": "Reuse one session",
+      "targetSession": "Target session",
+      "createSessionOnFirstRun": "Create on first run",
+      "sessionUnavailable": "Session unavailable"
     },
     "presets": {
       "custom": "カスタム",

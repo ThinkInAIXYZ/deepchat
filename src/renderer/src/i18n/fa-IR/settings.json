@@ -1637,7 +1637,14 @@
       "scheduleMonthDay": "روز ماه",
       "scheduleMinute": "دقیقه",
       "createEnabled": "پس از ایجاد فعال شود",
-      "createEnabledHint": "بلافاصله پس از ایجاد، طبق زمان‌بندی اجرا شود."
+      "createEnabledHint": "بلافاصله پس از ایجاد، طبق زمان‌بندی اجرا شود.",
+      "session": "Session",
+      "sessionMode": "Session mode",
+      "newSessionEachRun": "New session each run",
+      "reuseSession": "Reuse one session",
+      "targetSession": "Target session",
+      "createSessionOnFirstRun": "Create on first run",
+      "sessionUnavailable": "Session unavailable"
     },
     "presets": {
       "custom": "سفارشی",

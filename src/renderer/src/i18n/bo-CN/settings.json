@@ -2010,7 +2010,14 @@
       "scheduleMonthDay": "ཟླ་བའི་ཚེས་གྲངས།",
       "scheduleMinute": "སྐར་མ།",
       "createEnabled": "བཟོས་རྗེས་ལྕོགས་ཅན་བཟོ་བ།",
-      "createEnabledHint": "བཟོས་རྗེས་འཆར་གཞི་ལྟར་དུས་ཐོག་ཏུ་རྒྱུག་འགོ་འཛུགས་དགོས།"
+      "createEnabledHint": "བཟོས་རྗེས་འཆར་གཞི་ལྟར་དུས་ཐོག་ཏུ་རྒྱུག་འགོ་འཛུགས་དགོས།",
+      "session": "Session",
+      "sessionMode": "Session mode",
+      "newSessionEachRun": "New session each run",
+      "reuseSession": "Reuse one session",
+      "targetSession": "Target session",
+      "createSessionOnFirstRun": "Create on first run",
+      "sessionUnavailable": "Session unavailable"
     },
     "presets": {
       "custom": "རང་བཟོས།",

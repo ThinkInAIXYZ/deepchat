@@ -1637,7 +1637,14 @@
       "scheduleMonthDay": "יום בחודש",
       "scheduleMinute": "דקה",
       "createEnabled": "הפעל לאחר היצירה",
-      "createEnabledHint": "התחל לרוץ לפי התזמון מיד לאחר היצירה."
+      "createEnabledHint": "התחל לרוץ לפי התזמון מיד לאחר היצירה.",
+      "session": "Session",
+      "sessionMode": "Session mode",
+      "newSessionEachRun": "New session each run",
+      "reuseSession": "Reuse one session",
+      "targetSession": "Target session",
+      "createSessionOnFirstRun": "Create on first run",
+      "sessionUnavailable": "Session unavailable"
     },
     "presets": {
       "custom": "מותאם אישית",

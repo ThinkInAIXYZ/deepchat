@@ -1637,7 +1637,14 @@
       "scheduleMonthDay": "Jour du mois",
       "scheduleMinute": "Minute",
       "createEnabled": "Activer après création",
-      "createEnabledHint": "Démarre selon la planification dès la création."
+      "createEnabledHint": "Démarre selon la planification dès la création.",
+      "session": "Session",
+      "sessionMode": "Session mode",
+      "newSessionEachRun": "New session each run",
+      "reuseSession": "Reuse one session",
+      "targetSession": "Target session",
+      "createSessionOnFirstRun": "Create on first run",
+      "sessionUnavailable": "Session unavailable"
     },
     "presets": {
       "custom": "Personnalisé",

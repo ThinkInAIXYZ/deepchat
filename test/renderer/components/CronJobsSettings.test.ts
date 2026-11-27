@@ -23,6 +23,8 @@ const JOB_FIXTURE: CronJob = {
   modelPolicy: 'follow_agent',
   toolPolicy: 'follow_agent',
   permissionPolicy: 'follow_agent',
+  sessionMode: 'new_session',
+  reuseSessionId: null,
   runtime: {
     maxDurationMs: 60_000,
     maxTurns: 20,
@@ -350,6 +352,42 @@ async function setup(options: SetupOptions = {}) {
     getChannelStatus: vi.fn(),
     getChannelBindings: vi.fn()
   }
+  const sessionClient = {
+    listLightweight: vi.fn(async () => ({
+      items: [
+        {
+          id: 'session-existing-1',
+          agentId: 'agent-1',
+          title: 'Daily digest thread',
+          projectDir: null,
+          isPinned: false,
+          sessionKind: 'regular' as const,
+          status: 'idle' as const,
+          createdAt: 100,
+          updatedAt: 200
+        }
+      ],
+      nextCursor: null,
+      hasMore: false
+    })),
+    getLightweightByIds: vi.fn(async (ids: string[]) =>
+      ids.includes('session-existing-1')
+        ? [
+            {
+              id: 'session-existing-1',
+              agentId: 'agent-1',
+              title: 'Daily digest thread',
+              projectDir: null,
+              isPinned: false,
+              sessionKind: 'regular' as const,
+              status: 'idle' as const,
+              createdAt: 100,
+              updatedAt: 200
+            }
+          ]
+        : []
+    )
+  }
   const notifyRenderer = vi.fn(() => true)
 
   vi.doMock('@api/CronJobsClient', () => ({
@@ -360,6 +398,9 @@ async function setup(options: SetupOptions = {}) {
   }))
   vi.doMock('@api/RemoteControlClient', () => ({
     createRemoteControlClient: () => remoteControlClient
+  }))
+  vi.doMock('@api/SessionClient', () => ({
+    createSessionClient: () => sessionClient
   }))
   vi.doMock('@renderer-notifications/rendererNotificationPort', () => ({
     notifyRenderer
@@ -394,6 +435,13 @@ async function setup(options: SetupOptions = {}) {
           'settings.cronJobs.fields.runtimePolicy': 'Runtime',
           'settings.cronJobs.fields.followAgent': 'Follow agent',
           'settings.cronJobs.fields.pinCurrent': 'Pin current',
+          'settings.cronJobs.fields.session': 'Session',
+          'settings.cronJobs.fields.sessionMode': 'Session mode',
+          'settings.cronJobs.fields.newSessionEachRun': 'New session each run',
+          'settings.cronJobs.fields.reuseSession': 'Reuse one session',
+          'settings.cronJobs.fields.targetSession': 'Target session',
+          'settings.cronJobs.fields.createSessionOnFirstRun': 'Create on first run',
+          'settings.cronJobs.fields.sessionUnavailable': 'Session unavailable',
           'settings.cronJobs.fields.delivery': 'Delivery',
           'settings.cronJobs.fields.remoteDelivery': 'Remote delivery',
           'settings.cronJobs.fields.remoteChannel': 'Remote channel',
@@ -999,5 +1047,66 @@ describe('CronJobsSettings', () => {
     })
 
     expect(wrapper.get('[role="alert"]').text()).toContain('The scheduler process is failing')
+  })
+
+  it('allows configuring reuse_session with an existing session and persists it', async () => {
+    const { wrapper, cronClient } = await setup({
+      list: async () => ({
+        jobs: [{ ...cloneJob(), agentId: 'agent-1' }],
+        schedulerStatus: cloneStatus()
+      })
+    })
+
+    await wrapper.get('[data-testid="cron-job-edit"]').trigger('click')
+    await flushPromises()
+
+    const modeSelect = wrapper.get('[data-testid="cron-job-session-mode-select"]')
+    await modeSelect.setValue('reuse_session')
+    await flushPromises()
+
+    const sessionSelect = wrapper.get('[data-testid="cron-job-reuse-session-select"]')
+    await sessionSelect.setValue('session-existing-1')
+    await flushPromises()
+
+    await wrapper.get('[data-testid="cron-job-editor-save"]').trigger('click')
+    await flushPromises()
+
+    expect(cronClient.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionMode: 'reuse_session',
+        reuseSessionId: 'session-existing-1'
+      })
+    )
+    expect(wrapper.get('[data-testid="cron-job-detail-session"]').text()).toContain(
+      'Daily digest thread'
+    )
+  })
+
+  it('omits reuseSessionId when saving unrelated edits on a reuse_session job', async () => {
+    const { wrapper, cronClient } = await setup({
+      list: async () => ({
+        jobs: [
+          {
+            ...cloneJob(),
+            agentId: 'agent-1',
+            sessionMode: 'reuse_session',
+            reuseSessionId: null
+          }
+        ],
+        schedulerStatus: cloneStatus()
+      })
+    })
+
+    await wrapper.get('[data-testid="cron-job-edit"]').trigger('click')
+    await flushPromises()
+
+    await wrapper.get('[data-testid="cron-job-name-input"]').setValue('Renamed report')
+    await wrapper.get('[data-testid="cron-job-editor-save"]').trigger('click')
+    await flushPromises()
+
+    const payload = cronClient.upsert.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(payload.name).toBe('Renamed report')
+    expect(payload.sessionMode).toBe('reuse_session')
+    expect('reuseSessionId' in payload).toBe(false)
   })
 })

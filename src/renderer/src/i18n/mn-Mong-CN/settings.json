@@ -2010,7 +2010,14 @@
       "scheduleMonthDay": "ᠰᠠᠷ᠎ᠠ ᠪᠥᠷᠢ ᠶᠢᠨ ᠡᠳᠦᠷ",
       "scheduleMinute": "ᠮᠢᠨᠦᠲ᠋",
       "createEnabled": "ᠪᠦᠲᠦᠭᠡᠭᠰᠡᠨ ᠦ ᠳᠠᠷᠠᠭ᠎ᠠ ᠢᠳᠡᠪᠬᠢᠲᠡᠢ ᠪᠣᠯᠭᠠᠬᠤ",
-      "createEnabledHint": "ᠪᠦᠲᠦᠭᠡᠭᠰᠡᠨ ᠦ ᠳᠠᠷᠠᠭ᠎ᠠ ᠲᠣᠬᠢᠷᠠᠭᠤᠯᠤᠯᠲᠠ ᠶᠢᠨ ᠳᠠᠭᠠᠭᠤ ᠳᠠᠷᠤᠢ ᠭᠦᠶᠦᠯᠬᠦ᠃"
+      "createEnabledHint": "ᠪᠦᠲᠦᠭᠡᠭᠰᠡᠨ ᠦ ᠳᠠᠷᠠᠭ᠎ᠠ ᠲᠣᠬᠢᠷᠠᠭᠤᠯᠤᠯᠲᠠ ᠶᠢᠨ ᠳᠠᠭᠠᠭᠤ ᠳᠠᠷᠤᠢ ᠭᠦᠶᠦᠯᠬᠦ᠃",
+      "session": "Session",
+      "sessionMode": "Session mode",
+      "newSessionEachRun": "New session each run",
+      "reuseSession": "Reuse one session",
+      "targetSession": "Target session",
+      "createSessionOnFirstRun": "Create on first run",
+      "sessionUnavailable": "Session unavailable"
     },
     "presets": {
       "custom": "ᠥᠪᠡᠷ ᠢᠶᠡᠨ ᠲᠣᠳᠣᠷᠬᠠᠶᠢᠯᠠᠭᠰᠠᠨ",

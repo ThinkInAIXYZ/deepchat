@@ -3029,7 +3029,14 @@
       "scheduleMonthDay": "Día del mes",
       "scheduleMinute": "Minuto",
       "createEnabled": "Habilitar tras crear",
-      "createEnabledHint": "Se ejecuta según la programación justo después de crearla."
+      "createEnabledHint": "Se ejecuta según la programación justo después de crearla.",
+      "session": "Session",
+      "sessionMode": "Session mode",
+      "newSessionEachRun": "New session each run",
+      "reuseSession": "Reuse one session",
+      "targetSession": "Target session",
+      "createSessionOnFirstRun": "Create on first run",
+      "sessionUnavailable": "Session unavailable"
     },
     "presets": {
       "custom": "Personalizado",

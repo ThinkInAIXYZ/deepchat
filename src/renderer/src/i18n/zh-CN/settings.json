@@ -2010,7 +2010,14 @@
       "scheduleMonthDay": "每月日期",
       "scheduleMinute": "每小时的第几分钟",
       "createEnabled": "创建后启用",
-      "createEnabledHint": "创建后立即按计划运行。"
+      "createEnabledHint": "创建后立即按计划运行。",
+      "session": "会话",
+      "sessionMode": "会话模式",
+      "newSessionEachRun": "每次新建会话",
+      "reuseSession": "复用同一会话",
+      "targetSession": "目标会话",
+      "createSessionOnFirstRun": "首次运行时创建",
+      "sessionUnavailable": "会话不可用"
     },
     "presets": {
       "custom": "自定义",

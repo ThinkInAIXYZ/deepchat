@@ -210,6 +210,18 @@
                 }}
               </dd>
             </div>
+            <div class="min-w-0 sm:col-span-2">
+              <dt class="text-xs text-muted-foreground">
+                {{ t('settings.cronJobs.fields.session') }}
+              </dt>
+              <dd
+                data-testid="cron-job-detail-session"
+                class="mt-1 truncate font-medium"
+                :class="reusedSessionMissing ? 'text-destructive' : ''"
+              >
+                {{ sessionSummaryLabel }}
+              </dd>
+            </div>
           </dl>
         </DcSectionCard>
 
@@ -507,6 +519,86 @@
           />
         </DcSectionCard>
 
+        <DcSectionCard :title="t('settings.cronJobs.fields.session')">
+          <div class="grid gap-4 sm:grid-cols-2">
+            <label class="space-y-2">
+              <span class="text-sm font-medium">
+                {{ t('settings.cronJobs.fields.sessionMode') }}
+              </span>
+              <Select
+                data-testid="cron-job-session-mode-select"
+                :model-value="draft.sessionMode"
+                :disabled="busy"
+                @update:model-value="(value) => onSessionModeChange(String(value))"
+              >
+                <SelectTrigger
+                  :aria-label="t('settings.cronJobs.fields.sessionMode')"
+                  class="w-full min-w-0"
+                >
+                  <SelectValue class="min-w-0 truncate" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="new_session">
+                    {{ t('settings.cronJobs.fields.newSessionEachRun') }}
+                  </SelectItem>
+                  <SelectItem value="reuse_session">
+                    {{ t('settings.cronJobs.fields.reuseSession') }}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </label>
+
+            <label v-if="draft.sessionMode === 'reuse_session'" class="space-y-2">
+              <span class="text-sm font-medium">
+                {{ t('settings.cronJobs.fields.targetSession') }}
+              </span>
+              <Select
+                data-testid="cron-job-reuse-session-select"
+                :model-value="draft.reuseSessionId ?? CREATE_ON_FIRST_RUN_ID"
+                :disabled="busy || !draft.agentId || reusableSessionsLoading"
+                @update:model-value="(value) => onReuseSessionChange(String(value))"
+              >
+                <SelectTrigger
+                  :aria-label="t('settings.cronJobs.fields.targetSession')"
+                  class="w-full min-w-0"
+                >
+                  <SelectValue class="min-w-0 truncate" />
+                </SelectTrigger>
+                <SelectContent class="max-h-72">
+                  <SelectItem :value="CREATE_ON_FIRST_RUN_ID">
+                    {{ t('settings.cronJobs.fields.createSessionOnFirstRun') }}
+                  </SelectItem>
+                  <SelectItem v-if="showMissingDraftReuseSession" :value="draft.reuseSessionId!">
+                    {{ t('settings.cronJobs.fields.sessionUnavailable') }}
+                  </SelectItem>
+                  <SelectItem
+                    v-for="session in reusableSessions"
+                    :key="session.id"
+                    :value="session.id"
+                  >
+                    {{ session.title || session.id }}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </label>
+          </div>
+          <div
+            v-if="draft.sessionMode === 'reuse_session' && reusableSessionsLoadFailed"
+            class="mt-3 flex flex-wrap items-center gap-2 text-xs text-destructive"
+          >
+            <span>{{ t('common.error.requestFailed') }}</span>
+            <DcButton
+              variant="link"
+              size="sm"
+              class="h-auto p-0 text-xs"
+              :disabled="reusableSessionsLoading"
+              @click="emit('retryReusableSessions')"
+            >
+              {{ t('common.retry') }}
+            </DcButton>
+          </div>
+        </DcSectionCard>
+
         <DcSectionCard :title="t('settings.cronJobs.fields.runtimePolicy')">
           <Select
             data-testid="cron-job-runtime-select"
@@ -631,8 +723,13 @@ import {
 } from '@shadcn/components/ui/select'
 import { Switch } from '@shadcn/components/ui/switch'
 import { Textarea } from '@shadcn/components/ui/textarea'
-import type { CronJob, CronJobDeliveryReceipt, CronJobRun } from '@shared/cronJobs'
-import type { Agent } from '@shared/types/agent-interface'
+import type {
+  CronJob,
+  CronJobDeliveryReceipt,
+  CronJobRun,
+  CronJobSessionMode
+} from '@shared/cronJobs'
+import type { Agent, SessionListItem } from '@shared/types/agent-interface'
 import { createRemoteDeliveryTarget, type RemoteDeliveryOption } from './cronJobDelivery'
 import {
   buildCronExpr,
@@ -647,6 +744,7 @@ import {
 import { useCronJobFormat } from './useCronJobFormat'
 
 const NO_AGENT_ID = '__none__'
+const CREATE_ON_FIRST_RUN_ID = '__create_on_first_run__'
 
 const props = defineProps<{
   mode: 'view' | 'edit' | 'create'
@@ -662,6 +760,10 @@ const props = defineProps<{
   remoteDeliveryOptions: RemoteDeliveryOption[]
   remoteDeliveryLoading: boolean
   remoteDeliveryLoadFailed: boolean
+  reusableSessions: SessionListItem[]
+  reusableSessionsLoading: boolean
+  reusableSessionsLoadFailed: boolean
+  resolvedReuseSession: SessionListItem | null | undefined
   previewRuns: number[]
   previewLoading: boolean
   previewError: string | null
@@ -682,6 +784,7 @@ const emit = defineEmits<{
   (e: 'toggle', enabled: boolean): void
   (e: 'back'): void
   (e: 'retryRemoteOptions'): void
+  (e: 'retryReusableSessions'): void
   (e: 'reloadRuns'): void
 }>()
 
@@ -845,8 +948,59 @@ const onMinuteChange = (value: string) => {
 }
 
 const onAgentChange = (value: string) => {
-  patchDraft({ agentId: value === NO_AGENT_ID ? null : value })
+  const nextAgentId = value === NO_AGENT_ID ? null : value
+  const shouldClearReuseSession =
+    Boolean(draft.value?.reuseSessionId) && draft.value?.agentId !== nextAgentId
+  patchDraft({
+    agentId: nextAgentId,
+    ...(shouldClearReuseSession ? { reuseSessionId: null } : {})
+  })
 }
+
+const onSessionModeChange = (value: string) => {
+  const sessionMode: CronJobSessionMode =
+    value === 'reuse_session' ? 'reuse_session' : 'new_session'
+  patchDraft({
+    sessionMode,
+    ...(sessionMode === 'new_session' ? { reuseSessionId: null } : {})
+  })
+}
+
+const onReuseSessionChange = (value: string) => {
+  patchDraft({
+    reuseSessionId: value === CREATE_ON_FIRST_RUN_ID ? null : value
+  })
+}
+
+const showMissingDraftReuseSession = computed(() => {
+  const reuseId = draft.value?.reuseSessionId
+  if (!reuseId || props.reusableSessionsLoading) {
+    return false
+  }
+  return !props.reusableSessions.some((session) => session.id === reuseId)
+})
+
+const reusedSessionMissing = computed(
+  () =>
+    props.job?.sessionMode === 'reuse_session' &&
+    Boolean(props.job.reuseSessionId) &&
+    props.resolvedReuseSession === null
+)
+
+const sessionSummaryLabel = computed(() => {
+  const current = props.job
+  if (!current || current.sessionMode !== 'reuse_session') {
+    return t('settings.cronJobs.fields.newSessionEachRun')
+  }
+  if (!current.reuseSessionId) {
+    return `${t('settings.cronJobs.fields.reuseSession')} · ${t('settings.cronJobs.fields.createSessionOnFirstRun')}`
+  }
+  if (props.resolvedReuseSession === null) {
+    return `${t('settings.cronJobs.fields.reuseSession')} · ${t('settings.cronJobs.fields.sessionUnavailable')}`
+  }
+  const sessionLabel = props.resolvedReuseSession?.title || current.reuseSessionId
+  return `${t('settings.cronJobs.fields.reuseSession')} · ${sessionLabel}`
+})
 
 const onTimezoneChange = (value: string) => {
   patchDraft({ timezone: value })

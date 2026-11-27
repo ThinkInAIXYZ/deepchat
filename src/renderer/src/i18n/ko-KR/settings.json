@@ -1637,7 +1637,14 @@
       "scheduleMonthDay": "매월 날짜",
       "scheduleMinute": "매시 몇 분",
       "createEnabled": "생성 후 활성화",
-      "createEnabledHint": "생성 후 바로 일정에 따라 실행합니다."
+      "createEnabledHint": "생성 후 바로 일정에 따라 실행합니다.",
+      "session": "Session",
+      "sessionMode": "Session mode",
+      "newSessionEachRun": "New session each run",
+      "reuseSession": "Reuse one session",
+      "targetSession": "Target session",
+      "createSessionOnFirstRun": "Create on first run",
+      "sessionUnavailable": "Session unavailable"
     },
     "presets": {
       "custom": "사용자 지정",

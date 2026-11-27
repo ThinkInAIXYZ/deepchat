@@ -271,6 +271,10 @@
             :remote-delivery-options="remoteDeliveryOptions"
             :remote-delivery-loading="remoteDeliveryLoading"
             :remote-delivery-load-failed="remoteDeliveryLoadFailed"
+            :reusable-sessions="reusableSessions"
+            :reusable-sessions-loading="reusableSessionsLoading"
+            :reusable-sessions-load-failed="reusableSessionsLoadFailed"
+            :resolved-reuse-session="selectedJobResolvedReuseSession"
             :preview-runs="previewRuns"
             :preview-loading="previewLoading"
             :preview-error="previewError"
@@ -288,6 +292,7 @@
             @toggle="toggleSelectedJob"
             @back="backToList"
             @retry-remote-options="refreshRemoteDeliveryOptions"
+            @retry-reusable-sessions="refreshReusableSessions"
             @reload-runs="reloadSelectedJobRuns"
           />
         </section>
@@ -341,6 +346,7 @@ import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort
 import { createConfigClient } from '@api/ConfigClient'
 import { createCronJobsClient, type CronJobsUpsertInput } from '@api/CronJobsClient'
 import { createRemoteControlClient } from '@api/RemoteControlClient'
+import { createSessionClient } from '@api/SessionClient'
 import { settingsLeaveGuard } from '../services/settingsLeaveGuard'
 import CronJobDetailPanel from './cronJobs/CronJobDetailPanel.vue'
 import CronJobsTaskList from './cronJobs/CronJobsTaskList.vue'
@@ -352,6 +358,7 @@ import {
   CRON_JOBS_DEFAULT_DELIVERY,
   CRON_JOBS_DEFAULT_MISFIRE_POLICY,
   CRON_JOBS_DEFAULT_RUNTIME,
+  CRON_JOBS_DEFAULT_SESSION_MODE,
   CRON_JOBS_DEFAULT_TIMEZONE,
   type CronJob,
   type CronJobDelivery,
@@ -359,7 +366,7 @@ import {
   type CronJobRun,
   type CronJobsSchedulerStatus
 } from '@shared/cronJobs'
-import type { Agent } from '@shared/types/agent-interface'
+import type { Agent, SessionListItem } from '@shared/types/agent-interface'
 
 type EditorMode = 'view' | 'edit' | 'create'
 
@@ -383,6 +390,8 @@ const DIRTY_COMPARE_FIELDS = [
   'modelPolicy',
   'toolPolicy',
   'permissionPolicy',
+  'sessionMode',
+  'reuseSessionId',
   'runtime',
   'delivery'
 ] as const satisfies readonly (keyof CronJob)[]
@@ -392,6 +401,7 @@ const { formatTimestamp, describeSchedule } = useCronJobFormat()
 const client = createCronJobsClient()
 const configClient = createConfigClient()
 const remoteControlClient = createRemoteControlClient()
+const sessionClient = createSessionClient()
 
 const rootRef = ref<HTMLElement | null>(null)
 const { width: containerWidth } = useElementSize(rootRef)
@@ -432,6 +442,10 @@ const deliveryErrorsByRunId = ref<Record<string, boolean>>({})
 const remoteDeliveryOptions = ref<RemoteDeliveryOption[]>([])
 const remoteDeliveryLoading = ref(false)
 const remoteDeliveryLoadFailed = ref(false)
+const reusableSessions = ref<SessionListItem[]>([])
+const reusableSessionsLoading = ref(false)
+const reusableSessionsLoadFailed = ref(false)
+const resolvedReuseSessionsById = ref<Record<string, SessionListItem | null>>({})
 const schedulerStatusStale = ref(false)
 const pendingDeleteJobId = ref<string | null>(null)
 const autoSelectionApplied = ref(false)
@@ -441,6 +455,8 @@ let schedulerStatusGeneration = 0
 let schedulerStatusRequestPending = false
 let schedulerStatusFailureCount = 0
 let previewGeneration = 0
+let reusableSessionsGeneration = 0
+let resolvedReuseSessionGeneration = 0
 let previewTimer: number | null = null
 let disposed = false
 let requestGenerationSequence = 0
@@ -524,6 +540,15 @@ const selectedJobLatestRunDeliveryError = computed(() =>
     ? deliveryErrorsByRunId.value[selectedJobLatestRun.value.id] === true
     : false
 )
+const selectedJobResolvedReuseSession = computed<SessionListItem | null | undefined>(() => {
+  const sessionId = selectedJob.value?.reuseSessionId
+  if (!sessionId) {
+    return null
+  }
+  return Object.hasOwn(resolvedReuseSessionsById.value, sessionId)
+    ? resolvedReuseSessionsById.value[sessionId]
+    : undefined
+})
 const showDetailPane = computed(
   () =>
     !narrowLayout.value ||
@@ -717,6 +742,78 @@ const refreshRemoteDeliveryOptions = async () => {
   if (options !== null) {
     remoteDeliveryOptions.value = options
     remoteDeliveryLoadFailed.value = false
+  }
+}
+
+const loadReusableSessions = async (
+  agentId: string | null,
+  prioritizeSessionId?: string | null
+) => {
+  const requestGeneration = ++reusableSessionsGeneration
+  if (!agentId) {
+    reusableSessions.value = []
+    reusableSessionsLoading.value = false
+    reusableSessionsLoadFailed.value = false
+    return
+  }
+  reusableSessionsLoading.value = true
+  reusableSessionsLoadFailed.value = false
+  try {
+    const response = await sessionClient.listLightweight({
+      agentId,
+      includeSubagents: false,
+      includeDrafts: false,
+      limit: 100,
+      ...(prioritizeSessionId ? { prioritizeSessionId } : {})
+    })
+    if (disposed || requestGeneration !== reusableSessionsGeneration) {
+      return
+    }
+    reusableSessions.value = response.items
+    const nextResolved = { ...resolvedReuseSessionsById.value }
+    for (const session of response.items) {
+      nextResolved[session.id] = session
+    }
+    resolvedReuseSessionsById.value = nextResolved
+  } catch (error) {
+    if (!disposed && requestGeneration === reusableSessionsGeneration) {
+      logFailure('Failed to load reusable sessions', error, { agentId })
+      reusableSessionsLoadFailed.value = true
+    }
+  } finally {
+    if (!disposed && requestGeneration === reusableSessionsGeneration) {
+      reusableSessionsLoading.value = false
+    }
+  }
+}
+
+const refreshReusableSessions = () => {
+  const current = draft.value
+  if (!current) {
+    return
+  }
+  void loadReusableSessions(current.agentId, current.reuseSessionId)
+}
+
+const resolveReuseSession = async (sessionId: string | null) => {
+  if (!sessionId) {
+    return
+  }
+  const requestGeneration = ++resolvedReuseSessionGeneration
+  try {
+    const sessions = await sessionClient.getLightweightByIds([sessionId])
+    if (disposed || requestGeneration !== resolvedReuseSessionGeneration) {
+      return
+    }
+    const found = sessions.find((entry) => entry.id === sessionId) ?? null
+    resolvedReuseSessionsById.value = {
+      ...resolvedReuseSessionsById.value,
+      [sessionId]: found
+    }
+  } catch (error) {
+    if (!disposed && requestGeneration === resolvedReuseSessionGeneration) {
+      logFailure('Failed to resolve reused session', error, { sessionId })
+    }
   }
 }
 
@@ -1046,6 +1143,8 @@ const startCreate = async (template?: CronJobTemplate) => {
     modelPolicy: 'follow_agent',
     toolPolicy: 'follow_agent',
     permissionPolicy: 'follow_agent',
+    sessionMode: CRON_JOBS_DEFAULT_SESSION_MODE,
+    reuseSessionId: null,
     runtime: { ...CRON_JOBS_DEFAULT_RUNTIME },
     agentSnapshot: null,
     delivery: createDefaultDelivery(),
@@ -1119,24 +1218,38 @@ const backToList = async () => {
   mode.value = 'view'
 }
 
-const buildUpsertPayload = (job: CronJob): CronJobsUpsertInput => ({
-  ...(job.id ? { id: job.id } : {}),
-  name: job.name.trim() || t('settings.cronJobs.defaults.name'),
-  enabled: job.enabled,
-  cronExpr: job.cronExpr || CRON_JOBS_DEFAULT_CRON_EXPR,
-  timezone: job.timezone || browserTimezone(),
-  agentId: job.agentId,
-  misfirePolicy: job.misfirePolicy,
-  maxCatchUpRuns: job.maxCatchUpRuns,
-  taskPrompt: job.taskPrompt,
-  taskSystemInstruction: job.taskSystemInstruction,
-  taskOutputMode: job.taskOutputMode,
-  modelPolicy: job.modelPolicy,
-  toolPolicy: job.toolPolicy,
-  permissionPolicy: job.permissionPolicy,
-  runtime: job.runtime,
-  delivery: job.delivery
-})
+const buildUpsertPayload = (job: CronJob): CronJobsUpsertInput => {
+  const baseline = baselineDraft.value
+  const shouldIncludeReuseSessionId =
+    mode.value === 'create' ||
+    !baseline ||
+    job.sessionMode !== baseline.sessionMode ||
+    job.reuseSessionId !== baseline.reuseSessionId ||
+    job.agentId !== baseline.agentId
+
+  return {
+    ...(job.id ? { id: job.id } : {}),
+    name: job.name.trim() || t('settings.cronJobs.defaults.name'),
+    enabled: job.enabled,
+    cronExpr: job.cronExpr || CRON_JOBS_DEFAULT_CRON_EXPR,
+    timezone: job.timezone || browserTimezone(),
+    agentId: job.agentId,
+    misfirePolicy: job.misfirePolicy,
+    maxCatchUpRuns: job.maxCatchUpRuns,
+    taskPrompt: job.taskPrompt,
+    taskSystemInstruction: job.taskSystemInstruction,
+    taskOutputMode: job.taskOutputMode,
+    modelPolicy: job.modelPolicy,
+    toolPolicy: job.toolPolicy,
+    permissionPolicy: job.permissionPolicy,
+    sessionMode: job.sessionMode,
+    ...(shouldIncludeReuseSessionId
+      ? { reuseSessionId: job.sessionMode === 'reuse_session' ? job.reuseSessionId : null }
+      : {}),
+    runtime: job.runtime,
+    delivery: job.delivery
+  }
+}
 
 const saveDraft = async () => {
   const current = draft.value
@@ -1368,6 +1481,30 @@ const stopDraftPreviewSync = watch(
   () => (draft.value ? `${draft.value.cronExpr}@${draft.value.timezone}` : null),
   () => scheduleDraftPreview()
 )
+const stopReusableSessionsSync = watch(
+  () =>
+    draft.value && draft.value.sessionMode === 'reuse_session'
+      ? `${draft.value.agentId ?? ''}::${draft.value.reuseSessionId ?? ''}`
+      : null,
+  (key) => {
+    if (!key || !draft.value) {
+      reusableSessionsGeneration += 1
+      reusableSessions.value = []
+      reusableSessionsLoading.value = false
+      reusableSessionsLoadFailed.value = false
+      return
+    }
+    void loadReusableSessions(draft.value.agentId, draft.value.reuseSessionId)
+  }
+)
+const stopSelectedReuseSessionSync = watch(
+  () => (mode.value === 'view' ? (selectedJob.value?.reuseSessionId ?? null) : null),
+  (sessionId) => {
+    if (sessionId) {
+      void resolveReuseSession(sessionId)
+    }
+  }
+)
 
 onMounted(() => {
   void loadJobs()
@@ -1378,6 +1515,8 @@ onBeforeUnmount(() => {
   disposed = true
   schedulerStatusGeneration += 1
   previewGeneration += 1
+  reusableSessionsGeneration += 1
+  resolvedReuseSessionGeneration += 1
   if (previewTimer !== null) {
     window.clearTimeout(previewTimer)
     previewTimer = null
@@ -1385,6 +1524,8 @@ onBeforeUnmount(() => {
   stopSchedulerStatusPolling()
   stopLeaveRiskSync()
   stopDraftPreviewSync()
+  stopReusableSessionsSync()
+  stopSelectedReuseSessionSync()
   leaveGuardLease.release()
 })
 </script>
