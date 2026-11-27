@@ -235,6 +235,7 @@ export interface SessionLightweightOptions {
   isPinned?: boolean
   agentId?: string
   prioritizeSessionId?: string
+  query?: string
 }
 
 export interface SessionProjectionUpdate {
