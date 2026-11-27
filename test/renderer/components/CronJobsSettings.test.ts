@@ -1328,7 +1328,72 @@ describe('CronJobsSettings', () => {
     )
   })
 
-  it('marks bound session unavailable on sessions.updated delete, clears stale options on agent switch, and ignores IME Enter', async () => {
+  it('ignores IME composing Enter in the target session search input', async () => {
+    const { wrapper } = await setup({
+      list: async () => ({
+        jobs: [
+          {
+            ...cloneJob(),
+            agentId: 'agent-1',
+            sessionMode: 'reuse_session',
+            reuseSessionId: 'session-existing-1'
+          }
+        ],
+        schedulerStatus: cloneStatus()
+      })
+    })
+
+    await wrapper.get('[data-testid="cron-job-edit"]').trigger('click')
+    await flushPromises()
+    await wrapper.get('[data-testid="cron-job-reuse-session-select"]').trigger('click')
+    await flushPromises()
+
+    const searchInput = wrapper.get('[data-testid="cron-job-reuse-session-search"]')
+    await searchInput.trigger('keydown', { key: 'ArrowDown' })
+    await searchInput.trigger('keydown', { key: 'Enter', isComposing: true })
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="cron-job-reuse-session-search"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="cron-job-reuse-session-select"]').text()).toContain(
+      'Daily digest thread'
+    )
+  })
+
+  it('marks bound session unavailable when deleted via sessions.updated', async () => {
+    const { wrapper, sessionClient } = await setup({
+      list: async () => ({
+        jobs: [
+          {
+            ...cloneJob(),
+            agentId: 'agent-1',
+            sessionMode: 'reuse_session',
+            reuseSessionId: 'session-existing-1'
+          }
+        ],
+        schedulerStatus: cloneStatus()
+      })
+    })
+
+    await wrapper.get('[data-testid="cron-job-edit"]').trigger('click')
+    await flushPromises()
+    await wrapper.get('[data-testid="cron-job-reuse-session-select"]').trigger('click')
+    await flushPromises()
+    expect(
+      wrapper.find('[data-testid="cron-job-reuse-session-option-session-existing-1"]').exists()
+    ).toBe(true)
+
+    sessionClient.emitUpdated({ sessionIds: ['session-existing-1'], reason: 'deleted' })
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="cron-job-reuse-session-select"]').text()).toContain(
+      'Session unavailable'
+    )
+    expect(
+      wrapper.find('[data-testid="cron-job-reuse-session-option-session-existing-1"]').exists()
+    ).toBe(false)
+  })
+
+  it('clears stale options on agent switch and restores prior agent session when switching back', async () => {
     let resolveAgent2!: (value: {
       items: Array<Record<string, unknown>>
       nextCursor: null
@@ -1342,7 +1407,7 @@ describe('CronJobsSettings', () => {
       resolveAgent2 = resolve
     })
 
-    const { wrapper, sessionClient } = await setup({
+    const { wrapper } = await setup({
       list: async () => ({
         jobs: [
           {
@@ -1395,45 +1460,80 @@ describe('CronJobsSettings', () => {
 
     await wrapper.get('[data-testid="cron-job-edit"]').trigger('click')
     await flushPromises()
-    expect(wrapper.get('[data-testid="cron-job-reuse-session-select"]').text()).toContain(
-      'Daily digest thread'
-    )
-
     await wrapper.get('[data-testid="cron-job-reuse-session-select"]').trigger('click')
     await flushPromises()
 
-    // IME composing Enter on search input must not select or close the popover
-    const searchInput = wrapper.get('[data-testid="cron-job-reuse-session-search"]')
-    await searchInput.trigger('keydown', { key: 'ArrowDown' })
-    await searchInput.trigger('keydown', { key: 'Enter', isComposing: true })
-    await flushPromises()
-    expect(wrapper.find('[data-testid="cron-job-reuse-session-search"]').exists()).toBe(true)
-    expect(wrapper.get('[data-testid="cron-job-reuse-session-select"]').text()).toContain(
-      'Daily digest thread'
-    )
-
-    // Deleting the bound session marks trigger unavailable and removes it from options
-    sessionClient.emitUpdated({ sessionIds: ['session-existing-1'], reason: 'deleted' })
-    await flushPromises()
-    expect(wrapper.get('[data-testid="cron-job-reuse-session-select"]').text()).toContain(
-      'Session unavailable'
-    )
-    expect(
-      wrapper.find('[data-testid="cron-job-reuse-session-option-session-existing-1"]').exists()
-    ).toBe(false)
-
-    // Switching agent clears previous agent options before the new agent response arrives
     expect(
       wrapper.find('[data-testid="cron-job-reuse-session-option-session-existing-2"]').exists()
     ).toBe(true)
+
     await wrapper.get('[data-testid="cron-job-agent-select"]').setValue('agent-2')
     await flushPromises()
     expect(
       wrapper.find('[data-testid="cron-job-reuse-session-option-session-existing-2"]').exists()
     ).toBe(false)
+    expect(wrapper.get('[data-testid="cron-job-reuse-session-select"]').text()).toContain(
+      'Create on first run'
+    )
 
     resolveAgent2({ items: [], nextCursor: null, hasMore: false })
     await flushPromises()
+
+    await wrapper.get('[data-testid="cron-job-agent-select"]').setValue('agent-1')
+    await flushPromises()
+    expect(wrapper.get('[data-testid="cron-job-reuse-session-select"]').text()).toContain(
+      'Daily digest thread'
+    )
+  })
+
+  it('refreshes reusable sessions on popover open after sessions.updated created arrives', async () => {
+    let created = false
+    const { wrapper, sessionClient } = await setup({
+      list: async () => ({
+        jobs: [
+          {
+            ...cloneJob(),
+            agentId: 'agent-1',
+            sessionMode: 'reuse_session',
+            reuseSessionId: null
+          }
+        ],
+        schedulerStatus: cloneStatus()
+      }),
+      listLightweight: async () => ({
+        items: created
+          ? [
+              {
+                id: 'session-new-1',
+                agentId: 'agent-1',
+                title: 'Freshly created thread',
+                projectDir: null,
+                isPinned: false,
+                sessionKind: 'regular' as const,
+                status: 'idle' as const,
+                createdAt: 200,
+                updatedAt: 300
+              }
+            ]
+          : [],
+        nextCursor: null,
+        hasMore: false
+      })
+    })
+
+    await wrapper.get('[data-testid="cron-job-edit"]').trigger('click')
+    await flushPromises()
+
+    created = true
+    sessionClient.emitUpdated({ sessionIds: ['session-new-1'], reason: 'created' })
+    await flushPromises()
+
+    await wrapper.get('[data-testid="cron-job-reuse-session-select"]').trigger('click')
+    await flushPromises()
+
+    expect(
+      wrapper.find('[data-testid="cron-job-reuse-session-option-session-new-1"]').exists()
+    ).toBe(true)
   })
 
   it('does not resurrect a session deleted while listLightweight is in flight and marks moved sessions unavailable', async () => {

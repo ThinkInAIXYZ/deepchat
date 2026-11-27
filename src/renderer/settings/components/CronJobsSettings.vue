@@ -271,14 +271,7 @@
             :remote-delivery-options="remoteDeliveryOptions"
             :remote-delivery-loading="remoteDeliveryLoading"
             :remote-delivery-load-failed="remoteDeliveryLoadFailed"
-            :reusable-sessions="reusableSessions"
-            :reusable-sessions-query="reusableSessionsQuery"
-            :reusable-sessions-loading="reusableSessionsLoading"
-            :reusable-sessions-loading-more="reusableSessionsLoadingMore"
-            :reusable-sessions-has-more="reusableSessionsHasMore"
-            :reusable-sessions-load-failed="reusableSessionsLoadFailed"
-            :draft-resolved-reuse-session="draftResolvedReuseSession"
-            :resolved-reuse-session="selectedJobResolvedReuseSession"
+            :reusable-sessions="reusableSessionsState"
             :preview-runs="previewRuns"
             :preview-loading="previewLoading"
             :preview-error="previewError"
@@ -296,9 +289,10 @@
             @toggle="toggleSelectedJob"
             @back="backToList"
             @retry-remote-options="refreshRemoteDeliveryOptions"
-            @search-reusable-sessions="searchReusableSessions"
-            @load-more-reusable-sessions="loadMoreReusableSessions"
-            @retry-reusable-sessions="refreshReusableSessions"
+            @reusable-sessions-open-change="reusableSessionsController.setPickerOpen"
+            @search-reusable-sessions="reusableSessionsController.search"
+            @load-more-reusable-sessions="reusableSessionsController.loadMore"
+            @retry-reusable-sessions="reusableSessionsController.refresh"
             @reload-runs="reloadSelectedJobRuns"
           />
         </section>
@@ -359,6 +353,7 @@ import CronJobsTaskList from './cronJobs/CronJobsTaskList.vue'
 import { type RemoteDeliveryOption } from './cronJobs/cronJobDelivery'
 import { CRON_JOB_TEMPLATES, type CronJobTemplate } from './cronJobs/cronJobTemplates'
 import { useCronJobFormat } from './cronJobs/useCronJobFormat'
+import { useReusableSessions } from './cronJobs/useReusableSessions'
 import {
   CRON_JOBS_DEFAULT_CRON_EXPR,
   CRON_JOBS_DEFAULT_DELIVERY,
@@ -372,7 +367,7 @@ import {
   type CronJobRun,
   type CronJobsSchedulerStatus
 } from '@shared/cronJobs'
-import type { Agent, SessionListItem, SessionPageCursor } from '@shared/types/agent-interface'
+import type { Agent } from '@shared/types/agent-interface'
 
 type EditorMode = 'view' | 'edit' | 'create'
 
@@ -382,7 +377,6 @@ const SCHEDULER_STATUS_FAILURE_THRESHOLD = 2
 const PREVIEW_DEBOUNCE_MS = 300
 const RUN_HISTORY_LIMIT = 10
 const LIST_RUN_LIMIT = 1
-const REUSABLE_SESSIONS_PAGE_SIZE = 20
 const DIRTY_COMPARE_FIELDS = [
   'name',
   'enabled',
@@ -449,14 +443,6 @@ const deliveryErrorsByRunId = ref<Record<string, boolean>>({})
 const remoteDeliveryOptions = ref<RemoteDeliveryOption[]>([])
 const remoteDeliveryLoading = ref(false)
 const remoteDeliveryLoadFailed = ref(false)
-const reusableSessions = ref<SessionListItem[]>([])
-const reusableSessionsQuery = ref('')
-const reusableSessionsLoading = ref(false)
-const reusableSessionsLoadingMore = ref(false)
-const reusableSessionsHasMore = ref(false)
-const reusableSessionsNextCursor = ref<SessionPageCursor | null>(null)
-const reusableSessionsLoadFailed = ref(false)
-const resolvedReuseSessionsById = ref<Record<string, SessionListItem | null>>({})
 const schedulerStatusStale = ref(false)
 const pendingDeleteJobId = ref<string | null>(null)
 const autoSelectionApplied = ref(false)
@@ -466,25 +452,6 @@ let schedulerStatusGeneration = 0
 let schedulerStatusRequestPending = false
 let schedulerStatusFailureCount = 0
 let previewGeneration = 0
-let reusableSessionsGeneration = 0
-let reusableSessionsAgentId: string | null = null
-let resolvedReuseSessionGeneration = 0
-let sessionMutationEpoch = 0
-let unsubscribeSessionUpdates: (() => void) | null = null
-const deletedSessionIds = new Set<string>()
-const updatedSessionEpochById = new Map<string, number>()
-
-const foldSearchText = (text: string): string => text.toLowerCase().toUpperCase()
-const matchesSessionQuery = (session: SessionListItem, query: string): boolean => {
-  const folded = foldSearchText(query.trim())
-  if (!folded) {
-    return true
-  }
-  return (
-    foldSearchText(session.title).includes(folded) ||
-    foldSearchText(session.projectDir ?? '').includes(folded)
-  )
-}
 let previewTimer: number | null = null
 let disposed = false
 let requestGenerationSequence = 0
@@ -568,49 +535,6 @@ const selectedJobLatestRunDeliveryError = computed(() =>
     ? deliveryErrorsByRunId.value[selectedJobLatestRun.value.id] === true
     : false
 )
-const selectedJobResolvedReuseSession = computed<SessionListItem | null | undefined>(() => {
-  const current = selectedJob.value
-  const sessionId = current?.reuseSessionId
-  if (!sessionId) {
-    return null
-  }
-  if (!Object.hasOwn(resolvedReuseSessionsById.value, sessionId)) {
-    return undefined
-  }
-  const cached = resolvedReuseSessionsById.value[sessionId]
-  if (!cached) {
-    return null
-  }
-  if (current.agentId && cached.agentId !== current.agentId) {
-    return null
-  }
-  return cached
-})
-const draftResolvedReuseSession = computed<SessionListItem | null | undefined>(() => {
-  const current = draft.value
-  const sessionId = current?.reuseSessionId
-  if (!sessionId) {
-    return undefined
-  }
-  const fromList = reusableSessions.value.find(
-    (session) =>
-      session.id === sessionId && (!current.agentId || session.agentId === current.agentId)
-  )
-  if (fromList) {
-    return fromList
-  }
-  if (!Object.hasOwn(resolvedReuseSessionsById.value, sessionId)) {
-    return undefined
-  }
-  const cached = resolvedReuseSessionsById.value[sessionId]
-  if (!cached) {
-    return null
-  }
-  if (current.agentId && cached.agentId !== current.agentId) {
-    return null
-  }
-  return cached
-})
 const showDetailPane = computed(
   () =>
     !narrowLayout.value ||
@@ -807,212 +731,14 @@ const refreshRemoteDeliveryOptions = async () => {
   }
 }
 
-const resetReusableSessionsState = () => {
-  reusableSessionsGeneration += 1
-  reusableSessionsAgentId = null
-  reusableSessions.value = []
-  reusableSessionsQuery.value = ''
-  reusableSessionsLoading.value = false
-  reusableSessionsLoadingMore.value = false
-  reusableSessionsHasMore.value = false
-  reusableSessionsNextCursor.value = null
-  reusableSessionsLoadFailed.value = false
-}
-
-const loadReusableSessions = async (options: {
-  agentId: string | null
-  query?: string
-  cursor?: SessionPageCursor | null
-  append?: boolean
-  prioritizeSessionId?: string | null
-}) => {
-  const { agentId, cursor = null, append = false, prioritizeSessionId = null } = options
-  const normalizedQuery = options.query?.trim() ?? ''
-  if (!agentId) {
-    resetReusableSessionsState()
-    return
-  }
-
-  const requestGeneration = ++reusableSessionsGeneration
-  const startedAtEpoch = sessionMutationEpoch
-  reusableSessionsLoadFailed.value = false
-  if (append) {
-    reusableSessionsLoadingMore.value = true
-  } else {
-    if (reusableSessionsAgentId !== agentId || reusableSessionsQuery.value !== normalizedQuery) {
-      reusableSessions.value = []
-    }
-    reusableSessionsAgentId = agentId
-    reusableSessionsQuery.value = normalizedQuery
-    reusableSessionsLoading.value = true
-    reusableSessionsLoadingMore.value = false
-    reusableSessionsHasMore.value = false
-    reusableSessionsNextCursor.value = null
-  }
-
-  try {
-    const response = await sessionClient.listLightweight({
-      agentId,
-      includeSubagents: false,
-      includeDrafts: false,
-      limit: REUSABLE_SESSIONS_PAGE_SIZE,
-      ...(normalizedQuery ? { query: normalizedQuery } : {}),
-      ...(append && cursor ? { cursor } : {}),
-      ...(!append && !normalizedQuery && prioritizeSessionId ? { prioritizeSessionId } : {})
-    })
-    if (disposed || requestGeneration !== reusableSessionsGeneration) {
-      return
-    }
-    const staleMutatedIds = response.items
-      .filter(
-        (session) =>
-          !deletedSessionIds.has(session.id) &&
-          (updatedSessionEpochById.get(session.id) ?? 0) > startedAtEpoch
-      )
-      .map((session) => session.id)
-    const staleMutatedIdSet = new Set(staleMutatedIds)
-    let refreshedById: Map<string, SessionListItem> | null = null
-    if (staleMutatedIds.length > 0) {
-      const refreshed = await sessionClient.getLightweightByIds(staleMutatedIds)
-      if (disposed || requestGeneration !== reusableSessionsGeneration) {
-        return
-      }
-      refreshedById = new Map(refreshed.map((session) => [session.id, session]))
-    }
-
-    const nextResolved = { ...resolvedReuseSessionsById.value }
-    const liveItems: SessionListItem[] = []
-    for (const session of response.items) {
-      if (deletedSessionIds.has(session.id)) {
-        continue
-      }
-      if (refreshedById && staleMutatedIdSet.has(session.id)) {
-        const fresh = refreshedById.get(session.id) ?? null
-        nextResolved[session.id] = fresh
-        if (fresh && fresh.agentId === agentId && matchesSessionQuery(fresh, normalizedQuery)) {
-          liveItems.push(fresh)
-        }
-        continue
-      }
-      liveItems.push(session)
-      nextResolved[session.id] = session
-    }
-    if (append) {
-      const seen = new Set(reusableSessions.value.map((session) => session.id))
-      const appended = liveItems.filter((session) => !seen.has(session.id))
-      reusableSessions.value = [...reusableSessions.value, ...appended]
-    } else {
-      reusableSessions.value = liveItems
-    }
-    reusableSessionsHasMore.value = response.hasMore
-    reusableSessionsNextCursor.value = response.nextCursor
-    resolvedReuseSessionsById.value = nextResolved
-
-    if (
-      !append &&
-      !normalizedQuery &&
-      prioritizeSessionId &&
-      !deletedSessionIds.has(prioritizeSessionId) &&
-      !liveItems.some((session) => session.id === prioritizeSessionId)
-    ) {
-      void resolveReuseSession(prioritizeSessionId)
-    }
-  } catch (error) {
-    if (!disposed && requestGeneration === reusableSessionsGeneration) {
-      logFailure('Failed to load reusable sessions', error, { agentId })
-      if (!append) {
-        reusableSessions.value = []
-      }
-      reusableSessionsLoadFailed.value = true
-    }
-  } finally {
-    if (!disposed && requestGeneration === reusableSessionsGeneration) {
-      if (append) {
-        reusableSessionsLoadingMore.value = false
-      } else {
-        reusableSessionsLoading.value = false
-      }
-    }
-  }
-}
-
-const searchReusableSessions = (query: string) => {
-  const current = draft.value
-  if (!current || current.sessionMode !== 'reuse_session') {
-    return
-  }
-  void loadReusableSessions({
-    agentId: current.agentId,
-    query,
-    prioritizeSessionId: current.reuseSessionId
-  })
-}
-
-const loadMoreReusableSessions = () => {
-  const current = draft.value
-  if (
-    !current ||
-    current.sessionMode !== 'reuse_session' ||
-    !current.agentId ||
-    reusableSessionsLoading.value ||
-    reusableSessionsLoadingMore.value ||
-    !reusableSessionsHasMore.value ||
-    !reusableSessionsNextCursor.value
-  ) {
-    return
-  }
-  void loadReusableSessions({
-    agentId: current.agentId,
-    query: reusableSessionsQuery.value,
-    cursor: reusableSessionsNextCursor.value,
-    append: true
-  })
-}
-
-const refreshReusableSessions = () => {
-  const current = draft.value
-  if (!current || current.sessionMode !== 'reuse_session') {
-    return
-  }
-  if (reusableSessions.value.length > 0 && reusableSessionsNextCursor.value) {
-    void loadReusableSessions({
-      agentId: current.agentId,
-      query: reusableSessionsQuery.value,
-      cursor: reusableSessionsNextCursor.value,
-      append: true
-    })
-    return
-  }
-  void loadReusableSessions({
-    agentId: current.agentId,
-    query: reusableSessionsQuery.value,
-    prioritizeSessionId: current.reuseSessionId
-  })
-}
-
-const resolveReuseSession = async (sessionId: string | null) => {
-  if (!sessionId) {
-    return
-  }
-  const requestGeneration = ++resolvedReuseSessionGeneration
-  try {
-    const sessions = await sessionClient.getLightweightByIds([sessionId])
-    if (disposed || requestGeneration !== resolvedReuseSessionGeneration) {
-      return
-    }
-    const found = deletedSessionIds.has(sessionId)
-      ? null
-      : (sessions.find((entry) => entry.id === sessionId) ?? null)
-    resolvedReuseSessionsById.value = {
-      ...resolvedReuseSessionsById.value,
-      [sessionId]: found
-    }
-  } catch (error) {
-    if (!disposed && requestGeneration === resolvedReuseSessionGeneration) {
-      logFailure('Failed to resolve reused session', error, { sessionId })
-    }
-  }
-}
+const reusableSessionsController = useReusableSessions({
+  sessionClient,
+  mode,
+  draft,
+  selectedJob,
+  onError: logFailure
+})
+const reusableSessionsState = reusableSessionsController.state
 
 const applyAutoSelection = () => {
   if (autoSelectionApplied.value || narrowLayout.value) {
@@ -1678,138 +1404,17 @@ const stopDraftPreviewSync = watch(
   () => (draft.value ? `${draft.value.cronExpr}@${draft.value.timezone}` : null),
   () => scheduleDraftPreview()
 )
-const stopReusableSessionsSync = watch(
-  () =>
-    draft.value && draft.value.sessionMode === 'reuse_session'
-      ? `${mode.value}:${draft.value.id}:${draft.value.agentId ?? ''}`
-      : null,
-  (key) => {
-    if (!key || !draft.value) {
-      resetReusableSessionsState()
-      return
-    }
-    void loadReusableSessions({
-      agentId: draft.value.agentId,
-      query: '',
-      prioritizeSessionId: draft.value.reuseSessionId
-    })
-  }
-)
-const stopSelectedReuseSessionSync = watch(
-  () =>
-    mode.value === 'view'
-      ? (selectedJob.value?.reuseSessionId ?? null)
-      : (draft.value?.reuseSessionId ?? null),
-  (sessionId) => {
-    if (sessionId) {
-      void resolveReuseSession(sessionId)
-    }
-  }
-)
-
-const refreshUpdatedReuseSessions = async (sessionIds: string[]) => {
-  try {
-    const updated = await sessionClient.getLightweightByIds(sessionIds)
-    if (disposed) {
-      return
-    }
-    const updatedById = new Map(updated.map((session) => [session.id, session]))
-    const nextResolved = { ...resolvedReuseSessionsById.value }
-    for (const id of sessionIds) {
-      if (deletedSessionIds.has(id)) {
-        nextResolved[id] = null
-        continue
-      }
-      nextResolved[id] = updatedById.get(id) ?? null
-    }
-    resolvedReuseSessionsById.value = nextResolved
-
-    const activeAgentId = draft.value?.agentId ?? null
-    const activeQuery = reusableSessionsQuery.value
-    reusableSessions.value = reusableSessions.value.flatMap((session) => {
-      if (!sessionIds.includes(session.id)) {
-        return [session]
-      }
-      if (deletedSessionIds.has(session.id)) {
-        return []
-      }
-      const fresh = updatedById.get(session.id)
-      if (
-        !fresh ||
-        (activeAgentId && fresh.agentId !== activeAgentId) ||
-        !matchesSessionQuery(fresh, activeQuery)
-      ) {
-        return []
-      }
-      return [fresh]
-    })
-  } catch (error) {
-    if (!disposed) {
-      logFailure('Failed to refresh updated sessions', error, { sessionIds })
-    }
-  }
-}
 
 onMounted(() => {
   void loadJobs()
   startSchedulerStatusPolling()
-  unsubscribeSessionUpdates = sessionClient.onUpdated((payload) => {
-    if (payload.sessionIds.length === 0) {
-      return
-    }
-    if (payload.reason === 'deleted') {
-      const deletedIds = new Set(payload.sessionIds)
-      for (const id of deletedIds) {
-        deletedSessionIds.add(id)
-      }
-      reusableSessions.value = reusableSessions.value.filter(
-        (session) => !deletedIds.has(session.id)
-      )
-      let resolvedChanged = false
-      const nextResolved = { ...resolvedReuseSessionsById.value }
-      for (const id of deletedIds) {
-        if (
-          Object.hasOwn(nextResolved, id) ||
-          draft.value?.reuseSessionId === id ||
-          selectedJob.value?.reuseSessionId === id
-        ) {
-          nextResolved[id] = null
-          resolvedChanged = true
-        }
-      }
-      if (resolvedChanged) {
-        resolvedReuseSessionsById.value = nextResolved
-      }
-      return
-    }
-    if (payload.reason === 'updated') {
-      sessionMutationEpoch += 1
-      for (const id of payload.sessionIds) {
-        updatedSessionEpochById.set(id, sessionMutationEpoch)
-      }
-      const visibleIds = new Set(reusableSessions.value.map((session) => session.id))
-      const relevantIds = payload.sessionIds.filter(
-        (id) =>
-          visibleIds.has(id) ||
-          Object.hasOwn(resolvedReuseSessionsById.value, id) ||
-          draft.value?.reuseSessionId === id ||
-          selectedJob.value?.reuseSessionId === id
-      )
-      if (relevantIds.length > 0) {
-        void refreshUpdatedReuseSessions(relevantIds)
-      }
-    }
-  })
+  reusableSessionsController.subscribe()
 })
 
 onBeforeUnmount(() => {
   disposed = true
   schedulerStatusGeneration += 1
   previewGeneration += 1
-  reusableSessionsGeneration += 1
-  resolvedReuseSessionGeneration += 1
-  unsubscribeSessionUpdates?.()
-  unsubscribeSessionUpdates = null
   if (previewTimer !== null) {
     window.clearTimeout(previewTimer)
     previewTimer = null
@@ -1817,8 +1422,7 @@ onBeforeUnmount(() => {
   stopSchedulerStatusPolling()
   stopLeaveRiskSync()
   stopDraftPreviewSync()
-  stopReusableSessionsSync()
-  stopSelectedReuseSessionSync()
+  reusableSessionsController.dispose()
   leaveGuardLease.release()
 })
 </script>

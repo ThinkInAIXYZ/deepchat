@@ -22,7 +22,10 @@
           <Icon
             :icon="triggerIcon"
             class="size-3.5 shrink-0"
-            :class="isUnavailable ? 'text-destructive' : 'text-muted-foreground'"
+            :class="[
+              isUnavailable ? 'text-destructive' : 'text-muted-foreground',
+              isResolvingSelection ? 'animate-spin' : ''
+            ]"
           />
           <span class="min-w-0 truncate">{{ triggerLabel }}</span>
         </span>
@@ -41,6 +44,9 @@
           ref="searchInputRef"
           v-model="searchInput"
           type="text"
+          role="combobox"
+          aria-autocomplete="list"
+          :aria-expanded="open"
           maxlength="200"
           data-testid="cron-job-reuse-session-search"
           class="h-full min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
@@ -71,119 +77,80 @@
         </button>
       </div>
 
-      <div :id="listboxId" role="listbox" class="max-h-[280px] overflow-y-auto p-1">
-        <template v-if="!hasActiveQuery">
-          <button
-            :id="optionDomId(AUTO_OPTION_KEY)"
-            type="button"
-            role="option"
-            data-testid="cron-job-reuse-session-option-auto"
-            :aria-selected="modelValue === null"
-            class="flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors outline-none hover:bg-accent"
-            :class="{
-              'bg-accent': activeOptionKey === AUTO_OPTION_KEY,
-              'bg-accent/60 font-medium': modelValue === null && activeOptionKey !== AUTO_OPTION_KEY
-            }"
-            @click="selectValue(null)"
-            @mouseenter="activeOptionKey = AUTO_OPTION_KEY"
-          >
-            <span class="flex min-w-0 items-center gap-2">
-              <Icon icon="lucide:sparkles" class="size-3.5 shrink-0 text-muted-foreground" />
-              <span class="truncate">{{
-                t('settings.cronJobs.fields.createSessionOnFirstRun')
-              }}</span>
-            </span>
-            <Icon
-              v-if="modelValue === null"
-              icon="lucide:check"
-              class="size-3.5 shrink-0 text-primary"
-            />
-          </button>
+      <div class="max-h-[280px] overflow-y-auto p-1">
+        <div :id="listboxId" role="listbox" :aria-label="label">
+          <template v-if="!hasActiveQuery">
+            <button
+              :id="optionDomId(AUTO_OPTION_KEY)"
+              type="button"
+              role="option"
+              tabindex="-1"
+              data-testid="cron-job-reuse-session-option-auto"
+              :aria-selected="modelValue === null"
+              class="flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors outline-none hover:bg-accent"
+              :class="{
+                'bg-accent': activeOptionKey === AUTO_OPTION_KEY,
+                'bg-accent/60 font-medium':
+                  modelValue === null && activeOptionKey !== AUTO_OPTION_KEY
+              }"
+              @click="selectValue(null)"
+              @mouseenter="activeOptionKey = AUTO_OPTION_KEY"
+            >
+              <span class="flex min-w-0 items-center gap-2">
+                <Icon icon="lucide:sparkles" class="size-3.5 shrink-0 text-muted-foreground" />
+                <span class="truncate">{{
+                  t('settings.cronJobs.fields.createSessionOnFirstRun')
+                }}</span>
+              </span>
+              <Icon
+                v-if="modelValue === null"
+                icon="lucide:check"
+                class="size-3.5 shrink-0 text-primary"
+              />
+            </button>
 
-          <button
-            v-if="isUnavailable && modelValue"
-            :id="optionDomId(UNAVAILABLE_OPTION_KEY)"
-            type="button"
-            role="option"
-            data-testid="cron-job-reuse-session-option-unavailable"
-            aria-selected="true"
-            class="mt-0.5 flex w-full items-start justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm text-destructive transition-colors outline-none hover:bg-accent"
-            :class="{
-              'bg-accent': activeOptionKey === UNAVAILABLE_OPTION_KEY,
-              'bg-destructive/5': activeOptionKey !== UNAVAILABLE_OPTION_KEY
-            }"
-            @click="selectValue(modelValue)"
-            @mouseenter="activeOptionKey = UNAVAILABLE_OPTION_KEY"
-          >
-            <span class="min-w-0 flex-1">
-              <span class="flex items-center gap-2">
-                <Icon icon="lucide:triangle-alert" class="size-3.5 shrink-0 text-destructive" />
-                <span class="truncate font-medium">
-                  {{ t('settings.cronJobs.fields.sessionUnavailable') }}
+            <button
+              v-if="isUnavailable && modelValue"
+              :id="optionDomId(UNAVAILABLE_OPTION_KEY)"
+              type="button"
+              role="option"
+              tabindex="-1"
+              data-testid="cron-job-reuse-session-option-unavailable"
+              aria-selected="true"
+              class="mt-0.5 flex w-full items-start justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm text-destructive transition-colors outline-none hover:bg-accent"
+              :class="{
+                'bg-accent': activeOptionKey === UNAVAILABLE_OPTION_KEY,
+                'bg-destructive/5': activeOptionKey !== UNAVAILABLE_OPTION_KEY
+              }"
+              @click="selectValue(modelValue)"
+              @mouseenter="activeOptionKey = UNAVAILABLE_OPTION_KEY"
+            >
+              <span class="min-w-0 flex-1">
+                <span class="flex items-center gap-2">
+                  <Icon icon="lucide:triangle-alert" class="size-3.5 shrink-0 text-destructive" />
+                  <span class="truncate font-medium">
+                    {{ t('settings.cronJobs.fields.sessionUnavailable') }}
+                  </span>
+                </span>
+                <span
+                  class="mt-0.5 block truncate pl-5.5 font-mono text-[11px] text-destructive/80"
+                >
+                  {{ formatShortId(modelValue) }}
                 </span>
               </span>
-              <span class="mt-0.5 block truncate pl-5.5 font-mono text-[11px] text-destructive/80">
-                {{ formatShortId(modelValue) }}
-              </span>
-            </span>
-            <Icon icon="lucide:check" class="mt-0.5 size-3.5 shrink-0 text-destructive" />
-          </button>
+              <Icon icon="lucide:check" class="mt-0.5 size-3.5 shrink-0 text-destructive" />
+            </button>
 
-          <div role="separator" class="mx-1.5 my-1 h-px bg-border" />
-        </template>
+            <div role="separator" class="mx-1.5 my-1 h-px bg-border" />
+          </template>
 
-        <div
-          v-if="isSearchPending && displayedSessions.length === 0"
-          class="flex items-center justify-center gap-2 px-3 py-5 text-xs text-muted-foreground"
-        >
-          <Icon icon="lucide:loader-circle" class="size-3.5 animate-spin" />
-          <span>{{ t('common.loading') }}</span>
-        </div>
-
-        <div
-          v-else-if="loadFailed && displayedSessions.length === 0"
-          role="alert"
-          class="flex flex-col items-center gap-1.5 px-3 py-5 text-center text-xs text-destructive"
-        >
-          <span>{{ t('common.error.requestFailed') }}</span>
-          <button
-            type="button"
-            data-testid="cron-job-reuse-session-retry"
-            class="text-xs font-medium text-primary hover:underline"
-            @click="emit('retry')"
-          >
-            {{ t('common.retry') }}
-          </button>
-        </div>
-
-        <div
-          v-else-if="displayedSessions.length === 0 && !hasMore"
-          class="flex flex-col items-center gap-1.5 px-3 py-5 text-center text-xs text-muted-foreground"
-        >
-          <span>
-            {{
-              hasActiveQuery
-                ? t('settings.cronJobs.fields.noMatchingSessions', { query: activeQuery })
-                : t('settings.cronJobs.fields.noReusableSessions')
-            }}
-          </span>
-          <button
-            v-if="hasActiveQuery"
-            type="button"
-            class="text-xs font-medium text-primary hover:underline"
-            @click="clearSearch"
-          >
-            {{ t('settings.cronJobs.fields.clearSessionSearch') }}
-          </button>
-        </div>
-
-        <template v-else>
           <button
             v-for="session in displayedSessions"
             :id="optionDomId(sessionOptionKey(session.id))"
             :key="session.id"
             type="button"
             role="option"
+            tabindex="-1"
             :data-testid="`cron-job-reuse-session-option-${session.id}`"
             :aria-selected="modelValue === session.id"
             class="flex w-full items-start justify-between gap-2 rounded-md px-2 py-1.5 text-left transition-colors outline-none hover:bg-accent"
@@ -258,40 +225,85 @@
               class="mt-0.5 size-3.5 shrink-0 text-primary"
             />
           </button>
+        </div>
 
-          <div
-            v-if="loadFailed && displayedSessions.length > 0"
-            role="alert"
-            class="mt-1 flex items-center justify-center gap-2 px-2 py-1.5 text-xs text-destructive"
+        <div
+          v-if="isSearchPending && displayedSessions.length === 0"
+          class="flex items-center justify-center gap-2 px-3 py-5 text-xs text-muted-foreground"
+        >
+          <Icon icon="lucide:loader-circle" class="size-3.5 animate-spin" />
+          <span>{{ t('common.loading') }}</span>
+        </div>
+
+        <div
+          v-else-if="loadFailed && displayedSessions.length === 0"
+          role="alert"
+          class="flex flex-col items-center gap-1.5 px-3 py-5 text-center text-xs text-destructive"
+        >
+          <span>{{ t('common.error.requestFailed') }}</span>
+          <button
+            type="button"
+            data-testid="cron-job-reuse-session-retry"
+            class="text-xs font-medium text-primary hover:underline"
+            @click="emit('retry')"
           >
-            <span>{{ t('common.error.requestFailed') }}</span>
-            <button
-              type="button"
-              data-testid="cron-job-reuse-session-retry"
-              class="text-xs font-medium text-primary hover:underline"
-              @click="emit('retry')"
-            >
-              {{ t('common.retry') }}
-            </button>
-          </div>
+            {{ t('common.retry') }}
+          </button>
+        </div>
 
-          <div v-else-if="hasMore" class="pt-1">
-            <button
-              type="button"
-              data-testid="cron-job-reuse-session-load-more"
-              :disabled="loadingMore || loading"
-              class="flex h-8 w-full items-center justify-center gap-1.5 rounded-md text-xs font-medium text-primary transition-colors outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
-              @click="emit('loadMore')"
-            >
-              <Icon v-if="loadingMore" icon="lucide:loader-circle" class="size-3.5 animate-spin" />
-              <span>
-                {{
-                  loadingMore ? t('common.loading') : t('settings.cronJobs.fields.loadMoreSessions')
-                }}
-              </span>
-            </button>
-          </div>
-        </template>
+        <div
+          v-else-if="displayedSessions.length === 0 && !hasMore"
+          class="flex flex-col items-center gap-1.5 px-3 py-5 text-center text-xs text-muted-foreground"
+        >
+          <span>
+            {{
+              hasActiveQuery
+                ? t('settings.cronJobs.fields.noMatchingSessions', { query: activeQuery })
+                : t('settings.cronJobs.fields.noReusableSessions')
+            }}
+          </span>
+          <button
+            v-if="hasActiveQuery"
+            type="button"
+            class="text-xs font-medium text-primary hover:underline"
+            @click="clearSearch"
+          >
+            {{ t('settings.cronJobs.fields.clearSessionSearch') }}
+          </button>
+        </div>
+
+        <div
+          v-else-if="loadFailed && displayedSessions.length > 0"
+          role="alert"
+          class="mt-1 flex items-center justify-center gap-2 px-2 py-1.5 text-xs text-destructive"
+        >
+          <span>{{ t('common.error.requestFailed') }}</span>
+          <button
+            type="button"
+            data-testid="cron-job-reuse-session-retry"
+            class="text-xs font-medium text-primary hover:underline"
+            @click="emit('retry')"
+          >
+            {{ t('common.retry') }}
+          </button>
+        </div>
+
+        <div v-else-if="hasMore" class="pt-1">
+          <button
+            type="button"
+            data-testid="cron-job-reuse-session-load-more"
+            :disabled="loadingMore || loading"
+            class="flex h-8 w-full items-center justify-center gap-1.5 rounded-md text-xs font-medium text-primary transition-colors outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+            @click="emit('loadMore')"
+          >
+            <Icon v-if="loadingMore" icon="lucide:loader-circle" class="size-3.5 animate-spin" />
+            <span>
+              {{
+                loadingMore ? t('common.loading') : t('settings.cronJobs.fields.loadMoreSessions')
+              }}
+            </span>
+          </button>
+        </div>
       </div>
     </PopoverContent>
   </Popover>
@@ -303,6 +315,7 @@ import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
 import type { SessionListItem } from '@shared/types/agent-interface'
+import { formatRelativeTime as formatSharedRelativeTime } from '../memoryRedesignUtils'
 
 const SEARCH_DEBOUNCE_MS = 200
 
@@ -310,6 +323,7 @@ const props = defineProps<{
   modelValue: string | null
   label: string
   disabled: boolean
+  noAgent?: boolean
   sessions: SessionListItem[]
   selectedSession: SessionListItem | null | undefined
   query: string
@@ -358,10 +372,19 @@ const isSearchPending = computed(
 )
 
 const isUnavailable = computed(() => Boolean(props.modelValue) && props.selectedSession === null)
+const isResolvingSelection = computed(
+  () => Boolean(props.modelValue) && props.selectedSession === undefined
+)
 
 const triggerIcon = computed(() => {
+  if (props.noAgent) {
+    return 'lucide:ban'
+  }
   if (!props.modelValue) {
     return 'lucide:sparkles'
+  }
+  if (isResolvingSelection.value) {
+    return 'lucide:loader-circle'
   }
   if (isUnavailable.value) {
     return 'lucide:triangle-alert'
@@ -370,8 +393,14 @@ const triggerIcon = computed(() => {
 })
 
 const triggerLabel = computed(() => {
+  if (props.noAgent) {
+    return t('settings.cronJobs.fields.noAgent')
+  }
   if (!props.modelValue) {
     return t('settings.cronJobs.fields.createSessionOnFirstRun')
+  }
+  if (isResolvingSelection.value) {
+    return t('common.loading')
   }
   if (isUnavailable.value) {
     return t('settings.cronJobs.fields.sessionUnavailable')
@@ -550,27 +579,12 @@ const formatRelativeTime = (timestamp: number): string => {
   if (!Number.isFinite(timestamp) || timestamp <= 0) {
     return ''
   }
-  const diffSeconds = Math.round((timestamp - Date.now()) / 1000)
-  const absSeconds = Math.abs(diffSeconds)
-  const activeLocale = locale?.value || undefined
+  const activeLocale = locale?.value || 'en-US'
   try {
-    const rtf = new Intl.RelativeTimeFormat(activeLocale, { numeric: 'auto' })
-    if (absSeconds < 60) {
-      return rtf.format(diffSeconds, 'second')
+    if (Math.abs(timestamp - Date.now()) > 30 * 86_400_000) {
+      return new Date(timestamp).toLocaleDateString(activeLocale)
     }
-    const diffMinutes = Math.round(diffSeconds / 60)
-    if (Math.abs(diffMinutes) < 60) {
-      return rtf.format(diffMinutes, 'minute')
-    }
-    const diffHours = Math.round(diffSeconds / 3600)
-    if (Math.abs(diffHours) < 24) {
-      return rtf.format(diffHours, 'hour')
-    }
-    const diffDays = Math.round(diffSeconds / 86400)
-    if (Math.abs(diffDays) <= 30) {
-      return rtf.format(diffDays, 'day')
-    }
-    return new Date(timestamp).toLocaleDateString(activeLocale)
+    return formatSharedRelativeTime(timestamp, activeLocale)
   } catch {
     return new Date(timestamp).toLocaleString()
   }
