@@ -37,9 +37,6 @@ const HTML_ESCAPE_MAP: Record<string, string> = {
 const escapeHtml = (value: string): string =>
   value.replace(/[&<>]/g, (char) => HTML_ESCAPE_MAP[char] ?? char)
 
-const escapeAttribute = (value: string): string =>
-  escapeHtml(value).replace(/"/g, '&quot;').replace(/\n/g, ' ')
-
 const sanitizeLanguage = (value: string): string => value.replace(/[^a-zA-Z0-9_+\-.]/g, '')
 
 const renderCodeBlock = (lang: string, body: string): string => {
@@ -212,7 +209,8 @@ const renderLine = (line: string): { content: string; isBlockquote: boolean } =>
   escaped = escaped.replace(
     /\[([^\]\n]+)\]\(([^)\s]+?)\)/g,
     (_match, label: string, url: string) => {
-      return `<a href="${escapeAttribute(url)}">${label}</a>`
+      // `escaped` already holds HTML-escaped text, so only the quote still needs escaping here.
+      return `<a href="${url.replace(/"/g, '&quot;')}">${label}</a>`
     }
   )
 
