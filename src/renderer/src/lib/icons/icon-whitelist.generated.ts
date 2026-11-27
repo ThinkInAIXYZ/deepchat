@@ -25,6 +25,7 @@ export const GENERATED_ICON_WHITELIST: Record<GeneratedIconCollectionKey, readon
     'arrow-up-wide-narrow',
     'at-sign',
     'audio-waveform',
+    'ban',
     'bell',
     'blocks',
     'bolt',
