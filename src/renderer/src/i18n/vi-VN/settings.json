@@ -3036,7 +3036,12 @@
       "reuseSession": "Reuse one session",
       "targetSession": "Target session",
       "createSessionOnFirstRun": "Create on first run",
-      "sessionUnavailable": "Session unavailable"
+      "sessionUnavailable": "Session unavailable",
+      "searchSessionPlaceholder": "Tìm phiên trò chuyện…",
+      "clearSessionSearch": "Xóa tìm kiếm",
+      "noMatchingSessions": "Không tìm thấy phiên nào khớp \"{query}\"",
+      "noReusableSessions": "Chưa có phiên nào để tái sử dụng",
+      "loadMoreSessions": "Tải thêm"
     },
     "presets": {
       "custom": "Tùy chỉnh",

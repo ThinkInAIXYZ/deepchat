@@ -2017,7 +2017,12 @@
       "reuseSession": "Reuse one session",
       "targetSession": "Target session",
       "createSessionOnFirstRun": "Create on first run",
-      "sessionUnavailable": "Session unavailable"
+      "sessionUnavailable": "Session unavailable",
+      "searchSessionPlaceholder": "Search sessions…",
+      "clearSessionSearch": "Clear search",
+      "noMatchingSessions": "No sessions matching \"{query}\"",
+      "noReusableSessions": "No reusable sessions yet",
+      "loadMoreSessions": "Load more"
     },
     "presets": {
       "custom": "རང་བཟོས།",

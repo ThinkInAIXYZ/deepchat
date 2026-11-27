@@ -1644,7 +1644,12 @@
       "reuseSession": "重複使用同一會話",
       "targetSession": "目標會話",
       "createSessionOnFirstRun": "首次執行時建立",
-      "sessionUnavailable": "會話不可用"
+      "sessionUnavailable": "會話不可用",
+      "searchSessionPlaceholder": "搜尋工作階段標題…",
+      "clearSessionSearch": "清除搜尋",
+      "noMatchingSessions": "找不到「{query}」相關工作階段",
+      "noReusableSessions": "暫無可重用工作階段",
+      "loadMoreSessions": "載入更多"
     },
     "presets": {
       "custom": "自訂",

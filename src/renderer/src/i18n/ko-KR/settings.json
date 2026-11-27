@@ -1644,7 +1644,12 @@
       "reuseSession": "Reuse one session",
       "targetSession": "Target session",
       "createSessionOnFirstRun": "Create on first run",
-      "sessionUnavailable": "Session unavailable"
+      "sessionUnavailable": "Session unavailable",
+      "searchSessionPlaceholder": "세션 검색…",
+      "clearSessionSearch": "검색 지우기",
+      "noMatchingSessions": "\"{query}\"과 일치하는 세션이 없습니다",
+      "noReusableSessions": "재사용할 수 있는 세션이 없습니다",
+      "loadMoreSessions": "더 불러오기"
     },
     "presets": {
       "custom": "사용자 지정",

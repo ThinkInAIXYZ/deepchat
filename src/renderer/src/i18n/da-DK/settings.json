@@ -1577,7 +1577,12 @@
       "reuseSession": "Reuse one session",
       "targetSession": "Target session",
       "createSessionOnFirstRun": "Create on first run",
-      "sessionUnavailable": "Session unavailable"
+      "sessionUnavailable": "Session unavailable",
+      "searchSessionPlaceholder": "Søg i sessioner…",
+      "clearSessionSearch": "Ryd søgning",
+      "noMatchingSessions": "Ingen sessioner matcher \"{query}\"",
+      "noReusableSessions": "Ingen genbrugelige sessioner endnu",
+      "loadMoreSessions": "Indlæs flere"
     },
     "presets": {
       "custom": "Brugerdefineret",

@@ -1644,7 +1644,12 @@
       "reuseSession": "Reuse one session",
       "targetSession": "Target session",
       "createSessionOnFirstRun": "Create on first run",
-      "sessionUnavailable": "Session unavailable"
+      "sessionUnavailable": "Session unavailable",
+      "searchSessionPlaceholder": "セッションを検索…",
+      "clearSessionSearch": "検索をクリア",
+      "noMatchingSessions": "「{query}」に一致するセッションはありません",
+      "noReusableSessions": "再利用可能なセッションはまだありません",
+      "loadMoreSessions": "さらに読み込む"
     },
     "presets": {
       "custom": "カスタム",

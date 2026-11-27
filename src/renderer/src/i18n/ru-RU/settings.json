@@ -1644,7 +1644,12 @@
       "reuseSession": "Reuse one session",
       "targetSession": "Target session",
       "createSessionOnFirstRun": "Create on first run",
-      "sessionUnavailable": "Session unavailable"
+      "sessionUnavailable": "Session unavailable",
+      "searchSessionPlaceholder": "Поиск сессий…",
+      "clearSessionSearch": "Очистить поиск",
+      "noMatchingSessions": "Сессии по запросу «{query}» не найдены",
+      "noReusableSessions": "Нет доступных сессий для повторного использования",
+      "loadMoreSessions": "Загрузить ещё"
     },
     "presets": {
       "custom": "Настраиваемый",

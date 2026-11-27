@@ -244,6 +244,51 @@ const dropdownMenuContentStub = defineComponent({
   template: '<div v-if="open" v-bind="$attrs"><slot /></div>'
 })
 
+const POPOVER_STATE = Symbol('popoverState')
+
+const popoverStub = defineComponent({
+  name: 'Popover',
+  inheritAttrs: false,
+  props: { open: Boolean },
+  emits: ['update:open'],
+  setup(props, { emit }) {
+    provide(POPOVER_STATE, {
+      open: () => Boolean(props.open),
+      setOpen: (value: boolean) => emit('update:open', value)
+    })
+  },
+  template: '<div v-bind="$attrs"><slot /></div>'
+})
+
+const popoverTriggerStub = defineComponent({
+  name: 'PopoverTrigger',
+  inheritAttrs: false,
+  props: { asChild: Boolean },
+  setup() {
+    const state = inject<{ open: () => boolean; setOpen: (value: boolean) => void }>(
+      POPOVER_STATE,
+      { open: () => false, setOpen: () => {} }
+    )
+    return {
+      toggle: () => state.setOpen(!state.open())
+    }
+  },
+  template: '<span v-bind="$attrs" @click="toggle"><slot /></span>'
+})
+
+const popoverContentStub = defineComponent({
+  name: 'PopoverContent',
+  inheritAttrs: false,
+  setup() {
+    const state = inject<{ open: () => boolean; setOpen: (value: boolean) => void }>(
+      POPOVER_STATE,
+      { open: () => false, setOpen: () => {} }
+    )
+    return { isOpen: () => state.open() }
+  },
+  template: '<div v-if="isOpen()" v-bind="$attrs"><slot /></div>'
+})
+
 const inlineErrorStub = defineComponent({
   name: 'DcInlineError',
   props: { error: String, hint: String },
@@ -289,6 +334,13 @@ type SetupOptions = Readonly<{
   runNow?: CronJobsClient['runNow']
   listRuns?: CronJobsClient['listRuns']
   restartScheduler?: CronJobsClient['restartScheduler']
+  listAgents?: () => Promise<Array<Record<string, unknown>>>
+  listLightweight?: (input?: Record<string, unknown>) => Promise<{
+    items: Array<Record<string, unknown>>
+    nextCursor: { updatedAt: number; id: string } | null
+    hasMore: boolean
+  }>
+  getLightweightByIds?: (ids: string[]) => Promise<Array<Record<string, unknown>>>
 }>
 
 const jobFromInput = (input: CronJobsUpsertInput): CronJob => ({
@@ -345,34 +397,21 @@ async function setup(options: SetupOptions = {}) {
     previewSchedule: vi.fn(async () => ({ runs: [2_000, 3_000], error: null }))
   }
   const configClient = {
-    listAgents: vi.fn(async () => [])
+    listAgents: vi.fn(options.listAgents ?? (async () => []))
   }
   const remoteControlClient = {
     listRemoteChannels: vi.fn(async () => []),
     getChannelStatus: vi.fn(),
     getChannelBindings: vi.fn()
   }
+  const sessionUpdateListeners = new Set<
+    (payload: { sessionIds: string[]; reason: string }) => void
+  >()
   const sessionClient = {
-    listLightweight: vi.fn(async () => ({
-      items: [
-        {
-          id: 'session-existing-1',
-          agentId: 'agent-1',
-          title: 'Daily digest thread',
-          projectDir: null,
-          isPinned: false,
-          sessionKind: 'regular' as const,
-          status: 'idle' as const,
-          createdAt: 100,
-          updatedAt: 200
-        }
-      ],
-      nextCursor: null,
-      hasMore: false
-    })),
-    getLightweightByIds: vi.fn(async (ids: string[]) =>
-      ids.includes('session-existing-1')
-        ? [
+    listLightweight: vi.fn(
+      options.listLightweight ??
+        (async () => ({
+          items: [
             {
               id: 'session-existing-1',
               agentId: 'agent-1',
@@ -384,9 +423,41 @@ async function setup(options: SetupOptions = {}) {
               createdAt: 100,
               updatedAt: 200
             }
-          ]
-        : []
-    )
+          ],
+          nextCursor: null,
+          hasMore: false
+        }))
+    ),
+    getLightweightByIds: vi.fn(
+      options.getLightweightByIds ??
+        (async (ids: string[]) =>
+          ids.includes('session-existing-1')
+            ? [
+                {
+                  id: 'session-existing-1',
+                  agentId: 'agent-1',
+                  title: 'Daily digest thread',
+                  projectDir: null,
+                  isPinned: false,
+                  sessionKind: 'regular' as const,
+                  status: 'idle' as const,
+                  createdAt: 100,
+                  updatedAt: 200
+                }
+              ]
+            : [])
+    ),
+    onUpdated: vi.fn((listener: (payload: { sessionIds: string[]; reason: string }) => void) => {
+      sessionUpdateListeners.add(listener)
+      return () => {
+        sessionUpdateListeners.delete(listener)
+      }
+    }),
+    emitUpdated: (payload: { sessionIds: string[]; reason: string }) => {
+      for (const listener of sessionUpdateListeners) {
+        listener(payload)
+      }
+    }
   }
   const notifyRenderer = vi.fn(() => true)
 
@@ -407,6 +478,7 @@ async function setup(options: SetupOptions = {}) {
   }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
+      locale: ref('en-US'),
       t: (key: string, params?: Record<string, unknown>) => {
         const messages: Record<string, string> = {
           'settings.cronJobs.title': 'Scheduled',
@@ -442,6 +514,11 @@ async function setup(options: SetupOptions = {}) {
           'settings.cronJobs.fields.targetSession': 'Target session',
           'settings.cronJobs.fields.createSessionOnFirstRun': 'Create on first run',
           'settings.cronJobs.fields.sessionUnavailable': 'Session unavailable',
+          'settings.cronJobs.fields.searchSessionPlaceholder': 'Search sessions…',
+          'settings.cronJobs.fields.clearSessionSearch': 'Clear search',
+          'settings.cronJobs.fields.noMatchingSessions': 'No sessions matching "{query}"',
+          'settings.cronJobs.fields.noReusableSessions': 'No reusable sessions yet',
+          'settings.cronJobs.fields.loadMoreSessions': 'Load more',
           'settings.cronJobs.fields.delivery': 'Delivery',
           'settings.cronJobs.fields.remoteDelivery': 'Remote delivery',
           'settings.cronJobs.fields.remoteChannel': 'Remote channel',
@@ -555,6 +632,9 @@ async function setup(options: SetupOptions = {}) {
         DropdownMenu: dropdownMenuStub,
         DropdownMenuContent: dropdownMenuContentStub,
         DropdownMenuTrigger: dropdownMenuTriggerStub,
+        Popover: popoverStub,
+        PopoverContent: popoverContentStub,
+        PopoverTrigger: popoverTriggerStub,
         Input: inputStub,
         Label: passthrough('Label'),
         Select: selectStub,
@@ -574,7 +654,7 @@ async function setup(options: SetupOptions = {}) {
   const { settingsLeaveGuard } =
     await import('../../../src/renderer/settings/services/settingsLeaveGuard')
 
-  return { wrapper, cronClient, notifyRenderer, settingsLeaveGuard }
+  return { wrapper, cronClient, sessionClient, notifyRenderer, settingsLeaveGuard }
 }
 
 const findButtonByTextOrNull = (wrapper: VueWrapper, text: string) =>
@@ -1064,8 +1144,12 @@ describe('CronJobsSettings', () => {
     await modeSelect.setValue('reuse_session')
     await flushPromises()
 
-    const sessionSelect = wrapper.get('[data-testid="cron-job-reuse-session-select"]')
-    await sessionSelect.setValue('session-existing-1')
+    const sessionTrigger = wrapper.get('[data-testid="cron-job-reuse-session-select"]')
+    await sessionTrigger.trigger('click')
+    await flushPromises()
+    await wrapper
+      .get('[data-testid="cron-job-reuse-session-option-session-existing-1"]')
+      .trigger('click')
     await flushPromises()
 
     await wrapper.get('[data-testid="cron-job-editor-save"]').trigger('click')
@@ -1080,6 +1164,532 @@ describe('CronJobsSettings', () => {
     expect(wrapper.get('[data-testid="cron-job-detail-session"]').text()).toContain(
       'Daily digest thread'
     )
+  })
+
+  it('searches and paginates reusable sessions in the target session picker', async () => {
+    vi.useFakeTimers()
+    try {
+      const page1Item = {
+        id: 'session-page-1',
+        agentId: 'agent-1',
+        title: 'Morning standup',
+        projectDir: '/work/deepchat',
+        isPinned: false,
+        sessionKind: 'regular' as const,
+        status: 'idle' as const,
+        createdAt: 100,
+        updatedAt: 300
+      }
+      const page2Item = {
+        id: 'session-page-2',
+        agentId: 'agent-1',
+        title: 'Older backlog',
+        projectDir: '/work/deepchat',
+        isPinned: false,
+        sessionKind: 'regular' as const,
+        status: 'idle' as const,
+        createdAt: 100,
+        updatedAt: 200
+      }
+      const searchedItem = {
+        id: 'session-search-hit',
+        agentId: 'agent-1',
+        title: 'Release checklist #2530',
+        projectDir: '/work/release',
+        isPinned: true,
+        sessionKind: 'regular' as const,
+        status: 'idle' as const,
+        createdAt: 100,
+        updatedAt: 150
+      }
+
+      const { wrapper, cronClient, sessionClient } = await setup({
+        list: async () => ({
+          jobs: [{ ...cloneJob(), agentId: 'agent-1' }],
+          schedulerStatus: cloneStatus()
+        }),
+        listLightweight: async (input) => {
+          if (input?.query === 'Release') {
+            return { items: [searchedItem], nextCursor: null, hasMore: false }
+          }
+          if (input?.cursor) {
+            return { items: [page1Item, page2Item], nextCursor: null, hasMore: false }
+          }
+          return {
+            items: [page1Item],
+            nextCursor: { updatedAt: 300, id: 'session-page-1' },
+            hasMore: true
+          }
+        },
+        getLightweightByIds: async (ids) =>
+          ids.includes('session-search-hit') ? [searchedItem] : []
+      })
+
+      await wrapper.get('[data-testid="cron-job-edit"]').trigger('click')
+      await flushPromises()
+
+      await wrapper.get('[data-testid="cron-job-session-mode-select"]').setValue('reuse_session')
+      await flushPromises()
+
+      await wrapper.get('[data-testid="cron-job-reuse-session-select"]').trigger('click')
+      await flushPromises()
+
+      // Pagination appends and deduplicates
+      await wrapper.get('[data-testid="cron-job-reuse-session-load-more"]').trigger('click')
+      await flushPromises()
+      expect(sessionClient.listLightweight).toHaveBeenCalledWith(
+        expect.objectContaining({
+          agentId: 'agent-1',
+          cursor: { updatedAt: 300, id: 'session-page-1' }
+        })
+      )
+      expect(
+        wrapper.findAll('[data-testid="cron-job-reuse-session-option-session-page-1"]')
+      ).toHaveLength(1)
+      expect(
+        wrapper.find('[data-testid="cron-job-reuse-session-option-session-page-2"]').exists()
+      ).toBe(true)
+
+      // Debounced server-side search
+      await wrapper.get('[data-testid="cron-job-reuse-session-search"]').setValue('Release')
+      vi.advanceTimersByTime(250)
+      await flushPromises()
+
+      expect(sessionClient.listLightweight).toHaveBeenCalledWith(
+        expect.objectContaining({
+          agentId: 'agent-1',
+          query: 'Release'
+        })
+      )
+      await wrapper
+        .get('[data-testid="cron-job-reuse-session-option-session-search-hit"]')
+        .trigger('click')
+      await flushPromises()
+
+      expect(wrapper.get('[data-testid="cron-job-reuse-session-select"]').text()).toContain(
+        'Release checklist #2530'
+      )
+
+      await wrapper.get('[data-testid="cron-job-editor-save"]').trigger('click')
+      await flushPromises()
+
+      expect(cronClient.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sessionMode: 'reuse_session',
+          reuseSessionId: 'session-search-hit'
+        })
+      )
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('shows unavailable state for a deleted bound session and lets user rebind to auto-create', async () => {
+    const { wrapper, cronClient } = await setup({
+      list: async () => ({
+        jobs: [
+          {
+            ...cloneJob(),
+            agentId: 'agent-1',
+            sessionMode: 'reuse_session',
+            reuseSessionId: 'session-deleted-99'
+          }
+        ],
+        schedulerStatus: cloneStatus()
+      }),
+      listLightweight: async () => ({
+        items: [],
+        nextCursor: null,
+        hasMore: false
+      }),
+      getLightweightByIds: async () => []
+    })
+
+    await wrapper.get('[data-testid="cron-job-edit"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="cron-job-reuse-session-select"]').text()).toContain(
+      'Session unavailable'
+    )
+
+    await wrapper.get('[data-testid="cron-job-reuse-session-select"]').trigger('click')
+    await flushPromises()
+    await wrapper.get('[data-testid="cron-job-reuse-session-option-auto"]').trigger('click')
+    await flushPromises()
+
+    await wrapper.get('[data-testid="cron-job-editor-save"]').trigger('click')
+    await flushPromises()
+
+    expect(cronClient.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionMode: 'reuse_session',
+        reuseSessionId: null
+      })
+    )
+  })
+
+  it('marks bound session unavailable on sessions.updated delete, clears stale options on agent switch, and ignores IME Enter', async () => {
+    let resolveAgent2!: (value: {
+      items: Array<Record<string, unknown>>
+      nextCursor: null
+      hasMore: boolean
+    }) => void
+    const agent2Promise = new Promise<{
+      items: Array<Record<string, unknown>>
+      nextCursor: null
+      hasMore: boolean
+    }>((resolve) => {
+      resolveAgent2 = resolve
+    })
+
+    const { wrapper, sessionClient } = await setup({
+      list: async () => ({
+        jobs: [
+          {
+            ...cloneJob(),
+            agentId: 'agent-1',
+            sessionMode: 'reuse_session',
+            reuseSessionId: 'session-existing-1'
+          }
+        ],
+        schedulerStatus: cloneStatus()
+      }),
+      listAgents: async () => [
+        { id: 'agent-1', name: 'Agent 1', enabled: true },
+        { id: 'agent-2', name: 'Agent 2', enabled: true }
+      ],
+      listLightweight: async (input) => {
+        if (input?.agentId === 'agent-2') {
+          return await agent2Promise
+        }
+        return {
+          items: [
+            {
+              id: 'session-existing-1',
+              agentId: 'agent-1',
+              title: 'Daily digest thread',
+              projectDir: null,
+              isPinned: false,
+              sessionKind: 'regular' as const,
+              status: 'idle' as const,
+              createdAt: 100,
+              updatedAt: 200
+            },
+            {
+              id: 'session-existing-2',
+              agentId: 'agent-1',
+              title: 'Agent 1 secondary thread',
+              projectDir: null,
+              isPinned: false,
+              sessionKind: 'regular' as const,
+              status: 'idle' as const,
+              createdAt: 100,
+              updatedAt: 150
+            }
+          ],
+          nextCursor: null,
+          hasMore: false
+        }
+      }
+    })
+
+    await wrapper.get('[data-testid="cron-job-edit"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('[data-testid="cron-job-reuse-session-select"]').text()).toContain(
+      'Daily digest thread'
+    )
+
+    await wrapper.get('[data-testid="cron-job-reuse-session-select"]').trigger('click')
+    await flushPromises()
+
+    // IME composing Enter on search input must not select or close the popover
+    const searchInput = wrapper.get('[data-testid="cron-job-reuse-session-search"]')
+    await searchInput.trigger('keydown', { key: 'ArrowDown' })
+    await searchInput.trigger('keydown', { key: 'Enter', isComposing: true })
+    await flushPromises()
+    expect(wrapper.find('[data-testid="cron-job-reuse-session-search"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="cron-job-reuse-session-select"]').text()).toContain(
+      'Daily digest thread'
+    )
+
+    // Deleting the bound session marks trigger unavailable and removes it from options
+    sessionClient.emitUpdated({ sessionIds: ['session-existing-1'], reason: 'deleted' })
+    await flushPromises()
+    expect(wrapper.get('[data-testid="cron-job-reuse-session-select"]').text()).toContain(
+      'Session unavailable'
+    )
+    expect(
+      wrapper.find('[data-testid="cron-job-reuse-session-option-session-existing-1"]').exists()
+    ).toBe(false)
+
+    // Switching agent clears previous agent options before the new agent response arrives
+    expect(
+      wrapper.find('[data-testid="cron-job-reuse-session-option-session-existing-2"]').exists()
+    ).toBe(true)
+    await wrapper.get('[data-testid="cron-job-agent-select"]').setValue('agent-2')
+    await flushPromises()
+    expect(
+      wrapper.find('[data-testid="cron-job-reuse-session-option-session-existing-2"]').exists()
+    ).toBe(false)
+
+    resolveAgent2({ items: [], nextCursor: null, hasMore: false })
+    await flushPromises()
+  })
+
+  it('does not resurrect a session deleted while listLightweight is in flight and marks moved sessions unavailable', async () => {
+    let resolveList!: (value: {
+      items: Array<Record<string, unknown>>
+      nextCursor: null
+      hasMore: boolean
+    }) => void
+    const listPromise = new Promise<{
+      items: Array<Record<string, unknown>>
+      nextCursor: null
+      hasMore: boolean
+    }>((resolve) => {
+      resolveList = resolve
+    })
+    let movedToOtherAgent = false
+
+    const { wrapper, sessionClient } = await setup({
+      list: async () => ({
+        jobs: [
+          {
+            ...cloneJob(),
+            agentId: 'agent-1',
+            sessionMode: 'reuse_session',
+            reuseSessionId: 'session-moved-1'
+          }
+        ],
+        schedulerStatus: cloneStatus()
+      }),
+      listLightweight: async () => await listPromise,
+      getLightweightByIds: async (ids) => {
+        const items: Array<Record<string, unknown>> = []
+        if (ids.includes('session-moved-1')) {
+          items.push({
+            id: 'session-moved-1',
+            agentId: movedToOtherAgent ? 'agent-2' : 'agent-1',
+            title: 'Moved thread',
+            projectDir: null,
+            isPinned: false,
+            sessionKind: 'regular' as const,
+            status: 'idle' as const,
+            createdAt: 100,
+            updatedAt: 200
+          })
+        }
+        if (ids.includes('session-moved-inflight')) {
+          items.push({
+            id: 'session-moved-inflight',
+            agentId: 'agent-2',
+            title: 'Moved while loading',
+            projectDir: null,
+            isPinned: false,
+            sessionKind: 'regular' as const,
+            status: 'idle' as const,
+            createdAt: 100,
+            updatedAt: 205
+          })
+        }
+        return items
+      }
+    })
+
+    await wrapper.get('[data-testid="cron-job-edit"]').trigger('click')
+    await flushPromises()
+
+    // Delete & move updates arrive while listLightweight is still in flight
+    sessionClient.emitUpdated({ sessionIds: ['session-deleted-inflight'], reason: 'deleted' })
+    sessionClient.emitUpdated({ sessionIds: ['session-moved-inflight'], reason: 'updated' })
+    resolveList({
+      items: [
+        {
+          id: 'session-deleted-inflight',
+          agentId: 'agent-1',
+          title: 'Stale deleted thread',
+          projectDir: null,
+          isPinned: false,
+          sessionKind: 'regular' as const,
+          status: 'idle' as const,
+          createdAt: 100,
+          updatedAt: 210
+        },
+        {
+          id: 'session-moved-inflight',
+          agentId: 'agent-1',
+          title: 'Moved while loading',
+          projectDir: null,
+          isPinned: false,
+          sessionKind: 'regular' as const,
+          status: 'idle' as const,
+          createdAt: 100,
+          updatedAt: 205
+        },
+        {
+          id: 'session-moved-1',
+          agentId: 'agent-1',
+          title: 'Moved thread',
+          projectDir: null,
+          isPinned: false,
+          sessionKind: 'regular' as const,
+          status: 'idle' as const,
+          createdAt: 100,
+          updatedAt: 200
+        }
+      ],
+      nextCursor: null,
+      hasMore: false
+    })
+    await flushPromises()
+
+    await wrapper.get('[data-testid="cron-job-reuse-session-select"]').trigger('click')
+    await flushPromises()
+    expect(
+      wrapper
+        .find('[data-testid="cron-job-reuse-session-option-session-deleted-inflight"]')
+        .exists()
+    ).toBe(false)
+    expect(
+      wrapper.find('[data-testid="cron-job-reuse-session-option-session-moved-inflight"]').exists()
+    ).toBe(false)
+    expect(wrapper.get('[data-testid="cron-job-reuse-session-select"]').text()).toContain(
+      'Moved thread'
+    )
+
+    // Session is moved to agent-2 -> updated event refreshes and marks unavailable for agent-1
+    movedToOtherAgent = true
+    sessionClient.emitUpdated({ sessionIds: ['session-moved-1'], reason: 'updated' })
+    await flushPromises()
+    expect(wrapper.get('[data-testid="cron-job-reuse-session-select"]').text()).toContain(
+      'Session unavailable'
+    )
+    expect(
+      wrapper.find('[data-testid="cron-job-reuse-session-option-session-moved-1"]').exists()
+    ).toBe(false)
+
+    // Canceling back to read-only view also reflects Session unavailable for moved session
+    await wrapper.get('[data-testid="cron-job-editor-cancel"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('[data-testid="cron-job-detail-session"]').text()).toContain(
+      'Session unavailable'
+    )
+  })
+
+  it('keeps keyboard active target stable on deletion, keeps load-more visible when current page empties, and filters renamed search hits', async () => {
+    vi.useFakeTimers()
+    try {
+      let renamedTitle = 'Alpha report'
+      const { wrapper, sessionClient } = await setup({
+        list: async () => ({
+          jobs: [{ ...cloneJob(), agentId: 'agent-1', sessionMode: 'reuse_session' }],
+          schedulerStatus: cloneStatus()
+        }),
+        listLightweight: async (input) => {
+          if (input?.query === 'Alpha') {
+            return {
+              items: [
+                {
+                  id: 's-alpha',
+                  agentId: 'agent-1',
+                  title: renamedTitle,
+                  projectDir: null,
+                  isPinned: false,
+                  sessionKind: 'regular' as const,
+                  status: 'idle' as const,
+                  createdAt: 100,
+                  updatedAt: 300
+                }
+              ],
+              nextCursor: null,
+              hasMore: false
+            }
+          }
+          return {
+            items: [
+              {
+                id: 's-first',
+                agentId: 'agent-1',
+                title: 'First item',
+                projectDir: null,
+                isPinned: false,
+                sessionKind: 'regular' as const,
+                status: 'idle' as const,
+                createdAt: 100,
+                updatedAt: 300
+              },
+              {
+                id: 's-second',
+                agentId: 'agent-1',
+                title: 'Second item',
+                projectDir: null,
+                isPinned: false,
+                sessionKind: 'regular' as const,
+                status: 'idle' as const,
+                createdAt: 100,
+                updatedAt: 200
+              }
+            ],
+            nextCursor: { updatedAt: 200, id: 's-second' },
+            hasMore: true
+          }
+        },
+        getLightweightByIds: async (ids) =>
+          ids.includes('s-alpha')
+            ? [
+                {
+                  id: 's-alpha',
+                  agentId: 'agent-1',
+                  title: renamedTitle,
+                  projectDir: null,
+                  isPinned: false,
+                  sessionKind: 'regular' as const,
+                  status: 'idle' as const,
+                  createdAt: 100,
+                  updatedAt: 300
+                }
+              ]
+            : []
+      })
+
+      await wrapper.get('[data-testid="cron-job-edit"]').trigger('click')
+      await flushPromises()
+      await wrapper.get('[data-testid="cron-job-reuse-session-select"]').trigger('click')
+      await flushPromises()
+
+      // Focus s-second via ArrowUp (last item), then delete s-first -> Enter still picks s-second
+      const searchInput = wrapper.get('[data-testid="cron-job-reuse-session-search"]')
+      await searchInput.trigger('keydown', { key: 'ArrowUp' })
+      await flushPromises()
+      const activeIdBefore = searchInput.attributes('aria-activedescendant')
+      expect(activeIdBefore).toContain('session:s-second')
+
+      sessionClient.emitUpdated({ sessionIds: ['s-first'], reason: 'deleted' })
+      await flushPromises()
+      expect(searchInput.attributes('aria-activedescendant')).toBe(activeIdBefore)
+
+      // Deleting remaining item on page 1 keeps Load More visible while hasMore is true
+      sessionClient.emitUpdated({ sessionIds: ['s-second'], reason: 'deleted' })
+      await flushPromises()
+      expect(wrapper.find('[data-testid="cron-job-reuse-session-load-more"]').exists()).toBe(true)
+
+      // Search for Alpha, then rename s-alpha to Beta -> removed from active search results
+      await searchInput.setValue('Alpha')
+      vi.advanceTimersByTime(250)
+      await flushPromises()
+      expect(wrapper.find('[data-testid="cron-job-reuse-session-option-s-alpha"]').exists()).toBe(
+        true
+      )
+
+      renamedTitle = 'Beta summary'
+      sessionClient.emitUpdated({ sessionIds: ['s-alpha'], reason: 'updated' })
+      await flushPromises()
+      expect(wrapper.find('[data-testid="cron-job-reuse-session-option-s-alpha"]').exists()).toBe(
+        false
+      )
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('omits reuseSessionId when saving unrelated edits on a reuse_session job', async () => {

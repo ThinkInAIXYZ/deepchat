@@ -1644,7 +1644,12 @@
       "reuseSession": "Reuse one session",
       "targetSession": "Target session",
       "createSessionOnFirstRun": "Create on first run",
-      "sessionUnavailable": "Session unavailable"
+      "sessionUnavailable": "Session unavailable",
+      "searchSessionPlaceholder": "جستجوی نشست‌ها…",
+      "clearSessionSearch": "پاک کردن جستجو",
+      "noMatchingSessions": "نشستی مطابق با «{query}» یافت نشد",
+      "noReusableSessions": "هنوز نشست قابل استفاده مجددی وجود ندارد",
+      "loadMoreSessions": "بارگذاری بیشتر"
     },
     "presets": {
       "custom": "سفارشی",

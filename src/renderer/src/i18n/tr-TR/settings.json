@@ -3036,7 +3036,12 @@
       "reuseSession": "Reuse one session",
       "targetSession": "Target session",
       "createSessionOnFirstRun": "Create on first run",
-      "sessionUnavailable": "Session unavailable"
+      "sessionUnavailable": "Session unavailable",
+      "searchSessionPlaceholder": "Oturumlarda ara…",
+      "clearSessionSearch": "Aramayı temizle",
+      "noMatchingSessions": "\"{query}\" ile eşleşen oturum bulunamadı",
+      "noReusableSessions": "Yeniden kullanılabilir oturum yok",
+      "loadMoreSessions": "Daha fazla yükle"
     },
     "presets": {
       "custom": "Özel",

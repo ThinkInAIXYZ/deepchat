@@ -3036,7 +3036,12 @@
       "reuseSession": "Reuse one session",
       "targetSession": "Target session",
       "createSessionOnFirstRun": "Create on first run",
-      "sessionUnavailable": "Session unavailable"
+      "sessionUnavailable": "Session unavailable",
+      "searchSessionPlaceholder": "Cari sesi…",
+      "clearSessionSearch": "Hapus pencarian",
+      "noMatchingSessions": "Tidak ada sesi yang cocok dengan \"{query}\"",
+      "noReusableSessions": "Belum ada sesi yang dapat digunakan kembali",
+      "loadMoreSessions": "Muat lebih banyak"
     },
     "presets": {
       "custom": "Kustom",

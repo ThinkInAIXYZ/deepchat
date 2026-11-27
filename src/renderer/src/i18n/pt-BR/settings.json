@@ -1644,7 +1644,12 @@
       "reuseSession": "Reuse one session",
       "targetSession": "Target session",
       "createSessionOnFirstRun": "Create on first run",
-      "sessionUnavailable": "Session unavailable"
+      "sessionUnavailable": "Session unavailable",
+      "searchSessionPlaceholder": "Pesquisar sessões…",
+      "clearSessionSearch": "Limpar pesquisa",
+      "noMatchingSessions": "Nenhuma sessão corresponde a \"{query}\"",
+      "noReusableSessions": "Ainda não há sessões reutilizáveis",
+      "loadMoreSessions": "Carregar mais"
     },
     "presets": {
       "custom": "Personalizado",

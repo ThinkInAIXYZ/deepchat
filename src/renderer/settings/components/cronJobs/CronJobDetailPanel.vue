@@ -548,42 +548,35 @@
               </Select>
             </label>
 
-            <label v-if="draft.sessionMode === 'reuse_session'" class="space-y-2">
-              <span class="text-sm font-medium">
+            <div v-if="draft.sessionMode === 'reuse_session'" class="space-y-2">
+              <span class="block text-sm font-medium">
                 {{ t('settings.cronJobs.fields.targetSession') }}
               </span>
-              <Select
-                data-testid="cron-job-reuse-session-select"
-                :model-value="draft.reuseSessionId ?? CREATE_ON_FIRST_RUN_ID"
-                :disabled="busy || !draft.agentId || reusableSessionsLoading"
-                @update:model-value="(value) => onReuseSessionChange(String(value))"
-              >
-                <SelectTrigger
-                  :aria-label="t('settings.cronJobs.fields.targetSession')"
-                  class="w-full min-w-0"
-                >
-                  <SelectValue class="min-w-0 truncate" />
-                </SelectTrigger>
-                <SelectContent class="max-h-72">
-                  <SelectItem :value="CREATE_ON_FIRST_RUN_ID">
-                    {{ t('settings.cronJobs.fields.createSessionOnFirstRun') }}
-                  </SelectItem>
-                  <SelectItem v-if="showMissingDraftReuseSession" :value="draft.reuseSessionId!">
-                    {{ t('settings.cronJobs.fields.sessionUnavailable') }}
-                  </SelectItem>
-                  <SelectItem
-                    v-for="session in reusableSessions"
-                    :key="session.id"
-                    :value="session.id"
-                  >
-                    {{ session.title || session.id }}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </label>
+              <CronJobSessionPicker
+                :model-value="draft.reuseSessionId"
+                :label="t('settings.cronJobs.fields.targetSession')"
+                :disabled="busy || !draft.agentId"
+                :sessions="reusableSessions"
+                :selected-session="draftResolvedReuseSession"
+                :query="reusableSessionsQuery"
+                :loading="reusableSessionsLoading"
+                :loading-more="reusableSessionsLoadingMore"
+                :has-more="reusableSessionsHasMore"
+                :load-failed="reusableSessionsLoadFailed"
+                @update:model-value="onReuseSessionChange"
+                @open-change="(value) => (sessionPickerOpen = value)"
+                @search="(query) => emit('searchReusableSessions', query)"
+                @load-more="emit('loadMoreReusableSessions')"
+                @retry="emit('retryReusableSessions')"
+              />
+            </div>
           </div>
           <div
-            v-if="draft.sessionMode === 'reuse_session' && reusableSessionsLoadFailed"
+            v-if="
+              draft.sessionMode === 'reuse_session' &&
+              reusableSessionsLoadFailed &&
+              !sessionPickerOpen
+            "
             class="mt-3 flex flex-wrap items-center gap-2 text-xs text-destructive"
           >
             <span>{{ t('common.error.requestFailed') }}</span>
@@ -742,9 +735,9 @@ import {
   type CronScheduleKind
 } from './cronJobSchedule'
 import { useCronJobFormat } from './useCronJobFormat'
+import CronJobSessionPicker from './CronJobSessionPicker.vue'
 
 const NO_AGENT_ID = '__none__'
-const CREATE_ON_FIRST_RUN_ID = '__create_on_first_run__'
 
 const props = defineProps<{
   mode: 'view' | 'edit' | 'create'
@@ -761,8 +754,12 @@ const props = defineProps<{
   remoteDeliveryLoading: boolean
   remoteDeliveryLoadFailed: boolean
   reusableSessions: SessionListItem[]
+  reusableSessionsQuery: string
   reusableSessionsLoading: boolean
+  reusableSessionsLoadingMore: boolean
+  reusableSessionsHasMore: boolean
   reusableSessionsLoadFailed: boolean
+  draftResolvedReuseSession: SessionListItem | null | undefined
   resolvedReuseSession: SessionListItem | null | undefined
   previewRuns: number[]
   previewLoading: boolean
@@ -784,6 +781,8 @@ const emit = defineEmits<{
   (e: 'toggle', enabled: boolean): void
   (e: 'back'): void
   (e: 'retryRemoteOptions'): void
+  (e: 'searchReusableSessions', query: string): void
+  (e: 'loadMoreReusableSessions'): void
   (e: 'retryReusableSessions'): void
   (e: 'reloadRuns'): void
 }>()
@@ -804,6 +803,7 @@ const {
 } = useCronJobFormat()
 
 const historyOpen = ref(false)
+const sessionPickerOpen = ref(false)
 
 const patchDraft = (patch: Partial<CronJob>) => {
   const current = draft.value
@@ -966,19 +966,11 @@ const onSessionModeChange = (value: string) => {
   })
 }
 
-const onReuseSessionChange = (value: string) => {
+const onReuseSessionChange = (value: string | null) => {
   patchDraft({
-    reuseSessionId: value === CREATE_ON_FIRST_RUN_ID ? null : value
+    reuseSessionId: value
   })
 }
-
-const showMissingDraftReuseSession = computed(() => {
-  const reuseId = draft.value?.reuseSessionId
-  if (!reuseId || props.reusableSessionsLoading) {
-    return false
-  }
-  return !props.reusableSessions.some((session) => session.id === reuseId)
-})
 
 const reusedSessionMissing = computed(
   () =>
@@ -1076,6 +1068,7 @@ watch(
   () => props.mode,
   () => {
     historyOpen.value = false
+    sessionPickerOpen.value = false
   }
 )
 </script>

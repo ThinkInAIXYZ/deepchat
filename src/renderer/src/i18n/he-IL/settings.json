@@ -1644,7 +1644,12 @@
       "reuseSession": "Reuse one session",
       "targetSession": "Target session",
       "createSessionOnFirstRun": "Create on first run",
-      "sessionUnavailable": "Session unavailable"
+      "sessionUnavailable": "Session unavailable",
+      "searchSessionPlaceholder": "חיפוש שיחות…",
+      "clearSessionSearch": "נקה חיפוש",
+      "noMatchingSessions": "לא נמצאו שיחות התואמות ל-\"{query}\"",
+      "noReusableSessions": "אין עדיין שיחות לשימוש חוזר",
+      "loadMoreSessions": "טען עוד"
     },
     "presets": {
       "custom": "מותאם אישית",

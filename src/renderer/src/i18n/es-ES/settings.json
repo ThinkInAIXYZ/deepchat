@@ -3036,7 +3036,12 @@
       "reuseSession": "Reuse one session",
       "targetSession": "Target session",
       "createSessionOnFirstRun": "Create on first run",
-      "sessionUnavailable": "Session unavailable"
+      "sessionUnavailable": "Session unavailable",
+      "searchSessionPlaceholder": "Buscar sesiones…",
+      "clearSessionSearch": "Limpiar búsqueda",
+      "noMatchingSessions": "No hay sesiones que coincidan con \"{query}\"",
+      "noReusableSessions": "Aún no hay sesiones reutilizables",
+      "loadMoreSessions": "Cargar más"
     },
     "presets": {
       "custom": "Personalizado",
