@@ -1,5 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
 import { RemoteBindingStore } from '@/remote/binding/store'
+import { createPairCode } from '@/remote/types'
+
+// Wrap (not replace) randomInt so the real CSPRNG still runs while calls stay observable.
+const { randomIntSpy } = vi.hoisted(() => ({ randomIntSpy: vi.fn() }))
+vi.mock('node:crypto', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:crypto')>()
+  randomIntSpy.mockImplementation(actual.randomInt as (...args: unknown[]) => unknown)
+  return { ...actual, randomInt: randomIntSpy }
+})
 
 const createProviderSettings = () => {
   const store = new Map<string, unknown>()
@@ -585,5 +594,45 @@ describe('RemoteBindingStore', () => {
 
     store.setChannelDefaultAgentId('weixin-ilink:acct:user', 'codex')
     expect(store.getWeixinIlinkDefaultAgentId()).toBe('codex')
+  })
+})
+
+describe('createPairCode', () => {
+  it('generates a 6-digit code within 100000-999999 without using Math.random', () => {
+    const mathRandom = vi.spyOn(Math, 'random').mockImplementation(() => {
+      throw new Error('Math.random must not be used for pairing codes')
+    })
+
+    try {
+      for (let i = 0; i < 1000; i += 1) {
+        const { code } = createPairCode()
+        expect(code).toMatch(/^[1-9]\d{5}$/)
+        expect(Number(code)).toBeGreaterThanOrEqual(100000)
+        expect(Number(code)).toBeLessThanOrEqual(999999)
+      }
+      expect(mathRandom).not.toHaveBeenCalled()
+    } finally {
+      mathRandom.mockRestore()
+    }
+  })
+
+  it('draws the code from crypto.randomInt over the full 6-digit range', () => {
+    randomIntSpy.mockClear()
+
+    createPairCode()
+
+    expect(randomIntSpy).toHaveBeenCalledTimes(1)
+    expect(randomIntSpy).toHaveBeenCalledWith(100000, 1000000)
+  })
+
+  it('keeps the string code format and applies the ttl', () => {
+    randomIntSpy.mockImplementationOnce(() => 100000)
+    const first = createPairCode(1000)
+    randomIntSpy.mockImplementationOnce(() => 999999)
+    const last = createPairCode(1000)
+
+    expect(first).toEqual({ code: '100000', failedAttempts: 0, expiresAt: expect.any(Number) })
+    expect(last.code).toBe('999999')
+    expect(typeof first.code).toBe('string')
   })
 })
