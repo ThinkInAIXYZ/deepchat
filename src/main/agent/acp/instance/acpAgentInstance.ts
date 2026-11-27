@@ -550,14 +550,17 @@ export class AcpAgentInstance
     }
   }
 
-  async updateWorkdir(workdir: string | null): Promise<string> {
+  async updateWorkdir(workdir: string | null, options?: AcpSessionOpenOptions): Promise<string> {
     if (this.remoteOperation) throw new Error('ACP history or fork is in progress')
     if (this.closed) throw new Error(`ACP session ${this.sessionId} is closed`)
-    await this.cancel()
+    if (!options?.requireResume) {
+      await this.cancel()
+    }
     const resolved = await this.dependencies.sessions.updateWorkdir(
       this.sessionId,
       this.options.agent.id,
-      workdir
+      workdir,
+      options
     )
     this.workdir = resolved
     return resolved
@@ -598,6 +601,7 @@ export class AcpAgentInstance
       status: this.status,
       ready: this.firstTurnReady,
       active: Boolean(this.active),
+      remoteOperation: this.remoteOperation,
       remoteSessionId: this.dependencies.sessions.getSession(this.sessionId)?.sessionId ?? null
     }
   }

@@ -37,6 +37,7 @@ export interface AcpAgentSnapshot {
   status: AcpAgentStatus
   ready: boolean
   active: boolean
+  remoteOperation?: boolean
   remoteSessionId: AcpRemoteSessionId | null
 }
 
@@ -56,7 +57,7 @@ export interface AcpAgentSessionHandle {
 
 export interface AcpSessionLifecycleFacet {
   prepare(options?: AcpSessionOpenOptions): Promise<void>
-  updateWorkdir(workdir: string | null): Promise<string>
+  updateWorkdir(workdir: string | null, options?: AcpSessionOpenOptions): Promise<string>
   getWorkdir(): string
 }
 
@@ -103,7 +104,8 @@ export interface AcpSessionRuntimePort {
   updateWorkdir(
     conversationId: AppSessionId,
     agentId: string,
-    workdir: string | null
+    workdir: string | null,
+    options?: AcpSessionOpenOptions
   ): Promise<string>
   getSession(conversationId: AppSessionId): AcpSessionRecord | null
   steer(

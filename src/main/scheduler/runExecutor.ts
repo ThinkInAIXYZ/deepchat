@@ -80,7 +80,7 @@ export interface CronJobRunSessionStarter {
 export class CronJobRunExecutor {
   private readonly claimOwner = `cron-job-runner:${process.pid}:${randomUUID()}`
   private readonly activeSessions = new Map<string, ActiveSessionRun>()
-  private readonly startingSessions = new Set<string>()
+  private readonly startingSessions = new Map<string, string>()
   private readonly pendingQueuedSessions = new Set<string>()
   private readonly unsubscribeSessionUpdates: () => void
   private hasRequeuedRuns = false
@@ -151,7 +151,14 @@ export class CronJobRunExecutor {
     let sessionId: string | null = null
     let reservedStartingSession = false
     let trackedInActiveSessions = false
+    let runTimeout: ReturnType<typeof setTimeout> | null = null
     const abortController = new AbortController()
+    const clearPendingTimeout = () => {
+      if (runTimeout) {
+        clearTimeout(runTimeout)
+        runTimeout = null
+      }
+    }
     try {
       console.info('[CronJobs] Resolving session for run:', {
         jobId: job.id,
@@ -202,7 +209,7 @@ export class CronJobRunExecutor {
         ) {
           return await this.handleBusyTargetSession(job, run, sessionId, 'reservation')
         }
-        this.startingSessions.add(sessionId)
+        this.startingSessions.set(sessionId, run.id)
         reservedStartingSession = true
       }
 
@@ -220,8 +227,10 @@ export class CronJobRunExecutor {
         })
       }
 
+      runTimeout = this.createRunTimeout(run.id, job, sessionId, abortController)
+
       const registerActiveSession = (meta?: { submissionId?: string }) => {
-        if (!sessionId) {
+        if (!sessionId || abortController.signal.aborted) {
           return
         }
         const existing = this.activeSessions.get(sessionId)
@@ -232,6 +241,8 @@ export class CronJobRunExecutor {
           return
         }
         trackedInActiveSessions = true
+        const ownedTimeout = runTimeout
+        runTimeout = null
         this.activeSessions.set(sessionId, {
           runId: run.id,
           job,
@@ -243,7 +254,7 @@ export class CronJobRunExecutor {
           expectedSubmissionId: meta?.submissionId ?? null,
           trackedMessageId: result.outputMessageId ?? null,
           trackedRequestId: null,
-          timeout: this.createRunTimeout(run.id, job, sessionId)
+          timeout: ownedTimeout
         })
       }
 
@@ -265,8 +276,11 @@ export class CronJobRunExecutor {
         onBeforeSubmit: registerActiveSession
       })
       if (abortController.signal.aborted) {
+        clearPendingTimeout()
         if (reservedStartingSession) {
-          this.startingSessions.delete(sessionId)
+          if (this.startingSessions.get(sessionId) === run.id) {
+            this.startingSessions.delete(sessionId)
+          }
           reservedStartingSession = false
         }
         const cancelEventId = startResult?.outputRequestId ?? startResult?.outputMessageId ?? null
@@ -298,7 +312,9 @@ export class CronJobRunExecutor {
         }
       }
       if (reservedStartingSession) {
-        this.startingSessions.delete(sessionId)
+        if (this.startingSessions.get(sessionId) === run.id) {
+          this.startingSessions.delete(sessionId)
+        }
         reservedStartingSession = false
       }
       if (!this.activeSessions.has(sessionId)) {
@@ -330,12 +346,15 @@ export class CronJobRunExecutor {
       }
       return this.repository.getRun(run.id)
     } catch (error) {
+      clearPendingTimeout()
       const sawIdleWhileStarting =
         Boolean(sessionId) &&
         this.activeSessions.get(sessionId!)?.runId === run.id &&
         this.activeSessions.get(sessionId!)?.sawIdleWhileStarting === true
       if (sessionId && reservedStartingSession) {
-        this.startingSessions.delete(sessionId)
+        if (this.startingSessions.get(sessionId) === run.id) {
+          this.startingSessions.delete(sessionId)
+        }
         reservedStartingSession = false
       }
       if (sessionId && trackedInActiveSessions) {
@@ -562,6 +581,18 @@ export class CronJobRunExecutor {
     )
       return
 
+    if (
+      activeSession.isReusedExistingSession &&
+      (activeSession.trackedMessageId ||
+        activeSession.trackedRequestId ||
+        activeSession.expectedSubmissionId) &&
+      !update.messageId &&
+      !update.requestId &&
+      !update.submissionId
+    ) {
+      return
+    }
+
     if (update.status === 'idle') {
       this.completeRun(activeSession.runId, activeSession.job, update.sessionId)
       return
@@ -619,7 +650,8 @@ export class CronJobRunExecutor {
   private createRunTimeout(
     runId: string,
     job: CronJob,
-    sessionId: string
+    sessionId: string,
+    abortController?: AbortController
   ): ReturnType<typeof setTimeout> | null {
     const maxDurationMs = job.runtime.maxDurationMs
     if (!Number.isFinite(maxDurationMs) || maxDurationMs <= 0) {
@@ -627,7 +659,7 @@ export class CronJobRunExecutor {
     }
 
     return setTimeout(() => {
-      void this.failRunForTimeout(runId, job, sessionId, maxDurationMs)
+      void this.failRunForTimeout(runId, job, sessionId, maxDurationMs, abortController)
     }, maxDurationMs)
   }
 
@@ -649,7 +681,8 @@ export class CronJobRunExecutor {
     runId: string,
     job: CronJob,
     sessionId: string,
-    maxDurationMs: number
+    maxDurationMs: number,
+    preflightAbortController?: AbortController
   ): Promise<void> {
     const activeSession = this.activeSessions.get(sessionId)
     const eventId =
@@ -679,28 +712,35 @@ export class CronJobRunExecutor {
       submissionId
     })
     const failed = this.repository.markRunFailed(runId, errorMessage)
-    if (activeSession && activeSession.runId === runId) {
-      activeSession.abortController.abort(new Error(errorMessage))
+    const controllerToAbort =
+      activeSession && activeSession.runId === runId
+        ? activeSession.abortController
+        : preflightAbortController
+    controllerToAbort?.abort(new Error(errorMessage))
+    if (this.startingSessions.get(sessionId) === runId) {
+      this.startingSessions.delete(sessionId)
     }
     this.clearActiveSession(sessionId, runId)
 
-    try {
-      await this.sessionStarter.cancelSessionRun({
-        job,
-        run: current,
-        sessionId,
-        reason: errorMessage,
-        ...(eventId ? { eventId } : {}),
-        ...(submissionId ? { submissionId } : {}),
-        ...(allowSessionWideCancel ? {} : { allowSessionWideCancel: false })
-      })
-    } catch (error) {
-      console.warn('[CronJobs] Failed to cancel timed out run session:', {
-        jobId: job.id,
-        runId,
-        sessionId,
-        error
-      })
+    if (eventId || submissionId || allowSessionWideCancel) {
+      try {
+        await this.sessionStarter.cancelSessionRun({
+          job,
+          run: current,
+          sessionId,
+          reason: errorMessage,
+          ...(eventId ? { eventId } : {}),
+          ...(submissionId ? { submissionId } : {}),
+          ...(allowSessionWideCancel ? {} : { allowSessionWideCancel: false })
+        })
+      } catch (error) {
+        console.warn('[CronJobs] Failed to cancel timed out run session:', {
+          jobId: job.id,
+          runId,
+          sessionId,
+          error
+        })
+      }
     }
 
     await this.deliverRun(job, failed)

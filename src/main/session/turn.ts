@@ -193,17 +193,18 @@ export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
     const hadMessages = await this.dependencies.transcript.hasMessages(sessionId)
     const providerId = this.resolveProviderId(runtime.kind, state?.providerId)
     this.dependencies.workdir.assertAcpSessionHasWorkdir(providerId, session.projectDir ?? null)
-    await this.dependencies.workdir.syncAcpSessionWorkdir(
-      providerId,
-      sessionId,
-      session.agentId,
-      session.projectDir ?? null
-    )
     if (options?.requireAcpResume && runtime.kind === 'acp') {
       await runtime.prepare?.({
         requireResume: true,
         requirePersistedSession: hadMessages
       })
+    } else {
+      await this.dependencies.workdir.syncAcpSessionWorkdir(
+        providerId,
+        sessionId,
+        session.agentId,
+        session.projectDir ?? null
+      )
     }
     options?.signal?.throwIfAborted()
     options?.onBeforeSubmit?.()

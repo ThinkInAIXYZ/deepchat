@@ -187,8 +187,10 @@ export const createCronJobRunSessionStarter = (deps: {
 
   async cancelSessionRun({ sessionId, eventId, submissionId, allowSessionWideCancel }) {
     if (eventId && deps.turn.cancelGenerationByEventId) {
-      await deps.turn.cancelGenerationByEventId(sessionId, eventId)
-      return
+      const cancelled = await deps.turn.cancelGenerationByEventId(sessionId, eventId)
+      if (cancelled) {
+        return
+      }
     }
     if (submissionId && deps.turn.cancelSubmission) {
       await deps.turn.cancelSubmission(sessionId, submissionId)

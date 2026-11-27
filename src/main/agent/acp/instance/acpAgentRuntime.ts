@@ -73,7 +73,10 @@ export class AcpAgentRuntime {
     })
   }
 
-  async getOrHydrate(input: AcpAgentRuntimeSessionInput): Promise<AcpAgentInstance> {
+  async getOrHydrate(
+    input: AcpAgentRuntimeSessionInput,
+    openOptions?: AcpSessionOpenOptions
+  ): Promise<AcpAgentInstance> {
     this.assertAccepting()
     this.assertInput(input)
     const previous = this.hydrations.get(input.sessionId)?.promise
@@ -86,7 +89,7 @@ export class AcpAgentRuntime {
         }
       }
       this.assertAccepting()
-      return await this.hydrateNow(input)
+      return await this.hydrateNow(input, openOptions)
     })()
     const entry = { promise: hydration }
     this.hydrations.set(input.sessionId, entry)
@@ -99,12 +102,15 @@ export class AcpAgentRuntime {
     }
   }
 
-  private async hydrateNow(input: AcpAgentRuntimeSessionInput): Promise<AcpAgentInstance> {
+  private async hydrateNow(
+    input: AcpAgentRuntimeSessionInput,
+    openOptions?: AcpSessionOpenOptions
+  ): Promise<AcpAgentInstance> {
     const identity = this.buildIdentity(input)
     const current = this.instances.get(input.sessionId)
     if (current?.identity === identity) {
       if (current.instance.getWorkdir() !== input.workdir) {
-        await current.instance.updateWorkdir(input.workdir)
+        await current.instance.updateWorkdir(input.workdir, openOptions)
         this.assertAccepting()
       }
       return current.instance
@@ -146,7 +152,7 @@ export class AcpAgentRuntime {
     input: AcpAgentRuntimeSessionInput,
     openOptions?: AcpSessionOpenOptions
   ): Promise<AcpAgentInstance> {
-    const instance = await this.getOrHydrate(input)
+    const instance = await this.getOrHydrate(input, openOptions)
     this.assertAccepting()
     const operation = (async () => {
       try {
@@ -178,7 +184,7 @@ export class AcpAgentRuntime {
     content: SendMessageInput,
     openOptions?: AcpSessionOpenOptions
   ): Promise<MessageStartResult> {
-    const instance = await this.getOrHydrate(input)
+    const instance = await this.getOrHydrate(input, openOptions)
     this.assertAccepting()
     const operation = (async () => {
       try {
@@ -207,7 +213,12 @@ export class AcpAgentRuntime {
     const instance = this.instances.get(sessionId)?.instance
     if (!instance) return false
     const snapshot = await instance.snapshot()
-    return snapshot.active || snapshot.status === 'generating' || snapshot.status === 'initializing'
+    return (
+      snapshot.active ||
+      snapshot.remoteOperation === true ||
+      snapshot.status === 'generating' ||
+      snapshot.status === 'initializing'
+    )
   }
 
   async cancel(sessionId: AppSessionId): Promise<void> {
@@ -292,12 +303,13 @@ export class AcpAgentRuntime {
     content: SendMessageInput,
     openOptions?: AcpSessionOpenOptions
   ): Promise<PendingSessionInputRecord> {
-    const instance = await this.getOrHydrate(input)
+    const instance = await this.getOrHydrate(input, openOptions)
     this.assertAccepting()
     const pending = this.pendingInputs
     const snapshot = await instance.snapshot()
     const claimImmediately =
       !snapshot.active &&
+      snapshot.remoteOperation !== true &&
       snapshot.status !== 'initializing' &&
       snapshot.status !== 'closed' &&
       !this.draining.has(input.sessionId) &&
@@ -328,9 +340,17 @@ export class AcpAgentRuntime {
     if (!instance) throw new Error('ACP session is not initialized')
     return this.trackOperation(
       sessionId,
-      instance.runIdleOperation(() =>
-        this.owner.getOrCreate().sessionController.readHistory(sessionId)
-      )
+      instance
+        .runIdleOperation(() => this.owner.getOrCreate().sessionController.readHistory(sessionId))
+        .finally(() => {
+          if (this.pendingInputs.hasPendingTurnInput(sessionId)) {
+            void this.drainPendingInputs(sessionId, 'completed').then((started) => {
+              if (!started) void this.notifyIdleIfReady(sessionId)
+            })
+          } else {
+            void this.notifyIdleIfReady(sessionId)
+          }
+        })
     )
   }
 
@@ -344,11 +364,21 @@ export class AcpAgentRuntime {
     if (!instance) throw new Error('ACP session is not initialized')
     return this.trackOperation(
       sourceId,
-      instance.runIdleOperation(() =>
-        this.owner
-          .getOrCreate()
-          .sessionController.forkSession(sourceId, targetId, turnId, operationId)
-      )
+      instance
+        .runIdleOperation(() =>
+          this.owner
+            .getOrCreate()
+            .sessionController.forkSession(sourceId, targetId, turnId, operationId)
+        )
+        .finally(() => {
+          if (this.pendingInputs.hasPendingTurnInput(sourceId)) {
+            void this.drainPendingInputs(sourceId, 'completed').then((started) => {
+              if (!started) void this.notifyIdleIfReady(sourceId)
+            })
+          } else {
+            void this.notifyIdleIfReady(sourceId)
+          }
+        })
     )
   }
 
@@ -523,6 +553,7 @@ export class AcpAgentRuntime {
     const snapshot = await instance.snapshot()
     if (
       snapshot.active ||
+      snapshot.remoteOperation === true ||
       snapshot.status === 'initializing' ||
       snapshot.status === 'closed' ||
       (snapshot.status === 'error' && reason === 'completed')
