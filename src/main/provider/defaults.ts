@@ -833,6 +833,20 @@ const PROVIDER_DEFAULTS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'straitly',
+    name: 'Straitly',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://api.straitly.ai/v1',
+    enable: false,
+    websites: {
+      official: 'https://straitly.ai/',
+      apiKey: 'https://straitly.ai/app/keys',
+      docs: 'https://straitly.ai/docs/quickstart',
+      models: 'https://straitly.ai/models'
+    }
+  },
+  {
     id: 'obscurify',
     name: 'Obscurify.ai',
     apiType: 'openai-completions',
