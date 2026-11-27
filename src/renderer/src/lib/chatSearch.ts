@@ -784,11 +784,17 @@ const appendDisplayContentText = (content: unknown, output: string[], search = f
       if (typeof record.content === 'string') {
         if (search && record.type === 'content') {
           const { status, artifact } = record as DisplayAssistantMessageBlock
-          if (artifact) return
+          if (artifact) {
+            // LegacyArtifactSource displays a title and a separate literal code block.
+            output.push(artifact.title, record.content)
+            return
+          }
           const streaming = status === 'pending' || status === 'loading'
           for (const part of generatePart(record.content, status)) {
             if (part.type === 'text') {
               output.push(...getMarkdownSearchChunks(part.content, !streaming && !part.loading))
+            } else if (part.type === 'artifact' && part.artifact) {
+              output.push(part.artifact.title, part.content)
             }
           }
         } else {
