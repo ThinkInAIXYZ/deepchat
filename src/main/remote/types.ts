@@ -1,3 +1,4 @@
+import { randomInt } from 'node:crypto'
 import { z } from 'zod'
 import type { QuestionOption } from '@shared/types/agent-interface'
 import type {
@@ -1693,7 +1694,7 @@ export const buildBindingSummary = (
 
 export const createPairCode = (ttlMs: number = TELEGRAM_PAIR_CODE_TTL_MS): TelegramPairingState => {
   return {
-    code: `${Math.floor(100000 + Math.random() * 900000)}`,
+    code: `${randomInt(100000, 1000000)}`,
     failedAttempts: 0,
     expiresAt: Date.now() + ttlMs
   }
