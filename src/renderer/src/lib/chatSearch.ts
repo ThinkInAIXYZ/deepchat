@@ -1,5 +1,18 @@
-import { getMarkdown, parseMarkdownToStructure, type ParsedNode } from 'markstream-vue'
-import type { DisplayUserMessageContent } from '@/features/chat-page/model/displayMessage'
+import katex from 'katex'
+import {
+  getMarkdown,
+  isHtmlTagBlocked,
+  parseMarkdownToStructure,
+  sanitizeHtmlAttrs,
+  sanitizeHtmlContent,
+  type ParsedNode
+} from 'markstream-vue'
+import { generatePart } from '@/composables/useArtifacts'
+import { normalizeMarkstreamCodeFenceLanguages } from '@/lib/markstreamLanguage'
+import type {
+  DisplayAssistantMessageBlock,
+  DisplayUserMessageContent
+} from '@/features/chat-page/model/displayMessage'
 import { getReferencePathLabels } from '@shared/messageInlineItems'
 import {
   getVisibleMentionLabel,
@@ -10,7 +23,10 @@ const HIGHLIGHT_SELECTOR = '[data-chat-search-match]'
 const ACTIVE_HIGHLIGHT_SELECTOR = '[data-chat-search-active]'
 const HIGHLIGHTED_QUERY_ATTRIBUTE = 'data-chat-search-highlighted-query'
 const MESSAGE_ROW_SELECTOR = '[data-message-id]'
-const MARKDOWN_BLOCK_SELECTOR = 'p, h1, h2, h3, h4, h5, h6, li, td, th, pre, dt, dd'
+const MARKDOWN_BLOCK_SELECTOR =
+  'p, h1, h2, h3, h4, h5, h6, li, td, th, pre, dt, dd, [data-markstream-math], .admonition-title'
+const MARKDOWN_CHROME_SELECTOR =
+  '.code-header-main, .code-header-title, .code-header-caption, .code-diff-stats, .mermaid-block-header, .footnote-reference, .footnote-anchor, .math-inline__loading, .math-loading-overlay, .katex-mathml'
 const continuationHighlights = new WeakSet<HTMLElement>()
 const highlightParts = new WeakMap<HTMLElement, HTMLElement[]>()
 type HighlightObserverState = {
@@ -22,19 +38,23 @@ type HighlightObserverState = {
 
 const highlightedRowObservers = new WeakMap<ParentNode, HighlightObserverState>()
 
+// A match spanning inline elements is represented by its first mark.
 export type ChatSearchMatch = HTMLElement
 export type ChatSearchResult = {
   messageId: string
   matchIndex: number
 }
 
-const isIgnoredElement = (element: HTMLElement | null): boolean => {
+const isIgnoredElement = (element: Element | null): boolean => {
   if (
     element?.closest(
       'input, textarea, select, [contenteditable="true"], [data-chat-search-exclude], [data-chat-search-match]'
     )
   )
     return true
+  if (element?.closest('.markdown-renderer-root') && element.closest(MARKDOWN_CHROME_SELECTOR)) {
+    return true
+  }
   const button = element?.closest('button')
   // Only message labels opt in. Tool/action buttons and composer controls stay excluded.
   return Boolean(button && !button.contains(element?.closest('[data-chat-search-text]') ?? null))
@@ -44,7 +64,21 @@ const isElementVisible = (element: HTMLElement | null): boolean => {
   let currentElement = element
 
   while (currentElement) {
-    if (currentElement.hidden || currentElement.getAttribute('aria-hidden') === 'true') {
+    // KaTeX hides the visual copy from assistive technology when it also renders
+    // MathML. Search only the visual copy, not its duplicate accessible markup.
+    if (
+      currentElement.matches('details:not([open])') &&
+      !currentElement.querySelector(':scope > summary')?.contains(element)
+    ) {
+      return false
+    }
+    const visibleKatex =
+      currentElement.classList.contains('katex-html') &&
+      currentElement.closest('[data-markstream-math]')
+    if (
+      currentElement.hidden ||
+      (currentElement.getAttribute('aria-hidden') === 'true' && !visibleKatex)
+    ) {
       return false
     }
 
@@ -507,8 +541,9 @@ let markdownParser: ReturnType<typeof getMarkdown> | undefined
 // Search can rerun on each keystroke. Reuse a bounded set of recent projections.
 const markdownSearchCache = new Map<string, string[]>()
 
-const getMarkdownSearchChunks = (source: string): string[] => {
-  const cached = markdownSearchCache.get(source)
+const getMarkdownSearchChunks = (source: string, final: boolean): string[] => {
+  const cacheKey = (final ? 'final:' : 'live:') + source
+  const cached = markdownSearchCache.get(cacheKey)
   if (cached) return cached
 
   const chunks: string[] = []
@@ -518,75 +553,193 @@ const getMarkdownSearchChunks = (source: string): string[] => {
     inline = ''
   }
 
+  const visitHtml = (html: string, block: boolean) => {
+    // Use the renderer's safe policy and inspect a detached, inert fragment.
+    // Never attach message HTML or use attribute values as searchable text.
+    const template = document.createElement('template')
+    template.innerHTML = sanitizeHtmlContent(html, 'safe')
+    const walk = (parent: ParentNode, grouped: boolean) => {
+      for (const node of Array.from(parent.childNodes)) {
+        if (node.nodeType === Node.TEXT_NODE) {
+          if (grouped || node.textContent?.trim()) inline += node.textContent ?? ''
+          if (!grouped) flush()
+        } else if (node instanceof Element) {
+          if (
+            node.matches('[hidden], [aria-hidden="true"]') ||
+            isIgnoredElement(node) ||
+            node.matches(MARKDOWN_CHROME_SELECTOR)
+          ) {
+            continue
+          }
+          const boundary = node.matches(MARKDOWN_BLOCK_SELECTOR)
+          if (boundary || node.tagName === 'BR') flush()
+          const collapsed = node.tagName === 'DETAILS' && !node.hasAttribute('open')
+          const body = collapsed ? node.querySelector(':scope > summary') : node
+          if (body) walk(body, grouped || boundary)
+          if (boundary) flush()
+        }
+      }
+    }
+    if (block) flush()
+    walk(template.content, !block)
+    if (block) flush()
+  }
+
   const visit = (node: ParsedNode): void => {
-    // Markstream also exports an open-ended custom node type. Only traverse
-    // known rendered properties; never index raw Markdown or link metadata.
-    const { children, items, header, rows, cells, content, code, name, text } = node as {
+    const {
+      children,
+      items,
+      header,
+      rows,
+      cells,
+      term,
+      definition,
+      content,
+      code,
+      name,
+      text,
+      kind,
+      title,
+      collapsible,
+      open,
+      loading,
+      autoClosed,
+      markup,
+      tag,
+      attrs
+    } = node as {
       children?: ParsedNode[]
       items?: ParsedNode[]
       header?: ParsedNode
       rows?: ParsedNode[]
       cells?: ParsedNode[]
+      term?: ParsedNode[]
+      definition?: ParsedNode[]
       content?: string
       code?: string
       name?: string
       text?: string
+      kind?: string
+      title?: string
+      collapsible?: boolean
+      open?: boolean
+      loading?: boolean
+      autoClosed?: boolean
+      markup?: string
+      tag?: string
+      attrs?: [string, string][]
     }
+
     switch (node.type) {
       case 'text':
         if (typeof content === 'string') inline += content
-        break
+        return
       case 'emoji':
         if (typeof name === 'string') inline += name
-        break
+        return
       case 'inline_code':
         inline += code ?? ''
-        break
+        return
       case 'link':
         if (children?.length) children.forEach(visit)
         else if (typeof text === 'string') inline += text
-        break
-      case 'strong':
-      case 'emphasis':
-      case 'strikethrough':
-      case 'highlight':
-      case 'insert':
-      case 'subscript':
-      case 'superscript':
-        children?.forEach(visit)
-        break
-      case 'paragraph':
-      case 'heading':
-      case 'blockquote':
-      case 'list_item':
-      case 'table_cell':
+        return
+      case 'image':
+      case 'footnote_reference':
+      case 'footnote_anchor':
+        return
+      case 'math_inline':
+      case 'math_block': {
         flush()
-        children?.forEach(visit)
+        if (loading || typeof content !== 'string') return
+        const template = document.createElement('template')
+        // Index the visible glyphs. TeX commands and the hidden MathML
+        // annotation are not visible text and cannot be highlighted.
+        try {
+          template.innerHTML = katex.renderToString(content, {
+            displayMode: node.type === 'math_block' || markup === '$$',
+            output: 'html',
+            throwOnError: false,
+            strict: 'ignore'
+          })
+          const mathText = template.content.textContent
+          if (mathText) chunks.push(mathText)
+        } catch {
+          // Markstream falls back to literal source if KaTeX cannot render.
+          if (node.raw) chunks.push(node.raw)
+        }
+        return
+      }
+      case 'html_inline':
+      case 'html_block':
+        if (node.type === 'html_inline' && loading && !autoClosed) inline += content ?? ''
+        else if (
+          node.type === 'html_block' &&
+          tag &&
+          children?.length &&
+          !isHtmlTagBlocked(tag, 'safe')
+        ) {
+          const attributes = sanitizeHtmlAttrs(Object.fromEntries(attrs ?? []), 'safe', tag)
+          if (Object.hasOwn(attributes, 'hidden') || attributes['aria-hidden'] === 'true') return
+          flush()
+          const visibleChildren =
+            tag === 'details' && !Object.hasOwn(attributes, 'open')
+              ? children
+                  .filter((child) => child.type === 'html_block' && child.tag === 'summary')
+                  .slice(0, 1)
+              : children
+          visibleChildren.forEach(visit)
+          flush()
+        } else if (typeof content === 'string') visitHtml(content, node.type === 'html_block')
+        return
+      case 'admonition': {
         flush()
-        break
-      case 'list':
-        if (Array.isArray(items)) items.forEach(visit)
-        break
-      case 'table':
-        if (header) visit(header)
-        if (Array.isArray(rows)) rows.forEach(visit)
-        break
-      case 'table_row':
-        if (Array.isArray(cells)) cells.forEach(visit)
-        break
+        const label = kind || 'note'
+        chunks.push(title?.trim() ? title : label.charAt(0).toUpperCase() + label.slice(1))
+        if (!(collapsible && open === false)) children?.forEach(visit)
+        flush()
+        return
+      }
+      case 'definition_item':
+        flush()
+        term?.forEach(visit)
+        flush()
+        definition?.forEach(visit)
+        flush()
+        return
       case 'code_block':
         flush()
         if (code) chunks.push(code)
-        break
+        return
       case 'hardbreak':
       case 'thematic_break':
         flush()
-        break
+        return
     }
+
+    // Walk structural child fields, including new containers. Never fall back
+    // to raw source, URLs, attributes, or arbitrary custom component strings.
+    const block = [
+      'paragraph',
+      'heading',
+      'blockquote',
+      'list_item',
+      'table_cell',
+      'footnote'
+    ].includes(node.type)
+    if (block) flush()
+    if (node.type === 'heading' && !children?.length && typeof text === 'string') inline += text
+    if (header) visit(header)
+    for (const group of [children, items, rows, cells]) {
+      if (Array.isArray(group)) group.forEach(visit)
+    }
+    if (block) flush()
   }
 
   markdownParser ??= getMarkdown('chat-search')
-  parseMarkdownToStructure(source, markdownParser, { final: true }).forEach(visit)
+  parseMarkdownToStructure(normalizeMarkstreamCodeFenceLanguages(source), markdownParser, {
+    final
+  }).forEach(visit)
   flush()
 
   // Do not retain large streamed snapshots in the cache.
@@ -595,7 +748,7 @@ const getMarkdownSearchChunks = (source: string): string[] => {
       const oldest = markdownSearchCache.keys().next().value
       if (oldest !== undefined) markdownSearchCache.delete(oldest)
     }
-    markdownSearchCache.set(source, chunks)
+    markdownSearchCache.set(cacheKey, chunks)
   }
   return chunks
 }
@@ -624,7 +777,14 @@ const appendDisplayContentText = (content: unknown, output: string[], search = f
       }
       if (typeof record.content === 'string') {
         if (search && record.type === 'content') {
-          output.push(...getMarkdownSearchChunks(record.content))
+          const { status, artifact } = record as DisplayAssistantMessageBlock
+          if (artifact) return
+          const streaming = status === 'pending' || status === 'loading'
+          for (const part of generatePart(record.content, status)) {
+            if (part.type === 'text') {
+              output.push(...getMarkdownSearchChunks(part.content, !streaming && !part.loading))
+            }
+          }
         } else {
           output.push(record.content)
         }
