@@ -790,6 +790,8 @@ export class AiSdkProvider extends BaseLLMProvider {
         return this.fetchRequestyModels()
       case 'litellm':
         return this.fetchLiteLLMModels()
+      case 'rapid-mlx':
+        return this.fetchRapidMlxModels()
       case 'openllm':
         return this.fetchOpenLLMModels()
       case 'demonroute':
@@ -1143,6 +1145,33 @@ export class AiSdkProvider extends BaseLLMProvider {
       })
     }
     return [...models.values()]
+  }
+
+  /** Keep Rapid-MLX text models, including cards from older servers without capabilities. */
+  private async fetchRapidMlxModels(): Promise<MODEL_META[]> {
+    const records = await this.fetchOpenAIModelRecords({ timeout: this.getModelFetchTimeout() })
+    const models: MODEL_META[] = []
+    for (const model of records) {
+      if (typeof model.id !== 'string' || !model.id.trim()) continue
+      const capabilities = Array.isArray(model.capabilities) ? model.capabilities : []
+      if (model.capabilities !== undefined && !capabilities.includes('text')) continue
+      const contextLength = toPositiveFiniteNumber(model.max_model_len ?? model.context_window)
+      models.push({
+        id: model.id,
+        name: model.id,
+        group: 'default',
+        providerId: this.provider.id,
+        isCustom: false,
+        type: ModelType.Chat,
+        ...(contextLength !== undefined ? { contextLength } : {}),
+        vision: capabilities.includes('vision'),
+        functionCall: capabilities.includes('tools'),
+        ...(typeof model.owned_by === 'string' && model.owned_by.trim()
+          ? { ownedBy: model.owned_by.trim() }
+          : {})
+      })
+    }
+    return models
   }
 
   /**

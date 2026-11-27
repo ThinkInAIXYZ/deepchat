@@ -183,7 +183,7 @@ describe('DEFAULT_PROVIDERS', () => {
         enable: false,
         websites: expect.objectContaining({
           official: 'https://rapidmlx.com',
-          apiKey: 'https://github.com/raullenchai/Rapid-MLX#readme',
+          apiKey: 'https://github.com/raullenchai/Rapid-MLX/blob/main/docs/guides/server.md',
           docs: 'https://github.com/raullenchai/Rapid-MLX#readme',
           models: 'https://github.com/raullenchai/Rapid-MLX#choose-your-model',
           defaultBaseUrl: 'http://localhost:8000/v1'

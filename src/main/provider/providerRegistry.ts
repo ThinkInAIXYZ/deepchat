@@ -30,6 +30,7 @@ export type AiSdkModelSourceStrategy =
   | 'openrouter'
   | 'requesty'
   | 'litellm'
+  | 'rapid-mlx'
   | 'openllm'
   | 'demonroute'
   | 'ppio'
@@ -810,7 +811,8 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
     'rapid-mlx',
     // Local OpenAI-compatible server; API-key authentication is optional.
     createDefinition({
-      ...OPENAI_BASE
+      ...OPENAI_BASE,
+      modelSource: 'rapid-mlx'
     })
   ],
   [

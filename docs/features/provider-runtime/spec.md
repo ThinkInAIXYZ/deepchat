@@ -141,8 +141,13 @@ for the local Apple Silicon server at `http://localhost:8000/v1`. It is disabled
 The API key is optional unless the server was started with `--api-key`; a configured key uses
 standard bearer authentication and the existing main-process provider credential storage.
 Keyless onboarding accepts HTTP loopback endpoints, following OpenLLM's local setup rule.
-Live discovery and connection checks list `/v1/models`, preserving model ids verbatim through
-the shared OpenAI model source. Streaming chat and tools use `/v1/chat/completions`;
+Start with `rapid-mlx serve <model> --port 8000` to match the preset; without `--port`, the CLI
+chooses the first free port from 8000 through 8009.
+Live discovery and connection checks list `/v1/models`. The dedicated Rapid-MLX model source
+preserves ids verbatim and keeps cards with `text` capabilities (or no capabilities field for
+older servers), excluding embedding, rerank and media-only models. It reads context length from
+`max_model_len ?? context_window`, vision from `vision`, and tool support from `tools`.
+Streaming chat and tools use `/v1/chat/completions`;
 embedding models use `/v1/embeddings`. No custom adapter or catalog is required.
 
 Upstream reference: [Rapid-MLX README](https://github.com/raullenchai/Rapid-MLX#readme).

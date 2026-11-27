@@ -673,7 +673,7 @@ const PROVIDER_DEFAULTS: LLM_PROVIDER_BASE[] = [
     enable: false,
     websites: {
       official: 'https://rapidmlx.com',
-      apiKey: 'https://github.com/raullenchai/Rapid-MLX#readme',
+      apiKey: 'https://github.com/raullenchai/Rapid-MLX/blob/main/docs/guides/server.md',
       docs: 'https://github.com/raullenchai/Rapid-MLX#readme',
       models: 'https://github.com/raullenchai/Rapid-MLX#choose-your-model'
     }

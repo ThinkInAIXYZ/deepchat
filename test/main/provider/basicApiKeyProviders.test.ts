@@ -1728,19 +1728,38 @@ describe('basic API-key provider registrations', () => {
     const defaults = DEFAULT_PROVIDERS.find(({ id }) => id === 'rapid-mlx')!
     expect(resolveAiSdkProviderDefinition(defaults)).toMatchObject({
       runtimeKind: 'openai-compatible',
-      modelSource: 'openai',
+      modelSource: 'rapid-mlx',
       checkStrategy: 'fetch-models',
       embeddingStrategy: 'openai'
     })
     expect(resolveAiSdkProviderDefinition(defaults)?.credentialStrategy).toBeUndefined()
     const modelId = 'mlx-community/Qwen3.5-4B-MLX-4bit'
-    const fetchMock = vi
-      .fn()
-      .mockImplementation(() =>
-        Promise.resolve(
-          Response.json({ object: 'list', data: [{ id: modelId, owned_by: 'rapid-mlx' }] })
-        )
+    const fetchMock = vi.fn().mockImplementation(() =>
+      Promise.resolve(
+        Response.json({
+          object: 'list',
+          data: [
+            {
+              id: modelId,
+              owned_by: 'rapid-mlx',
+              capabilities: ['text', 'vision', 'tools'],
+              max_model_len: 262144,
+              context_window: 131072
+            },
+            { id: 'embeddinggemma', capabilities: ['embedding'] },
+            { id: 'Qwen3-Reranker', capabilities: ['rerank'] },
+            { id: 'flux', capabilities: ['image.generation'] },
+            { id: 'image-edit', capabilities: ['image.editing'] },
+            { id: 'video', capabilities: ['video.generation'] },
+            { id: 'empty-capabilities', capabilities: [] },
+            { id: 'legacy/model', max_model_len: null, context_window: 32768 },
+            { id: ' text/alias ', capabilities: ['text'] },
+            { id: '  ', capabilities: ['text'] },
+            { id: 7, capabilities: ['text'] }
+          ]
+        })
       )
+    )
     global.fetch = fetchMock
     const provider = new AiSdkProvider(defaults, createProviderSettings())
 
@@ -1751,7 +1770,32 @@ describe('basic API-key provider registrations', () => {
         group: 'default',
         providerId: 'rapid-mlx',
         isCustom: false,
-        ownedBy: 'rapid-mlx'
+        ownedBy: 'rapid-mlx',
+        type: 'chat',
+        contextLength: 262144,
+        vision: true,
+        functionCall: true
+      },
+      {
+        id: 'legacy/model',
+        name: 'legacy/model',
+        group: 'default',
+        providerId: 'rapid-mlx',
+        isCustom: false,
+        type: 'chat',
+        contextLength: 32768,
+        vision: false,
+        functionCall: false
+      },
+      {
+        id: ' text/alias ',
+        name: ' text/alias ',
+        group: 'default',
+        providerId: 'rapid-mlx',
+        isCustom: false,
+        type: 'chat',
+        vision: false,
+        functionCall: false
       }
     ])
     await expect(provider.check()).resolves.toEqual({ isOk: true, errorMsg: null })
