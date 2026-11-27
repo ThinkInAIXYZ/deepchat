@@ -3616,6 +3616,18 @@ declare module 'vue-i18n' {
         scheduleMinute: string
         createEnabled: string
         createEnabledHint: string
+        session: string
+        sessionMode: string
+        newSessionEachRun: string
+        reuseSession: string
+        targetSession: string
+        createSessionOnFirstRun: string
+        sessionUnavailable: string
+        searchSessionPlaceholder: string
+        clearSessionSearch: string
+        noMatchingSessions: string
+        noReusableSessions: string
+        loadMoreSessions: string
       }
       presets: {
         custom: string

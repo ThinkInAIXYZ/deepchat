@@ -2018,7 +2018,7 @@
       "targetSession": "目标会话",
       "createSessionOnFirstRun": "首次运行时创建",
       "sessionUnavailable": "会话不可用",
-      "searchSessionPlaceholder": "搜索会话标题…",
+      "searchSessionPlaceholder": "搜索会话…",
       "clearSessionSearch": "清除搜索",
       "noMatchingSessions": "未找到「{query}」相关会话",
       "noReusableSessions": "暂无可复用会话",
