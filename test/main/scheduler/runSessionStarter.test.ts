@@ -131,9 +131,12 @@ describe('createCronJobRunSessionStarter', () => {
     await expect(starter.createSessionForRun({ job, run })).resolves.toEqual({
       sessionId: 'acp-session-1'
     })
-    await expect(
-      starter.startSessionRun({ job, run, sessionId: 'acp-session-1' })
-    ).resolves.toEqual({ outputMessageId: 'message-2' })
+    const startResult = await starter.startSessionRun({ job, run, sessionId: 'acp-session-1' })
+    expect(startResult).toEqual({
+      outputMessageId: 'message-2',
+      outputRequestId: 'request-2',
+      expectedSubmissionId: expect.stringMatching(/^cron:run-acp:/)
+    })
 
     expect(ports.lifecycle.createDetachedSession).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -143,7 +146,8 @@ describe('createCronJobRunSessionStarter', () => {
       })
     )
     expect(ports.turn.sendMessage).toHaveBeenCalledWith('acp-session-1', 'Review the workspace', {
-      maxProviderRounds: 7
+      maxProviderRounds: 7,
+      submissionId: startResult.expectedSubmissionId
     })
 
     await starter.cancelSessionRun({
@@ -153,5 +157,94 @@ describe('createCronJobRunSessionStarter', () => {
       reason: 'Cron job exceeded max duration.'
     })
     expect(ports.turn.cancelGeneration).toHaveBeenCalledWith('acp-session-1')
+  })
+
+  it('reuses a validated existing session with busy/ACP-resume guards and turn-scoped cancel', async () => {
+    const ports = createPorts()
+    vi.mocked(ports.agentCatalog.getAgentType).mockResolvedValue('acp')
+    const cancelGenerationByEventId = vi.fn(async () => true)
+    const cancelSubmission = vi.fn(async () => true)
+    const starter = createCronJobRunSessionStarter({
+      ...ports,
+      turn: { ...ports.turn, cancelGenerationByEventId, cancelSubmission },
+      sessions: {
+        get: (id) =>
+          id === 'existing-1'
+            ? ({
+                id: 'existing-1',
+                agentId: 'manual-acp',
+                isDraft: false,
+                sessionKind: 'regular'
+              } as never)
+            : null
+      }
+    })
+    const job = {
+      id: 'cron-reuse',
+      name: 'Reuse ACP',
+      agentId: 'manual-acp',
+      sessionMode: 'reuse_session',
+      reuseSessionId: 'existing-1',
+      taskPrompt: 'Continue report',
+      runtime: { maxTurns: 5 }
+    } as CronJob
+    const run = createRun()
+
+    await expect(starter.createSessionForRun({ job, run })).resolves.toEqual({
+      sessionId: 'existing-1',
+      reused: true
+    })
+    expect(ports.lifecycle.createDetachedSession).not.toHaveBeenCalled()
+
+    const acpResult = await starter.startSessionRun({
+      job,
+      run,
+      sessionId: 'existing-1',
+      reused: true
+    })
+    expect(acpResult.expectedSubmissionId).toMatch(/^cron:run-1:/)
+    expect(ports.turn.sendMessage).toHaveBeenCalledWith('existing-1', 'Continue report', {
+      maxProviderRounds: 5,
+      submissionId: acpResult.expectedSubmissionId,
+      rejectIfBusy: true,
+      requireAcpResume: true
+    })
+
+    await starter.cancelSessionRun({
+      job,
+      run,
+      sessionId: 'existing-1',
+      reason: 'timeout',
+      eventId: 'turn-evt-1',
+      allowSessionWideCancel: false
+    })
+    expect(cancelGenerationByEventId).toHaveBeenCalledWith('existing-1', 'turn-evt-1')
+    expect(ports.turn.cancelGeneration).not.toHaveBeenCalled()
+
+    await starter.cancelSessionRun({
+      job,
+      run,
+      sessionId: 'existing-1',
+      reason: 'timeout',
+      submissionId: acpResult.expectedSubmissionId,
+      allowSessionWideCancel: false
+    })
+    expect(cancelSubmission).toHaveBeenCalledWith('existing-1', acpResult.expectedSubmissionId)
+    expect(ports.turn.cancelGeneration).not.toHaveBeenCalled()
+
+    vi.mocked(ports.agentCatalog.getAgentType).mockResolvedValue('deepchat')
+    const deepchatResult = await starter.startSessionRun({
+      job: { ...job, agentId: 'deepchat' },
+      run,
+      sessionId: 'existing-1',
+      reused: true
+    })
+    expect(deepchatResult.expectedSubmissionId).toMatch(/^cron:run-1:/)
+    expect(ports.turn.sendMessage).toHaveBeenLastCalledWith('existing-1', 'Continue report', {
+      maxProviderRounds: 5,
+      submissionId: deepchatResult.expectedSubmissionId,
+      rejectIfBusy: true,
+      requireAcpResume: true
+    })
   })
 })

@@ -2,6 +2,7 @@ import type { PowerMonitor } from 'electron'
 import {
   CRON_JOBS_DEFAULT_DELIVERY as DEFAULT_DELIVERY,
   CRON_JOBS_DEFAULT_RUNTIME as DEFAULT_RUNTIME,
+  CRON_JOBS_DEFAULT_SESSION_MODE as DEFAULT_SESSION_MODE,
   type CronJob,
   type CronJobAgentSnapshot,
   type CronJobDeliveryReceipt,
@@ -20,6 +21,7 @@ import { CronExpressionService } from './cronExpressionService'
 import { CronJobDeliveryRouter, type CronJobRemoteDeliveryPort } from './deliveryRouter'
 import { CronJobsRepository } from './repository'
 import { CronJobRunExecutor, type CronJobRunSessionStarter } from './runExecutor'
+import { validateReusedSessionForAgent, type CronJobSessionLookupPort } from './runSessionStarter'
 import { CronJobRuntimeResolver } from './runtimeResolver'
 import {
   SchedulerProcessManager,
@@ -38,6 +40,7 @@ export interface SchedulerServiceDeps {
   remoteDeliveryPort: CronJobRemoteDeliveryPort
   sessionEvents: SessionRuntimeEventPort
   agentSettings: Pick<AgentSettingsPort, 'listAgents' | 'resolveDeepChatAgentConfig'>
+  sessions?: CronJobSessionLookupPort
   schedulerManager?: SchedulerProcessManager
   scheduleService?: CronExpressionService
   runtimeResolver?: CronJobRuntimeResolver
@@ -55,13 +58,17 @@ export class SchedulerService {
   private readonly deliveryRouter: CronJobDeliveryRouter
   private readonly runtimeResolver: CronJobRuntimeResolver
   private readonly runExecutor: CronJobRunExecutor
+  private readonly sessions?: CronJobSessionLookupPort
   private started = false
+  private drainingQueuedRuns = false
+  private pendingQueuedDrain = false
   private powerMonitor: Pick<PowerMonitor, 'on' | 'off'> | null = null
   private readonly resumeHandler = () => {
     void this.reconcileScheduler('system-resume')
   }
 
   constructor(deps: SchedulerServiceDeps) {
+    this.sessions = deps.sessions
     this.repository = new CronJobsRepository(deps.database)
     this.scheduleService = deps.scheduleService ?? new CronExpressionService()
     this.runtimeResolver = deps.runtimeResolver ?? new CronJobRuntimeResolver(deps.agentSettings)
@@ -71,7 +78,12 @@ export class SchedulerService {
       this.repository,
       deps.runSessionStarter,
       this.deliveryRouter,
-      deps.sessionEvents
+      deps.sessionEvents,
+      () => {
+        void this.drainQueuedRuns().catch((error) => {
+          console.error('[CronJobs] Failed to drain queued runs:', error)
+        })
+      }
     )
     const managerDeps: Omit<SchedulerProcessManagerDeps, 'spawnHost'> = {
       dbPath: deps.database.getDatabasePath(),
@@ -94,8 +106,15 @@ export class SchedulerService {
     }
     this.started = true
     this.failStaleRunningRuns()
+    void this.drainQueuedRuns().catch((error) => {
+      console.error('[CronJobs] Failed to drain queued runs on startup:', error)
+    })
     void this.attachPowerMonitor()
     void this.reconcileScheduler('startup')
+  }
+
+  notifySessionIdle(sessionId: string): void {
+    this.runExecutor.notifySessionIdle(sessionId)
   }
 
   async stop(): Promise<void> {
@@ -130,11 +149,19 @@ export class SchedulerService {
     job: CronJob
     schedulerStatus: CronJobsSchedulerStatus
   }> {
-    const draft = this.buildJobDraft(input)
+    const existing = input.id ? this.repository.getJob(input.id) : null
+    const draft = this.buildJobDraft(input, existing)
+    this.validateReuseSessionSelection(draft, existing)
     const jobState = await this.computeJobState(draft, Date.now(), true)
     beforeMutation?.()
+    const preserveStoredReuseSessionId =
+      draft.sessionMode === 'reuse_session' &&
+      input.reuseSessionId === undefined &&
+      Boolean(existing) &&
+      draft.agentId === existing?.agentId
     const job = this.repository.upsertJob({
       ...draft,
+      reuseSessionId: preserveStoredReuseSessionId ? undefined : draft.reuseSessionId,
       enabled: jobState.enabled,
       status: jobState.status,
       nextRunAt: jobState.nextRunAt,
@@ -167,8 +194,7 @@ export class SchedulerService {
     })
     const jobState = await this.computeJobState(draft, Date.now(), true)
     beforeMutation?.()
-    const job = this.repository.upsertJob({
-      ...draft,
+    const job = this.repository.updateJobComputedState(id, {
       enabled: jobState.enabled,
       status: jobState.status,
       nextRunAt: jobState.nextRunAt,
@@ -202,8 +228,9 @@ export class SchedulerService {
       reason: run.reason
     })
     const completed = this.repository.getRun(run.id) ?? run
+    const latestJob = this.repository.getJob(id) ?? job
     const schedulerStatus = await this.reconcileScheduler('manual-run')
-    return { job, run: completed, schedulerStatus }
+    return { job: latestJob, run: completed, schedulerStatus }
   }
 
   listRuns(jobId: string, limit?: number): CronJobRun[] {
@@ -276,37 +303,72 @@ export class SchedulerService {
     }
   }
 
-  private buildJobDraft(input: CronJobsUpsertInput): CronJobDraft {
-    const existing = input.id ? this.repository.getJob(input.id) : null
+  private buildJobDraft(input: CronJobsUpsertInput, existing?: CronJob | null): CronJobDraft {
+    const stored =
+      existing === undefined ? (input.id ? this.repository.getJob(input.id) : null) : existing
+    const sessionMode = input.sessionMode ?? stored?.sessionMode ?? DEFAULT_SESSION_MODE
+    const reuseSessionId =
+      sessionMode === 'reuse_session'
+        ? input.reuseSessionId === undefined
+          ? (stored?.reuseSessionId ?? null)
+          : input.reuseSessionId
+        : null
     return {
       id: input.id,
       name: input.name,
-      description: input.description ?? existing?.description ?? null,
+      description: input.description ?? stored?.description ?? null,
       enabled: input.enabled,
-      status: input.status ?? existing?.status ?? (input.enabled ? 'ready' : 'disabled'),
+      status: input.status ?? stored?.status ?? (input.enabled ? 'ready' : 'disabled'),
       cronExpr: input.cronExpr,
       timezone: input.timezone,
       agentId: input.agentId,
-      nextRunAt: input.nextRunAt ?? existing?.nextRunAt ?? null,
-      misfirePolicy: input.misfirePolicy ?? existing?.misfirePolicy ?? 'skip',
-      maxCatchUpRuns: input.maxCatchUpRuns ?? existing?.maxCatchUpRuns ?? null,
-      scheduleError: input.scheduleError ?? existing?.scheduleError ?? null,
-      taskPrompt: input.taskPrompt ?? existing?.taskPrompt ?? '',
-      taskSystemInstruction: input.taskSystemInstruction ?? existing?.taskSystemInstruction ?? null,
-      taskOutputMode: input.taskOutputMode ?? existing?.taskOutputMode ?? 'final_message',
-      modelPolicy: input.modelPolicy ?? existing?.modelPolicy ?? 'follow_agent',
-      toolPolicy: input.toolPolicy ?? existing?.toolPolicy ?? 'follow_agent',
-      permissionPolicy: input.permissionPolicy ?? existing?.permissionPolicy ?? 'follow_agent',
-      runtime: input.runtime ?? existing?.runtime ?? { ...DEFAULT_RUNTIME },
-      agentSnapshot: input.agentSnapshot ?? existing?.agentSnapshot ?? null,
+      nextRunAt: input.nextRunAt ?? stored?.nextRunAt ?? null,
+      misfirePolicy: input.misfirePolicy ?? stored?.misfirePolicy ?? 'skip',
+      maxCatchUpRuns: input.maxCatchUpRuns ?? stored?.maxCatchUpRuns ?? null,
+      scheduleError: input.scheduleError ?? stored?.scheduleError ?? null,
+      taskPrompt: input.taskPrompt ?? stored?.taskPrompt ?? '',
+      taskSystemInstruction: input.taskSystemInstruction ?? stored?.taskSystemInstruction ?? null,
+      taskOutputMode: input.taskOutputMode ?? stored?.taskOutputMode ?? 'final_message',
+      modelPolicy: input.modelPolicy ?? stored?.modelPolicy ?? 'follow_agent',
+      toolPolicy: input.toolPolicy ?? stored?.toolPolicy ?? 'follow_agent',
+      permissionPolicy: input.permissionPolicy ?? stored?.permissionPolicy ?? 'follow_agent',
+      sessionMode,
+      reuseSessionId,
+      runtime: input.runtime ?? stored?.runtime ?? { ...DEFAULT_RUNTIME },
+      agentSnapshot: input.agentSnapshot ?? stored?.agentSnapshot ?? null,
       delivery:
         input.delivery ??
-        existing?.delivery ??
+        stored?.delivery ??
         ({
           ...DEFAULT_DELIVERY,
           targets: [...DEFAULT_DELIVERY.targets]
         } as CronJobDraft['delivery'])
     }
+  }
+
+  private validateReuseSessionSelection(draft: CronJobDraft, existing: CronJob | null): void {
+    if (draft.sessionMode !== 'reuse_session' || !draft.reuseSessionId) {
+      return
+    }
+    const selectionChanged =
+      !existing ||
+      draft.reuseSessionId !== existing.reuseSessionId ||
+      draft.agentId !== existing.agentId ||
+      draft.sessionMode !== existing.sessionMode
+    if (!selectionChanged) {
+      return
+    }
+    if (!draft.agentId) {
+      throw new Error('Cron job requires an enabled agent before selecting a session to reuse.')
+    }
+    if (!this.sessions) {
+      return
+    }
+    validateReusedSessionForAgent(
+      this.sessions.get(draft.reuseSessionId),
+      draft.reuseSessionId,
+      draft.agentId
+    )
   }
 
   private async computeJobState(
@@ -418,8 +480,7 @@ export class SchedulerService {
       ) {
         continue
       }
-      this.repository.upsertJob({
-        ...job,
+      this.repository.updateJobComputedState(job.id, {
         enabled: state.enabled,
         status: state.status,
         nextRunAt: state.nextRunAt,
@@ -469,6 +530,47 @@ export class SchedulerService {
     }
   }
 
+  private async drainQueuedRuns(): Promise<void> {
+    if (this.drainingQueuedRuns) {
+      this.pendingQueuedDrain = true
+      return
+    }
+    this.drainingQueuedRuns = true
+    try {
+      const batchSize = 50
+      do {
+        this.pendingQueuedDrain = false
+        const attempted = new Set<string>()
+        let cursor: { queuedAt: number; id: string } | undefined
+        while (true) {
+          const queuedRuns = this.repository.listQueuedRuns(batchSize, cursor)
+          if (queuedRuns.length === 0) {
+            break
+          }
+          for (const run of queuedRuns) {
+            if (attempted.has(run.id)) {
+              continue
+            }
+            attempted.add(run.id)
+            await this.processDueRun({
+              jobId: run.jobId,
+              runId: run.id,
+              scheduledAt: run.scheduledAt,
+              reason: run.reason
+            })
+          }
+          const last = queuedRuns[queuedRuns.length - 1]!
+          cursor = { queuedAt: last.queuedAt, id: last.id }
+          if (queuedRuns.length < batchSize) {
+            break
+          }
+        }
+      } while (this.pendingQueuedDrain)
+    } finally {
+      this.drainingQueuedRuns = false
+    }
+  }
+
   private async failRunAndDeliver(runId: string, job: CronJob, message: string): Promise<void> {
     const failed = this.repository.markRunFailed(runId, message)
     try {
@@ -484,6 +586,7 @@ export { createCronJobRunSessionStarter } from './runSessionStarter'
 export type {
   CronJobAgentCatalogPort,
   CronJobSessionLifecyclePort,
+  CronJobSessionLookupPort,
   CronJobSessionTurnPort
 } from './runSessionStarter'
 export type { CronJobRunSessionStarter }

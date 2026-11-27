@@ -46,7 +46,11 @@ import { AgentCatalogSettingsTable } from '@/agent/acp/catalog/data/settingsTabl
 import { NewSessionActiveSkillsTable } from '@/session/data/tables/newSessionActiveSkills'
 import { NewSessionDisabledAgentToolsTable } from '@/session/data/tables/newSessionDisabledAgentTools'
 import { SettingsActivityTable } from '@/settings/data/tables/settingsActivity'
-import { CronJobsTable } from '@/scheduler/data/tables/cronJobs'
+import {
+  CRON_JOBS_REUSE_SESSION_ID_ADD_COLUMN_SQL,
+  CRON_JOBS_SESSION_MODE_ADD_COLUMN_SQL,
+  CronJobsTable
+} from '@/scheduler/data/tables/cronJobs'
 import { CronJobRunsTable } from '@/scheduler/data/tables/cronJobRuns'
 import { CronJobDeliveriesTable } from '@/scheduler/data/tables/cronJobDeliveries'
 import {
@@ -386,7 +390,12 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
   },
   {
     name: 'cron_jobs',
-    createTable: (db) => new CronJobsTable(db)
+    createTable: (db) => new CronJobsTable(db),
+    repairableColumns: {
+      session_mode: `${CRON_JOBS_SESSION_MODE_ADD_COLUMN_SQL};`,
+      reuse_session_id: `${CRON_JOBS_REUSE_SESSION_ID_ADD_COLUMN_SQL};`
+    },
+    typeCheckedColumns: ['session_mode']
   },
   {
     name: 'cron_job_runs',

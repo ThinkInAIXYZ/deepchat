@@ -292,6 +292,44 @@ export class CronJobRunsTable extends BaseTable {
     return row.count
   }
 
+  countActiveBySession(sessionId: string, excludeRunId?: string): number {
+    const row = this.db
+      .prepare(
+        `SELECT COUNT(*) AS count
+         FROM cron_job_runs
+         WHERE session_id = ?
+           AND status = 'running'
+           AND (? IS NULL OR id != ?)`
+      )
+      .get(sessionId, excludeRunId ?? null, excludeRunId ?? null) as { count: number }
+    return row.count
+  }
+
+  listQueued(limit = 50, after?: { queuedAt: number; id: string }): CronJobRunRow[] {
+    const safeLimit = Math.min(Math.max(Math.trunc(limit), 1), 200)
+    if (after) {
+      return this.db
+        .prepare(
+          `SELECT *
+           FROM cron_job_runs
+           WHERE status = 'queued'
+             AND (queued_at > ? OR (queued_at = ? AND id > ?))
+           ORDER BY queued_at ASC, id ASC
+           LIMIT ?`
+        )
+        .all(after.queuedAt, after.queuedAt, after.id, safeLimit) as CronJobRunRow[]
+    }
+    return this.db
+      .prepare(
+        `SELECT *
+         FROM cron_job_runs
+         WHERE status = 'queued'
+         ORDER BY queued_at ASC, id ASC
+         LIMIT ?`
+      )
+      .all(safeLimit) as CronJobRunRow[]
+  }
+
   listByJob(jobId: string, limit = 50): CronJobRunRow[] {
     const safeLimit = Math.min(Math.max(Math.trunc(limit), 1), 200)
     return this.db

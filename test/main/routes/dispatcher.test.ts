@@ -1413,6 +1413,8 @@ function createRuntime() {
     modelPolicy: 'follow_agent' as const,
     toolPolicy: 'follow_agent' as const,
     permissionPolicy: 'follow_agent' as const,
+    sessionMode: 'new_session' as const,
+    reuseSessionId: null,
     runtime: {
       maxDurationMs: 3_600_000,
       maxTurns: 20,

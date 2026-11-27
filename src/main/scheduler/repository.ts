@@ -2,6 +2,7 @@ import {
   CRON_JOBS_DEFAULT_DELIVERY,
   CRON_JOBS_DEFAULT_MISFIRE_POLICY,
   CRON_JOBS_DEFAULT_RUNTIME,
+  CRON_JOBS_DEFAULT_SESSION_MODE,
   type CronJobAgentSnapshot,
   type CronJobDelivery,
   type CronJobDeliveryReceipt,
@@ -66,12 +67,37 @@ export class CronJobsRepository {
       modelPolicy: input.modelPolicy,
       toolPolicy: input.toolPolicy,
       permissionPolicy: input.permissionPolicy,
+      sessionMode: input.sessionMode,
+      reuseSessionId: input.reuseSessionId,
       runtime: input.runtime,
       agentSnapshot: input.agentSnapshot,
       delivery: input.delivery,
       now: input.now
     })
     return toCronJob(row)
+  }
+
+  bindJobReuseSessionId(
+    id: string,
+    reuseSessionId: string,
+    expectedAgentId: string
+  ): CronJob | null {
+    const row = this.database.cronJobsTable.bindReuseSessionId(id, reuseSessionId, expectedAgentId)
+    return row ? toCronJob(row) : null
+  }
+
+  updateJobComputedState(
+    id: string,
+    input: {
+      enabled: boolean
+      status: CronJob['status']
+      nextRunAt: number | null
+      scheduleError: string | null
+      agentSnapshot: CronJobAgentSnapshot | null
+      now?: number
+    }
+  ): CronJob {
+    return toCronJob(this.database.cronJobsTable.updateComputedState(id, input))
   }
 
   deleteJob(id: string): void {
@@ -184,6 +210,14 @@ export class CronJobsRepository {
     return this.database.cronJobRunsTable.countActiveByJob(jobId, excludeRunId)
   }
 
+  countActiveRunsBySession(sessionId: string, excludeRunId?: string): number {
+    return this.database.cronJobRunsTable.countActiveBySession(sessionId, excludeRunId)
+  }
+
+  listQueuedRuns(limit?: number, after?: { queuedAt: number; id: string }): CronJobRun[] {
+    return this.database.cronJobRunsTable.listQueued(limit, after).map(toCronJobRun)
+  }
+
   listRunsByJob(jobId: string, limit?: number): CronJobRun[] {
     return this.database.cronJobRunsTable.listByJob(jobId, limit).map(toCronJobRun)
   }
@@ -231,6 +265,11 @@ export function toCronJob(row: CronJobRow): CronJob {
     modelPolicy: row.model_policy ?? 'follow_agent',
     toolPolicy: row.tool_policy ?? 'follow_agent',
     permissionPolicy: row.permission_policy ?? 'follow_agent',
+    sessionMode: row.session_mode ?? CRON_JOBS_DEFAULT_SESSION_MODE,
+    reuseSessionId:
+      (row.session_mode ?? CRON_JOBS_DEFAULT_SESSION_MODE) === 'reuse_session'
+        ? (row.reuse_session_id ?? null)
+        : null,
     runtime: parseRuntime(row.runtime_json),
     agentSnapshot: parseSnapshot(row.agent_snapshot_json),
     delivery: parseDelivery(row.delivery_json),

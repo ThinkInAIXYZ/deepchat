@@ -4,6 +4,7 @@ import {
   CRON_JOBS_DEFAULT_DELIVERY,
   CRON_JOBS_DEFAULT_MISFIRE_POLICY,
   CRON_JOBS_DEFAULT_RUNTIME,
+  CRON_JOBS_DEFAULT_SESSION_MODE,
   type CronJobAgentSnapshot,
   type CronJobDelivery,
   type CronJobModelPolicy,
@@ -11,6 +12,7 @@ import {
   type CronJobOutputMode,
   type CronJobRuntimePolicy,
   type CronJobRuntimeSettings,
+  type CronJobSessionMode,
   type CronJobStatus
 } from '@shared/cronJobs'
 import { BaseTable } from '@/data/baseTable'
@@ -34,6 +36,8 @@ export interface CronJobRow {
   model_policy: CronJobModelPolicy
   tool_policy: CronJobRuntimePolicy
   permission_policy: CronJobRuntimePolicy
+  session_mode: CronJobSessionMode
+  reuse_session_id: string | null
   runtime_json: string
   agent_snapshot_json: string | null
   delivery_json: string
@@ -60,13 +64,21 @@ export interface CronJobTableUpsertInput {
   modelPolicy?: CronJobModelPolicy
   toolPolicy?: CronJobRuntimePolicy
   permissionPolicy?: CronJobRuntimePolicy
+  sessionMode?: CronJobSessionMode
+  reuseSessionId?: string | null
   runtime?: CronJobRuntimeSettings
   agentSnapshot?: CronJobAgentSnapshot | null
   delivery?: CronJobDelivery
   now?: number
 }
 
-const CRON_JOBS_SCHEMA_VERSION = 40
+export const CRON_JOBS_SESSION_MODE_ADD_COLUMN_SQL =
+  "ALTER TABLE cron_jobs ADD COLUMN session_mode TEXT NOT NULL DEFAULT 'new_session' CHECK(session_mode IN ('new_session', 'reuse_session'))"
+export const CRON_JOBS_REUSE_SESSION_ID_ADD_COLUMN_SQL =
+  'ALTER TABLE cron_jobs ADD COLUMN reuse_session_id TEXT'
+
+const CRON_JOBS_SESSION_REUSE_SCHEMA_VERSION = 70
+const CRON_JOBS_SCHEMA_VERSION = CRON_JOBS_SESSION_REUSE_SCHEMA_VERSION
 
 const CRON_JOBS_INDEX_SQL = `
   CREATE INDEX IF NOT EXISTS idx_cron_jobs_enabled_next_run
@@ -101,6 +113,8 @@ export class CronJobsTable extends BaseTable {
         model_policy TEXT NOT NULL DEFAULT 'follow_agent' CHECK(model_policy IN ('follow_agent', 'pin_current')),
         tool_policy TEXT NOT NULL DEFAULT 'follow_agent' CHECK(tool_policy IN ('follow_agent', 'snapshot')),
         permission_policy TEXT NOT NULL DEFAULT 'follow_agent' CHECK(permission_policy IN ('follow_agent', 'snapshot')),
+        session_mode TEXT NOT NULL DEFAULT 'new_session' CHECK(session_mode IN ('new_session', 'reuse_session')),
+        reuse_session_id TEXT,
         runtime_json TEXT NOT NULL DEFAULT '{}',
         agent_snapshot_json TEXT,
         delivery_json TEXT NOT NULL DEFAULT '{}',
@@ -116,7 +130,13 @@ export class CronJobsTable extends BaseTable {
     this.db.exec(CRON_JOBS_INDEX_SQL)
   }
 
-  getMigrationSQL(_version: number): string | null {
+  getMigrationSQL(version: number): string | null {
+    if (version === CRON_JOBS_SESSION_REUSE_SCHEMA_VERSION) {
+      return `
+        ${CRON_JOBS_SESSION_MODE_ADD_COLUMN_SQL};
+        ${CRON_JOBS_REUSE_SESSION_ID_ADD_COLUMN_SQL};
+      `
+    }
     return null
   }
 
@@ -168,6 +188,14 @@ export class CronJobsTable extends BaseTable {
     const toolPolicy = input.toolPolicy ?? existing?.tool_policy ?? ('follow_agent' as const)
     const permissionPolicy =
       input.permissionPolicy ?? existing?.permission_policy ?? ('follow_agent' as const)
+    const sessionMode =
+      input.sessionMode ?? existing?.session_mode ?? CRON_JOBS_DEFAULT_SESSION_MODE
+    const reuseSessionId =
+      sessionMode === 'reuse_session'
+        ? input.reuseSessionId === undefined
+          ? (existing?.reuse_session_id ?? null)
+          : input.reuseSessionId
+        : null
     const runtimeJson =
       input.runtime === undefined
         ? (existing?.runtime_json ?? '{}')
@@ -204,13 +232,15 @@ export class CronJobsTable extends BaseTable {
            model_policy,
            tool_policy,
            permission_policy,
+           session_mode,
+           reuse_session_id,
            runtime_json,
            agent_snapshot_json,
            delivery_json,
            created_at,
            updated_at
          )
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            name = excluded.name,
            description = excluded.description,
@@ -229,6 +259,8 @@ export class CronJobsTable extends BaseTable {
            model_policy = excluded.model_policy,
            tool_policy = excluded.tool_policy,
            permission_policy = excluded.permission_policy,
+           session_mode = excluded.session_mode,
+           reuse_session_id = excluded.reuse_session_id,
            runtime_json = excluded.runtime_json,
            agent_snapshot_json = excluded.agent_snapshot_json,
            delivery_json = excluded.delivery_json,
@@ -253,6 +285,8 @@ export class CronJobsTable extends BaseTable {
         modelPolicy,
         toolPolicy,
         permissionPolicy,
+        sessionMode,
+        reuseSessionId,
         runtimeJson,
         agentSnapshotJson,
         deliveryJson,
@@ -263,6 +297,72 @@ export class CronJobsTable extends BaseTable {
     const row = this.get(id)
     if (!row) {
       throw new Error(`Failed to persist cron job: ${id}`)
+    }
+    return row
+  }
+
+  bindReuseSessionId(
+    id: string,
+    reuseSessionId: string,
+    expectedAgentId: string,
+    now = Date.now()
+  ): CronJobRow | null {
+    const result = this.db
+      .prepare(
+        `UPDATE cron_jobs
+         SET reuse_session_id = ?,
+             updated_at = ?
+         WHERE id = ?
+           AND session_mode = 'reuse_session'
+           AND reuse_session_id IS NULL
+           AND agent_id = ?`
+      )
+      .run(reuseSessionId, now, id, expectedAgentId)
+    if (result.changes === 0) {
+      return null
+    }
+    return this.get(id) ?? null
+  }
+
+  updateComputedState(
+    id: string,
+    input: {
+      enabled: boolean
+      status: CronJobStatus
+      nextRunAt: number | null
+      scheduleError: string | null
+      agentSnapshot: CronJobAgentSnapshot | null
+      now?: number
+    }
+  ): CronJobRow {
+    const now = input.now ?? Date.now()
+    const agentSnapshotJson = input.agentSnapshot ? JSON.stringify(input.agentSnapshot) : null
+    const result = this.db
+      .prepare(
+        `UPDATE cron_jobs
+         SET enabled = ?,
+             status = ?,
+             next_run_at = ?,
+             schedule_error = ?,
+             agent_snapshot_json = ?,
+             updated_at = ?
+         WHERE id = ?`
+      )
+      .run(
+        input.enabled ? 1 : 0,
+        input.status,
+        input.nextRunAt,
+        input.scheduleError,
+        agentSnapshotJson,
+        now,
+        id
+      )
+    if (result.changes === 0) {
+      throw new Error(`Unknown cron job: ${id}`)
+    }
+    const row = this.get(id)
+    if (!row) {
+      throw new Error(`Failed to reload cron job: ${id}`)
     }
     return row
   }

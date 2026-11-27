@@ -269,6 +269,7 @@ describe('CronJobRunExecutor', () => {
     }
     const repository = {
       claimRun: vi.fn(() => queuedRun),
+      getJob: vi.fn(() => job),
       getRun: vi.fn(() => queuedRun),
       countActiveRunsByJob: vi.fn(() => 1),
       releaseRunQueued: vi.fn(),
@@ -319,6 +320,7 @@ describe('CronJobRunExecutor', () => {
     } as CronJobRun
     const repository = {
       claimRun: vi.fn(() => queuedRun),
+      getJob: vi.fn(() => job),
       getRun: vi.fn(() => queuedRun),
       countActiveRunsByJob: vi.fn(() => 1),
       releaseRunQueued: vi.fn(() => queuedRun),
@@ -405,6 +407,7 @@ describe('CronJobRunExecutor', () => {
     let storedRun = runningRun
     const repository = {
       claimRun: vi.fn(() => runningRun),
+      getJob: vi.fn(() => job),
       getRun: vi.fn(() => storedRun),
       countActiveRunsByJob: vi.fn(() => 0),
       updateRunSession: vi.fn((id: string, sessionId: string) => {
@@ -552,6 +555,7 @@ describe('CronJobRunExecutor', () => {
     let storedRun = runningRun
     const repository = {
       claimRun: vi.fn(() => runningRun),
+      getJob: vi.fn(() => job),
       getRun: vi.fn(() => storedRun),
       countActiveRunsByJob: vi.fn(() => 0),
       updateRunSession: vi.fn((id: string, sessionId: string) => {
@@ -644,6 +648,7 @@ describe('CronJobRunExecutor', () => {
     let storedRun = runningRun
     const repository = {
       claimRun: vi.fn(() => runningRun),
+      getJob: vi.fn(() => job),
       getRun: vi.fn(() => storedRun),
       countActiveRunsByJob: vi.fn(() => 0),
       updateRunSession: vi.fn((id: string, sessionId: string) => {
@@ -688,6 +693,172 @@ describe('CronJobRunExecutor', () => {
       expect(deliveryRouter.deliver).toHaveBeenCalledWith({
         job,
         run: expect.objectContaining({ id: runningRun.id, status: 'failed' })
+      })
+    } finally {
+      executor.dispose()
+      vi.useRealTimers()
+    }
+  })
+
+  it('tracks only its own turn on a reused session and passes eventId on timeout', async () => {
+    vi.useFakeTimers()
+    const now = Date.parse('2026-07-04T00:00:00.000Z')
+    const job = {
+      id: 'job-reuse',
+      name: 'Shared daily report',
+      agentId: 'agent-1',
+      sessionMode: 'reuse_session',
+      reuseSessionId: 'shared-session-1',
+      runtime: {
+        maxDurationMs: 20,
+        maxTurns: 20,
+        concurrencyPolicy: 'skip'
+      }
+    } as CronJob
+    let storedRun: CronJobRun = {
+      id: 'run-reuse-1',
+      jobId: job.id,
+      sessionId: null,
+      scheduledAt: now,
+      queuedAt: now,
+      startedAt: now,
+      completedAt: null,
+      status: 'running',
+      reason: 'scheduled',
+      outputMessageId: null,
+      outputPreview: null,
+      error: null,
+      claimedAt: now,
+      claimOwner: 'owner-1',
+      createdAt: now,
+      updatedAt: now
+    }
+    const repository = {
+      claimRun: vi.fn(() => storedRun),
+      getJob: vi.fn(() => job),
+      getRun: vi.fn(() => storedRun),
+      countActiveRunsByJob: vi.fn(() => 0),
+      countActiveRunsBySession: vi.fn(() => 0),
+      updateRunSession: vi.fn((_id: string, sessionId: string) => {
+        storedRun = { ...storedRun, sessionId }
+        return storedRun
+      }),
+      updateRunOutput: vi.fn(
+        (
+          _id: string,
+          input: { outputMessageId?: string | null; outputPreview?: string | null }
+        ) => {
+          storedRun = {
+            ...storedRun,
+            outputMessageId: input.outputMessageId ?? storedRun.outputMessageId,
+            outputPreview: input.outputPreview ?? storedRun.outputPreview
+          }
+          return storedRun
+        }
+      ),
+      markRunCompleted: vi.fn(() => {
+        storedRun = { ...storedRun, status: 'completed' }
+        return storedRun
+      }),
+      markRunFailed: vi.fn((_id: string, error: string) => {
+        storedRun = { ...storedRun, status: 'failed', error }
+        return storedRun
+      })
+    }
+    const sessionEvents = new SessionRuntimeEvents()
+    const sessionStarter = {
+      createSessionForRun: vi.fn(async () => ({
+        sessionId: 'shared-session-1',
+        reused: true,
+        createdReuseSession: false
+      })),
+      startSessionRun: vi.fn(
+        async ({
+          onBeforeSubmit
+        }: {
+          onBeforeSubmit?: (meta?: { submissionId?: string }) => void
+        }) => {
+          onBeforeSubmit?.({ submissionId: 'cron:run-reuse-1:sub' })
+          // Pre-existing user turn arriving after submission must not bind or be captured.
+          sessionEvents.publish({
+            sessionId: 'shared-session-1',
+            kind: 'blocks',
+            messageId: 'user-turn-msg',
+            requestId: 'user-turn-req',
+            responseMarkdown: 'User turn reply',
+            updatedAt: now + 1
+          })
+          sessionEvents.publish({
+            sessionId: 'shared-session-1',
+            kind: 'status',
+            status: 'idle',
+            messageId: 'user-turn-msg',
+            requestId: 'user-turn-req',
+            updatedAt: now + 1
+          })
+          sessionEvents.publish({
+            sessionId: 'shared-session-1',
+            kind: 'status',
+            status: 'generating',
+            messageId: 'cron-turn-msg',
+            requestId: 'cron-turn-req',
+            submissionId: 'cron:run-reuse-1:sub',
+            updatedAt: now + 2
+          })
+          return { expectedSubmissionId: 'cron:run-reuse-1:sub' }
+        }
+      ),
+      cancelSessionRun: vi.fn(async () => undefined)
+    }
+    const deliveryRouter = { deliver: vi.fn(async () => []) }
+    const executor = new CronJobRunExecutor(
+      repository as never,
+      sessionStarter as never,
+      deliveryRouter as never,
+      sessionEvents
+    )
+
+    try {
+      await executor.execute({ runId: storedRun.id, job })
+      // Unrelated turn blocks/status on the same session are ignored.
+      sessionEvents.publish({
+        sessionId: 'shared-session-1',
+        kind: 'blocks',
+        messageId: 'other-turn-msg',
+        requestId: 'other-turn-req',
+        responseMarkdown: 'Other turn output',
+        updatedAt: now + 3
+      })
+      sessionEvents.publish({
+        sessionId: 'shared-session-1',
+        kind: 'status',
+        status: 'idle',
+        messageId: 'other-turn-msg',
+        requestId: 'other-turn-req',
+        updatedAt: now + 4
+      })
+      expect(storedRun.status).toBe('running')
+      expect(storedRun.outputPreview).toBeNull()
+
+      sessionEvents.publish({
+        sessionId: 'shared-session-1',
+        kind: 'blocks',
+        messageId: 'cron-turn-msg',
+        requestId: 'cron-turn-req',
+        responseMarkdown: 'Cron turn output',
+        updatedAt: now + 5
+      })
+      expect(storedRun.outputPreview).toBe('Cron turn output')
+
+      await vi.advanceTimersByTimeAsync(20)
+      expect(sessionStarter.cancelSessionRun).toHaveBeenCalledWith({
+        job,
+        run: expect.objectContaining({ id: storedRun.id }),
+        sessionId: 'shared-session-1',
+        reason: 'Cron job exceeded max duration (20 ms).',
+        eventId: 'cron-turn-req',
+        submissionId: 'cron:run-reuse-1:sub',
+        allowSessionWideCancel: false
       })
     } finally {
       executor.dispose()
@@ -1701,5 +1872,939 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
         lastError: null
       })
     )
+  })
+
+  it('migrates legacy cron_jobs schema to session reuse columns and persists first-run session binding', async () => {
+    const db = new DatabaseCtor(':memory:')
+    db.exec(`
+      CREATE TABLE cron_jobs (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT,
+        enabled INTEGER NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'disabled',
+        cron_expr TEXT NOT NULL,
+        timezone TEXT NOT NULL,
+        agent_id TEXT,
+        next_run_at INTEGER,
+        misfire_policy TEXT NOT NULL DEFAULT 'skip',
+        max_catch_up_runs INTEGER,
+        schedule_error TEXT,
+        task_prompt TEXT NOT NULL DEFAULT '',
+        task_system_instruction TEXT,
+        task_output_mode TEXT NOT NULL DEFAULT 'final_message',
+        model_policy TEXT NOT NULL DEFAULT 'follow_agent',
+        tool_policy TEXT NOT NULL DEFAULT 'follow_agent',
+        permission_policy TEXT NOT NULL DEFAULT 'follow_agent',
+        runtime_json TEXT NOT NULL DEFAULT '{}',
+        agent_snapshot_json TEXT,
+        delivery_json TEXT NOT NULL DEFAULT '{}',
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      INSERT INTO cron_jobs (id, name, enabled, status, cron_expr, timezone, agent_id, task_prompt, created_at, updated_at)
+      VALUES ('legacy-job', 'Legacy', 1, 'ready', '0 9 * * *', 'UTC', 'agent-1', 'Ping', 1, 1);
+    `)
+    const cronJobsTable = new CronJobsTableCtor(db)
+    const cronJobRunsTable = new CronJobRunsTableCtor(db)
+    const cronJobDeliveriesTable = new CronJobDeliveriesTableCtor(db)
+    cronJobRunsTable.createTable()
+    cronJobDeliveriesTable.createTable()
+    const migrationSql = cronJobsTable.getMigrationSQL(cronJobsTable.getLatestVersion())
+    expect(migrationSql).toBeTruthy()
+    db.exec(migrationSql!)
+
+    const repo = new CronJobsRepositoryCtor({
+      cronJobsTable,
+      cronJobRunsTable,
+      cronJobDeliveriesTable,
+      getDatabase: () => db,
+      getDatabasePath: () => ':memory:',
+      getDatabasePassword: () => undefined
+    })
+    expect(repo.getJob('legacy-job')).toEqual(
+      expect.objectContaining({
+        sessionMode: 'new_session',
+        reuseSessionId: null
+      })
+    )
+
+    const sessionEvents = new SessionRuntimeEvents()
+    const createdSessions: string[] = []
+    const sentSessions: string[] = []
+    const sessionsMap = new Map<
+      string,
+      { id: string; agentId: string; isDraft: boolean; sessionKind: 'regular' | 'subagent' }
+    >()
+    const deps = createRequiredSchedulerDeps(sessionEvents)
+    const starter = serviceModule!.createCronJobRunSessionStarter({
+      lifecycle: {
+        createDetachedSession: vi.fn(async ({ agentId }) => {
+          const id = `created-session-${createdSessions.length + 1}`
+          createdSessions.push(id)
+          sessionsMap.set(id, {
+            id,
+            agentId: agentId ?? 'agent-1',
+            isDraft: false,
+            sessionKind: 'regular'
+          })
+          return { id }
+        })
+      },
+      turn: {
+        sendMessage: vi.fn(async (sessionId, _content, options) => {
+          sentSessions.push(sessionId)
+          options?.onBeforeSubmit?.()
+          sessionEvents.publish({
+            sessionId,
+            kind: 'status',
+            status: 'generating',
+            messageId: `msg-${sentSessions.length}`,
+            requestId: `req-${sentSessions.length}`,
+            ...(options?.submissionId ? { submissionId: options.submissionId } : {}),
+            updatedAt: Date.now()
+          })
+          sessionEvents.publish({
+            sessionId,
+            kind: 'status',
+            status: 'idle',
+            messageId: `msg-${sentSessions.length}`,
+            requestId: `req-${sentSessions.length}`,
+            updatedAt: Date.now()
+          })
+          return {
+            requestId: `req-${sentSessions.length}`,
+            messageId: `msg-${sentSessions.length}`
+          }
+        }),
+        cancelGeneration: vi.fn(async () => undefined),
+        cancelGenerationByEventId: vi.fn(async () => true)
+      },
+      agentCatalog: { getAgentType: vi.fn(async () => 'deepchat' as const) },
+      sessions: { get: (id) => (sessionsMap.get(id) as never) ?? null }
+    })
+
+    const service = new SchedulerServiceCtor({
+      ...deps,
+      database: {
+        cronJobsTable,
+        cronJobRunsTable,
+        cronJobDeliveriesTable,
+        getDatabase: () => db,
+        getDatabasePath: () => ':memory:',
+        getDatabasePassword: () => undefined
+      },
+      sessions: { get: (id) => (sessionsMap.get(id) as never) ?? null },
+      runSessionStarter: starter,
+      schedulerManager: {
+        getStatus: () => ({
+          state: 'idle',
+          pid: null,
+          enabledJobCount: 0,
+          nextRunAt: null,
+          lastHeartbeatAt: null,
+          lastError: null,
+          restartAttempts: 0,
+          updatedAt: 0
+        }),
+        reconcile: vi.fn(async () => ({
+          state: 'idle',
+          pid: null,
+          enabledJobCount: 0,
+          nextRunAt: null,
+          lastHeartbeatAt: null,
+          lastError: null,
+          restartAttempts: 0,
+          updatedAt: 0
+        })),
+        restart: vi.fn(),
+        stop: vi.fn(async () => undefined)
+      } as never
+    })
+
+    try {
+      const { job } = await service.upsert({
+        name: 'Reusable job',
+        enabled: true,
+        cronExpr: '0 9 * * *',
+        timezone: 'UTC',
+        agentId: 'agent-1',
+        taskPrompt: 'Daily summary',
+        sessionMode: 'reuse_session',
+        reuseSessionId: null
+      })
+      const first = await service.runNow(job.id)
+      expect(first.job.reuseSessionId).toBe('created-session-1')
+      expect(first.run.sessionId).toBe('created-session-1')
+
+      const second = await service.runNow(job.id)
+      expect(second.run.sessionId).toBe('created-session-1')
+      expect(createdSessions).toEqual(['created-session-1'])
+      expect(sentSessions).toEqual(['created-session-1', 'created-session-1'])
+
+      // Deleting the reused session causes subsequent runs to fail explicitly rather than creating a fresh session.
+      sessionsMap.delete('created-session-1')
+      const third = await service.runNow(job.id)
+      expect(third.run.status).toBe('failed')
+      expect(third.run.error).toContain('no longer exists')
+      expect(createdSessions).toEqual(['created-session-1'])
+    } finally {
+      await service.destroy()
+      db.close()
+    }
+  })
+
+  it('queues a reused-session run when the session is busy and drains it once idle', async () => {
+    const { SessionBusyError } = await import('@/session/turn')
+    const harness = createHarness()
+    const sessionEvents = new SessionRuntimeEvents()
+    let sessionBusy = true
+    const sentPrompts: string[] = []
+    const sharedSession = {
+      id: 'shared-1',
+      agentId: 'agent-1',
+      isDraft: false,
+      sessionKind: 'regular' as const
+    }
+    const starter = serviceModule!.createCronJobRunSessionStarter({
+      lifecycle: { createDetachedSession: vi.fn() },
+      turn: {
+        sendMessage: vi.fn(async (sessionId, content, options) => {
+          if (options?.rejectIfBusy && sessionBusy) {
+            throw new SessionBusyError(sessionId)
+          }
+          sentPrompts.push(content)
+          options?.onBeforeSubmit?.()
+          sessionEvents.publish({
+            sessionId,
+            kind: 'status',
+            status: 'generating',
+            messageId: 'cron-msg-1',
+            requestId: 'cron-req-1',
+            submissionId: options?.submissionId,
+            updatedAt: Date.now()
+          })
+          sessionEvents.publish({
+            sessionId,
+            kind: 'status',
+            status: 'idle',
+            messageId: 'cron-msg-1',
+            requestId: 'cron-req-1',
+            updatedAt: Date.now()
+          })
+          return { requestId: 'cron-req-1', messageId: 'cron-msg-1' }
+        }),
+        cancelGeneration: vi.fn(async () => undefined),
+        cancelGenerationByEventId: vi.fn(async () => true)
+      },
+      agentCatalog: { getAgentType: vi.fn(async () => 'deepchat' as const) },
+      sessions: { get: (id) => (id === sharedSession.id ? (sharedSession as never) : null) }
+    })
+
+    const deps = createRequiredSchedulerDeps(sessionEvents)
+    const service = new SchedulerServiceCtor({
+      ...deps,
+      database: harness.sqlitePresenter,
+      sessions: { get: (id) => (id === sharedSession.id ? (sharedSession as never) : null) },
+      runSessionStarter: starter,
+      schedulerManager: {
+        getStatus: () => ({
+          state: 'idle',
+          pid: null,
+          enabledJobCount: 0,
+          nextRunAt: null,
+          lastHeartbeatAt: null,
+          lastError: null,
+          restartAttempts: 0,
+          updatedAt: 0
+        }),
+        reconcile: vi.fn(async () => ({
+          state: 'idle',
+          pid: null,
+          enabledJobCount: 0,
+          nextRunAt: null,
+          lastHeartbeatAt: null,
+          lastError: null,
+          restartAttempts: 0,
+          updatedAt: 0
+        })),
+        restart: vi.fn(),
+        stop: vi.fn(async () => undefined)
+      } as never
+    })
+
+    try {
+      const { job } = await service.upsert({
+        name: 'Queue on busy',
+        enabled: true,
+        cronExpr: '0 9 * * *',
+        timezone: 'UTC',
+        agentId: 'agent-1',
+        taskPrompt: 'Queued report',
+        sessionMode: 'reuse_session',
+        reuseSessionId: sharedSession.id,
+        runtime: {
+          maxDurationMs: 60_000,
+          maxTurns: 20,
+          concurrencyPolicy: 'queue'
+        }
+      })
+
+      const firstAttempt = await service.runNow(job.id)
+      expect(firstAttempt.run.status).toBe('queued')
+      expect(sentPrompts).toEqual([])
+
+      // User finishes chatting in the shared session -> queued cron run drains automatically.
+      sessionBusy = false
+      sessionEvents.publish({
+        sessionId: sharedSession.id,
+        kind: 'status',
+        status: 'idle',
+        messageId: 'user-msg-done',
+        requestId: 'user-req-done',
+        updatedAt: Date.now()
+      })
+      await vi.waitFor(() => {
+        expect(service.getRun(firstAttempt.run.id).status).toBe('completed')
+      })
+      expect(sentPrompts).toEqual(['Queued report'])
+    } finally {
+      await service.destroy()
+      harness.db.close()
+    }
+  })
+
+  it('drains persisted queued runs when the scheduler starts', async () => {
+    const harness = createHarness()
+    const sessionEvents = new SessionRuntimeEvents()
+    const repository = new CronJobsRepositoryCtor(harness.sqlitePresenter as never)
+    const job = repository.upsertJob({
+      name: 'Startup queued job',
+      enabled: true,
+      cronExpr: '0 9 * * *',
+      timezone: 'UTC',
+      agentId: 'agent-1',
+      taskPrompt: 'Resume after restart'
+    })
+    const queuedRun = repository.queueRun({
+      jobId: job.id,
+      scheduledAt: Date.now(),
+      reason: 'scheduled'
+    })
+    const starter = {
+      createSessionForRun: vi.fn(async () => ({ sessionId: 'session-startup-1' })),
+      startSessionRun: vi.fn(async () => {
+        sessionEvents.publish({
+          sessionId: 'session-startup-1',
+          kind: 'status',
+          status: 'generating',
+          messageId: 'msg-1',
+          requestId: 'req-1',
+          updatedAt: Date.now()
+        })
+        sessionEvents.publish({
+          sessionId: 'session-startup-1',
+          kind: 'status',
+          status: 'idle',
+          messageId: 'msg-1',
+          requestId: 'req-1',
+          updatedAt: Date.now()
+        })
+        return { outputMessageId: 'msg-1', outputRequestId: 'req-1' }
+      }),
+      cancelSessionRun: vi.fn(async () => undefined)
+    }
+    const status = baseStatus()
+    const service = new SchedulerServiceCtor({
+      ...createRequiredSchedulerDeps(sessionEvents),
+      database: harness.sqlitePresenter as never,
+      runSessionStarter: starter as never,
+      schedulerManager: {
+        reconcile: vi.fn().mockResolvedValue(status),
+        restart: vi.fn().mockResolvedValue(status),
+        stop: vi.fn().mockResolvedValue(status),
+        getStatus: vi.fn(() => status)
+      } as never
+    })
+
+    try {
+      service.start()
+      await vi.waitFor(() => {
+        expect(service.getRun(queuedRun.id).status).toBe('completed')
+      })
+      expect(starter.startSessionRun).toHaveBeenCalledTimes(1)
+    } finally {
+      await service.destroy()
+      harness.db.close()
+    }
+  })
+
+  it('drains more than 50 persisted queued runs on startup across cursor batches', async () => {
+    const harness = createHarness()
+    const sessionEvents = new SessionRuntimeEvents()
+    const repository = new CronJobsRepositoryCtor(harness.sqlitePresenter as never)
+    const runIds: string[] = []
+    for (let i = 0; i < 55; i += 1) {
+      const job = repository.upsertJob({
+        name: `Batch job ${i}`,
+        enabled: true,
+        cronExpr: '0 9 * * *',
+        timezone: 'UTC',
+        agentId: 'agent-1',
+        taskPrompt: `Run ${i}`
+      })
+      const run = repository.queueRun({
+        jobId: job.id,
+        scheduledAt: 1_000 + i,
+        reason: 'scheduled',
+        now: 1_000 + i
+      })
+      runIds.push(run.id)
+    }
+    const starter = {
+      createSessionForRun: vi.fn(async ({ run }: { run: { id: string } }) => ({
+        sessionId: `session-${run.id}`
+      })),
+      startSessionRun: vi.fn(async ({ sessionId }: { sessionId: string }) => {
+        sessionEvents.publish({
+          sessionId,
+          kind: 'status',
+          status: 'generating',
+          messageId: `msg-${sessionId}`,
+          requestId: `req-${sessionId}`,
+          updatedAt: Date.now()
+        })
+        sessionEvents.publish({
+          sessionId,
+          kind: 'status',
+          status: 'idle',
+          messageId: `msg-${sessionId}`,
+          requestId: `req-${sessionId}`,
+          updatedAt: Date.now()
+        })
+        return { outputMessageId: `msg-${sessionId}`, outputRequestId: `req-${sessionId}` }
+      }),
+      cancelSessionRun: vi.fn(async () => undefined)
+    }
+    const status = baseStatus()
+    const service = new SchedulerServiceCtor({
+      ...createRequiredSchedulerDeps(sessionEvents),
+      database: harness.sqlitePresenter as never,
+      runSessionStarter: starter as never,
+      schedulerManager: {
+        reconcile: vi.fn().mockResolvedValue(status),
+        restart: vi.fn().mockResolvedValue(status),
+        stop: vi.fn().mockResolvedValue(status),
+        getStatus: vi.fn(() => status)
+      } as never
+    })
+
+    try {
+      service.start()
+      await vi.waitFor(() => {
+        expect(repository.listQueuedRuns()).toEqual([])
+      })
+      expect(starter.startSessionRun).toHaveBeenCalledTimes(55)
+      expect(service.getRun(runIds[54]!).status).toBe('completed')
+    } finally {
+      await service.destroy()
+      harness.db.close()
+    }
+  })
+
+  it('preserves concurrent first-run reuseSessionId across upsert, toggle, and reconcile, and rejects stale agent bind', async () => {
+    const harness = createHarness()
+    const sessionEvents = new SessionRuntimeEvents()
+    const repository = new CronJobsRepositoryCtor(harness.sqlitePresenter as never)
+    let resolveAgentList!: () => void
+    const listGate = new Promise<void>((resolve) => {
+      resolveAgentList = resolve
+    })
+    let gateEnabled = false
+    const agentSettings = {
+      listAgents: vi.fn(async () => {
+        if (gateEnabled) {
+          await listGate
+        }
+        return [
+          { id: 'agent-1', name: 'Agent 1', type: 'deepchat' as const, enabled: true },
+          { id: 'agent-2', name: 'Agent 2', type: 'deepchat' as const, enabled: true }
+        ]
+      }),
+      resolveDeepChatAgentConfig: vi.fn(async () => null)
+    }
+    const status = baseStatus()
+    const service = new SchedulerServiceCtor({
+      ...createRequiredSchedulerDeps(sessionEvents),
+      database: harness.sqlitePresenter as never,
+      agentSettings: agentSettings as never,
+      schedulerManager: {
+        reconcile: vi.fn().mockResolvedValue(status),
+        restart: vi.fn().mockResolvedValue(status),
+        stop: vi.fn().mockResolvedValue(status),
+        getStatus: vi.fn(() => status)
+      } as never
+    })
+
+    try {
+      const { job } = await service.upsert({
+        name: 'Concurrent bind job',
+        enabled: true,
+        cronExpr: '0 9 * * *',
+        timezone: 'UTC',
+        agentId: 'agent-1',
+        taskPrompt: 'Daily report',
+        sessionMode: 'reuse_session',
+        reuseSessionId: null
+      })
+
+      gateEnabled = true
+      const pendingUpsert = service.upsert({
+        id: job.id,
+        name: 'Renamed concurrently',
+        enabled: true,
+        cronExpr: '0 9 * * *',
+        timezone: 'UTC',
+        agentId: 'agent-1',
+        taskPrompt: 'Daily report',
+        sessionMode: 'reuse_session'
+      })
+      // Background first run binds reuseSessionId while upsert is awaiting computeJobState.
+      expect(repository.bindJobReuseSessionId(job.id, 'bound-session-1', 'agent-1')).not.toBeNull()
+      resolveAgentList()
+      const updated = await pendingUpsert
+      expect(updated.job.name).toBe('Renamed concurrently')
+      expect(updated.job.reuseSessionId).toBe('bound-session-1')
+
+      // Toggle preserves reuseSessionId even when updating enabled/state.
+      gateEnabled = false
+      const toggled = await service.toggle(job.id, false)
+      expect(toggled.job.reuseSessionId).toBe('bound-session-1')
+
+      // Binding with a mismatched agentId fails closed.
+      const { job: secondJob } = await service.upsert({
+        name: 'Agent switched job',
+        enabled: true,
+        cronExpr: '0 9 * * *',
+        timezone: 'UTC',
+        agentId: 'agent-2',
+        taskPrompt: 'Switch test',
+        sessionMode: 'reuse_session',
+        reuseSessionId: null
+      })
+      expect(
+        repository.bindJobReuseSessionId(secondJob.id, 'old-agent-session', 'agent-1')
+      ).toBeNull()
+      expect(repository.getJob(secondJob.id)?.reuseSessionId).toBeNull()
+    } finally {
+      await service.destroy()
+      harness.db.close()
+    }
+  })
+
+  it('drains a requeued run when the user turn finishes while the busy response is in flight', async () => {
+    const { SessionBusyError } = await import('@/session/turn')
+    const harness = createHarness()
+    const sessionEvents = new SessionRuntimeEvents()
+    let busy = true
+    let attempt = 0
+    const sharedSession = {
+      id: 'shared-race-1',
+      agentId: 'agent-1',
+      isDraft: false,
+      sessionKind: 'regular' as const
+    }
+    const starter = serviceModule!.createCronJobRunSessionStarter({
+      lifecycle: { createDetachedSession: vi.fn() },
+      turn: {
+        sendMessage: vi.fn(async (sessionId, _content, options) => {
+          attempt += 1
+          options?.onBeforeSubmit?.()
+          if (attempt === 1) {
+            // User turn completes while the busy rejection is still in flight.
+            busy = false
+            sessionEvents.publish({
+              sessionId,
+              kind: 'status',
+              status: 'idle',
+              messageId: 'user-msg-1',
+              requestId: 'user-req-1',
+              updatedAt: Date.now()
+            })
+            throw new SessionBusyError(sessionId)
+          }
+          sessionEvents.publish({
+            sessionId,
+            kind: 'status',
+            status: 'generating',
+            messageId: 'cron-msg-2',
+            requestId: 'cron-req-2',
+            submissionId: options?.submissionId,
+            updatedAt: Date.now()
+          })
+          sessionEvents.publish({
+            sessionId,
+            kind: 'status',
+            status: 'idle',
+            messageId: 'cron-msg-2',
+            requestId: 'cron-req-2',
+            updatedAt: Date.now()
+          })
+          return { requestId: 'cron-req-2', messageId: 'cron-msg-2' }
+        }),
+        cancelGeneration: vi.fn(async () => undefined),
+        isSessionBusy: vi.fn(async () => busy)
+      },
+      agentCatalog: { getAgentType: vi.fn(async () => 'deepchat' as const) },
+      sessions: { get: (id) => (id === sharedSession.id ? (sharedSession as never) : null) }
+    })
+    const status = baseStatus()
+    const service = new SchedulerServiceCtor({
+      ...createRequiredSchedulerDeps(sessionEvents),
+      database: harness.sqlitePresenter as never,
+      sessions: { get: (id) => (id === sharedSession.id ? (sharedSession as never) : null) },
+      runSessionStarter: starter,
+      schedulerManager: {
+        reconcile: vi.fn().mockResolvedValue(status),
+        restart: vi.fn().mockResolvedValue(status),
+        stop: vi.fn().mockResolvedValue(status),
+        getStatus: vi.fn(() => status)
+      } as never
+    })
+
+    try {
+      const { job } = await service.upsert({
+        name: 'Race drain job',
+        enabled: true,
+        cronExpr: '0 9 * * *',
+        timezone: 'UTC',
+        agentId: 'agent-1',
+        taskPrompt: 'Drain after in-flight idle',
+        sessionMode: 'reuse_session',
+        reuseSessionId: sharedSession.id,
+        runtime: {
+          maxDurationMs: 60_000,
+          maxTurns: 20,
+          concurrencyPolicy: 'queue'
+        }
+      })
+
+      const result = await service.runNow(job.id)
+      await vi.waitFor(() => {
+        expect(service.getRun(result.run.id).status).toBe('completed')
+      })
+      expect(attempt).toBe(2)
+    } finally {
+      await service.destroy()
+      harness.db.close()
+    }
+  })
+
+  it('does not spin on isSessionBusy when a second job waits on another cron run reservation and wakes when it releases', async () => {
+    const harness = createHarness()
+    const sessionEvents = new SessionRuntimeEvents()
+    const sharedSession = {
+      id: 'shared-reserved-1',
+      agentId: 'agent-1',
+      isDraft: false,
+      sessionKind: 'regular' as const
+    }
+    let releaseFirstStart!: () => void
+    const firstStartGate = new Promise<void>((resolve) => {
+      releaseFirstStart = resolve
+    })
+    let firstStartEntered = false
+    const isSessionBusy = vi.fn(async () => false)
+    const startedJobIds: string[] = []
+
+    const starter = {
+      createSessionForRun: vi.fn(async () => ({
+        sessionId: sharedSession.id,
+        reused: true
+      })),
+      startSessionRun: vi.fn(async ({ job, onBeforeSubmit }) => {
+        startedJobIds.push(job.id)
+        const subId = `cron:${job.id}`
+        onBeforeSubmit?.({ submissionId: subId })
+        if (startedJobIds.length === 1) {
+          firstStartEntered = true
+          await firstStartGate
+        }
+        sessionEvents.publish({
+          sessionId: sharedSession.id,
+          kind: 'status',
+          status: 'generating',
+          messageId: `msg-${startedJobIds.length}`,
+          requestId: `req-${startedJobIds.length}`,
+          submissionId: subId,
+          updatedAt: Date.now()
+        })
+        sessionEvents.publish({
+          sessionId: sharedSession.id,
+          kind: 'status',
+          status: 'idle',
+          messageId: `msg-${startedJobIds.length}`,
+          requestId: `req-${startedJobIds.length}`,
+          updatedAt: Date.now()
+        })
+        return {
+          outputMessageId: `msg-${startedJobIds.length}`,
+          outputRequestId: `req-${startedJobIds.length}`,
+          expectedSubmissionId: subId
+        }
+      }),
+      cancelSessionRun: vi.fn(async () => undefined),
+      isSessionBusy
+    }
+    const status = baseStatus()
+    const service = new SchedulerServiceCtor({
+      ...createRequiredSchedulerDeps(sessionEvents),
+      database: harness.sqlitePresenter as never,
+      sessions: { get: (id) => (id === sharedSession.id ? (sharedSession as never) : null) },
+      runSessionStarter: starter as never,
+      schedulerManager: {
+        reconcile: vi.fn().mockResolvedValue(status),
+        restart: vi.fn().mockResolvedValue(status),
+        stop: vi.fn().mockResolvedValue(status),
+        getStatus: vi.fn(() => status)
+      } as never
+    })
+
+    try {
+      const { job: jobA } = await service.upsert({
+        name: 'Reserved job A',
+        enabled: true,
+        cronExpr: '0 9 * * *',
+        timezone: 'UTC',
+        agentId: 'agent-1',
+        taskPrompt: 'Job A',
+        sessionMode: 'reuse_session',
+        reuseSessionId: sharedSession.id,
+        runtime: { maxDurationMs: 60_000, maxTurns: 20, concurrencyPolicy: 'queue' }
+      })
+      const { job: jobB } = await service.upsert({
+        name: 'Reserved job B',
+        enabled: true,
+        cronExpr: '0 9 * * *',
+        timezone: 'UTC',
+        agentId: 'agent-1',
+        taskPrompt: 'Job B',
+        sessionMode: 'reuse_session',
+        reuseSessionId: sharedSession.id,
+        runtime: { maxDurationMs: 60_000, maxTurns: 20, concurrencyPolicy: 'queue' }
+      })
+
+      const runAPromise = service.runNow(jobA.id)
+      await vi.waitFor(() => expect(firstStartEntered).toBe(true))
+
+      const runBResult = await service.runNow(jobB.id)
+      expect(runBResult.run.status).toBe('queued')
+      expect(isSessionBusy).not.toHaveBeenCalled()
+
+      releaseFirstStart()
+      const runAResult = await runAPromise
+      expect(runAResult.run.status).toBe('completed')
+
+      await vi.waitFor(() => {
+        expect(service.getRun(runBResult.run.id).status).toBe('completed')
+      })
+      expect(startedJobIds).toEqual([jobA.id, jobB.id])
+    } finally {
+      await service.destroy()
+      harness.db.close()
+    }
+  })
+
+  it('aborts an in-flight startSessionRun signal on pre-admission timeout and scopes first auto-bound reuse runs', async () => {
+    vi.useFakeTimers()
+    const now = Date.parse('2026-07-04T00:00:00.000Z')
+    const job = {
+      id: 'job-first-reuse',
+      name: 'First reuse job',
+      agentId: 'agent-1',
+      sessionMode: 'reuse_session',
+      reuseSessionId: null,
+      runtime: {
+        maxDurationMs: 15,
+        maxTurns: 20,
+        concurrencyPolicy: 'skip'
+      }
+    } as CronJob
+    let storedRun: CronJobRun = {
+      id: 'run-first-1',
+      jobId: job.id,
+      sessionId: null,
+      scheduledAt: now,
+      queuedAt: now,
+      startedAt: now,
+      completedAt: null,
+      status: 'running',
+      reason: 'scheduled',
+      outputMessageId: null,
+      outputPreview: null,
+      error: null,
+      claimedAt: now,
+      claimOwner: 'owner-1',
+      createdAt: now,
+      updatedAt: now
+    }
+    const repository = {
+      claimRun: vi.fn(() => storedRun),
+      getJob: vi.fn(() => job),
+      getRun: vi.fn(() => storedRun),
+      bindJobReuseSessionId: vi.fn((_id: string, sessionId: string) => ({
+        ...job,
+        reuseSessionId: sessionId
+      })),
+      countActiveRunsByJob: vi.fn(() => 0),
+      countActiveRunsBySession: vi.fn(() => 0),
+      updateRunSession: vi.fn((_id: string, sessionId: string) => {
+        storedRun = { ...storedRun, sessionId }
+        return storedRun
+      }),
+      updateRunOutput: vi.fn(),
+      markRunFailed: vi.fn((_id: string, error: string) => {
+        storedRun = { ...storedRun, status: 'failed', error }
+        return storedRun
+      })
+    }
+    let receivedSignal: AbortSignal | undefined
+    let receivedReused: boolean | undefined
+    let resolveStart!: () => void
+    const startGate = new Promise<void>((resolve) => {
+      resolveStart = resolve
+    })
+    const sessionStarter = {
+      createSessionForRun: vi.fn(async () => ({
+        sessionId: 'first-reuse-session',
+        createdReuseSession: true
+      })),
+      startSessionRun: vi.fn(async ({ reused, signal, onBeforeSubmit }) => {
+        receivedReused = reused
+        receivedSignal = signal
+        onBeforeSubmit?.({ submissionId: 'cron:first-1:sub' })
+        await startGate
+        return { expectedSubmissionId: 'cron:first-1:sub' }
+      }),
+      cancelSessionRun: vi.fn(async () => undefined)
+    }
+    const deliveryRouter = { deliver: vi.fn(async () => []) }
+    const executor = new CronJobRunExecutor(
+      repository as never,
+      sessionStarter as never,
+      deliveryRouter as never,
+      new SessionRuntimeEvents()
+    )
+
+    try {
+      const execPromise = executor.execute({ runId: storedRun.id, job })
+      await vi.advanceTimersByTimeAsync(15)
+      expect(receivedReused).toBe(true)
+      expect(receivedSignal?.aborted).toBe(true)
+      expect(sessionStarter.cancelSessionRun).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sessionId: 'first-reuse-session',
+          submissionId: 'cron:first-1:sub',
+          allowSessionWideCancel: false
+        })
+      )
+      resolveStart()
+      await execPromise
+    } finally {
+      executor.dispose()
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps timed-out failed status when a late SessionBusyError arrives and wakes waiting jobs when a skip run releases', async () => {
+    const { SessionBusyError } = await import('@/session/turn')
+    vi.useFakeTimers()
+    const now = Date.parse('2026-07-04T00:00:00.000Z')
+    const job = {
+      id: 'job-skip-timeout',
+      name: 'Skip timeout job',
+      agentId: 'agent-1',
+      sessionMode: 'reuse_session',
+      reuseSessionId: 'shared-1',
+      runtime: {
+        maxDurationMs: 10,
+        maxTurns: 20,
+        concurrencyPolicy: 'skip'
+      }
+    } as CronJob
+    let storedRun: CronJobRun = {
+      id: 'run-timeout-busy',
+      jobId: job.id,
+      sessionId: null,
+      scheduledAt: now,
+      queuedAt: now,
+      startedAt: now,
+      completedAt: null,
+      status: 'running',
+      reason: 'scheduled',
+      outputMessageId: null,
+      outputPreview: null,
+      error: null,
+      claimedAt: now,
+      claimOwner: 'owner-1',
+      createdAt: now,
+      updatedAt: now
+    }
+    const repository = {
+      claimRun: vi.fn(() => storedRun),
+      getJob: vi.fn(() => job),
+      getRun: vi.fn(() => storedRun),
+      countActiveRunsByJob: vi.fn(() => 0),
+      countActiveRunsBySession: vi.fn(() => 0),
+      updateRunSession: vi.fn((_id: string, sessionId: string) => {
+        storedRun = { ...storedRun, sessionId }
+        return storedRun
+      }),
+      updateRunOutput: vi.fn(),
+      markRunFailed: vi.fn((_id: string, error: string) => {
+        storedRun = { ...storedRun, status: 'failed', error }
+        return storedRun
+      }),
+      markRunCancelled: vi.fn((_id: string, error: string) => {
+        storedRun = { ...storedRun, status: 'cancelled', error }
+        return storedRun
+      }),
+      releaseRunQueued: vi.fn()
+    }
+    let rejectStart!: (error: unknown) => void
+    const startGate = new Promise<never>((_resolve, reject) => {
+      rejectStart = reject
+    })
+    const sessionStarter = {
+      createSessionForRun: vi.fn(async () => ({ sessionId: 'shared-1', reused: true })),
+      startSessionRun: vi.fn(async ({ onBeforeSubmit }) => {
+        onBeforeSubmit?.({ submissionId: 'cron:timeout-busy:1' })
+        return await startGate
+      }),
+      cancelSessionRun: vi.fn(async () => undefined),
+      isSessionBusy: vi.fn(async () => false)
+    }
+    const deliveryRouter = { deliver: vi.fn(async () => []) }
+    const executor = new CronJobRunExecutor(
+      repository as never,
+      sessionStarter as never,
+      deliveryRouter as never,
+      new SessionRuntimeEvents()
+    )
+
+    try {
+      const execPromise = executor.execute({ runId: storedRun.id, job })
+      await vi.advanceTimersByTimeAsync(10)
+      expect(storedRun.status).toBe('failed')
+
+      rejectStart(new SessionBusyError('shared-1'))
+      const finalRun = await execPromise
+      expect(finalRun?.status).toBe('failed')
+      expect(repository.markRunCancelled).not.toHaveBeenCalled()
+      expect(repository.releaseRunQueued).not.toHaveBeenCalled()
+    } finally {
+      executor.dispose()
+      vi.useRealTimers()
+    }
   })
 })

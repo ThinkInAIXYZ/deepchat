@@ -1,6 +1,7 @@
 export const CRON_JOBS_DEFAULT_CRON_EXPR = '* * * * *'
 export const CRON_JOBS_DEFAULT_TIMEZONE = 'UTC'
 export const CRON_JOBS_DEFAULT_MISFIRE_POLICY = 'skip'
+export const CRON_JOBS_DEFAULT_SESSION_MODE = 'new_session'
 export const CRON_JOBS_DEFAULT_RUNTIME = {
   maxDurationMs: 60 * 60 * 1000,
   maxTurns: 20,
@@ -42,6 +43,9 @@ export type CronJobRuntimePolicy = (typeof CRON_JOB_RUNTIME_POLICIES)[number]
 export const CRON_JOB_CONCURRENCY_POLICIES = ['skip', 'queue'] as const
 export type CronJobConcurrencyPolicy = (typeof CRON_JOB_CONCURRENCY_POLICIES)[number]
 
+export const CRON_JOB_SESSION_MODES = ['new_session', 'reuse_session'] as const
+export type CronJobSessionMode = (typeof CRON_JOB_SESSION_MODES)[number]
+
 export const CRON_JOB_DELIVERY_TARGET_TYPES = ['remote'] as const
 export type CronJobDeliveryTargetType = (typeof CRON_JOB_DELIVERY_TARGET_TYPES)[number]
 
@@ -76,6 +80,8 @@ export interface CronJob {
   modelPolicy: CronJobModelPolicy
   toolPolicy: CronJobRuntimePolicy
   permissionPolicy: CronJobRuntimePolicy
+  sessionMode: CronJobSessionMode
+  reuseSessionId: string | null
   runtime: CronJobRuntimeSettings
   agentSnapshot: CronJobAgentSnapshot | null
   delivery: CronJobDelivery
