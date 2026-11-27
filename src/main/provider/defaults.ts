@@ -665,6 +665,20 @@ const PROVIDER_DEFAULTS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'rapid-mlx',
+    name: 'Rapid-MLX',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'http://localhost:8000/v1',
+    enable: false,
+    websites: {
+      official: 'https://rapidmlx.com',
+      apiKey: 'https://github.com/raullenchai/Rapid-MLX#readme',
+      docs: 'https://github.com/raullenchai/Rapid-MLX#readme',
+      models: 'https://github.com/raullenchai/Rapid-MLX#choose-your-model'
+    }
+  },
+  {
     id: 'openllm',
     name: 'OpenLLM',
     apiType: 'openai-completions',

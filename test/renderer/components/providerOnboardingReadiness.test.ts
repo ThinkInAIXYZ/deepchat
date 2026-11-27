@@ -57,6 +57,33 @@ describe('provider onboarding readiness', () => {
     ).toBe(false)
   })
 
+  it('accepts keyless Rapid-MLX only at a local HTTP endpoint when enabled', () => {
+    const rapidMlx = (overrides: Partial<LLM_PROVIDER> = {}) =>
+      provider({
+        id: 'rapid-mlx',
+        name: 'Rapid-MLX',
+        apiType: 'openai-completions',
+        baseUrl: 'http://localhost:8000/v1',
+        ...overrides
+      })
+
+    expect(isProviderReadyForOnboarding(rapidMlx())).toBe(true)
+    for (const host of ['127.0.0.1', '[::1]']) {
+      expect(isProviderReadyForOnboarding(rapidMlx({ baseUrl: `http://${host}:8000/v1` }))).toBe(
+        true
+      )
+    }
+    for (const baseUrl of ['', 'invalid', 'https://localhost:8000/v1', 'http://remote:8000/v1']) {
+      expect(isProviderReadyForOnboarding(rapidMlx({ baseUrl }))).toBe(false)
+    }
+    expect(isProviderReadyForOnboarding(rapidMlx({ enable: false }))).toBe(false)
+    expect(
+      isProviderReadyForOnboarding(
+        rapidMlx({ baseUrl: 'http://remote:8000/v1', apiKey: 'test-key' })
+      )
+    ).toBe(true)
+  })
+
   it('recognizes Bedrock profiles and complete Vertex service-account credentials', () => {
     expect(
       isProviderReadyForOnboarding(

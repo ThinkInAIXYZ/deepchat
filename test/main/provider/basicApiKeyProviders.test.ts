@@ -1724,6 +1724,48 @@ describe('basic API-key provider registrations', () => {
     })
   })
 
+  it('lists Rapid-MLX models and checks the local server without an API key', async () => {
+    const defaults = DEFAULT_PROVIDERS.find(({ id }) => id === 'rapid-mlx')!
+    expect(resolveAiSdkProviderDefinition(defaults)).toMatchObject({
+      runtimeKind: 'openai-compatible',
+      modelSource: 'openai',
+      checkStrategy: 'fetch-models',
+      embeddingStrategy: 'openai'
+    })
+    expect(resolveAiSdkProviderDefinition(defaults)?.credentialStrategy).toBeUndefined()
+    const modelId = 'mlx-community/Qwen3.5-4B-MLX-4bit'
+    const fetchMock = vi
+      .fn()
+      .mockImplementation(() =>
+        Promise.resolve(
+          Response.json({ object: 'list', data: [{ id: modelId, owned_by: 'rapid-mlx' }] })
+        )
+      )
+    global.fetch = fetchMock
+    const provider = new AiSdkProvider(defaults, createProviderSettings())
+
+    expect(await provider.fetchModels({ suppressErrors: false })).toEqual([
+      {
+        id: modelId,
+        name: modelId,
+        group: 'default',
+        providerId: 'rapid-mlx',
+        isCustom: false,
+        ownedBy: 'rapid-mlx'
+      }
+    ])
+    await expect(provider.check()).resolves.toEqual({ isOk: true, errorMsg: null })
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:8000/v1/models',
+      expect.objectContaining({ method: 'GET' })
+    )
+    provider.updateConfig({ ...defaults, apiKey: 'optional-local-key' })
+    await expect(provider.check()).resolves.toEqual({ isOk: true, errorMsg: null })
+    expect(new Headers(fetchMock.mock.calls.at(-1)![1].headers).get('Authorization')).toBe(
+      'Bearer optional-local-key'
+    )
+  })
+
   it('checks OpenLLM by listing models without requiring an API key', async () => {
     const defaults = DEFAULT_PROVIDERS.find(({ id }) => id === 'openllm')!
     expect(defaults).toBeDefined()

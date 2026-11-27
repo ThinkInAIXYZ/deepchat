@@ -134,6 +134,19 @@ Embeddings are disabled for this profile.
 
 Upstream reference: [API docs](https://obscurify.ai/api-docs).
 
+## Rapid-MLX
+
+`rapid-mlx` uses the existing OpenAI-compatible transport and native `openai-compatible` driver
+for the local Apple Silicon server at `http://localhost:8000/v1`. It is disabled by default.
+The API key is optional unless the server was started with `--api-key`; a configured key uses
+standard bearer authentication and the existing main-process provider credential storage.
+Keyless onboarding accepts HTTP loopback endpoints, following OpenLLM's local setup rule.
+Live discovery and connection checks list `/v1/models`, preserving model ids verbatim through
+the shared OpenAI model source. Streaming chat and tools use `/v1/chat/completions`;
+embedding models use `/v1/embeddings`. No custom adapter or catalog is required.
+
+Upstream reference: [Rapid-MLX README](https://github.com/raullenchai/Rapid-MLX#readme).
+
 ## OpenLLM
 
 `openllm` uses the OpenAI-compatible transport and defaults to the local daemon at

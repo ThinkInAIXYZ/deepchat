@@ -172,6 +172,26 @@ describe('DEFAULT_PROVIDERS', () => {
     )
   })
 
+  it('includes Rapid-MLX as a disabled local OpenAI-compatible provider', () => {
+    expect(DEFAULT_PROVIDERS).toContainEqual(
+      expect.objectContaining({
+        id: 'rapid-mlx',
+        name: 'Rapid-MLX',
+        apiType: 'openai-completions',
+        apiKey: '',
+        baseUrl: 'http://localhost:8000/v1',
+        enable: false,
+        websites: expect.objectContaining({
+          official: 'https://rapidmlx.com',
+          apiKey: 'https://github.com/raullenchai/Rapid-MLX#readme',
+          docs: 'https://github.com/raullenchai/Rapid-MLX#readme',
+          models: 'https://github.com/raullenchai/Rapid-MLX#choose-your-model',
+          defaultBaseUrl: 'http://localhost:8000/v1'
+        })
+      })
+    )
+  })
+
   it('includes OpenLLM as a disabled built-in provider pointing at the local daemon', () => {
     expect(DEFAULT_PROVIDERS).toContainEqual(
       expect.objectContaining({

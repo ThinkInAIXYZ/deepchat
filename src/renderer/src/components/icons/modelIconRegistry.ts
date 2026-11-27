@@ -52,6 +52,7 @@ import openrouterColorIcon from '@/assets/llm-icons/openrouter.svg?url'
 import atlascloudIcon from '@/assets/llm-icons/atlascloud.svg?url'
 import requestyColorIcon from '@/assets/llm-icons/requesty.png?url'
 import litellmColorIcon from '@/assets/llm-icons/litellm.svg?url'
+import rapidMlxIcon from '@/assets/llm-icons/rapid-mlx.svg?url'
 import openllmIcon from '@/assets/llm-icons/openllm.svg?url'
 import opperColorIcon from '@/assets/llm-icons/opper.svg?url'
 import trustedrouterIcon from '@/assets/llm-icons/trustedrouter.svg?url'
@@ -218,6 +219,7 @@ export const modelIcons = {
   atlascloud: atlascloudIcon,
   requesty: requestyColorIcon,
   litellm: litellmColorIcon,
+  'rapid-mlx': rapidMlxIcon,
   openllm: openllmIcon,
   opper: opperColorIcon,
   trustedrouter: trustedrouterIcon,
@@ -312,6 +314,7 @@ const monoIconUrls = new Set<string>([
   moonshotColorIcon,
   openrouterColorIcon,
   atlascloudIcon,
+  rapidMlxIcon,
   openllmIcon,
   opperColorIcon,
   trustedrouterIcon,

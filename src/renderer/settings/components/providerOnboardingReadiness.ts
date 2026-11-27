@@ -2,10 +2,9 @@ import type { AWS_BEDROCK_PROVIDER, LLM_PROVIDER, VERTEX_PROVIDER } from '@share
 
 const LOOPBACK_HOSTS = ['localhost', '127.0.0.1', '[::1]']
 
-// The local OpenLLM daemon authenticates with its saved login, so a loopback base URL
-// needs no key. The hosted endpoint still requires one.
-const isKeylessLocalOpenLLM = (provider: LLM_PROVIDER) => {
-  if (provider.id !== 'openllm') return false
+// OpenLLM and Rapid-MLX support keyless local setup. Remote endpoints still require a key.
+const isKeylessLocalProvider = (provider: LLM_PROVIDER) => {
+  if (provider.id !== 'openllm' && provider.id !== 'rapid-mlx') return false
   try {
     const url = new URL(provider.baseUrl?.trim() ?? '')
     return url.protocol === 'http:' && LOOPBACK_HOSTS.includes(url.hostname.toLowerCase())
@@ -43,6 +42,6 @@ export const isProviderReadyForOnboarding = (provider: LLM_PROVIDER) => {
   }
 
   if (provider.custom && !provider.baseUrl?.trim()) return false
-  if (isKeylessLocalOpenLLM(provider)) return true
+  if (isKeylessLocalProvider(provider)) return true
   return Boolean(provider.apiKey?.trim() || provider.oauthToken)
 }

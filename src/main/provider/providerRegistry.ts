@@ -807,6 +807,13 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
     })
   ],
   [
+    'rapid-mlx',
+    // Local OpenAI-compatible server; API-key authentication is optional.
+    createDefinition({
+      ...OPENAI_BASE
+    })
+  ],
+  [
     'openllm',
     // Local daemon at 127.0.0.1: the key is optional and the daemon uses the saved login.
     createDefinition({
