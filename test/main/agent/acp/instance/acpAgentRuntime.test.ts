@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import Database from 'better-sqlite3-multiple-ciphers'
 import type * as schema from '@agentclientprotocol/sdk'
 import type { AcpAgentConfig } from '@shared/types/acp'
 import type { AcpAgentInstallState } from '@shared/types/acp'
@@ -8,6 +9,9 @@ import { AcpPromptController, AcpRuntimeOwner, type AcpClientRuntime } from '@/a
 import { AcpAgentRuntime, type AcpAgentRuntimeSessionInput } from '@/agent/acp/instance'
 import { AcpSessionController, type AcpSessionRecord } from '@/agent/acp/runtime'
 import type { SessionPendingInputRuntimePort } from '@/session/data/contracts'
+import { SessionPendingInputs } from '@/session/data/pendingInputs'
+import { SessionPendingInputStore } from '@/session/data/pendingInputStore'
+import { DeepChatPendingInputsTable } from '@/session/data/tables/deepchatPendingInputs'
 import type {
   ChatMessageRecord,
   PendingSessionInputRecord,
@@ -247,7 +251,8 @@ function createHarness(options?: {
   resourceRejects?: boolean
   resourceGate?: { started: () => void; wait: Promise<void> }
   firstPromptNeverSettles?: boolean
-  pendingInputs?: FakePendingInputs
+  pendingInputs?: SessionPendingInputRuntimePort
+  onSessionIdle?: (sessionId: ReturnType<typeof toAppSessionId>) => void
 }) {
   const calls: string[] = []
   let hooks:
@@ -414,7 +419,8 @@ function createHarness(options?: {
       debug: { appendDebugEvent: vi.fn() },
       observer: { userPromptSubmitted: vi.fn(), terminal: vi.fn() }
     }),
-    options?.pendingInputs ?? new FakePendingInputs()
+    options?.pendingInputs ?? new FakePendingInputs(),
+    options?.onSessionIdle
   )
   return {
     calls,
@@ -1043,5 +1049,103 @@ describe('AcpAgentRuntime', () => {
     })
     expect(record.id).toBe(pendingInputs.records[0].id)
     expect(harness.connection.prompt).not.toHaveBeenCalled()
+  })
+
+  it('discards a failed claimed pending input via real storage when discardOnFailure is set and notifies idle after cleanup', async () => {
+    const db = new Database(':memory:')
+    const pendingTable = new DeepChatPendingInputsTable(db)
+    pendingTable.createTable()
+    const store = new SessionPendingInputStore({
+      getDatabase: () => db,
+      deepchatPendingInputsTable: pendingTable
+    } as never)
+    const pendingInputs = new SessionPendingInputs(store, {} as never, {
+      publishPendingInputsChanged: vi.fn(),
+      publishMessagesChanged: vi.fn()
+    })
+    const idleObserved: Array<{ sessionId: string; busy: boolean }> = []
+    let harness!: ReturnType<typeof createHarness>
+    harness = createHarness({
+      pendingInputs,
+      resourceRejects: true,
+      onSessionIdle: (sessionId) => {
+        void harness.runtime.isBusy(sessionId).then((busy) => {
+          idleObserved.push({ sessionId, busy })
+        })
+      }
+    })
+    const input = createInput()
+
+    try {
+      await harness.runtime.queuePendingInput(
+        input,
+        { text: 'cron prompt', files: [] },
+        { requireResume: true, discardOnFailure: true, submissionId: 'cron:run-1:sub' }
+      )
+
+      await vi.waitFor(async () => {
+        expect(pendingInputs.listPendingInputs(input.sessionId)).toEqual([])
+        expect(pendingInputs.hasUnconsumedInputs(input.sessionId)).toBe(false)
+        expect(await harness.runtime.isBusy(input.sessionId)).toBe(false)
+        expect(idleObserved).toEqual([{ sessionId: input.sessionId, busy: false }])
+      })
+    } finally {
+      db.close()
+    }
+  })
+
+  it('cancels pre-bind ACP submissions by submissionId', async () => {
+    const pendingInputs = new FakePendingInputs()
+    let resolveGate!: () => void
+    const gatePromise = new Promise<void>((resolve) => {
+      resolveGate = resolve
+    })
+    let gateStarted = false
+    const harness = createHarness({
+      pendingInputs,
+      resourceGate: {
+        started: () => {
+          gateStarted = true
+        },
+        wait: gatePromise
+      }
+    })
+    const input = createInput()
+
+    await harness.runtime.queuePendingInput(
+      input,
+      { text: 'cron before bind', files: [] },
+      { submissionId: 'cron:pre-bind:1', discardOnFailure: true }
+    )
+    await vi.waitFor(() => expect(gateStarted).toBe(true))
+
+    const cancelPromise = harness.runtime.cancelSubmission(input.sessionId, 'cron:pre-bind:1')
+    resolveGate()
+    await expect(cancelPromise).resolves.toBe(true)
+    expect(harness.connection.prompt).not.toHaveBeenCalled()
+  })
+
+  it('notifies idle when deleting the last pending ACP input in an otherwise idle session', async () => {
+    const pendingInputs = new FakePendingInputs()
+    const idleSessions: string[] = []
+    const harness = createHarness({
+      pendingInputs,
+      onSessionIdle: (sessionId) => {
+        idleSessions.push(sessionId)
+      }
+    })
+    const input = createInput()
+    await harness.runtime.getOrHydrate(input)
+    const pendingItem = pendingInputs.queuePendingInput(input.sessionId, {
+      text: 'pending input to delete',
+      files: []
+    })
+    expect(await harness.runtime.isBusy(input.sessionId)).toBe(true)
+
+    harness.runtime.deletePendingInput(input.sessionId, pendingItem.id)
+    await vi.waitFor(() => {
+      expect(idleSessions).toEqual([input.sessionId])
+    })
+    expect(await harness.runtime.isBusy(input.sessionId)).toBe(false)
   })
 })

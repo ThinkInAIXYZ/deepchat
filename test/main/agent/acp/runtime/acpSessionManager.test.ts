@@ -288,6 +288,56 @@ describe('AcpSessionManager public restore matrix', () => {
     expect(result.sessionId).toBe(expected.includes('new') ? 'new-session' : 'persisted-session')
   })
 
+  it('refuses newSession fallback when requireResume is set and restore fails', async () => {
+    const harness = createHarness({
+      persisted: true,
+      resumeRejects: true,
+      loadRejects: true
+    })
+
+    await expect(
+      harness.manager.getOrCreateSession('conv1', agent, hooks(), '/tmp', undefined, {
+        requireResume: true
+      })
+    ).rejects.toThrow(/Unable to resume persisted ACP session.*Refusing to start a new empty session/)
+    expect(harness.calls).toEqual(['resume', 'load'])
+    expect(harness.connection.newSession).not.toHaveBeenCalled()
+  })
+
+  it('refuses newSession fallback when requireResume is set and agent lacks resume/load support', async () => {
+    const connection = {
+      newSession: vi.fn(async () => ({ sessionId: 'new-session' }) as schema.NewSessionResponse)
+    }
+    const handle = {
+      supportsSessionResume: false,
+      supportsLoadSession: false,
+      connection
+    } as unknown as AcpProcessHandle
+    const harness = createHarness({
+      persisted: true,
+      handles: [handle]
+    })
+
+    await expect(
+      harness.manager.getOrCreateSession('conv1', agent, hooks(), '/tmp', undefined, {
+        requireResume: true
+      })
+    ).rejects.toThrow(/does not support resuming or loading existing sessions/)
+    expect(connection.newSession).not.toHaveBeenCalled()
+  })
+
+  it('refuses newSession when requirePersistedSession is set and no persisted session exists', async () => {
+    const harness = createHarness({ persisted: false })
+
+    await expect(
+      harness.manager.getOrCreateSession('conv1', agent, hooks(), '/tmp', undefined, {
+        requireResume: true,
+        requirePersistedSession: true
+      })
+    ).rejects.toThrow(/No persisted ACP session was found/)
+    expect(harness.connection.newSession).not.toHaveBeenCalled()
+  })
+
   it('invalidates a live record on process exit and restores without reusing the dead connection', async () => {
     const firstConnection = {
       newSession: vi.fn().mockResolvedValue({ sessionId: 'remote-1' })

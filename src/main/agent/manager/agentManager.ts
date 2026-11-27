@@ -151,6 +151,15 @@ export class AgentManager implements AgentManagerGenerationPort {
     ).backend.generationControl.cancelGenerationByEventId(sessionId, eventId)
   }
 
+  async cancelSubmission(sessionId: AppSessionId, submissionId: string): Promise<boolean> {
+    return (
+      (await this.resolveSessionBackend(sessionId).backend.generationControl.cancelSubmission?.(
+        sessionId,
+        submissionId
+      )) ?? false
+    )
+  }
+
   async cleanupSessionBackends(sessionId: AppSessionId): Promise<void> {
     const results = await Promise.allSettled([
       this.backends.deepchat.cleanupSession(sessionId),

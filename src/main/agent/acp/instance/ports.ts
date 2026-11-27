@@ -9,7 +9,11 @@ import type {
   UserMessageContent
 } from '@shared/types/agent-interface'
 import type { AppSessionId, AcpRemoteSessionId } from '@/agent/shared/agentSessionIds'
-import type { AcpSessionCommand, AcpSessionRecord } from '@/agent/acp/runtime'
+import type {
+  AcpSessionCommand,
+  AcpSessionOpenOptions,
+  AcpSessionRecord
+} from '@/agent/acp/runtime'
 import type {
   DeepChatTapeViewPolicy,
   DeepChatTapeViewTaskType,
@@ -41,7 +45,8 @@ export interface AcpAgentSessionHandle {
   readonly sessionId: AppSessionId
   send(
     content: SendMessageInput,
-    projectionContext?: AcpProjectionContext
+    projectionContext?: AcpProjectionContext,
+    openOptions?: AcpSessionOpenOptions
   ): Promise<MessageStartResult>
   cancel(cause?: AcpCancelCause): Promise<void>
   snapshot(): Promise<AcpAgentSnapshot>
@@ -50,7 +55,7 @@ export interface AcpAgentSessionHandle {
 }
 
 export interface AcpSessionLifecycleFacet {
-  prepare(): Promise<void>
+  prepare(options?: AcpSessionOpenOptions): Promise<void>
   updateWorkdir(workdir: string | null): Promise<string>
   getWorkdir(): string
 }
@@ -85,13 +90,15 @@ export interface AcpSessionRuntimePort {
       onProcessExit?(sessionId: AcpRemoteSessionId): void
       signal?: AbortSignal
     },
-    workdir?: string | null
+    workdir?: string | null,
+    options?: AcpSessionOpenOptions
   ): Promise<AcpSessionRecord>
   prepare(
     conversationId: AppSessionId,
     agent: AcpAgentConfig,
     workdir?: string | null,
-    hooks?: { onProcessExit?(sessionId: AcpRemoteSessionId): void; signal?: AbortSignal }
+    hooks?: { onProcessExit?(sessionId: AcpRemoteSessionId): void; signal?: AbortSignal },
+    options?: AcpSessionOpenOptions
   ): Promise<AcpSessionRecord>
   updateWorkdir(
     conversationId: AppSessionId,
@@ -213,8 +220,15 @@ export type AcpProjectionSettlement =
       errorMessage?: string
     }
 
+export interface AcpStatusMeta {
+  messageId?: string
+  requestId?: string
+  submissionId?: string
+  error?: string
+}
+
 export interface AcpCompatibilityProjectionPort {
-  setStatus(status: 'generating' | 'idle' | 'error'): void
+  setStatus(status: 'generating' | 'idle' | 'error', meta?: AcpStatusMeta): void
   begin(input: {
     sessionId: AppSessionId
     userContent: UserMessageContent

@@ -24,8 +24,12 @@ type CoreMethods =
   | 'cancelGeneration'
   | 'getActiveGeneration'
   | 'cancelGenerationByEventId'
+  | 'cancelSubmission'
+  | 'isSessionBusy'
   | 'cleanupSession'
-type StartContext = NonNullable<Parameters<DeepChatAgentBackendPort['processMessage']>[2]>
+type StartContext = NonNullable<Parameters<DeepChatAgentBackendPort['processMessage']>[2]> & {
+  requireIdle?: boolean
+}
 export interface DimPreparedInput {
   content: JsonValue[]
   representation: JsonValue
@@ -90,7 +94,8 @@ export function createDimSessionBackend(options: DimBackendOptions): DeepChatAge
         : {}),
       representation: prepared.representation,
       maxProviderRounds: context?.maxProviderRounds,
-      reuseUserMessage: context?.reuseUserMessage
+      reuseUserMessage: context?.reuseUserMessage,
+      ...(context?.requireIdle ? { requireIdle: true } : {})
     })
     // The native receipt acknowledges admission, not execution. Live projection publishes the
     // eventual user/assistant identities; a queued submission must not borrow the active turn id.
@@ -130,18 +135,19 @@ export function createDimSessionBackend(options: DimBackendOptions): DeepChatAge
       if (database.dimSessionBindingsTable.get(sessionId)) await runtime.cancel(sessionId)
     },
     getActiveGeneration: active,
-    cancelGenerationByEventId: async (sessionId, eventId) => {
-      if (active(sessionId)?.eventId !== eventId) return false
-      await runtime.cancel(sessionId)
-      return true
-    },
+    cancelGenerationByEventId: async (sessionId, eventId) =>
+      await runtime.cancelTurn(sessionId, eventId),
+    cancelSubmission: async (sessionId, submissionId) =>
+      await runtime.cancelSubmission(sessionId, submissionId),
+    isSessionBusy: async (sessionId) => await runtime.isBusy(sessionId),
     send: async (sessionId, input) => {
       input.context?.signal?.throwIfAborted()
       if (input.queue) {
         await controllers.queuePendingInput(sessionId, input.content, {
           ...input.queue,
           maxProviderRounds: input.context?.maxProviderRounds,
-          signal: input.context?.signal
+          signal: input.context?.signal,
+          ...(input.context?.requireIdle ? { requireIdle: true } : {})
         })
         return { requestId: null, messageId: null }
       }

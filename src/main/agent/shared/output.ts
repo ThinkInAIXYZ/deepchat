@@ -49,6 +49,10 @@ export interface SessionStatusPublisherPorts {
     status: DeepChatSessionState['status']
     updatedAt: number
     changed: boolean
+    messageId?: string
+    requestId?: string
+    submissionId?: string
+    error?: string
     usage?: Record<string, number>
   }): void
 }

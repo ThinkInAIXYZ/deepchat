@@ -19,6 +19,7 @@ export interface DimProjection {
   resetTranscript?: boolean
   inputEvents?: DimEvent[]
   consumedInputs?: string[]
+  boundSubmission?: { submissionId: string; requestId: string; messageId: string }
   completed?: { requestId: string; messageId: string; error?: string }
 }
 
@@ -159,6 +160,13 @@ export function projectDimEvent(
         metadata.dim = { ...metadata.dim, turnId: binding.activeTurnId }
       if (metadata.inputReceipt) {
         metadata.inputReceipt = { ...metadata.inputReceipt, readAt: now, delivery: 'applied' }
+      }
+      if (metadata.dim?.submissionId && binding.activeTurnId && binding.assistantMessageId) {
+        result.boundSubmission = {
+          submissionId: metadata.dim.submissionId,
+          requestId: binding.activeTurnId,
+          messageId: binding.assistantMessageId
+        }
       }
       messages.push({ ...original, metadata: JSON.stringify(metadata), updatedAt: now })
     }

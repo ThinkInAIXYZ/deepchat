@@ -1,11 +1,15 @@
 //! Product presentation metadata is a namespaced, non-context extension fact.
 //! Only dim's Branch facade can admit the associated user input.
 use dim_agent_capabilities::{
+    agent_loop::AgentLoop,
+    input_queue::{InputQueue, Withdrawal},
     methods::{Interruption, MethodDecl, RpcError, SessionMethods, params, reply},
     timeline_tree::TreeCommands,
 };
-use dim_agent_runtime::{AgentBuilder, BRANCH_GROUP, Feature, Names, PublicService, Timeline};
-use dim_agent_types::{EventKind, ExtensionEvent, InputMessageData, InputMode};
+use dim_agent_runtime::{
+    AgentBuilder, BRANCH_GROUP, Feature, LoopPhase, LoopState, Names, PublicService, Timeline,
+};
+use dim_agent_types::{EventKind, ExtensionEvent, InputMessageData, InputMode, InputWithdrawData};
 use rutis::Ctx;
 use rutis::host::{BoxFuture, CtxHost, DynPlugin, Effect, Key, TypeKey};
 use serde::Deserialize;
@@ -84,6 +88,64 @@ struct Submit {
     max_provider_rounds: Option<std::num::NonZeroU64>,
     reuse_user_message: Option<ReuseUserMessage>,
     legacy_draft: Option<crate::legacy_queue::DraftRef>,
+    #[serde(default)]
+    require_idle: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct StopTurn {
+    #[serde(rename = "sessionId")]
+    _session_id: String,
+    branch_id: String,
+    turn_id: String,
+    reason: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct CancelSubmission {
+    #[serde(rename = "sessionId")]
+    _session_id: String,
+    branch_id: String,
+    submission_id: String,
+    reason: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct IsBusy {
+    #[serde(rename = "sessionId")]
+    _session_id: String,
+    branch_id: String,
+}
+
+async fn has_busy_timeline_activity(metadata: &DeepChatInputMetadata) -> Result<bool, RpcError> {
+    let active_turn = crate::facts::and(vec![
+        crate::facts::equal("kind", json!("turn/start")),
+        json!({"op":"not","condition":{"op":"exists","condition":crate::facts::and(vec![
+            crate::facts::equal("kind", json!("turn/end")),
+            json!({"op":"compare","left":crate::facts::field("data.turn_id"),"comparison":"eq","right":{"kind":"outer","path":"data.turn_id"}})
+        ])}}),
+    ]);
+    let pending_input = crate::facts::and(vec![
+        crate::facts::equal("kind", json!("input/message")),
+        json!({"op":"not","condition":{"op":"present","value":crate::facts::field("data.handover")}}),
+        json!({"op":"not","condition":{"op":"exists","condition":crate::facts::and(vec![
+            crate::facts::one_of("kind", json!(["input/consumed","input/deleted"])),
+            json!({"op":"compare","left":crate::facts::field("data.input_id"),"comparison":"eq","right":{"kind":"outer","path":"id"}})
+        ])}}),
+    ]);
+    let busy_events = crate::facts::events(
+        &metadata.timeline,
+        json!({"op":"or","conditions":[active_turn, pending_input]}),
+    )
+    .await?;
+    Ok(busy_events.iter().any(|event| match &event.kind {
+        EventKind::TurnStart(_) => true,
+        EventKind::InputMessage(input) => input.effective_mode() != InputMode::Append,
+        _ => false,
+    }))
 }
 
 #[derive(Deserialize, serde::Serialize)]
@@ -154,10 +216,151 @@ impl DynPlugin for Inputs {
             let tree = ctx.require_at(&self.tree)?;
             ctx.require_at(&self.methods)?.register(ctx, "session.deepchat_inputs", vec![
                 MethodDecl::new("session.deepchat_inputs.submit", true, Interruption::Drain),
-                MethodDecl::new("session.deepchat_inputs.retire", true, Interruption::Drain)
+                MethodDecl::new("session.deepchat_inputs.retire", true, Interruption::Drain),
+                MethodDecl::new("session.deepchat_inputs.stop_turn", true, Interruption::Report),
+                MethodDecl::new("session.deepchat_inputs.cancel_submission", true, Interruption::Drain),
+                MethodDecl::new("session.deepchat_inputs.is_busy", false, Interruption::Report)
             ], Arc::new(move |call, _cancel, _| {
                 let tree = tree.clone();
                 Box::pin(async move {
+                    if call.method.ends_with(".is_busy") {
+                        let value: IsBusy = params(call.params)?;
+                        let branch = tree.get(&value.branch_id)?;
+                        let metadata = branch.service::<DeepChatInputMetadata>()?;
+                        let _lane = metadata.lane.lock().await;
+                        let busy = has_busy_timeline_activity(&metadata).await?
+                            || branch.service::<AgentLoop>()?.state().phase != LoopPhase::Idle;
+                        return reply(json!({ "busy": busy }));
+                    }
+                    if call.method.ends_with(".cancel_submission") {
+                        let value: CancelSubmission = params(call.params)?;
+                        if value.submission_id.is_empty() {
+                            return Err(RpcError::invalid("Submission identity is required"));
+                        }
+                        let branch = tree.get(&value.branch_id)?;
+                        let metadata = branch.service::<DeepChatInputMetadata>()?;
+                        let _lane = metadata.lane.lock().await;
+                        let Some(input_event) = branch.lookup(&value.submission_id).await? else {
+                            return reply(json!({ "cancelled": false }));
+                        };
+                        let reason = value
+                            .reason
+                            .filter(|r| !r.trim().is_empty())
+                            .unwrap_or_else(|| "Stopped by submission cancel".to_owned());
+                        let withdrawal = branch
+                            .service::<InputQueue>()?
+                            .withdraw(InputWithdrawData {
+                                input_id: input_event.id.clone(),
+                                reason: Some(reason.clone()),
+                                steer: None,
+                            })
+                            .await?;
+                        if matches!(withdrawal.0, Withdrawal::Deleted { .. }) {
+                            return reply(json!({ "cancelled": true }));
+                        }
+                        let initial_transitions = crate::facts::events(
+                            &metadata.timeline,
+                            crate::facts::and(vec![
+                                crate::facts::one_of(
+                                    "kind",
+                                    json!(["input/applied", "input/consumed", "input/deleted"]),
+                                ),
+                                crate::facts::equal("data.input_id", json!(input_event.id)),
+                            ]),
+                        )
+                        .await?;
+                        if initial_transitions
+                            .iter()
+                            .any(|event| matches!(&event.kind, EventKind::InputDeleted(_)))
+                        {
+                            return reply(json!({ "cancelled": true }));
+                        }
+                        let agent_loop = branch.service::<AgentLoop>()?;
+                        if !initial_transitions
+                            .iter()
+                            .any(|event| matches!(&event.kind, EventKind::InputConsumed(_)))
+                            && let Some(applied_seq) =
+                                initial_transitions.iter().find_map(|event| match &event.kind {
+                                    EventKind::InputApplied(_) => Some(event.sequence),
+                                    _ => None,
+                                })
+                        {
+                            agent_loop.wait_dispatched(applied_seq).await?;
+                        }
+                        if let Some(deleted_seq) =
+                            agent_loop.cancel_applied_input(&input_event.id)?
+                        {
+                            crate::facts::published(&metadata.timeline, deleted_seq).await?;
+                            return reply(json!({ "cancelled": true }));
+                        }
+                        let transitions = crate::facts::events(
+                            &metadata.timeline,
+                            crate::facts::and(vec![
+                                crate::facts::one_of(
+                                    "kind",
+                                    json!(["input/consumed", "input/deleted"]),
+                                ),
+                                crate::facts::equal("data.input_id", json!(input_event.id)),
+                            ]),
+                        )
+                        .await?;
+                        if transitions
+                            .iter()
+                            .any(|event| matches!(&event.kind, EventKind::InputDeleted(_)))
+                        {
+                            return reply(json!({ "cancelled": true }));
+                        }
+                        let Some(consumed_seq) =
+                            transitions.iter().find_map(|event| match &event.kind {
+                                EventKind::InputConsumed(_) => Some(event.sequence),
+                                _ => None,
+                            })
+                        else {
+                            return reply(json!({ "cancelled": false }));
+                        };
+                        let active_turns = crate::facts::events(
+                            &metadata.timeline,
+                            crate::facts::and(vec![
+                                crate::facts::equal("kind", json!("turn/start")),
+                                json!({"op":"not","condition":{"op":"exists","condition":crate::facts::and(vec![
+                                    crate::facts::equal("kind", json!("turn/end")),
+                                    json!({"op":"compare","left":crate::facts::field("data.turn_id"),"comparison":"eq","right":{"kind":"outer","path":"data.turn_id"}})
+                                ])}}),
+                            ]),
+                        )
+                        .await?;
+                        let target_turn_id = active_turns
+                            .iter()
+                            .filter(|event| event.sequence < consumed_seq)
+                            .max_by_key(|event| event.sequence)
+                            .and_then(|event| match &event.kind {
+                                EventKind::TurnStart(data) => Some(data.turn_id.clone()),
+                                _ => None,
+                            });
+                        let stopped = match target_turn_id {
+                            Some(turn_id) => agent_loop.stop_turn(&turn_id, reason)?.is_some(),
+                            None => false,
+                        };
+                        return reply(json!({ "cancelled": stopped }));
+                    }
+                    if call.method.ends_with(".stop_turn") {
+                        let value: StopTurn = params(call.params)?;
+                        if value.turn_id.is_empty() {
+                            return Err(RpcError::invalid("Turn identity is required"));
+                        }
+                        let branch = tree.get(&value.branch_id)?;
+                        let reason = value
+                            .reason
+                            .filter(|r| !r.trim().is_empty())
+                            .unwrap_or_else(|| "Stopped by turn cancel".to_owned());
+                        let sequence = branch
+                            .service::<AgentLoop>()?
+                            .stop_turn(&value.turn_id, reason)?;
+                        return reply(json!({
+                            "stopped": sequence.is_some(),
+                            "sequence": sequence.map(|seq| seq.to_string())
+                        }));
+                    }
                     if call.method.ends_with(".retire") {
                         let value:Retire=params(call.params)?;
                         if value.operation_id.is_empty() || value.operation_id.len()>64 || !value.operation_id.bytes().all(|byte|byte.is_ascii_alphanumeric()||byte==b'-') {return Err(RpcError::invalid("Invalid retirement identity"));}
@@ -204,6 +407,16 @@ impl DynPlugin for Inputs {
                     }
                     ensure_active(&metadata).await?;
                     crate::queue::recover(&tree, &value.branch_id, &metadata).await?;
+                    if value.require_idle {
+                        let busy = has_busy_timeline_activity(&metadata).await?
+                            || branch.service::<AgentLoop>()?.state().phase != LoopPhase::Idle;
+                        if busy {
+                            return Err(RpcError::service(
+                                "session_busy",
+                                "Session is currently busy",
+                            ));
+                        }
+                    }
                     crate::migration::check_ready(&metadata).await?;
                     if let Some(draft) = &value.legacy_draft { crate::legacy_queue::check(&metadata, draft).await?; }
                     crate::migration::restore_context(&branch, &metadata, value.reuse_user_message.as_ref().map(|reuse| reuse.message_id.as_str())).await?;

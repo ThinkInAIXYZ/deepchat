@@ -9,6 +9,10 @@ export interface AgentSessionSendInput {
     preserveResolvedRepresentations?: boolean
     beforeHistoryPreparation?: () => void | Promise<void>
     reuseUserMessage?: { messageId: string; orderSeq: number; createdAt: number }
+    requireIdle?: boolean
+    acpRequireResume?: boolean
+    acpRequirePersistedSession?: boolean
+    acpDiscardOnFailure?: boolean
     signal?: AbortSignal
   }
   queue?: {

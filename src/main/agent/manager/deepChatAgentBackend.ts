@@ -105,6 +105,8 @@ export interface DeepChatAgentBackendPort {
   ): Promise<boolean>
   getActiveGeneration(sessionId: AppSessionId): AgentActiveGeneration | null
   cancelGenerationByEventId(sessionId: AppSessionId, eventId: string): Promise<boolean>
+  cancelSubmission?(sessionId: AppSessionId, submissionId: string): Promise<boolean>
+  isSessionBusy?(sessionId: AppSessionId): Promise<boolean>
   setSessionAgentContext(sessionId: AppSessionId, config: SessionAgentContextUpdate): Promise<void>
   setSessionModel(sessionId: AppSessionId, providerId: string, modelId: string): Promise<void>
   getSessionCompactionSnapshot(sessionId: AppSessionId): Promise<SessionCompactionSnapshot>
@@ -148,7 +150,9 @@ export function createDeepChatAgentBackend(
   const generationControl: AgentGenerationControlFacet = {
     getActiveGeneration: (sessionId) => port.getActiveGeneration(sessionId),
     cancelGenerationByEventId: (sessionId, eventId) =>
-      port.cancelGenerationByEventId(sessionId, eventId)
+      port.cancelGenerationByEventId(sessionId, eventId),
+    cancelSubmission: async (sessionId, submissionId) =>
+      (await port.cancelSubmission?.(sessionId, submissionId)) ?? false
   }
 
   const open = (sessionId: AppSessionId): DeepChatSessionHandle => {
@@ -217,7 +221,8 @@ export function createDeepChatAgentBackend(
         compact: () => port.compactSession(sessionId),
         isPendingQueueResumeAvailable: () => port.isPendingQueueResumeAvailable(sessionId),
         resumePendingQueue: () => port.resumePendingQueue(sessionId),
-        retryPendingQueueInput: (itemId) => port.retryPendingQueueInput(sessionId, itemId)
+        retryPendingQueueInput: (itemId) => port.retryPendingQueueInput(sessionId, itemId),
+        ...(port.isSessionBusy ? { isBusy: () => port.isSessionBusy!(sessionId) } : {})
       }
     }
     handles.set(sessionId, handle)

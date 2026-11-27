@@ -124,8 +124,15 @@ function createHarness(options?: {
     metadata: {},
     systemPromptSent: false
   } as AcpSessionRecord
+  const statusCalls: Array<{
+    status: string
+    metadata?: { error?: string; messageId?: string; requestId?: string }
+  }> = []
   const projection: AcpCompatibilityProjectionPort = {
-    setStatus: (status) => calls.push(`status.${status}`),
+    setStatus: (status, metadata) => {
+      statusCalls.push({ status, metadata })
+      calls.push(`status.${status}`)
+    },
     begin: () => {
       calls.push('projection.begin')
       return projectionHandle
@@ -222,7 +229,7 @@ function createHarness(options?: {
     },
     dependencies
   )
-  return { calls, cancelCauses, connection, dependencies, instance, session }
+  return { calls, cancelCauses, connection, dependencies, instance, session, statusCalls }
 }
 
 describe('AcpAgentInstance', () => {
@@ -238,6 +245,7 @@ describe('AcpAgentInstance', () => {
       'status.generating',
       'resources.resolve',
       'projection.begin',
+      'status.generating',
       'manifest.local_read',
       'rate.wait',
       'session.open',
@@ -251,6 +259,17 @@ describe('AcpAgentInstance', () => {
       'projection.complete.end_turn',
       'status.idle',
       'connection.cancel'
+    ])
+    expect(harness.statusCalls).toEqual([
+      { status: 'generating', metadata: undefined },
+      {
+        status: 'generating',
+        metadata: { messageId: 'assistant-message', requestId: 'assistant-message' }
+      },
+      {
+        status: 'idle',
+        metadata: { messageId: 'assistant-message', requestId: 'assistant-message' }
+      }
     ])
     expect(harness.connection.prompt).toHaveBeenCalledWith({
       sessionId: 'remote-session',
@@ -392,5 +411,29 @@ describe('AcpAgentInstance', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('includes submissionId and error in terminal status when prompt resources fail before projection', async () => {
+    const harness = createHarness()
+    vi.mocked(harness.dependencies.promptResources.resolve).mockRejectedValueOnce(
+      new Error('resource load failed')
+    )
+
+    await expect(
+      harness.instance.send({ text: 'cron task', files: [] }, undefined, {
+        submissionId: 'cron:run-err:1'
+      })
+    ).resolves.toEqual({
+      requestId: null,
+      messageId: null
+    })
+
+    expect(harness.statusCalls.at(-1)).toEqual({
+      status: 'error',
+      metadata: {
+        submissionId: 'cron:run-err:1',
+        error: 'resource load failed'
+      }
+    })
   })
 })

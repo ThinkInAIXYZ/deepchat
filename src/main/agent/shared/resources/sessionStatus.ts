@@ -10,7 +10,8 @@ export class SessionStatusPublisher {
   transition(
     scope: SessionRuntimeScope,
     status: DeepChatSessionState['status'],
-    usage?: Record<string, number>
+    usage?: Record<string, number>,
+    meta?: { messageId?: string; requestId?: string; submissionId?: string; error?: string }
   ): boolean {
     if (!scope.isCurrent()) {
       return false
@@ -20,7 +21,8 @@ export class SessionStatusPublisher {
     if (!current) {
       return false
     }
-    if (current.status === status && usage === undefined) {
+    const hasMeta = Boolean(meta?.messageId || meta?.requestId || meta?.submissionId || meta?.error)
+    if (current.status === status && usage === undefined && !hasMeta) {
       return true
     }
 
@@ -31,7 +33,11 @@ export class SessionStatusPublisher {
         changed: false,
         updatedAt: Date.now(),
         status,
-        usage
+        ...(usage === undefined ? {} : { usage }),
+        ...(meta?.messageId ? { messageId: meta.messageId } : {}),
+        ...(meta?.requestId ? { requestId: meta.requestId } : {}),
+        ...(meta?.submissionId ? { submissionId: meta.submissionId } : {}),
+        ...(meta?.error ? { error: meta.error } : {})
       })
       return true
     }
@@ -42,7 +48,11 @@ export class SessionStatusPublisher {
       changed: true,
       updatedAt: Date.now(),
       status,
-      ...(usage === undefined ? {} : { usage })
+      ...(usage === undefined ? {} : { usage }),
+      ...(meta?.messageId ? { messageId: meta.messageId } : {}),
+      ...(meta?.requestId ? { requestId: meta.requestId } : {}),
+      ...(meta?.submissionId ? { submissionId: meta.submissionId } : {}),
+      ...(meta?.error ? { error: meta.error } : {})
     })
     return true
   }

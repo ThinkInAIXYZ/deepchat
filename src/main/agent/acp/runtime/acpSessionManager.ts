@@ -83,6 +83,13 @@ const summarizeSessionResponse = (
   currentModeId: response.modes?.currentModeId
 })
 
+export interface AcpSessionOpenOptions {
+  requireResume?: boolean
+  requirePersistedSession?: boolean
+  discardOnFailure?: boolean
+  submissionId?: string
+}
+
 export interface AcpSessionRecord extends AgentSessionState {
   sessionId: AcpRemoteSessionId
   connection: ClientSideConnectionType
@@ -130,7 +137,8 @@ export class AcpSessionManager {
     agent: AcpAgentConfig,
     hooks: SessionHooks,
     workdir?: string | null,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    options?: AcpSessionOpenOptions
   ): Promise<AcpSessionRecord> {
     if (signal?.aborted) {
       const inflight = this.pendingSessions.get(conversationId)
@@ -164,6 +172,11 @@ export class AcpSessionManager {
       return existing
     }
     if (existing) {
+      if (options?.requireResume) {
+        throw new Error(
+          `Existing ACP session for conversation "${conversationId}" does not match agent "${agent.id}" or workdir "${resolvedWorkdir}". Refusing to replace it with a new empty session.`
+        )
+      }
       await this.clearSession(conversationId)
       this.throwIfInitializationAborted(signal)
     }
@@ -181,7 +194,14 @@ export class AcpSessionManager {
     }
     this.pendingSessions.set(conversationId, pending)
     const creation = Promise.resolve().then(() =>
-      this.createSession(conversationId, agent, hooks, resolvedWorkdir, pending.controller.signal)
+      this.createSession(
+        conversationId,
+        agent,
+        hooks,
+        resolvedWorkdir,
+        pending.controller.signal,
+        options
+      )
     )
     pending.promise = this.settlePendingInitialization(conversationId, pending, creation)
     return await this.waitForPendingInitialization(conversationId, pending, signal)
@@ -400,7 +420,8 @@ export class AcpSessionManager {
     agent: AcpAgentConfig,
     hooks: SessionHooks,
     workdir: string,
-    signal: AbortSignal
+    signal: AbortSignal,
+    options?: AcpSessionOpenOptions
   ): Promise<AcpSessionRecord> {
     let handle: AcpProcessHandle | undefined
     let session: Awaited<ReturnType<AcpSessionManager['initializeSession']>> | undefined
@@ -411,7 +432,15 @@ export class AcpSessionManager {
       )
       this.throwIfInitializationAborted(signal)
 
-      session = await this.initializeSession(handle, conversationId, agent, workdir, hooks, signal)
+      session = await this.initializeSession(
+        handle,
+        conversationId,
+        agent,
+        workdir,
+        hooks,
+        signal,
+        options
+      )
       this.throwIfInitializationAborted(signal)
       this.processManager.bindProcess(agent.id, conversationId, workdir)
 
@@ -622,7 +651,8 @@ export class AcpSessionManager {
     agent: AcpAgentConfig,
     workdir: string,
     hooks: SessionHooks,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    options?: AcpSessionOpenOptions
   ): Promise<{
     sessionId: AcpRemoteSessionId
     mcpServers: schema.McpServer[]
@@ -651,6 +681,7 @@ export class AcpSessionManager {
         : null
 
       let sessionId: AcpRemoteSessionId | null = null
+      let lastRestoreError: unknown = null
       let configState = handle.configState ?? createEmptyAcpConfigState('legacy')
       let responseModeState:
         | {
@@ -759,6 +790,7 @@ export class AcpSessionManager {
           if (isAcpAuthRequiredRpcError(error)) {
             throw this.createAuthenticationRequiredError(handle, conversationId)
           }
+          lastRestoreError = error
           console.warn(
             `[ACP] Failed to resume persisted session ${persistedSessionId} for conversation ${conversationId}; trying load/new fallback.`,
             error
@@ -851,6 +883,7 @@ export class AcpSessionManager {
           if (isAcpAuthRequiredRpcError(error)) {
             throw this.createAuthenticationRequiredError(handle, conversationId)
           }
+          lastRestoreError = error
           console.warn(
             `[ACP] Failed to load persisted session ${persistedSessionId} for conversation ${conversationId}; falling back to newSession.`,
             error
@@ -869,6 +902,27 @@ export class AcpSessionManager {
         throw new Error(
           'Unable to restore the remote fork; refusing to replace it with an empty session'
         )
+      if (!sessionId && options?.requireResume) {
+        if (persistedSessionId) {
+          if (!canResumeSession && !canLoadSession) {
+            throw new Error(
+              `ACP agent "${agent.name}" does not support resuming or loading existing sessions; refusing to start a new empty session.`
+            )
+          }
+          const detail =
+            lastRestoreError instanceof Error && lastRestoreError.message
+              ? `: ${lastRestoreError.message}`
+              : ''
+          throw new Error(
+            `Unable to resume persisted ACP session "${persistedSessionId}" for agent "${agent.name}"${detail}. Refusing to start a new empty session.`
+          )
+        }
+        if (options.requirePersistedSession) {
+          throw new Error(
+            `No persisted ACP session was found for conversation "${conversationId}" (agent "${agent.name}"). Refusing to start a new empty session.`
+          )
+        }
+      }
       if (!sessionId) {
         const newSessionRequestSummary = {
           cwd: workdir,

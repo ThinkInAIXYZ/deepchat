@@ -25,6 +25,7 @@ export function flushBlocksToRenderer(io: IoParams, state: StreamState): void {
     kind: 'blocks',
     updatedAt: Date.now(),
     messageId: io.messageId,
+    requestId: io.requestId,
     previewMarkdown: buildAssistantPreviewMarkdown(state.blocks),
     responseMarkdown: buildAssistantResponseMarkdown(state.blocks),
     deliverySegments: buildAssistantDeliverySegments(io.messageId, state.blocks),

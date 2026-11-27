@@ -18,7 +18,10 @@ export interface DeepChatInternalSessionUpdate {
   kind: 'blocks' | 'status'
   updatedAt: number
   messageId?: string
+  requestId?: string
+  submissionId?: string
   status?: DeepChatInternalSessionRuntimeStatus
+  error?: string
   previewMarkdown?: string
   responseMarkdown?: string
   deliverySegments?: AssistantDeliverySegment[]

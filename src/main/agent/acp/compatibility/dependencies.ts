@@ -147,8 +147,8 @@ export function createAcpCompatibilityDependencies(
           contextBuilderVersion: 'legacy-v1'
         })
       ),
-    setStatus: (status) => {
-      statusPublisher.transition(scope, status)
+    setStatus: (status, meta) => {
+      statusPublisher.transition(scope, status, undefined, meta)
     }
   })
 

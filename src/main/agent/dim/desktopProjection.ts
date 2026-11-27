@@ -41,6 +41,17 @@ export class DimDesktopProjection {
         ? { sessionId, status: binding.status, changed: true, updatedAt: Date.now() }
         : null
     if (statusChange && !completed) this.options.publishStatus(statusChange)
+    if (projection.boundSubmission) {
+      this.options.publishStatus({
+        sessionId,
+        status: binding.status,
+        changed: false,
+        updatedAt: Date.now(),
+        messageId: projection.boundSubmission.messageId,
+        requestId: projection.boundSubmission.requestId,
+        submissionId: projection.boundSubmission.submissionId
+      })
+    }
     const changedRecords = messages.filter(
       (message) =>
         message.role === 'user' ||
@@ -82,6 +93,7 @@ export class DimDesktopProjection {
         sessionId,
         kind: 'blocks',
         messageId: message.id,
+        requestId,
         updatedAt: message.updatedAt,
         responseMarkdown: buildAssistantResponseMarkdown(blocks),
         previewMarkdown: buildAssistantPreviewMarkdown(blocks),
@@ -105,7 +117,15 @@ export class DimDesktopProjection {
     }
     if (completed) {
       // Status consumers settle the turn using its final delivery segments.
-      if (statusChange) this.options.publishStatus(statusChange)
+      this.options.publishStatus({
+        sessionId,
+        status: binding.status,
+        changed: Boolean(statusChange),
+        updatedAt: statusChange?.updatedAt ?? Date.now(),
+        messageId: completed.messageId,
+        requestId: completed.requestId,
+        ...(completed.error ? { error: completed.error } : {})
+      })
       const terminal = messages.find((message) => message.id === completed.messageId)
       if (completed.error)
         this.options.output.streamFailed({

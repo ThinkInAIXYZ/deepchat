@@ -15,7 +15,10 @@ export interface SessionRuntimeUpdate {
   kind: 'blocks' | 'status'
   updatedAt: number
   messageId?: string
+  requestId?: string
+  submissionId?: string
   status?: SessionRuntimeStatus
+  error?: string
   previewMarkdown?: string
   responseMarkdown?: string
   deliverySegments?: AssistantDeliverySegment[]

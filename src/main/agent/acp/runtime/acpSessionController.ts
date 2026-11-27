@@ -42,7 +42,11 @@ import {
 } from './acpConfigState'
 import { AcpContentMapper } from './acpContentMapper'
 import type { AcpProcessManager } from './acpProcessManager'
-import type { AcpSessionManager, AcpSessionRecord } from './acpSessionManager'
+import type {
+  AcpSessionManager,
+  AcpSessionOpenOptions,
+  AcpSessionRecord
+} from './acpSessionManager'
 import type { AcpSessionPersistence } from './acpSessionPersistence'
 
 // Expand only after verifying replay completion and rewritten fork anchors on the wire.
@@ -164,7 +168,8 @@ export class AcpSessionController {
     conversationId: AppSessionId,
     agent: AcpAgentConfig,
     hooks: AcpSessionHooks,
-    workdir?: string | null
+    workdir?: string | null,
+    options?: AcpSessionOpenOptions
   ): Promise<AcpSessionRecord> {
     this.throwIfAborted(hooks.signal)
     const initialTitle = this.events?.getLocalTitle?.(conversationId)
@@ -208,15 +213,14 @@ export class AcpSessionController {
         hooks.onProcessExit?.(remoteId)
       }
     }
-    const opening = hooks.signal
-      ? this.sessionManager.getOrCreateSession(
-          conversationId,
-          agent,
-          sessionHooks,
-          workdir,
-          hooks.signal
-        )
-      : this.sessionManager.getOrCreateSession(conversationId, agent, sessionHooks, workdir)
+    const opening = this.sessionManager.getOrCreateSession(
+      conversationId,
+      agent,
+      sessionHooks,
+      workdir,
+      hooks.signal,
+      options
+    )
     const session = await this.awaitSessionOpen(conversationId, opening, hooks.signal)
     if (hooks.signal?.aborted) {
       await this.discardLateOpen(conversationId, session)
@@ -262,7 +266,8 @@ export class AcpSessionController {
     conversationId: AppSessionId,
     agent: AcpAgentConfig,
     workdir?: string | null,
-    hooks?: AcpSessionPrepareHooks
+    hooks?: AcpSessionPrepareHooks,
+    options?: AcpSessionOpenOptions
   ): Promise<AcpSessionRecord> {
     this.throwIfAborted(hooks?.signal)
     const requestedWorkdir = workdir?.trim()
@@ -280,6 +285,11 @@ export class AcpSessionController {
     this.throwIfAborted(hooks?.signal)
     const previousResolved = this.persistence.resolveWorkdir(existing?.workdir ?? null)
     if (previousResolved !== normalizedWorkdir) {
+      if (options?.requireResume && (existing?.sessionId || options.requirePersistedSession)) {
+        throw new Error(
+          `Persisted ACP session workdir "${previousResolved}" changed or is unavailable (resolved "${normalizedWorkdir}"). Refusing to replace it with a new empty session.`
+        )
+      }
       await this.sessionManager.clearSession(conversationId)
       this.throwIfAborted(hooks?.signal)
       await this.persistence.clearSession(conversationId, agent.id)
@@ -295,7 +305,8 @@ export class AcpSessionController {
         onProcessExit: hooks?.onProcessExit,
         signal: hooks?.signal
       },
-      normalizedWorkdir
+      normalizedWorkdir,
+      options
     )
   }
 
