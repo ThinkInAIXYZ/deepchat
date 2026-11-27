@@ -33,7 +33,6 @@ const getRunOutputPreview = (update: SessionRuntimeUpdate): string | null => {
 interface ActiveSessionRun {
   runId: string
   job: CronJob
-  sessionId: string
   isReusedExistingSession: boolean
   started: boolean
   sawIdleWhileStarting: boolean
@@ -246,7 +245,6 @@ export class CronJobRunExecutor {
         this.activeSessions.set(sessionId, {
           runId: run.id,
           job,
-          sessionId,
           isReusedExistingSession: isSharedSession,
           started: false,
           sawIdleWhileStarting: false,

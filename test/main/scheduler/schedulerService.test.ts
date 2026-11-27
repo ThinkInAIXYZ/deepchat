@@ -1910,7 +1910,7 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
     const cronJobDeliveriesTable = new CronJobDeliveriesTableCtor(db)
     cronJobRunsTable.createTable()
     cronJobDeliveriesTable.createTable()
-    const migrationSql = cronJobsTable.getMigrationSQL(cronJobsTable.getLatestVersion())
+    const migrationSql = cronJobsTable.getMigrationSQL(70)
     expect(migrationSql).toBeTruthy()
     db.exec(migrationSql!)
 

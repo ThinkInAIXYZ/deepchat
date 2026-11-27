@@ -36,6 +36,8 @@ const CRON_JOB_RUNS_INDEX_SQL = `
     ON cron_job_runs(job_id, created_at DESC, id DESC);
   CREATE INDEX IF NOT EXISTS idx_cron_job_runs_status_queued
     ON cron_job_runs(status, queued_at ASC, id ASC);
+  CREATE INDEX IF NOT EXISTS idx_cron_job_runs_session_status
+    ON cron_job_runs(session_id, status);
   CREATE UNIQUE INDEX IF NOT EXISTS idx_cron_job_runs_scheduled_dedupe
     ON cron_job_runs(job_id, scheduled_at)
     WHERE reason = 'scheduled';

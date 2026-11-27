@@ -193,8 +193,15 @@ export const createCronJobRunSessionStarter = (deps: {
       }
     }
     if (submissionId && deps.turn.cancelSubmission) {
-      await deps.turn.cancelSubmission(sessionId, submissionId)
-      return
+      const cancelled = await deps.turn.cancelSubmission(sessionId, submissionId)
+      if (cancelled) {
+        return
+      }
+      console.warn('[CronJobs] Submission cancellation returned false:', {
+        sessionId,
+        submissionId,
+        eventId: eventId ?? null
+      })
     }
     if (allowSessionWideCancel !== false) {
       await deps.turn.cancelGeneration(sessionId)

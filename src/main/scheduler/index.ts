@@ -30,8 +30,9 @@ import {
 } from './schedulerProcessManager'
 
 export type CronJobsUpsertInput = z.input<typeof cronJobsUpsertInputSchema>
-type CronJobDraft = Omit<CronJob, 'id' | 'createdAt' | 'updatedAt'> & {
+type CronJobDraft = Omit<CronJob, 'id' | 'createdAt' | 'updatedAt' | 'reuseSessionId'> & {
   id?: string
+  reuseSessionId?: string | null
 }
 
 export interface SchedulerServiceDeps {
@@ -154,14 +155,8 @@ export class SchedulerService {
     this.validateReuseSessionSelection(draft, existing)
     const jobState = await this.computeJobState(draft, Date.now(), true)
     beforeMutation?.()
-    const preserveStoredReuseSessionId =
-      draft.sessionMode === 'reuse_session' &&
-      input.reuseSessionId === undefined &&
-      Boolean(existing) &&
-      draft.agentId === existing?.agentId
     const job = this.repository.upsertJob({
       ...draft,
-      reuseSessionId: preserveStoredReuseSessionId ? undefined : draft.reuseSessionId,
       enabled: jobState.enabled,
       status: jobState.status,
       nextRunAt: jobState.nextRunAt,
@@ -307,10 +302,14 @@ export class SchedulerService {
     const stored =
       existing === undefined ? (input.id ? this.repository.getJob(input.id) : null) : existing
     const sessionMode = input.sessionMode ?? stored?.sessionMode ?? DEFAULT_SESSION_MODE
+    // Leave reuseSessionId undefined when omitted for an unchanged reuse_session job so the table
+    // layer preserves any concurrent first-run binding atomically at write time.
     const reuseSessionId =
       sessionMode === 'reuse_session'
         ? input.reuseSessionId === undefined
-          ? (stored?.reuseSessionId ?? null)
+          ? stored && input.agentId === stored.agentId
+            ? undefined
+            : null
           : input.reuseSessionId
         : null
     return {
@@ -540,7 +539,6 @@ export class SchedulerService {
       const batchSize = 50
       do {
         this.pendingQueuedDrain = false
-        const attempted = new Set<string>()
         let cursor: { queuedAt: number; id: string } | undefined
         while (true) {
           const queuedRuns = this.repository.listQueuedRuns(batchSize, cursor)
@@ -548,10 +546,6 @@ export class SchedulerService {
             break
           }
           for (const run of queuedRuns) {
-            if (attempted.has(run.id)) {
-              continue
-            }
-            attempted.add(run.id)
             await this.processDueRun({
               jobId: run.jobId,
               runId: run.id,
