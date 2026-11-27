@@ -303,7 +303,7 @@ export class SchedulerService {
       existing === undefined ? (input.id ? this.repository.getJob(input.id) : null) : existing
     const sessionMode = input.sessionMode ?? stored?.sessionMode ?? DEFAULT_SESSION_MODE
     // Leave reuseSessionId undefined when omitted for an unchanged reuse_session job so the table
-    // layer preserves any concurrent first-run binding atomically at write time.
+    // layer checks agent_id and preserves any concurrent first-run binding at write time.
     const reuseSessionId =
       sessionMode === 'reuse_session'
         ? input.reuseSessionId === undefined

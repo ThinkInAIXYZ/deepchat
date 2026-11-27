@@ -4,6 +4,7 @@ import type { CronJob } from '@shared/cronJobs'
 import type { SessionListItem, SessionPageCursor } from '@shared/types/agent-interface'
 
 const REUSABLE_SESSIONS_PAGE_SIZE = 20
+const OPEN_RELOAD_DEBOUNCE_MS = 150
 
 const foldSearchText = (text: string): string => text.toLowerCase().toUpperCase()
 
@@ -56,9 +57,18 @@ export function useReusableSessions(options: UseReusableSessionsOptions) {
   let disposed = false
   let pickerOpen = false
   let staleOnOpen = false
+  let openReloadTimer: number | null = null
   let unsubscribeUpdates: (() => void) | null = null
   const deletedSessionIds = new Set<string>()
+  const failedResolveIds = new Set<string>()
   const updatedSessionEpochById = new Map<string, number>()
+
+  const cancelOpenReload = () => {
+    if (openReloadTimer !== null) {
+      window.clearTimeout(openReloadTimer)
+      openReloadTimer = null
+    }
+  }
 
   const selectedResolved = computed<SessionListItem | null | undefined>(() => {
     const current = selectedJob.value
@@ -117,6 +127,7 @@ export function useReusableSessions(options: UseReusableSessionsOptions) {
   }))
 
   const reset = () => {
+    cancelOpenReload()
     generation += 1
     activeAgentId = null
     staleOnOpen = false
@@ -139,6 +150,7 @@ export function useReusableSessions(options: UseReusableSessionsOptions) {
       if (disposed || requestGeneration !== resolveGeneration) {
         return
       }
+      failedResolveIds.delete(sessionId)
       const found = deletedSessionIds.has(sessionId)
         ? null
         : (items.find((entry) => entry.id === sessionId) ?? null)
@@ -149,6 +161,12 @@ export function useReusableSessions(options: UseReusableSessionsOptions) {
     } catch (error) {
       if (!disposed && requestGeneration === resolveGeneration) {
         onError?.('Failed to resolve reused session', error, { sessionId })
+        failedResolveIds.add(sessionId)
+        staleOnOpen = true
+        resolvedById.value = {
+          ...resolvedById.value,
+          [sessionId]: null
+        }
       }
     }
   }
@@ -167,6 +185,7 @@ export function useReusableSessions(options: UseReusableSessionsOptions) {
       return
     }
 
+    cancelOpenReload()
     const requestGeneration = ++generation
     const startedAtEpoch = mutationEpoch
     loadFailed.value = false
@@ -231,6 +250,7 @@ export function useReusableSessions(options: UseReusableSessionsOptions) {
         }
         liveItems.push(session)
         nextResolved[session.id] = session
+        failedResolveIds.delete(session.id)
       }
       if (append) {
         const seen = new Set(sessions.value.map((session) => session.id))
@@ -309,6 +329,9 @@ export function useReusableSessions(options: UseReusableSessionsOptions) {
     if (!current || current.sessionMode !== 'reuse_session') {
       return
     }
+    if (current.reuseSessionId && failedResolveIds.has(current.reuseSessionId)) {
+      void resolveSession(current.reuseSessionId)
+    }
     if (sessions.value.length > 0 && nextCursor.value) {
       void load({
         agentId: current.agentId,
@@ -327,18 +350,28 @@ export function useReusableSessions(options: UseReusableSessionsOptions) {
 
   const setPickerOpen = (open: boolean) => {
     pickerOpen = open
-    if (!open || !staleOnOpen) {
+    if (!open) {
+      cancelOpenReload()
       return
     }
     const current = draft.value
     if (!current || current.sessionMode !== 'reuse_session' || !current.agentId) {
       return
     }
-    void load({
-      agentId: current.agentId,
-      query: query.value,
-      prioritizeSessionId: current.reuseSessionId
-    })
+    const needsResolveRetry = Boolean(
+      current.reuseSessionId && failedResolveIds.has(current.reuseSessionId)
+    )
+    if (staleOnOpen) {
+      void load({
+        agentId: current.agentId,
+        query: query.value,
+        prioritizeSessionId: current.reuseSessionId
+      })
+      return
+    }
+    if (needsResolveRetry) {
+      void resolveSession(current.reuseSessionId)
+    }
   }
 
   const refreshUpdatedSessions = async (sessionIds: string[]) => {
@@ -475,21 +508,36 @@ export function useReusableSessions(options: UseReusableSessionsOptions) {
         if (!current || current.sessionMode !== 'reuse_session' || !current.agentId) {
           return
         }
-        if (pickerOpen) {
-          void load({
-            agentId: current.agentId,
-            query: query.value,
-            prioritizeSessionId: current.reuseSessionId
-          })
-        } else {
+        if (!pickerOpen || sessions.value.length > REUSABLE_SESSIONS_PAGE_SIZE) {
           staleOnOpen = true
+          return
         }
+        cancelOpenReload()
+        openReloadTimer = window.setTimeout(() => {
+          openReloadTimer = null
+          const latest = draft.value
+          if (
+            disposed ||
+            !pickerOpen ||
+            !latest ||
+            latest.sessionMode !== 'reuse_session' ||
+            !latest.agentId
+          ) {
+            return
+          }
+          void load({
+            agentId: latest.agentId,
+            query: query.value,
+            prioritizeSessionId: latest.reuseSessionId
+          })
+        }, OPEN_RELOAD_DEBOUNCE_MS)
       }
     })
   }
 
   const dispose = () => {
     disposed = true
+    cancelOpenReload()
     generation += 1
     resolveGeneration += 1
     unsubscribeUpdates?.()

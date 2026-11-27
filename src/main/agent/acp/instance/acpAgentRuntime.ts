@@ -660,13 +660,13 @@ export class AcpAgentRuntime {
               error.message.includes('busy with another operation')))
         if (claimed.mode === 'steer') {
           pending.consumeSteerInput(sessionId, claimed.id)
-        } else if (busyRejection) {
+        } else if (busyRejection && !openOptions?.requireIdle) {
           releasedOnBusy = true
           if (openOptions) {
             this.pendingOpenOptions.set(claimed.id, { sessionId, options: openOptions })
           }
           pending.releaseClaimedInput(sessionId, claimed.id)
-        } else if (openOptions?.discardOnFailure) {
+        } else if (openOptions?.discardOnFailure || (busyRejection && openOptions?.requireIdle)) {
           pending.consumeQueuedInput(sessionId, claimed.id)
         } else {
           pending.releaseClaimedInput(sessionId, claimed.id)

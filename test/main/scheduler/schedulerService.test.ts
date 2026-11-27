@@ -1910,7 +1910,9 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
     const cronJobDeliveriesTable = new CronJobDeliveriesTableCtor(db)
     cronJobRunsTable.createTable()
     cronJobDeliveriesTable.createTable()
-    const migrationSql = cronJobsTable.getMigrationSQL(70)
+    const migrationSql = cronJobsTable.getMigrationSQL(
+      cronJobsTableModule!.CRON_JOBS_SESSION_REUSE_SCHEMA_VERSION
+    )
     expect(migrationSql).toBeTruthy()
     db.exec(migrationSql!)
 
@@ -2396,6 +2398,62 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
         repository.bindJobReuseSessionId(secondJob.id, 'old-agent-session', 'agent-1')
       ).toBeNull()
       expect(repository.getJob(secondJob.id)?.reuseSessionId).toBeNull()
+    } finally {
+      await service.destroy()
+      harness.db.close()
+    }
+  })
+
+  it('clears a bound reuseSessionId when upsert explicitly passes null', async () => {
+    const harness = createHarness()
+    const sessionEvents = new SessionRuntimeEvents()
+    const repository = new CronJobsRepositoryCtor(harness.sqlitePresenter as never)
+    const status = baseStatus()
+    const service = new SchedulerServiceCtor({
+      ...createRequiredSchedulerDeps(sessionEvents),
+      database: harness.sqlitePresenter as never,
+      agentSettings: {
+        listAgents: vi.fn(async () => [
+          { id: 'agent-1', name: 'Agent 1', type: 'deepchat' as const, enabled: true }
+        ]),
+        resolveDeepChatAgentConfig: vi.fn(async () => null)
+      } as never,
+      schedulerManager: {
+        reconcile: vi.fn().mockResolvedValue(status),
+        restart: vi.fn().mockResolvedValue(status),
+        stop: vi.fn().mockResolvedValue(status),
+        getStatus: vi.fn(() => status)
+      } as never
+    })
+
+    try {
+      const { job } = await service.upsert({
+        name: 'Explicit unbind job',
+        enabled: true,
+        cronExpr: '0 9 * * *',
+        timezone: 'UTC',
+        agentId: 'agent-1',
+        taskPrompt: 'Daily report',
+        sessionMode: 'reuse_session',
+        reuseSessionId: null
+      })
+
+      expect(repository.bindJobReuseSessionId(job.id, 'bound-session-1', 'agent-1')).not.toBeNull()
+      expect(repository.getJob(job.id)?.reuseSessionId).toBe('bound-session-1')
+
+      const cleared = await service.upsert({
+        id: job.id,
+        name: 'Explicit unbind job',
+        enabled: true,
+        cronExpr: '0 9 * * *',
+        timezone: 'UTC',
+        agentId: 'agent-1',
+        taskPrompt: 'Daily report',
+        sessionMode: 'reuse_session',
+        reuseSessionId: null
+      })
+      expect(cleared.job.reuseSessionId).toBeNull()
+      expect(repository.getJob(job.id)?.reuseSessionId).toBeNull()
     } finally {
       await service.destroy()
       harness.db.close()

@@ -1819,4 +1819,63 @@ describe('CronJobsSettings', () => {
     expect(payload.sessionMode).toBe('reuse_session')
     expect('reuseSessionId' in payload).toBe(false)
   })
+
+  it('does not stay stuck on Loading when resolving a bound session fails, and retries on popover open', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    let shouldFail = true
+    const resolvedItem = {
+      id: 'session-transient-1',
+      agentId: 'agent-1',
+      title: 'Recovered thread',
+      projectDir: null,
+      isPinned: false,
+      sessionKind: 'regular' as const,
+      status: 'idle' as const,
+      createdAt: 100,
+      updatedAt: 200
+    }
+    const { wrapper } = await setup({
+      list: async () => ({
+        jobs: [
+          {
+            ...cloneJob(),
+            agentId: 'agent-1',
+            sessionMode: 'reuse_session',
+            reuseSessionId: 'session-transient-1'
+          }
+        ],
+        schedulerStatus: cloneStatus()
+      }),
+      listLightweight: async () => ({
+        items: [],
+        nextCursor: null,
+        hasMore: false
+      }),
+      getLightweightByIds: async (ids) => {
+        if (shouldFail) {
+          throw new Error('transient ipc error')
+        }
+        return ids.includes('session-transient-1') ? [resolvedItem] : []
+      }
+    })
+
+    await wrapper.get('[data-testid="cron-job-edit"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="cron-job-reuse-session-select"]').text()).toContain(
+      'Session unavailable'
+    )
+    expect(wrapper.get('[data-testid="cron-job-reuse-session-select"]').text()).not.toContain(
+      'Loading'
+    )
+
+    shouldFail = false
+    await wrapper.get('[data-testid="cron-job-reuse-session-select"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="cron-job-reuse-session-select"]').text()).toContain(
+      'Recovered thread'
+    )
+    consoleError.mockRestore()
+  })
 })

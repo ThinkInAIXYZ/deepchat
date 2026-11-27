@@ -188,12 +188,15 @@ export class CronJobsTable extends BaseTable {
     const toolPolicy = input.toolPolicy ?? existing?.tool_policy ?? ('follow_agent' as const)
     const permissionPolicy =
       input.permissionPolicy ?? existing?.permission_policy ?? ('follow_agent' as const)
+    const nextAgentId = input.agentId ?? null
     const sessionMode =
       input.sessionMode ?? existing?.session_mode ?? CRON_JOBS_DEFAULT_SESSION_MODE
     const reuseSessionId =
       sessionMode === 'reuse_session'
         ? input.reuseSessionId === undefined
-          ? (existing?.reuse_session_id ?? null)
+          ? existing && existing.agent_id === nextAgentId
+            ? (existing.reuse_session_id ?? null)
+            : null
           : input.reuseSessionId
         : null
     const runtimeJson =
