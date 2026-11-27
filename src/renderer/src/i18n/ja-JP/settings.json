@@ -1637,7 +1637,19 @@
       "scheduleMonthDay": "毎月の日",
       "scheduleMinute": "毎時の分",
       "createEnabled": "作成後に有効化",
-      "createEnabledHint": "作成後すぐにスケジュールで実行を開始します。"
+      "createEnabledHint": "作成後すぐにスケジュールで実行を開始します。",
+      "session": "セッション",
+      "sessionMode": "セッションモード",
+      "newSessionEachRun": "実行ごとに新規セッション",
+      "reuseSession": "同じセッションを再利用",
+      "targetSession": "対象セッション",
+      "createSessionOnFirstRun": "初回実行時に作成",
+      "sessionUnavailable": "セッションを利用できません",
+      "searchSessionPlaceholder": "セッションを検索…",
+      "clearSessionSearch": "検索をクリア",
+      "noMatchingSessions": "「{query}」に一致するセッションはありません",
+      "noReusableSessions": "再利用可能なセッションはまだありません",
+      "loadMoreSessions": "さらに読み込む"
     },
     "presets": {
       "custom": "カスタム",

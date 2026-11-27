@@ -132,7 +132,8 @@ export class SessionQuery implements SessionProjectionReadPort, SessionProjectio
       projectDirs: options?.projectDirs,
       isPinned: options?.isPinned,
       includeDrafts: options?.includeDrafts,
-      includeSubagents: options?.includeSubagents
+      includeSubagents: options?.includeSubagents,
+      query: options?.query
     })
     const items = await Promise.all(
       page.records.map((record) => this.mapSessionRecordToListItem(record))
@@ -564,7 +565,15 @@ export class SessionQuery implements SessionProjectionReadPort, SessionProjectio
     if (options?.projectDirs && !options.projectDirs.includes(record.projectDir)) return false
     if (options?.isPinned !== undefined && record.isPinned !== options.isPinned) return false
     if (options?.includeDrafts === false && record.isDraft) return false
-    return options?.includeSubagents === true || record.sessionKind !== 'subagent'
+    if (options?.includeSubagents !== true && record.sessionKind === 'subagent') return false
+    const normalizedQuery = options?.query?.trim()
+    if (normalizedQuery) {
+      const foldedQuery = normalizedQuery.toLowerCase().toUpperCase()
+      const titleMatches = record.title.toLowerCase().toUpperCase().includes(foldedQuery)
+      const dirMatches = (record.projectDir ?? '').toLowerCase().toUpperCase().includes(foldedQuery)
+      if (!titleMatches && !dirMatches) return false
+    }
+    return true
   }
 
   private async generateSessionTitle(input: TitleGenerationInput): Promise<void> {

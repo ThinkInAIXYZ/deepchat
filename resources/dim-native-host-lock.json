@@ -83,6 +83,14 @@
     {
       "path": "crates/dim-agent-capabilities/src/wait.rs",
       "sha256": "c68f0b9302e4f852fd02c78fcea8c3a051290736cee99e56cf3e46e31c2eadd6"
+    },
+    {
+      "path": "crates/dim-agent-capabilities/src/agent_loop.rs",
+      "sha256": "272ceab2bc2357804f3531e55ea32fa47600934e42c38d473acfe01b209c5dd8"
+    },
+    {
+      "path": "crates/dim-agent-capabilities/src/input_queue.rs",
+      "sha256": "6d20ba799ef67a32b9d093dc6d829778bf388fbc66038e5a08f6a2237ff3e3f4"
     }
   ]
 }

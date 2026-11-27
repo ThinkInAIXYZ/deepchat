@@ -218,6 +218,7 @@ export interface QueuePendingInputOptions {
   signal?: AbortSignal
   submissionId?: string
   maxProviderRounds?: number
+  requireIdle?: boolean
 }
 
 export interface SessionAgentContextUpdate {

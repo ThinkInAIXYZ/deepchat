@@ -34,5 +34,9 @@ tokio-util = "0.7.19"
 url = "2.5"
 uuid = { version = "=1.29.2", features = ["v4"] }
 
+[dev-dependencies]
+dim-agent-runtime = { path = "../dim-source/crates/dim-agent-runtime", features = ["testing"] }
+tokio = { version = "1.53.3", features = ["macros", "rt-multi-thread", "time"] }
+
 [profile.dev]
 debug = 0

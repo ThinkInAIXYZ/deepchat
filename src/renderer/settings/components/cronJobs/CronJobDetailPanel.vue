@@ -210,6 +210,18 @@
                 }}
               </dd>
             </div>
+            <div class="min-w-0 sm:col-span-2">
+              <dt class="text-xs text-muted-foreground">
+                {{ t('settings.cronJobs.fields.session') }}
+              </dt>
+              <dd
+                data-testid="cron-job-detail-session"
+                class="mt-1 truncate font-medium"
+                :class="reusedSessionMissing ? 'text-destructive' : ''"
+              >
+                {{ sessionSummaryLabel }}
+              </dd>
+            </div>
           </dl>
         </DcSectionCard>
 
@@ -507,6 +519,80 @@
           />
         </DcSectionCard>
 
+        <DcSectionCard :title="t('settings.cronJobs.fields.session')">
+          <div class="grid gap-4 sm:grid-cols-2">
+            <label class="space-y-2">
+              <span class="text-sm font-medium">
+                {{ t('settings.cronJobs.fields.sessionMode') }}
+              </span>
+              <Select
+                data-testid="cron-job-session-mode-select"
+                :model-value="draft.sessionMode"
+                :disabled="busy"
+                @update:model-value="(value) => onSessionModeChange(String(value))"
+              >
+                <SelectTrigger
+                  :aria-label="t('settings.cronJobs.fields.sessionMode')"
+                  class="w-full min-w-0"
+                >
+                  <SelectValue class="min-w-0 truncate" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="new_session">
+                    {{ t('settings.cronJobs.fields.newSessionEachRun') }}
+                  </SelectItem>
+                  <SelectItem value="reuse_session">
+                    {{ t('settings.cronJobs.fields.reuseSession') }}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </label>
+
+            <div v-if="draft.sessionMode === 'reuse_session'" class="space-y-2">
+              <span class="block text-sm font-medium">
+                {{ t('settings.cronJobs.fields.targetSession') }}
+              </span>
+              <CronJobSessionPicker
+                :model-value="draft.reuseSessionId"
+                :label="t('settings.cronJobs.fields.targetSession')"
+                :disabled="busy || !draft.agentId"
+                :no-agent="!draft.agentId"
+                :sessions="reusableSessions.sessions"
+                :selected-session="reusableSessions.draftResolved"
+                :query="reusableSessions.query"
+                :loading="reusableSessions.loading"
+                :loading-more="reusableSessions.loadingMore"
+                :has-more="reusableSessions.hasMore"
+                :load-failed="reusableSessions.loadFailed"
+                @update:model-value="onReuseSessionChange"
+                @open-change="onSessionPickerOpenChange"
+                @search="(query) => emit('searchReusableSessions', query)"
+                @load-more="emit('loadMoreReusableSessions')"
+                @retry="emit('retryReusableSessions')"
+              />
+            </div>
+          </div>
+          <div
+            v-if="
+              draft.sessionMode === 'reuse_session' &&
+              reusableSessions.loadFailed &&
+              !sessionPickerOpen
+            "
+            class="mt-3 flex flex-wrap items-center gap-2 text-xs text-destructive"
+          >
+            <span>{{ t('common.error.requestFailed') }}</span>
+            <DcButton
+              variant="link"
+              size="sm"
+              class="h-auto p-0 text-xs"
+              :disabled="reusableSessions.loading"
+              @click="emit('retryReusableSessions')"
+            >
+              {{ t('common.retry') }}
+            </DcButton>
+          </div>
+        </DcSectionCard>
+
         <DcSectionCard :title="t('settings.cronJobs.fields.runtimePolicy')">
           <Select
             data-testid="cron-job-runtime-select"
@@ -631,7 +717,12 @@ import {
 } from '@shadcn/components/ui/select'
 import { Switch } from '@shadcn/components/ui/switch'
 import { Textarea } from '@shadcn/components/ui/textarea'
-import type { CronJob, CronJobDeliveryReceipt, CronJobRun } from '@shared/cronJobs'
+import type {
+  CronJob,
+  CronJobDeliveryReceipt,
+  CronJobRun,
+  CronJobSessionMode
+} from '@shared/cronJobs'
 import type { Agent } from '@shared/types/agent-interface'
 import { createRemoteDeliveryTarget, type RemoteDeliveryOption } from './cronJobDelivery'
 import {
@@ -645,6 +736,8 @@ import {
   type CronScheduleKind
 } from './cronJobSchedule'
 import { useCronJobFormat } from './useCronJobFormat'
+import type { ReusableSessionsViewState } from './useReusableSessions'
+import CronJobSessionPicker from './CronJobSessionPicker.vue'
 
 const NO_AGENT_ID = '__none__'
 
@@ -662,6 +755,7 @@ const props = defineProps<{
   remoteDeliveryOptions: RemoteDeliveryOption[]
   remoteDeliveryLoading: boolean
   remoteDeliveryLoadFailed: boolean
+  reusableSessions: ReusableSessionsViewState
   previewRuns: number[]
   previewLoading: boolean
   previewError: string | null
@@ -682,6 +776,10 @@ const emit = defineEmits<{
   (e: 'toggle', enabled: boolean): void
   (e: 'back'): void
   (e: 'retryRemoteOptions'): void
+  (e: 'reusableSessionsOpenChange', open: boolean): void
+  (e: 'searchReusableSessions', query: string): void
+  (e: 'loadMoreReusableSessions'): void
+  (e: 'retryReusableSessions'): void
   (e: 'reloadRuns'): void
 }>()
 
@@ -701,6 +799,13 @@ const {
 } = useCronJobFormat()
 
 const historyOpen = ref(false)
+const sessionPickerOpen = ref(false)
+const rememberedReuseSessionByAgent = new Map<string, string | null>()
+
+const onSessionPickerOpenChange = (open: boolean) => {
+  sessionPickerOpen.value = open
+  emit('reusableSessionsOpenChange', open)
+}
 
 const patchDraft = (patch: Partial<CronJob>) => {
   const current = draft.value
@@ -845,8 +950,62 @@ const onMinuteChange = (value: string) => {
 }
 
 const onAgentChange = (value: string) => {
-  patchDraft({ agentId: value === NO_AGENT_ID ? null : value })
+  const nextAgentId = value === NO_AGENT_ID ? null : value
+  const currentAgentId = draft.value?.agentId ?? null
+  if (currentAgentId === nextAgentId) {
+    return
+  }
+  if (currentAgentId) {
+    rememberedReuseSessionByAgent.set(currentAgentId, draft.value?.reuseSessionId ?? null)
+  }
+  const restoredReuseSessionId = nextAgentId
+    ? (rememberedReuseSessionByAgent.get(nextAgentId) ?? null)
+    : null
+  patchDraft({
+    agentId: nextAgentId,
+    reuseSessionId: restoredReuseSessionId
+  })
 }
+
+const onSessionModeChange = (value: string) => {
+  const sessionMode: CronJobSessionMode =
+    value === 'reuse_session' ? 'reuse_session' : 'new_session'
+  patchDraft({
+    sessionMode,
+    ...(sessionMode === 'new_session' ? { reuseSessionId: null } : {})
+  })
+}
+
+const onReuseSessionChange = (value: string | null) => {
+  if (draft.value?.agentId) {
+    rememberedReuseSessionByAgent.set(draft.value.agentId, value)
+  }
+  patchDraft({
+    reuseSessionId: value
+  })
+}
+
+const reusedSessionMissing = computed(
+  () =>
+    props.job?.sessionMode === 'reuse_session' &&
+    Boolean(props.job.reuseSessionId) &&
+    props.reusableSessions.selectedResolved === null
+)
+
+const sessionSummaryLabel = computed(() => {
+  const current = props.job
+  if (!current || current.sessionMode !== 'reuse_session') {
+    return t('settings.cronJobs.fields.newSessionEachRun')
+  }
+  if (!current.reuseSessionId) {
+    return `${t('settings.cronJobs.fields.reuseSession')} · ${t('settings.cronJobs.fields.createSessionOnFirstRun')}`
+  }
+  if (props.reusableSessions.selectedResolved === null) {
+    return `${t('settings.cronJobs.fields.reuseSession')} · ${t('settings.cronJobs.fields.sessionUnavailable')}`
+  }
+  const sessionLabel = props.reusableSessions.selectedResolved?.title || current.reuseSessionId
+  return `${t('settings.cronJobs.fields.reuseSession')} · ${sessionLabel}`
+})
 
 const onTimezoneChange = (value: string) => {
   patchDraft({ timezone: value })
@@ -918,10 +1077,9 @@ const toggleHistory = () => {
   historyOpen.value = !historyOpen.value
 }
 
-watch(
-  () => props.mode,
-  () => {
-    historyOpen.value = false
-  }
-)
+watch([() => props.mode, () => props.job?.id], () => {
+  historyOpen.value = false
+  sessionPickerOpen.value = false
+  rememberedReuseSessionByAgent.clear()
+})
 </script>

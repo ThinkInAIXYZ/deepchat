@@ -2584,7 +2584,10 @@ export async function createMainProcessControl(dependencies: {
         },
         input
       ),
-    sessionData.pendingInputs
+    sessionData.pendingInputs,
+    (sessionId) => {
+      cronJobs?.notifySessionIdle(sessionId)
+    }
   )
   agentManager = new AgentManager(
     agentRepository,
@@ -2808,10 +2811,21 @@ export async function createMainProcessControl(dependencies: {
               getContextOccupancy: () => handle.deepchat.getContextOccupancy(),
               isPendingQueueResumeAvailable: () => handle.deepchat.isPendingQueueResumeAvailable(),
               resumePendingQueue: () => handle.deepchat.resumePendingQueue(),
-              retryPendingQueueInput: (itemId) => handle.deepchat.retryPendingQueueInput(itemId)
+              retryPendingQueueInput: (itemId) => handle.deepchat.retryPendingQueueInput(itemId),
+              ...(handle.deepchat.isBusy ? { isBusy: () => handle.deepchat.isBusy!() } : {})
             }
-          : { ...turn, kind: handle.kind }
-      }
+          : {
+              ...turn,
+              kind: handle.kind,
+              prepare: (options) => handle.acp.prepare(options),
+              isBusy: () => handle.acp.isBusy()
+            }
+      },
+      getActiveGeneration: (sessionId) => agentManager.getActiveGeneration(sessionId),
+      cancelGenerationByEventId: (sessionId, eventId) =>
+        agentManager.cancelGenerationByEventId(sessionId, eventId),
+      cancelSubmission: (sessionId, submissionId) =>
+        agentManager.cancelSubmission(sessionId, submissionId)
     },
     transcript: {
       hasMessages: (sessionId) => sessionData.transcript.hasMessages(sessionId),
@@ -3140,11 +3154,13 @@ export async function createMainProcessControl(dependencies: {
   cronJobs = new SchedulerService({
     database: schedulerDatabase,
     agentSettings,
+    sessions: appSessionService,
     sessionEvents: sessionRuntimeEvents,
     runSessionStarter: createCronJobRunSessionStarter({
       lifecycle: sessionLifecycle,
       turn: sessionTurn,
-      agentCatalog: agentSettings
+      agentCatalog: agentSettings,
+      sessions: appSessionService
     }),
     remoteDeliveryPort: remoteService
   })

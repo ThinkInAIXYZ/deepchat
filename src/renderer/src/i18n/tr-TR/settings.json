@@ -3029,7 +3029,19 @@
       "scheduleMonthDay": "Ayın günü",
       "scheduleMinute": "Dakika",
       "createEnabled": "Oluşturduktan sonra etkinleştir",
-      "createEnabledHint": "Oluşturulduktan hemen sonra zamanlamaya göre çalışmaya başlar."
+      "createEnabledHint": "Oluşturulduktan hemen sonra zamanlamaya göre çalışmaya başlar.",
+      "session": "Oturum",
+      "sessionMode": "Oturum modu",
+      "newSessionEachRun": "Her çalıştırmada yeni oturum",
+      "reuseSession": "Tek bir oturumu yeniden kullan",
+      "targetSession": "Hedef oturum",
+      "createSessionOnFirstRun": "İlk çalıştırmada oluştur",
+      "sessionUnavailable": "Oturum kullanılamıyor",
+      "searchSessionPlaceholder": "Oturumlarda ara…",
+      "clearSessionSearch": "Aramayı temizle",
+      "noMatchingSessions": "\"{query}\" ile eşleşen oturum bulunamadı",
+      "noReusableSessions": "Yeniden kullanılabilir oturum yok",
+      "loadMoreSessions": "Daha fazla yükle"
     },
     "presets": {
       "custom": "Özel",

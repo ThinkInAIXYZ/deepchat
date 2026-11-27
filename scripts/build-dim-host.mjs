@@ -94,6 +94,7 @@ await writeFile(
     'Adds graceful product host shutdown when the desktop stdin pipe closes.\n' +
     'Preserves validated Azure deployment URLs and explicit Anthropic Messages endpoints.\n' +
     'Allows explicit wait timeouts up to one hour.\n' +
+    'Allows cancelling applied-but-unconsumed native inputs by input identity.\n' +
     'DeepChat adds configuration, auxiliary-model, context and credential-reference plugins.\n' +
     'Execution implementations are supplied by dim. DeepChat additions: Apache-2.0.\n'
 )

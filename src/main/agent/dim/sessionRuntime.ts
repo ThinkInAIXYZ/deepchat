@@ -3,6 +3,7 @@ import type { JsonValue } from '@shared/contracts/json'
 import type { SessionDatabase } from '@/session/data/database'
 import type { DimSessionBinding } from '@/session/data/tables/dimSessionBindings'
 import type { DimInputIntent } from '@/session/data/tables/dimInputIntents'
+import { SessionBusyError } from '@/session/turn'
 import type { DimRuntimeSupervisor } from './runtimeSupervisor'
 import { DimConnectionError, DimMethodError } from './pluginClient'
 import { DimSessionConnection, type DimInputReceipt } from './sessionConnection'
@@ -76,6 +77,7 @@ export class DimSessionRuntime {
       representation?: JsonValue
       maxProviderRounds?: number
       reuseUserMessage?: DimUserMessageReuse
+      requireIdle?: boolean
     } = {}
   ): Promise<DimInputReceipt> {
     const { binding, scope } = await this.open(sessionId)
@@ -121,7 +123,10 @@ export class DimSessionRuntime {
           ...(options.maxProviderRounds !== undefined
             ? { maxProviderRounds: options.maxProviderRounds }
             : {}),
-          ...(options.reuseUserMessage ? { reuseUserMessage: { ...options.reuseUserMessage } } : {})
+          ...(options.reuseUserMessage
+            ? { reuseUserMessage: { ...options.reuseUserMessage } }
+            : {}),
+          ...(options.requireIdle ? { requireIdle: true } : {})
         }
     if (this.scopes.get(sessionId) !== scope)
       throw new DimConnectionError('dim session was closed before admission', 'not-sent')
@@ -163,6 +168,7 @@ export class DimSessionRuntime {
         [
           'invalid_params',
           'session_invalid_input',
+          'session_busy',
           'input_blocked',
           'migration_incomplete',
           'session_retired',
@@ -176,6 +182,7 @@ export class DimSessionRuntime {
         submissionId,
         rejected ? 'rejected' : 'unknown'
       )
+      if (appError === 'session_busy') throw new SessionBusyError(sessionId)
       if (!rejected) throw new DimSubmissionUnknownError(submissionId)
       throw error
     }
@@ -210,6 +217,61 @@ export class DimSessionRuntime {
     const { reader } = await this.open(sessionId)
     await reader.stopGeneration()
     await reader.synchronize()
+  }
+  async cancelTurn(sessionId: string, turnId: string, reason?: string): Promise<boolean> {
+    const binding = this.options.database.dimSessionBindingsTable.get(sessionId)
+    if (!binding) return false
+    if (this.options.host.usesNativePlugins) {
+      const client = await this.options.host.start()
+      const result = await client.call<{ stopped?: boolean }>('session.deepchat_inputs.stop_turn', {
+        sessionId: binding.dimSessionId,
+        branchId: binding.branchId,
+        turnId,
+        ...(reason ? { reason } : {})
+      })
+      if (!result?.stopped) return false
+      const open = this.readers.get(sessionId)
+      if (open) await (await open.catch(() => null))?.reader.synchronize()
+      return true
+    }
+    if (binding.activeTurnId !== turnId) return false
+    await this.cancel(sessionId)
+    return true
+  }
+  async cancelSubmission(
+    sessionId: string,
+    submissionId: string,
+    reason?: string
+  ): Promise<boolean> {
+    const binding = this.options.database.dimSessionBindingsTable.get(sessionId)
+    if (!binding || !this.options.host.usesNativePlugins) return false
+    const client = await this.options.host.start()
+    const result = await client.call<{ cancelled?: boolean }>(
+      'session.deepchat_inputs.cancel_submission',
+      {
+        sessionId: binding.dimSessionId,
+        branchId: binding.branchId,
+        submissionId: `desktop:${JSON.stringify(sessionId)}:${submissionId}`,
+        ...(reason ? { reason } : {})
+      }
+    )
+    if (!result?.cancelled) return false
+    const open = this.readers.get(sessionId)
+    if (open) await (await open.catch(() => null))?.reader.synchronize()
+    return true
+  }
+  async isBusy(sessionId: string): Promise<boolean> {
+    const binding = this.options.database.dimSessionBindingsTable.get(sessionId)
+    if (!binding) return false
+    if (this.options.host.usesNativePlugins) {
+      const client = await this.options.host.start()
+      const result = await client.call<{ busy?: boolean }>('session.deepchat_inputs.is_busy', {
+        sessionId: binding.dimSessionId,
+        branchId: binding.branchId
+      })
+      return Boolean(result?.busy)
+    }
+    return Boolean(binding.activeTurnId || binding.status === 'generating')
   }
   async synchronize(sessionId: string): Promise<void> {
     await (await this.open(sessionId)).reader.synchronize()

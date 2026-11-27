@@ -1637,7 +1637,19 @@
       "scheduleMonthDay": "每月日期",
       "scheduleMinute": "每小時第幾分鐘",
       "createEnabled": "建立後啟用",
-      "createEnabledHint": "建立後立即按計劃執行。"
+      "createEnabledHint": "建立後立即按計劃執行。",
+      "session": "會話",
+      "sessionMode": "會話模式",
+      "newSessionEachRun": "每次新建會話",
+      "reuseSession": "重複使用同一會話",
+      "targetSession": "目標會話",
+      "createSessionOnFirstRun": "首次執行時建立",
+      "sessionUnavailable": "會話不可用",
+      "searchSessionPlaceholder": "搜尋工作階段…",
+      "clearSessionSearch": "清除搜尋",
+      "noMatchingSessions": "找不到「{query}」相關工作階段",
+      "noReusableSessions": "暫無可重用工作階段",
+      "loadMoreSessions": "載入更多"
     },
     "presets": {
       "custom": "自訂",

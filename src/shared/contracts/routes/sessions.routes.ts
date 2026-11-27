@@ -431,7 +431,8 @@ export const sessionsListLightweightRoute = defineRouteContract({
     projectDirs: z.array(z.string().nullable()).min(1).max(100).optional(),
     isPinned: z.boolean().optional(),
     agentId: EntityIdSchema.optional(),
-    prioritizeSessionId: EntityIdSchema.optional()
+    prioritizeSessionId: EntityIdSchema.optional(),
+    query: z.string().max(200).optional()
   }),
   output: z.object({
     items: z.array(SessionListItemSchema),

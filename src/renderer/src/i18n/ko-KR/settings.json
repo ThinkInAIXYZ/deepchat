@@ -1637,7 +1637,19 @@
       "scheduleMonthDay": "매월 날짜",
       "scheduleMinute": "매시 몇 분",
       "createEnabled": "생성 후 활성화",
-      "createEnabledHint": "생성 후 바로 일정에 따라 실행합니다."
+      "createEnabledHint": "생성 후 바로 일정에 따라 실행합니다.",
+      "session": "세션",
+      "sessionMode": "세션 모드",
+      "newSessionEachRun": "실행마다 새 세션",
+      "reuseSession": "단일 세션 재사용",
+      "targetSession": "대상 세션",
+      "createSessionOnFirstRun": "첫 실행 시 생성",
+      "sessionUnavailable": "세션을 사용할 수 없음",
+      "searchSessionPlaceholder": "세션 검색…",
+      "clearSessionSearch": "검색 지우기",
+      "noMatchingSessions": "\"{query}\"과 일치하는 세션이 없습니다",
+      "noReusableSessions": "재사용할 수 있는 세션이 없습니다",
+      "loadMoreSessions": "더 불러오기"
     },
     "presets": {
       "custom": "사용자 지정",

@@ -2010,7 +2010,19 @@
       "scheduleMonthDay": "ᠰᠠᠷ᠎ᠠ ᠪᠥᠷᠢ ᠶᠢᠨ ᠡᠳᠦᠷ",
       "scheduleMinute": "ᠮᠢᠨᠦᠲ᠋",
       "createEnabled": "ᠪᠦᠲᠦᠭᠡᠭᠰᠡᠨ ᠦ ᠳᠠᠷᠠᠭ᠎ᠠ ᠢᠳᠡᠪᠬᠢᠲᠡᠢ ᠪᠣᠯᠭᠠᠬᠤ",
-      "createEnabledHint": "ᠪᠦᠲᠦᠭᠡᠭᠰᠡᠨ ᠦ ᠳᠠᠷᠠᠭ᠎ᠠ ᠲᠣᠬᠢᠷᠠᠭᠤᠯᠤᠯᠲᠠ ᠶᠢᠨ ᠳᠠᠭᠠᠭᠤ ᠳᠠᠷᠤᠢ ᠭᠦᠶᠦᠯᠬᠦ᠃"
+      "createEnabledHint": "ᠪᠦᠲᠦᠭᠡᠭᠰᠡᠨ ᠦ ᠳᠠᠷᠠᠭ᠎ᠠ ᠲᠣᠬᠢᠷᠠᠭᠤᠯᠤᠯᠲᠠ ᠶᠢᠨ ᠳᠠᠭᠠᠭᠤ ᠳᠠᠷᠤᠢ ᠭᠦᠶᠦᠯᠬᠦ᠃",
+      "session": "ᠶᠠᠷᠢᠯᠴᠠᠭ᠎ᠠ",
+      "sessionMode": "ᠶᠠᠷᠢᠯᠴᠠᠭᠠᠨ ᠤ ᠭᠣᠷᠢᠮ",
+      "newSessionEachRun": "ᠤᠳᠠᠭ᠎ᠠ ᠪᠥᠷᠢ ᠰᠢᠨ᠎ᠡ ᠶᠠᠷᠢᠯᠴᠠᠭ᠎ᠠ ᠪᠦᠲᠦᠭᠡᠬᠦ",
+      "reuseSession": "ᠨᠢᠭᠡ ᠶᠠᠷᠢᠯᠴᠠᠭ᠎ᠠ ᠶᠢ ᠳᠠᠬᠢᠨ ᠠᠰᠢᠭᠯᠠᠬᠤ",
+      "targetSession": "ᠵᠣᠷᠢᠯᠲᠠᠲᠤ ᠶᠠᠷᠢᠯᠴᠠᠭ᠎ᠠ",
+      "createSessionOnFirstRun": "ᠠᠩᠬ᠎ᠠ ᠠᠵᠢᠯᠯᠠᠬᠤ ᠳᠤ ᠪᠦᠲᠦᠭᠡᠬᠦ",
+      "sessionUnavailable": "ᠶᠠᠷᠢᠯᠴᠠᠭ᠎ᠠ ᠠᠰᠢᠭᠯᠠᠵᠤ ᠪᠣᠯᠬᠤ ᠦᠭᠡᠢ",
+      "searchSessionPlaceholder": "ᠶᠠᠷᠢᠯᠴᠠᠭ᠎ᠠ ᠬᠠᠶᠢᠬᠤ…",
+      "clearSessionSearch": "ᠬᠠᠶᠢᠯᠲᠠ ᠶᠢ ᠠᠷᠢᠯᠭᠠᠬᠤ",
+      "noMatchingSessions": "「{query}」 ᠲᠠᠢ ᠲᠣᠬᠢᠷᠠᠬᠤ ᠶᠠᠷᠢᠯᠴᠠᠭ᠎ᠠ ᠣᠯᠳᠠᠭᠰᠠᠨ ᠦᠭᠡᠢ",
+      "noReusableSessions": "ᠳᠠᠬᠢᠨ ᠠᠰᠢᠭᠯᠠᠬᠤ ᠶᠠᠷᠢᠯᠴᠠᠭ᠎ᠠ ᠪᠠᠶᠢᠬᠤ ᠦᠭᠡᠢ",
+      "loadMoreSessions": "ᠢᠯᠡᠭᠦᠦ ᠠᠴᠢᠶᠠᠯᠠᠬᠤ"
     },
     "presets": {
       "custom": "ᠥᠪᠡᠷ ᠢᠶᠡᠨ ᠲᠣᠳᠣᠷᠬᠠᠶᠢᠯᠠᠭᠰᠠᠨ",

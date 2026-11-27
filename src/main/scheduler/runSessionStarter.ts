@@ -1,37 +1,98 @@
+import { randomUUID } from 'node:crypto'
 import type {
   AgentType,
   CreateDetachedSessionInput,
-  MessageStartResult
+  MessageStartResult,
+  SessionRecord
 } from '@shared/types/agent-interface'
 import type { ToolModeOverride } from '@shared/toolMode'
+import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import type { CronJobRunSessionStarter } from './runExecutor'
 
 export interface CronJobSessionLifecyclePort {
   createDetachedSession(input: CreateDetachedSessionInput): Promise<{ id: string }>
 }
 
+export interface CronJobSessionLookupPort {
+  get(sessionId: string): SessionRecord | null
+}
+
 export interface CronJobSessionTurnPort {
   sendMessage(
     sessionId: string,
     content: string,
-    options?: { maxProviderRounds?: number }
+    options?: {
+      maxProviderRounds?: number
+      signal?: AbortSignal
+      submissionId?: string
+      rejectIfBusy?: boolean
+      requireAcpResume?: boolean
+      onBeforeSubmit?: () => void
+    }
   ): Promise<MessageStartResult>
   cancelGeneration(sessionId: string): Promise<void>
+  cancelGenerationByEventId?(sessionId: string, eventId: string): Promise<boolean>
+  cancelSubmission?(sessionId: string, submissionId: string): Promise<boolean>
+  isSessionBusy?(sessionId: string): Promise<boolean>
 }
 
 export interface CronJobAgentCatalogPort {
   getAgentType(agentId: string): Promise<AgentType | null>
 }
 
+export function validateReusedSessionForAgent(
+  session: SessionRecord | null,
+  sessionId: string,
+  agentId: string
+): SessionRecord {
+  if (!session) {
+    throw new Error(`Reused session "${sessionId}" no longer exists.`)
+  }
+  if (session.isDraft) {
+    throw new Error(`Reused session "${sessionId}" is a draft and cannot be used for cron runs.`)
+  }
+  if (session.sessionKind === 'subagent') {
+    throw new Error(`Reused session "${sessionId}" is a subagent session and cannot be reused.`)
+  }
+  if (resolveAcpAgentAlias(session.agentId) !== resolveAcpAgentAlias(agentId)) {
+    throw new Error(
+      `Reused session "${sessionId}" belongs to agent "${session.agentId}" instead of "${agentId}".`
+    )
+  }
+  return session
+}
+
 export const createCronJobRunSessionStarter = (deps: {
   lifecycle: CronJobSessionLifecyclePort
   turn: CronJobSessionTurnPort
   agentCatalog: CronJobAgentCatalogPort
+  sessions?: CronJobSessionLookupPort
 }): CronJobRunSessionStarter => ({
   async createSessionForRun({ job, run }) {
     if (!job.agentId) {
       throw new Error('Cron job requires an enabled agent.')
     }
+    if (job.sessionMode === 'reuse_session' && job.reuseSessionId) {
+      if (!deps.sessions) {
+        throw new Error('Session lookup is unavailable for reused cron sessions.')
+      }
+      validateReusedSessionForAgent(
+        deps.sessions.get(job.reuseSessionId),
+        job.reuseSessionId,
+        job.agentId
+      )
+      console.info('[CronJobs] Reusing existing session for run:', {
+        jobId: job.id,
+        runId: run.id,
+        sessionId: job.reuseSessionId,
+        agentId: job.agentId
+      })
+      return {
+        sessionId: job.reuseSessionId,
+        reused: true
+      }
+    }
+
     console.info('[CronJobs] Resolving agent for session:', {
       jobId: job.id,
       runId: run.id,
@@ -84,20 +145,33 @@ export const createCronJobRunSessionStarter = (deps: {
       sessionId: session.id,
       agentType
     })
-    return { sessionId: session.id }
+    return {
+      sessionId: session.id,
+      ...(job.sessionMode === 'reuse_session' ? { createdReuseSession: true } : {})
+    }
   },
 
-  async startSessionRun({ job, sessionId }) {
+  async startSessionRun({ job, run, sessionId, reused, signal, onBeforeSubmit }) {
     if (!job.taskPrompt.trim()) {
       throw new Error('Cron job task prompt is empty.')
     }
+    const submissionId = `cron:${run.id}:${randomUUID()}`
     console.info('[CronJobs] Sending task prompt to session:', {
       jobId: job.id,
       sessionId,
+      reused: Boolean(reused),
       promptLength: job.taskPrompt.length
     })
     const result = await deps.turn.sendMessage(sessionId, job.taskPrompt, {
-      maxProviderRounds: job.runtime.maxTurns
+      maxProviderRounds: job.runtime.maxTurns,
+      ...(signal ? { signal } : {}),
+      submissionId,
+      ...(reused ? { rejectIfBusy: true, requireAcpResume: true } : {}),
+      ...(onBeforeSubmit
+        ? {
+            onBeforeSubmit: () => onBeforeSubmit({ submissionId })
+          }
+        : {})
     })
     console.info('[CronJobs] Task prompt accepted by session:', {
       jobId: job.id,
@@ -105,11 +179,36 @@ export const createCronJobRunSessionStarter = (deps: {
       outputMessageId: result.messageId ?? null
     })
     return {
-      outputMessageId: result.messageId ?? null
+      outputMessageId: result.messageId ?? null,
+      ...(result.requestId ? { outputRequestId: result.requestId } : {}),
+      expectedSubmissionId: submissionId
     }
   },
 
-  async cancelSessionRun({ sessionId }) {
-    await deps.turn.cancelGeneration(sessionId)
-  }
+  async cancelSessionRun({ sessionId, eventId, submissionId, allowSessionWideCancel }) {
+    if (eventId && deps.turn.cancelGenerationByEventId) {
+      const cancelled = await deps.turn.cancelGenerationByEventId(sessionId, eventId)
+      if (cancelled) {
+        return
+      }
+    }
+    if (submissionId && deps.turn.cancelSubmission) {
+      const cancelled = await deps.turn.cancelSubmission(sessionId, submissionId)
+      if (cancelled) {
+        return
+      }
+      console.warn('[CronJobs] Submission cancellation returned false:', {
+        sessionId,
+        submissionId,
+        eventId: eventId ?? null
+      })
+    }
+    if (allowSessionWideCancel !== false) {
+      await deps.turn.cancelGeneration(sessionId)
+    }
+  },
+
+  ...(deps.turn.isSessionBusy
+    ? { isSessionBusy: (sessionId: string) => deps.turn.isSessionBusy!(sessionId) }
+    : {})
 })

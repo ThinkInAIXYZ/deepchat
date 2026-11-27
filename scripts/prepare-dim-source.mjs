@@ -292,6 +292,8 @@ const waitCurrent = await readFile(path.join(directory, waitFile), 'utf8')
 if (waitCurrent !== waitOriginal && waitCurrent !== waitExpected)
   throw new Error('Pinned native wait source has unexpected changes')
 if (waitCurrent !== waitExpected) await writeFile(path.join(directory, waitFile), waitExpected)
+const agentLoopFile = 'crates/dim-agent-capabilities/src/agent_loop.rs'
+const inputQueueFile = 'crates/dim-agent-capabilities/src/input_queue.rs'
 git([
   'diff',
   '--exit-code',
@@ -315,7 +317,9 @@ git([
   `:!${historyFile}`,
   `:!${googleOptionsFile}`,
   `:!${usageFile}`,
-  `:!${waitFile}`
+  `:!${waitFile}`,
+  `:!${agentLoopFile}`,
+  `:!${inputQueueFile}`
 ])
 if (current !== expected) await writeFile(path.join(directory, filename), expected)
 // Add an explicit host-value replacement to the builder's assembly API. It changes no
@@ -694,6 +698,248 @@ pub(super) fn valid_azure_endpoint(url: &reqwest::Url) -> bool {
   endpointPatches.push({ path: file, sha256: digest(expected) })
 }
 
+const agentLoopOriginal = git(['show', `HEAD:${agentLoopFile}`]) + '\n'
+let agentLoopExpected = agentLoopOriginal
+for (const [before, after] of [
+  [
+    `        Ok(Some(interrupt.sequence))
+    }
+    /// Starts a turn when idle and an applied input drives one; nothing`,
+    `        Ok(Some(interrupt.sequence))
+    }
+    /// Retracts an applied input before any turn claims or consumes it.
+    pub fn cancel_applied_input(&self, input_id: &str) -> Result<Option<u64>> {
+        let _slot = self.turn.lock().unwrap();
+        if self.claimed.lock().unwrap().contains(input_id) {
+            return Ok(None);
+        }
+        let mut pending = self.pending.lock().unwrap();
+        let Some(index) = pending.iter().position(|input| input.id == input_id) else {
+            return Ok(None);
+        };
+        let deleted = self.timeline.append(
+            EventKind::InputDeleted(InputDeletedData {
+                input_id: input_id.to_owned(),
+            })
+            .into(),
+        )?;
+        pending.remove(index);
+        Ok(Some(deleted.sequence))
+    }
+    /// Waits until the branch dispatcher has delivered events through \`sequence\`.
+    pub async fn wait_dispatched(&self, sequence: u64) -> Result<()> {
+        let mut watch = self.dispatcher.watch();
+        loop {
+            if self.dispatcher.sequence() >= sequence {
+                return Ok(());
+            }
+            if let Some(error) = self.dispatcher.failure() {
+                return Err(error);
+            }
+            tokio::select! {
+                _ = self.lifecycle.cancelled() => {
+                    return Err(AgentError::Cancelled(
+                        "Branch closed while waiting for dispatch".into(),
+                    ));
+                }
+                changed = watch.changed() => {
+                    if changed.is_err() {
+                        return Err(AgentError::Cancelled("Dispatcher closed".into()));
+                    }
+                }
+            }
+        }
+    }
+    /// Starts a turn when idle and an applied input drives one; nothing`
+  ],
+  [
+    `            EventKind::TurnStart(data) => {
+                let turn = slot
+                    .as_mut()
+                    .filter(|turn| {
+                        turn.id == data.turn_id && turn.request.is_none() && !turn.ending
+                    })
+                    .ok_or_else(|| AgentError::fault("Loop", "invalid turn/start"))?;
+                turn.open = true;
+                let result = self.next_model(turn, None, event.sequence);
+                self.publish(&slot);
+                return result;
+            }`,
+    `            EventKind::TurnStart(data) => {
+                let turn = slot
+                    .as_mut()
+                    .filter(|turn| {
+                        turn.id == data.turn_id && turn.request.is_none() && !turn.ending
+                    })
+                    .ok_or_else(|| AgentError::fault("Loop", "invalid turn/start"))?;
+                turn.open = true;
+                if !self.driven() {
+                    let reason = turn
+                        .interrupted
+                        .clone()
+                        .unwrap_or_else(|| "Stopped by submission cancel".into());
+                    let result = self.end(turn, TurnOutcome::Cancelled { reason });
+                    self.publish(&slot);
+                    return result;
+                }
+                let result = self.next_model(turn, None, event.sequence);
+                self.publish(&slot);
+                return result;
+            }`
+  ],
+  [
+    `                                    conditions: vec![
+                                        equal("kind", "input/consumed".into()),
+                                        related("data.input_id", "data.input_id"),
+                                    ],`,
+    `                                    conditions: vec![
+                                        QueryFilter::In {
+                                            value: QueryOperand::Field { path: "kind".into() },
+                                            values: vec![
+                                                "input/consumed".into(),
+                                                "input/deleted".into(),
+                                            ],
+                                        },
+                                        related("data.input_id", "data.input_id"),
+                                    ],`
+  ],
+  [
+    `            EventKind::InputConsumed(data) => {
+                self.pending
+                    .lock()
+                    .unwrap()
+                    .retain(|input| input.id != data.input_id);
+                self.claimed.lock().unwrap().remove(&data.input_id);
+                return Ok(());
+            }`,
+    `            EventKind::InputConsumed(data) => {
+                self.pending
+                    .lock()
+                    .unwrap()
+                    .retain(|input| input.id != data.input_id);
+                self.claimed.lock().unwrap().remove(&data.input_id);
+                return Ok(());
+            }
+            EventKind::InputDeleted(data) => {
+                self.pending
+                    .lock()
+                    .unwrap()
+                    .retain(|input| input.id != data.input_id);
+                self.claimed.lock().unwrap().remove(&data.input_id);
+                return Ok(());
+            }`
+  ],
+  [
+    `                        "input/applied",
+                        "input/consumed",
+                        "stop/interrupt",`,
+    `                        "input/applied",
+                        "input/consumed",
+                        "input/deleted",
+                        "stop/interrupt",`
+  ]
+]) {
+  if (agentLoopExpected.split(before).length !== 2)
+    throw new Error('Native agent loop applied-input cancel seam changed')
+  agentLoopExpected = agentLoopExpected.replace(before, after)
+}
+const agentLoopCurrent = await readFile(path.join(directory, agentLoopFile), 'utf8')
+if (agentLoopCurrent !== agentLoopOriginal && agentLoopCurrent !== agentLoopExpected)
+  throw new Error('Pinned native agent loop has unexpected changes')
+if (agentLoopCurrent !== agentLoopExpected)
+  await writeFile(path.join(directory, agentLoopFile), agentLoopExpected)
+
+const inputQueueOriginal = git(['show', `HEAD:${inputQueueFile}`]) + '\n'
+let inputQueueExpected = inputQueueOriginal
+for (const [before, after] of [
+  [
+    `            EventKind::InputConsumed(data) => {
+                if let Some(index) = self
+                    .entries
+                    .iter()
+                    .position(|entry| entry.id == data.input_id)
+                {
+                    let entry = self.entries.remove(index);
+                    self.queued -= usize::from(matches!(entry.kind, EntryKind::Input { .. }));
+                }
+                Vec::new()
+            }`,
+    `            EventKind::InputConsumed(data) => {
+                if let Some(index) = self
+                    .entries
+                    .iter()
+                    .position(|entry| entry.id == data.input_id)
+                {
+                    let entry = self.entries.remove(index);
+                    self.queued -= usize::from(matches!(entry.kind, EntryKind::Input { .. }));
+                }
+                Vec::new()
+            }
+            EventKind::InputDeleted(data) => {
+                if let Some(index) = self
+                    .entries
+                    .iter()
+                    .position(|entry| entry.id == data.input_id)
+                {
+                    let entry = self.entries.remove(index);
+                    self.queued -= usize::from(matches!(entry.kind, EntryKind::Input { .. }));
+                    if self.turn.is_none()
+                        && matches!(entry.kind, EntryKind::Input { released: true, .. })
+                        && !self.entries.iter().any(|candidate| {
+                            matches!(
+                                candidate.kind,
+                                EntryKind::Input {
+                                    released: true,
+                                    mode,
+                                } if mode != InputMode::Append
+                            )
+                        })
+                    {
+                        self.starting = false;
+                        if let Some(next) = self.entries.iter().find(|candidate| {
+                            matches!(
+                                candidate.kind,
+                                EntryKind::Input {
+                                    mode: InputMode::Queue,
+                                    released: false,
+                                }
+                            )
+                        }) {
+                            let next_id = next.id.clone();
+                            return self.release(&next_id);
+                        }
+                    }
+                }
+                Vec::new()
+            }`
+  ],
+  [
+    `        if matches!(
+            event.kind,
+            EventKind::InputApplied(_) | EventKind::InputDeleted(_)
+        ) {
+            self.publish_ready(&mut self.pending_snapshot.lock().unwrap());
+            return Ok(());
+        }`,
+    `        if matches!(event.kind, EventKind::InputApplied(_)) {
+            self.publish_ready(&mut self.pending_snapshot.lock().unwrap());
+            return Ok(());
+        }
+        if matches!(event.kind, EventKind::InputDeleted(_)) {
+            self.publish_ready(&mut self.pending_snapshot.lock().unwrap());
+        }`
+  ]
+]) {
+  if (inputQueueExpected.split(before).length !== 2)
+    throw new Error('Native input queue deleted-input seam changed')
+  inputQueueExpected = inputQueueExpected.replace(before, after)
+}
+const inputQueueCurrent = await readFile(path.join(directory, inputQueueFile), 'utf8')
+if (inputQueueCurrent !== inputQueueOriginal && inputQueueCurrent !== inputQueueExpected)
+  throw new Error('Pinned native input queue has unexpected changes')
+if (inputQueueCurrent !== inputQueueExpected)
+  await writeFile(path.join(directory, inputQueueFile), inputQueueExpected)
+
 export const nativeSource = {
   sourceRevision: lock.sourceCommit,
   storeFormat: Number(
@@ -717,6 +963,8 @@ export const nativeSource = {
     { path: usageFile, sha256: digest(usageExpected) },
     { path: cliFile, sha256: digest(cliExpected) },
     ...endpointPatches,
-    { path: waitFile, sha256: digest(waitExpected) }
+    { path: waitFile, sha256: digest(waitExpected) },
+    { path: agentLoopFile, sha256: digest(agentLoopExpected) },
+    { path: inputQueueFile, sha256: digest(inputQueueExpected) }
   ]
 }

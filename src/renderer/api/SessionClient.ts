@@ -190,6 +190,7 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     isPinned?: boolean
     agentId?: string
     prioritizeSessionId?: string
+    query?: string
   }) {
     return await bridge.invoke(
       sessionsListLightweightRoute.name,

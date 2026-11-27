@@ -42,7 +42,11 @@ import {
 } from './acpConfigState'
 import { AcpContentMapper } from './acpContentMapper'
 import type { AcpProcessManager } from './acpProcessManager'
-import type { AcpSessionManager, AcpSessionRecord } from './acpSessionManager'
+import type {
+  AcpSessionManager,
+  AcpSessionOpenOptions,
+  AcpSessionRecord
+} from './acpSessionManager'
 import type { AcpSessionPersistence } from './acpSessionPersistence'
 
 // Expand only after verifying replay completion and rewritten fork anchors on the wire.
@@ -164,7 +168,8 @@ export class AcpSessionController {
     conversationId: AppSessionId,
     agent: AcpAgentConfig,
     hooks: AcpSessionHooks,
-    workdir?: string | null
+    workdir?: string | null,
+    options?: AcpSessionOpenOptions
   ): Promise<AcpSessionRecord> {
     this.throwIfAborted(hooks.signal)
     const initialTitle = this.events?.getLocalTitle?.(conversationId)
@@ -208,15 +213,14 @@ export class AcpSessionController {
         hooks.onProcessExit?.(remoteId)
       }
     }
-    const opening = hooks.signal
-      ? this.sessionManager.getOrCreateSession(
-          conversationId,
-          agent,
-          sessionHooks,
-          workdir,
-          hooks.signal
-        )
-      : this.sessionManager.getOrCreateSession(conversationId, agent, sessionHooks, workdir)
+    const opening = this.sessionManager.getOrCreateSession(
+      conversationId,
+      agent,
+      sessionHooks,
+      workdir,
+      hooks.signal,
+      options
+    )
     const session = await this.awaitSessionOpen(conversationId, opening, hooks.signal)
     if (hooks.signal?.aborted) {
       await this.discardLateOpen(conversationId, session)
@@ -258,11 +262,35 @@ export class AcpSessionController {
     return session
   }
 
+  private assertStrictResumeWorkdir(
+    existingWorkdirRaw: string | null | undefined,
+    hasExistingSession: boolean,
+    requestedWorkdir: string | null | undefined,
+    persistedWorkdir: string | null,
+    previousResolved: string,
+    nextResolved: string,
+    options?: AcpSessionOpenOptions
+  ): void {
+    if (!options?.requireResume || (!hasExistingSession && !options.requirePersistedSession)) {
+      return
+    }
+    const existingWorkdir = existingWorkdirRaw?.trim() || null
+    const existingUnusable =
+      Boolean(existingWorkdir) && !this.persistence.isWorkdirUsable(existingWorkdir!)
+    const requestedUnusable = Boolean(requestedWorkdir) && !persistedWorkdir
+    if (existingUnusable || requestedUnusable || previousResolved !== nextResolved) {
+      throw new Error(
+        `Persisted ACP session workdir "${existingWorkdir ?? previousResolved}" changed or is unavailable (resolved "${nextResolved}"). Refusing to replace it with a new empty session.`
+      )
+    }
+  }
+
   async prepare(
     conversationId: AppSessionId,
     agent: AcpAgentConfig,
     workdir?: string | null,
-    hooks?: AcpSessionPrepareHooks
+    hooks?: AcpSessionPrepareHooks,
+    options?: AcpSessionOpenOptions
   ): Promise<AcpSessionRecord> {
     this.throwIfAborted(hooks?.signal)
     const requestedWorkdir = workdir?.trim()
@@ -279,6 +307,15 @@ export class AcpSessionController {
     const existing = await this.persistence.getSessionData(conversationId, agent.id)
     this.throwIfAborted(hooks?.signal)
     const previousResolved = this.persistence.resolveWorkdir(existing?.workdir ?? null)
+    this.assertStrictResumeWorkdir(
+      existing?.workdir,
+      Boolean(existing?.sessionId),
+      requestedWorkdir,
+      persistedWorkdir,
+      previousResolved,
+      normalizedWorkdir,
+      options
+    )
     if (previousResolved !== normalizedWorkdir) {
       await this.sessionManager.clearSession(conversationId)
       this.throwIfAborted(hooks?.signal)
@@ -295,14 +332,16 @@ export class AcpSessionController {
         onProcessExit: hooks?.onProcessExit,
         signal: hooks?.signal
       },
-      normalizedWorkdir
+      normalizedWorkdir,
+      options
     )
   }
 
   async updateWorkdir(
     conversationId: AppSessionId,
     agentId: string,
-    workdir: string | null
+    workdir: string | null,
+    options?: AcpSessionOpenOptions
   ): Promise<string> {
     const requestedWorkdir = workdir?.trim() ? workdir.trim() : null
     const persistedWorkdir =
@@ -318,6 +357,15 @@ export class AcpSessionController {
     const existing = await this.persistence.getSessionData(conversationId, agentId)
     const previousResolved = this.persistence.resolveWorkdir(existing?.workdir ?? null)
     const nextResolved = this.persistence.resolveWorkdir(persistedWorkdir)
+    this.assertStrictResumeWorkdir(
+      existing?.workdir,
+      Boolean(existing?.sessionId),
+      requestedWorkdir,
+      persistedWorkdir,
+      previousResolved,
+      nextResolved,
+      options
+    )
     if (previousResolved !== nextResolved) {
       await this.sessionManager.clearSession(conversationId)
       await this.persistence.clearSession(conversationId, agentId)

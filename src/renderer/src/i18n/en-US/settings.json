@@ -2010,7 +2010,19 @@
       "scheduleMonthDay": "Day of month",
       "scheduleMinute": "Minute",
       "createEnabled": "Enable after creation",
-      "createEnabledHint": "Start running on schedule right after creation."
+      "createEnabledHint": "Start running on schedule right after creation.",
+      "session": "Session",
+      "sessionMode": "Session mode",
+      "newSessionEachRun": "New session each run",
+      "reuseSession": "Reuse one session",
+      "targetSession": "Target session",
+      "createSessionOnFirstRun": "Create on first run",
+      "sessionUnavailable": "Session unavailable",
+      "searchSessionPlaceholder": "Search sessions…",
+      "clearSessionSearch": "Clear search",
+      "noMatchingSessions": "No sessions matching \"{query}\"",
+      "noReusableSessions": "No reusable sessions yet",
+      "loadMoreSessions": "Load more"
     },
     "presets": {
       "custom": "Custom",

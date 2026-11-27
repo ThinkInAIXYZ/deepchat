@@ -7,9 +7,11 @@ import type {
 } from '@/session/data/contracts'
 import type { AgentSessionSendInput } from '@/agent/shared/agentSessionHandle'
 import type {
+  AgentActiveGeneration,
   AgentPendingInputFacet,
   AgentToolInteractionFacet
 } from '@/agent/manager/sessionHandles'
+import type { AcpSessionOpenOptions } from '@/agent/acp/runtime'
 import type {
   ResolvedAgentSession,
   ResolvedDeepChatTransferTarget,
@@ -233,6 +235,7 @@ export interface SessionLightweightOptions {
   isPinned?: boolean
   agentId?: string
   prioritizeSessionId?: string
+  query?: string
 }
 
 export interface SessionProjectionUpdate {
@@ -286,11 +289,19 @@ export type SessionTurnRuntimeSession =
       isPendingQueueResumeAvailable(): Promise<boolean>
       resumePendingQueue(): Promise<boolean>
       retryPendingQueueInput(itemId: string): Promise<{ accepted: boolean; started: boolean }>
+      isBusy?(): Promise<boolean>
     })
-  | (SessionTurnRuntimeBase & { readonly kind: 'acp' })
+  | (SessionTurnRuntimeBase & {
+      readonly kind: 'acp'
+      prepare?(options?: AcpSessionOpenOptions): Promise<void>
+      isBusy?(): Promise<boolean>
+    })
 
 export interface SessionTurnRuntimePort {
   resolveSession(sessionId: AppSessionId): SessionTurnRuntimeSession
+  getActiveGeneration?(sessionId: AppSessionId): AgentActiveGeneration | null
+  cancelGenerationByEventId?(sessionId: AppSessionId, eventId: string): Promise<boolean>
+  cancelSubmission?(sessionId: AppSessionId, submissionId: string): Promise<boolean>
 }
 
 export type SessionTurnTranscriptPort = Pick<SessionTranscriptReadPort, 'hasMessages'> &
@@ -326,7 +337,14 @@ export interface SessionTurnPort {
   sendMessage(
     sessionId: string,
     content: string | SendMessageInput,
-    options?: { maxProviderRounds?: number; signal?: AbortSignal; submissionId?: string }
+    options?: {
+      maxProviderRounds?: number
+      signal?: AbortSignal
+      submissionId?: string
+      rejectIfBusy?: boolean
+      requireAcpResume?: boolean
+      onBeforeSubmit?: () => void
+    }
   ): Promise<MessageStartResult>
   steerActiveTurn(
     sessionId: string,
@@ -379,6 +397,9 @@ export interface SessionTurnPort {
   compactSession(sessionId: string): Promise<{ compacted: boolean; state: SessionCompactionState }>
   clearSessionMessages(sessionId: string): Promise<void>
   cancelGeneration(sessionId: string): Promise<void>
+  cancelGenerationByEventId?(sessionId: string, eventId: string): Promise<boolean>
+  cancelSubmission?(sessionId: string, submissionId: string): Promise<boolean>
+  isSessionBusy?(sessionId: string): Promise<boolean>
   respondToolInteraction(
     sessionId: string,
     messageId: string,

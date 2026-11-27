@@ -18,7 +18,7 @@ import type {
 import type { AppSessionId } from '@/agent/shared/agentSessionIds'
 import type { AgentSessionSendInput } from '@/agent/shared/agentSessionHandle'
 import type { AcpMode } from '@/agent/acp/instance'
-import type { AcpSessionCommand } from '@/agent/acp/runtime'
+import type { AcpSessionCommand, AcpSessionOpenOptions } from '@/agent/acp/runtime'
 
 export interface AgentSessionLifecycleFacet {
   initialize(
@@ -90,6 +90,7 @@ export interface DeepChatControlFacet {
   isPendingQueueResumeAvailable(): Promise<boolean>
   resumePendingQueue(): Promise<boolean>
   retryPendingQueueInput(itemId: string): Promise<{ accepted: boolean; started: boolean }>
+  isBusy?(): Promise<boolean>
 }
 
 export interface DeepChatSessionHandle extends AgentSessionHandle {
@@ -98,7 +99,8 @@ export interface DeepChatSessionHandle extends AgentSessionHandle {
 }
 
 export interface DirectAcpControlFacet {
-  prepare(): Promise<void>
+  prepare(options?: AcpSessionOpenOptions): Promise<void>
+  isBusy(): Promise<boolean>
   updateWorkdir(workdir: string | null): Promise<string>
   getModes(): Promise<{ current: string; available: AcpMode[] } | null>
   setMode(modeId: string): Promise<void>
@@ -134,4 +136,5 @@ export interface AgentActiveGeneration {
 export interface AgentGenerationControlFacet {
   getActiveGeneration(sessionId: AppSessionId): AgentActiveGeneration | null
   cancelGenerationByEventId(sessionId: AppSessionId, eventId: string): Promise<boolean>
+  cancelSubmission?(sessionId: AppSessionId, submissionId: string): Promise<boolean>
 }

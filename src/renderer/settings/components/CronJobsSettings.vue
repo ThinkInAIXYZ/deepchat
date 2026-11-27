@@ -271,6 +271,7 @@
             :remote-delivery-options="remoteDeliveryOptions"
             :remote-delivery-loading="remoteDeliveryLoading"
             :remote-delivery-load-failed="remoteDeliveryLoadFailed"
+            :reusable-sessions="reusableSessionsState"
             :preview-runs="previewRuns"
             :preview-loading="previewLoading"
             :preview-error="previewError"
@@ -288,6 +289,10 @@
             @toggle="toggleSelectedJob"
             @back="backToList"
             @retry-remote-options="refreshRemoteDeliveryOptions"
+            @reusable-sessions-open-change="reusableSessionsController.setPickerOpen"
+            @search-reusable-sessions="reusableSessionsController.search"
+            @load-more-reusable-sessions="reusableSessionsController.loadMore"
+            @retry-reusable-sessions="reusableSessionsController.refresh"
             @reload-runs="reloadSelectedJobRuns"
           />
         </section>
@@ -341,17 +346,20 @@ import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort
 import { createConfigClient } from '@api/ConfigClient'
 import { createCronJobsClient, type CronJobsUpsertInput } from '@api/CronJobsClient'
 import { createRemoteControlClient } from '@api/RemoteControlClient'
+import { createSessionClient } from '@api/SessionClient'
 import { settingsLeaveGuard } from '../services/settingsLeaveGuard'
 import CronJobDetailPanel from './cronJobs/CronJobDetailPanel.vue'
 import CronJobsTaskList from './cronJobs/CronJobsTaskList.vue'
 import { type RemoteDeliveryOption } from './cronJobs/cronJobDelivery'
 import { CRON_JOB_TEMPLATES, type CronJobTemplate } from './cronJobs/cronJobTemplates'
 import { useCronJobFormat } from './cronJobs/useCronJobFormat'
+import { useReusableSessions } from './cronJobs/useReusableSessions'
 import {
   CRON_JOBS_DEFAULT_CRON_EXPR,
   CRON_JOBS_DEFAULT_DELIVERY,
   CRON_JOBS_DEFAULT_MISFIRE_POLICY,
   CRON_JOBS_DEFAULT_RUNTIME,
+  CRON_JOBS_DEFAULT_SESSION_MODE,
   CRON_JOBS_DEFAULT_TIMEZONE,
   type CronJob,
   type CronJobDelivery,
@@ -383,6 +391,8 @@ const DIRTY_COMPARE_FIELDS = [
   'modelPolicy',
   'toolPolicy',
   'permissionPolicy',
+  'sessionMode',
+  'reuseSessionId',
   'runtime',
   'delivery'
 ] as const satisfies readonly (keyof CronJob)[]
@@ -392,6 +402,7 @@ const { formatTimestamp, describeSchedule } = useCronJobFormat()
 const client = createCronJobsClient()
 const configClient = createConfigClient()
 const remoteControlClient = createRemoteControlClient()
+const sessionClient = createSessionClient()
 
 const rootRef = ref<HTMLElement | null>(null)
 const { width: containerWidth } = useElementSize(rootRef)
@@ -720,6 +731,15 @@ const refreshRemoteDeliveryOptions = async () => {
   }
 }
 
+const reusableSessionsController = useReusableSessions({
+  sessionClient,
+  mode,
+  draft,
+  selectedJob,
+  onError: logFailure
+})
+const reusableSessionsState = reusableSessionsController.state
+
 const applyAutoSelection = () => {
   if (autoSelectionApplied.value || narrowLayout.value) {
     return
@@ -1046,6 +1066,8 @@ const startCreate = async (template?: CronJobTemplate) => {
     modelPolicy: 'follow_agent',
     toolPolicy: 'follow_agent',
     permissionPolicy: 'follow_agent',
+    sessionMode: CRON_JOBS_DEFAULT_SESSION_MODE,
+    reuseSessionId: null,
     runtime: { ...CRON_JOBS_DEFAULT_RUNTIME },
     agentSnapshot: null,
     delivery: createDefaultDelivery(),
@@ -1119,24 +1141,38 @@ const backToList = async () => {
   mode.value = 'view'
 }
 
-const buildUpsertPayload = (job: CronJob): CronJobsUpsertInput => ({
-  ...(job.id ? { id: job.id } : {}),
-  name: job.name.trim() || t('settings.cronJobs.defaults.name'),
-  enabled: job.enabled,
-  cronExpr: job.cronExpr || CRON_JOBS_DEFAULT_CRON_EXPR,
-  timezone: job.timezone || browserTimezone(),
-  agentId: job.agentId,
-  misfirePolicy: job.misfirePolicy,
-  maxCatchUpRuns: job.maxCatchUpRuns,
-  taskPrompt: job.taskPrompt,
-  taskSystemInstruction: job.taskSystemInstruction,
-  taskOutputMode: job.taskOutputMode,
-  modelPolicy: job.modelPolicy,
-  toolPolicy: job.toolPolicy,
-  permissionPolicy: job.permissionPolicy,
-  runtime: job.runtime,
-  delivery: job.delivery
-})
+const buildUpsertPayload = (job: CronJob): CronJobsUpsertInput => {
+  const baseline = baselineDraft.value
+  const shouldIncludeReuseSessionId =
+    mode.value === 'create' ||
+    !baseline ||
+    job.sessionMode !== baseline.sessionMode ||
+    job.reuseSessionId !== baseline.reuseSessionId ||
+    job.agentId !== baseline.agentId
+
+  return {
+    ...(job.id ? { id: job.id } : {}),
+    name: job.name.trim() || t('settings.cronJobs.defaults.name'),
+    enabled: job.enabled,
+    cronExpr: job.cronExpr || CRON_JOBS_DEFAULT_CRON_EXPR,
+    timezone: job.timezone || browserTimezone(),
+    agentId: job.agentId,
+    misfirePolicy: job.misfirePolicy,
+    maxCatchUpRuns: job.maxCatchUpRuns,
+    taskPrompt: job.taskPrompt,
+    taskSystemInstruction: job.taskSystemInstruction,
+    taskOutputMode: job.taskOutputMode,
+    modelPolicy: job.modelPolicy,
+    toolPolicy: job.toolPolicy,
+    permissionPolicy: job.permissionPolicy,
+    sessionMode: job.sessionMode,
+    ...(shouldIncludeReuseSessionId
+      ? { reuseSessionId: job.sessionMode === 'reuse_session' ? job.reuseSessionId : null }
+      : {}),
+    runtime: job.runtime,
+    delivery: job.delivery
+  }
+}
 
 const saveDraft = async () => {
   const current = draft.value
@@ -1372,6 +1408,7 @@ const stopDraftPreviewSync = watch(
 onMounted(() => {
   void loadJobs()
   startSchedulerStatusPolling()
+  reusableSessionsController.subscribe()
 })
 
 onBeforeUnmount(() => {
@@ -1385,6 +1422,7 @@ onBeforeUnmount(() => {
   stopSchedulerStatusPolling()
   stopLeaveRiskSync()
   stopDraftPreviewSync()
+  reusableSessionsController.dispose()
   leaveGuardLease.release()
 })
 </script>

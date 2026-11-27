@@ -3,7 +3,7 @@ import type * as schema from '@agentclientprotocol/sdk'
 import type { AcpAgentConfig } from '@shared/types/acp'
 import type { MessageStartResult, SendMessageInput } from '@shared/types/agent-interface'
 import type { AppSessionId } from '@/agent/shared/agentSessionIds'
-import type { AcpSessionRecord } from '@/agent/acp/runtime/acpSessionManager'
+import type { AcpSessionOpenOptions, AcpSessionRecord } from '@/agent/acp/runtime/acpSessionManager'
 import {
   AcpPromptController,
   type AcpPromptTurn
@@ -29,6 +29,7 @@ import type {
   AcpSessionCapabilityFacet,
   AcpSessionLifecycleFacet,
   AcpSessionRuntimePort,
+  AcpStatusMeta,
   AcpTurnPersistencePort
 } from './ports'
 
@@ -37,6 +38,7 @@ interface ActivePrompt {
   cancelCause: AcpCancelCause
   settled: Promise<void>
   settle(): void
+  submissionId?: string
   projection?: AcpProjectionHandle
   session?: AcpSessionRecord
 }
@@ -125,6 +127,7 @@ export class AcpAgentInstance
   async send(
     content: SendMessageInput,
     projectionContext?: AcpProjectionContext,
+    openOptions?: AcpSessionOpenOptions,
     goalControl?: LodyGoalPromptControl
   ): Promise<MessageStartResult> {
     if (this.closed) throw new Error(`ACP session ${this.sessionId} is closed`)
@@ -138,7 +141,8 @@ export class AcpAgentInstance
       settled: new Promise<void>((resolve) => {
         settleActive = resolve
       }),
-      settle: () => settleActive()
+      settle: () => settleActive(),
+      ...(openOptions?.submissionId ? { submissionId: openOptions.submissionId } : {})
     }
     this.active = active
     const { signal } = active.controller
@@ -173,6 +177,11 @@ export class AcpAgentInstance
         ...(projectionContext ? { projectionContext } : {})
       })
       projectionResult = active.projection
+      this.setStatus('generating', {
+        messageId: active.projection.messageId,
+        requestId: active.projection.requestId,
+        ...(active.submissionId ? { submissionId: active.submissionId } : {})
+      })
       this.dependencies.observer.userPromptSubmitted({
         sessionId: this.sessionId,
         messageId: active.projection.messageId,
@@ -213,7 +222,8 @@ export class AcpAgentInstance
           onProcessExit: (remoteSessionId) => this.handleProcessExit(remoteSessionId),
           signal
         },
-        workdir
+        workdir,
+        openOptions
       )
       active.session = session
       this.throwIfAborted(signal)
@@ -287,7 +297,11 @@ export class AcpAgentInstance
         response.stopReason
       )
       active.projection = undefined
-      this.setStatus(settlement.status === 'completed' ? 'idle' : 'error')
+      this.setStatus(settlement.status === 'completed' ? 'idle' : 'error', {
+        messageId: completedProjection.messageId,
+        requestId: completedProjection.requestId,
+        ...(settlement.status === 'error' ? { error: settlement.errorMessage } : {})
+      })
       this.dependencies.observer.terminal({
         sessionId: this.sessionId,
         agentId: agent.id,
@@ -342,7 +356,25 @@ export class AcpAgentInstance
           ...settlement
         })
       }
-      this.setStatus(aborted ? 'idle' : 'error')
+      const errorMessage = !aborted
+        ? error instanceof Error
+          ? error.message
+          : String(error)
+        : undefined
+      const statusMeta: AcpStatusMeta | undefined =
+        projectionResult || active.submissionId || errorMessage
+          ? {
+              ...(projectionResult
+                ? {
+                    messageId: projectionResult.messageId,
+                    requestId: projectionResult.requestId
+                  }
+                : {}),
+              ...(active.submissionId ? { submissionId: active.submissionId } : {}),
+              ...(errorMessage ? { error: errorMessage } : {})
+            }
+          : undefined
+      this.setStatus(aborted ? 'idle' : 'error', statusMeta)
       return {
         requestId: projectionResult?.requestId ?? null,
         messageId: projectionResult?.messageId ?? null
@@ -432,7 +464,12 @@ export class AcpAgentInstance
       action === 'set'
         ? { version: 1, action, objective: objective!.trim() }
         : { version: 1, action }
-    return this.send({ text: action === 'set' ? objective!.trim() : '' }, undefined, control)
+    return this.send(
+      { text: action === 'set' ? objective!.trim() : '' },
+      undefined,
+      undefined,
+      control
+    )
   }
 
   async cancel(cause: AcpCancelCause = 'user_stop'): Promise<void> {
@@ -466,11 +503,17 @@ export class AcpAgentInstance
     return true
   }
 
+  async cancelGenerationBySubmissionId(submissionId: string): Promise<boolean> {
+    if (!this.active || this.active.submissionId !== submissionId) return false
+    await this.cancel()
+    return true
+  }
+
   resolvePermissionRequest(requestId: string, granted: boolean): boolean {
     return this.permissionBridge.resolve(requestId, granted)
   }
 
-  async prepare(): Promise<void> {
+  async prepare(openOptions?: AcpSessionOpenOptions): Promise<void> {
     if (this.closed) throw new Error(`ACP session ${this.sessionId} is closed`)
     if (this.active || this.remoteOperation)
       throw new Error(`ACP session ${this.sessionId} is already generating`)
@@ -486,10 +529,16 @@ export class AcpAgentInstance
     this.preparing = preparing
     this.setStatus('initializing')
     try {
-      await this.dependencies.sessions.prepare(this.sessionId, this.options.agent, this.workdir, {
-        onProcessExit: (remoteSessionId) => this.handleProcessExit(remoteSessionId),
-        signal: preparing.controller.signal
-      })
+      await this.dependencies.sessions.prepare(
+        this.sessionId,
+        this.options.agent,
+        this.workdir,
+        {
+          onProcessExit: (remoteSessionId) => this.handleProcessExit(remoteSessionId),
+          signal: preparing.controller.signal
+        },
+        openOptions
+      )
       this.throwIfAborted(preparing.controller.signal)
       this.setStatus('idle')
     } catch (error) {
@@ -501,14 +550,17 @@ export class AcpAgentInstance
     }
   }
 
-  async updateWorkdir(workdir: string | null): Promise<string> {
+  async updateWorkdir(workdir: string | null, options?: AcpSessionOpenOptions): Promise<string> {
     if (this.remoteOperation) throw new Error('ACP history or fork is in progress')
     if (this.closed) throw new Error(`ACP session ${this.sessionId} is closed`)
-    await this.cancel()
+    if (!options?.requireResume) {
+      await this.cancel()
+    }
     const resolved = await this.dependencies.sessions.updateWorkdir(
       this.sessionId,
       this.options.agent.id,
-      workdir
+      workdir,
+      options
     )
     this.workdir = resolved
     return resolved
@@ -549,6 +601,7 @@ export class AcpAgentInstance
       status: this.status,
       ready: this.firstTurnReady,
       active: Boolean(this.active),
+      remoteOperation: this.remoteOperation,
       remoteSessionId: this.dependencies.sessions.getSession(this.sessionId)?.sessionId ?? null
     }
   }
@@ -620,10 +673,10 @@ export class AcpAgentInstance
     this.dependencies.onProcessExit?.(this)
   }
 
-  private setStatus(status: AcpAgentStatus): void {
+  private setStatus(status: AcpAgentStatus, meta?: AcpStatusMeta): void {
     this.status = status
     if (status === 'generating' || status === 'idle' || status === 'error') {
-      this.dependencies.projection.setStatus(status)
+      this.dependencies.projection.setStatus(status, meta)
     }
   }
 

@@ -3029,7 +3029,19 @@
       "scheduleMonthDay": "Dzień miesiąca",
       "scheduleMinute": "Minuta",
       "createEnabled": "Włącz po utworzeniu",
-      "createEnabledHint": "Rozpocznij działanie zgodnie z harmonogramem od razu po utworzeniu."
+      "createEnabledHint": "Rozpocznij działanie zgodnie z harmonogramem od razu po utworzeniu.",
+      "session": "Sesja",
+      "sessionMode": "Tryb sesji",
+      "newSessionEachRun": "Nowa sesja przy każdym uruchomieniu",
+      "reuseSession": "Używaj ponownie jednej sesji",
+      "targetSession": "Sesja docelowa",
+      "createSessionOnFirstRun": "Utwórz przy pierwszym uruchomieniu",
+      "sessionUnavailable": "Sesja niedostępna",
+      "searchSessionPlaceholder": "Szukaj sesji…",
+      "clearSessionSearch": "Wyczyść wyszukiwanie",
+      "noMatchingSessions": "Brak sesji pasujących do \"{query}\"",
+      "noReusableSessions": "Brak sesji do ponownego użycia",
+      "loadMoreSessions": "Załaduj więcej"
     },
     "presets": {
       "custom": "Własny",

@@ -36,6 +36,8 @@ const CRON_JOB_RUNS_INDEX_SQL = `
     ON cron_job_runs(job_id, created_at DESC, id DESC);
   CREATE INDEX IF NOT EXISTS idx_cron_job_runs_status_queued
     ON cron_job_runs(status, queued_at ASC, id ASC);
+  CREATE INDEX IF NOT EXISTS idx_cron_job_runs_session_status
+    ON cron_job_runs(session_id, status);
   CREATE UNIQUE INDEX IF NOT EXISTS idx_cron_job_runs_scheduled_dedupe
     ON cron_job_runs(job_id, scheduled_at)
     WHERE reason = 'scheduled';
@@ -290,6 +292,44 @@ export class CronJobRunsTable extends BaseTable {
       )
       .get(jobId, excludeRunId ?? null, excludeRunId ?? null) as { count: number }
     return row.count
+  }
+
+  countActiveBySession(sessionId: string, excludeRunId?: string): number {
+    const row = this.db
+      .prepare(
+        `SELECT COUNT(*) AS count
+         FROM cron_job_runs
+         WHERE session_id = ?
+           AND status = 'running'
+           AND (? IS NULL OR id != ?)`
+      )
+      .get(sessionId, excludeRunId ?? null, excludeRunId ?? null) as { count: number }
+    return row.count
+  }
+
+  listQueued(limit = 50, after?: { queuedAt: number; id: string }): CronJobRunRow[] {
+    const safeLimit = Math.min(Math.max(Math.trunc(limit), 1), 200)
+    if (after) {
+      return this.db
+        .prepare(
+          `SELECT *
+           FROM cron_job_runs
+           WHERE status = 'queued'
+             AND (queued_at > ? OR (queued_at = ? AND id > ?))
+           ORDER BY queued_at ASC, id ASC
+           LIMIT ?`
+        )
+        .all(after.queuedAt, after.queuedAt, after.id, safeLimit) as CronJobRunRow[]
+    }
+    return this.db
+      .prepare(
+        `SELECT *
+         FROM cron_job_runs
+         WHERE status = 'queued'
+         ORDER BY queued_at ASC, id ASC
+         LIMIT ?`
+      )
+      .all(safeLimit) as CronJobRunRow[]
   }
 
   listByJob(jobId: string, limit = 50): CronJobRunRow[] {

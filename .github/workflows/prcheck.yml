@@ -98,6 +98,14 @@ jobs:
           CARGO_INCREMENTAL: '0'
         run: pnpm run build:dim-host --dev
 
+      - name: Test dim native host
+        env:
+          RUSTUP_TOOLCHAIN: 1.98.1
+          CARGO_BUILD_JOBS: '2'
+          CARGO_PROFILE_DEV_DEBUG: '0'
+          CARGO_INCREMENTAL: '0'
+        run: cargo test --manifest-path native/dim-host/Cargo.toml
+
       - name: Test main process
         run: pnpm run test:main
 

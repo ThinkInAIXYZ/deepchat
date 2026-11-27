@@ -328,4 +328,95 @@ describeIfSqlite('NewSessionsTable', () => {
       subagent_enabled: 1
     })
   })
+
+  it('filters lightweight pages by query with LIKE escaping, pagination, and prioritize filtering', async () => {
+    const insert = db!.prepare(`INSERT INTO new_sessions
+      (id, agent_id, title, project_dir, session_kind, is_draft, is_pinned, created_at, updated_at)
+      VALUES (?, ?, ?, ?, 'regular', 0, 0, 100, ?)`)
+    insert.run('s-old-match', 'deepchat', 'Weekly PR report (older)', '/work/deepchat', 100)
+    insert.run('s-literal-pct', 'deepchat', '100% CPU_audit', '/work/perf', 200)
+    insert.run('s-unicode', 'deepchat', 'Équipe sync', '/work/team', 250)
+    insert.run('s-greek', 'deepchat', 'ΟΣΤΡΑΚΟ notes', '/work/greek', 260)
+    insert.run('s-other', 'deepchat', 'Unrelated chat', '/work/other', 300)
+    insert.run('s-dir-match', 'deepchat', 'Release notes', '/work/pr-tools', 400)
+    insert.run('s-new-match', 'deepchat', 'Weekly PR report (latest)', '/work/deepchat', 500)
+    insert.run('s-other-agent', 'acp-a', 'Weekly PR report', '/work/deepchat', 600)
+
+    const sessions = new AppSessionService(
+      {} as ConstructorParameters<typeof AppSessionService>[0],
+      { newSessionsTable: table } as ConstructorParameters<typeof AppSessionService>[1]
+    )
+    const query = new SessionQuery({
+      sessions,
+      runtime: { snapshotIfHydrated: async () => null }
+    } as unknown as SessionQueryDependencies)
+
+    const page1 = await query.listLightweight(
+      sessionsListLightweightRoute.input.parse({
+        agentId: 'deepchat',
+        includeDrafts: false,
+        includeSubagents: false,
+        query: '  pr  ',
+        prioritizeSessionId: 's-other',
+        limit: 2
+      })
+    )
+    expect(page1.items.map((item) => item.id)).toEqual(['s-new-match', 's-dir-match'])
+    expect(page1.hasMore).toBe(true)
+
+    const page2 = await query.listLightweight(
+      sessionsListLightweightRoute.input.parse({
+        agentId: 'deepchat',
+        includeDrafts: false,
+        includeSubagents: false,
+        query: 'pr',
+        cursor: page1.nextCursor,
+        limit: 2
+      })
+    )
+    expect(page2.items.map((item) => item.id)).toEqual(['s-old-match'])
+    expect(page2.hasMore).toBe(false)
+
+    const escaped = await query.listLightweight(
+      sessionsListLightweightRoute.input.parse({
+        agentId: 'deepchat',
+        includeDrafts: false,
+        includeSubagents: false,
+        query: '100% cpu_'
+      })
+    )
+    expect(escaped.items.map((item) => item.id)).toEqual(['s-literal-pct'])
+
+    const unicodeMatch = await query.listLightweight(
+      sessionsListLightweightRoute.input.parse({
+        agentId: 'deepchat',
+        includeDrafts: false,
+        includeSubagents: false,
+        query: 'Équipe'
+      })
+    )
+    expect(unicodeMatch.items.map((item) => item.id)).toEqual(['s-unicode'])
+
+    const greekSigmaMatch = await query.listLightweight(
+      sessionsListLightweightRoute.input.parse({
+        agentId: 'deepchat',
+        includeDrafts: false,
+        includeSubagents: false,
+        query: 'ΟΣ'
+      })
+    )
+    expect(greekSigmaMatch.items.map((item) => item.id)).toEqual(['s-greek'])
+
+    const prioritizedOld = await query.listLightweight(
+      sessionsListLightweightRoute.input.parse({
+        agentId: 'deepchat',
+        includeDrafts: false,
+        includeSubagents: false,
+        prioritizeSessionId: 's-old-match',
+        limit: 1
+      })
+    )
+    expect(prioritizedOld.items.map((item) => item.id)).toEqual(['s-new-match', 's-old-match'])
+    expect(prioritizedOld.nextCursor).toEqual({ id: 's-new-match', updatedAt: 500 })
+  })
 })

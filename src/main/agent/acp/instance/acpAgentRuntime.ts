@@ -8,9 +8,11 @@ import type { AcpAgentDescriptor } from '@/agent/shared/agentDescriptors'
 import type { AppSessionId } from '@/agent/shared/agentSessionIds'
 import type { AcpClientRuntime, AcpRuntimeOwner } from '@/agent/acp/client'
 import type { SessionPendingInputRuntimePort } from '@/session/data/contracts'
+import type { AcpSessionOpenOptions } from '@/agent/acp/runtime'
 import { AcpAgentInstance, type AcpAgentInstanceDependencies } from './acpAgentInstance'
 import type { AcpAgentSnapshot, AcpInstanceScope } from './ports'
 import { isAcpAuthenticationRequiredError } from '../runtime/acpAuthentication'
+import { SessionBusyError } from '@/session/turn'
 
 export interface AcpAgentRuntimeSessionInput {
   sessionId: AppSessionId
@@ -54,6 +56,11 @@ export class AcpAgentRuntime {
   private readonly operations = new Map<AppSessionId, Set<Promise<unknown>>>()
   private readonly draining = new Set<AppSessionId>()
   private readonly steering = new Set<AppSessionId>()
+  private readonly pendingOpenOptions = new Map<
+    string,
+    { sessionId: AppSessionId; options: AcpSessionOpenOptions }
+  >()
+  private readonly submissionItems = new Map<string, { sessionId: AppSessionId; itemId: string }>()
   private readonly detachOwnerLifecycle: () => void
   private accepting = true
   private closeAllPromise?: Promise<void>
@@ -61,7 +68,8 @@ export class AcpAgentRuntime {
   constructor(
     private readonly owner: AcpRuntimeOwner,
     private readonly createDependencies: AcpAgentInstanceDependencyFactory,
-    private readonly pendingInputs: SessionPendingInputRuntimePort
+    private readonly pendingInputs: SessionPendingInputRuntimePort,
+    private readonly onSessionIdle?: (sessionId: AppSessionId) => void
   ) {
     this.detachOwnerLifecycle = owner.registerDirectRuntime({
       closeAll: () => this.closeAll(),
@@ -69,7 +77,10 @@ export class AcpAgentRuntime {
     })
   }
 
-  async getOrHydrate(input: AcpAgentRuntimeSessionInput): Promise<AcpAgentInstance> {
+  async getOrHydrate(
+    input: AcpAgentRuntimeSessionInput,
+    openOptions?: AcpSessionOpenOptions
+  ): Promise<AcpAgentInstance> {
     this.assertAccepting()
     this.assertInput(input)
     const previous = this.hydrations.get(input.sessionId)?.promise
@@ -82,7 +93,7 @@ export class AcpAgentRuntime {
         }
       }
       this.assertAccepting()
-      return await this.hydrateNow(input)
+      return await this.hydrateNow(input, openOptions)
     })()
     const entry = { promise: hydration }
     this.hydrations.set(input.sessionId, entry)
@@ -95,12 +106,15 @@ export class AcpAgentRuntime {
     }
   }
 
-  private async hydrateNow(input: AcpAgentRuntimeSessionInput): Promise<AcpAgentInstance> {
+  private async hydrateNow(
+    input: AcpAgentRuntimeSessionInput,
+    openOptions?: AcpSessionOpenOptions
+  ): Promise<AcpAgentInstance> {
     const identity = this.buildIdentity(input)
     const current = this.instances.get(input.sessionId)
     if (current?.identity === identity) {
       if (current.instance.getWorkdir() !== input.workdir) {
-        await current.instance.updateWorkdir(input.workdir)
+        await current.instance.updateWorkdir(input.workdir, openOptions)
         this.assertAccepting()
       }
       return current.instance
@@ -138,23 +152,44 @@ export class AcpAgentRuntime {
     return this.instances.get(sessionId)?.instance
   }
 
-  async prepare(input: AcpAgentRuntimeSessionInput): Promise<AcpAgentInstance> {
-    const instance = await this.getOrHydrate(input)
+  async prepare(
+    input: AcpAgentRuntimeSessionInput,
+    openOptions?: AcpSessionOpenOptions
+  ): Promise<AcpAgentInstance> {
+    if (openOptions?.requireIdle && (await this.isBusy(input.sessionId))) {
+      throw new SessionBusyError(input.sessionId)
+    }
+    const instance = await this.getOrHydrate(input, openOptions)
     this.assertAccepting()
+    if (openOptions?.requireIdle && (await this.isBusy(input.sessionId))) {
+      throw new SessionBusyError(input.sessionId)
+    }
     const operation = (async () => {
       try {
-        await instance.prepare()
+        await instance.prepare(openOptions)
         if (this.pendingInputs.hasPendingTurnInput(input.sessionId)) {
-          void this.drainPendingInputs(input.sessionId, 'completed')
+          void this.drainPendingInputs(input.sessionId, 'completed').then((started) => {
+            if (!started) void this.notifyIdleIfReady(input.sessionId)
+          })
+        } else {
+          void this.notifyIdleIfReady(input.sessionId)
         }
         return instance
       } catch (error) {
         if (isAcpAuthenticationRequiredError(error)) throw error
+        if (
+          openOptions?.requireIdle &&
+          error instanceof Error &&
+          /already (?:generating|preparing)/.test(error.message)
+        ) {
+          throw new SessionBusyError(input.sessionId)
+        }
         try {
           await instance.close()
         } catch (closeError) {
           console.warn('[ACP] Failed to close instance after preparation error:', closeError)
         }
+        void this.notifyIdleIfReady(input.sessionId)
         throw error
       }
     })()
@@ -163,20 +198,59 @@ export class AcpAgentRuntime {
 
   async send(
     input: AcpAgentRuntimeSessionInput,
-    content: SendMessageInput
+    content: SendMessageInput,
+    openOptions?: AcpSessionOpenOptions
   ): Promise<MessageStartResult> {
-    const instance = await this.getOrHydrate(input)
+    if (openOptions?.requireIdle && (await this.isBusy(input.sessionId))) {
+      throw new SessionBusyError(input.sessionId)
+    }
+    const instance = await this.getOrHydrate(input, openOptions)
     this.assertAccepting()
+    if (openOptions?.requireIdle && (await this.isBusy(input.sessionId))) {
+      throw new SessionBusyError(input.sessionId)
+    }
     const operation = (async () => {
       try {
-        return await instance.send(content)
+        return await instance.send(content, undefined, openOptions)
+      } catch (error) {
+        if (
+          openOptions?.requireIdle &&
+          error instanceof Error &&
+          error.message.includes('is already generating')
+        ) {
+          throw new SessionBusyError(input.sessionId)
+        }
+        throw error
       } finally {
         if (this.pendingInputs.hasPendingTurnInput(input.sessionId)) {
-          void this.drainPendingInputs(input.sessionId, 'completed')
+          void this.drainPendingInputs(input.sessionId, 'completed').then((started) => {
+            if (!started) void this.notifyIdleIfReady(input.sessionId)
+          })
+        } else {
+          void this.notifyIdleIfReady(input.sessionId)
         }
       }
     })()
     return await this.trackOperation(input.sessionId, operation)
+  }
+
+  async isBusy(sessionId: AppSessionId): Promise<boolean> {
+    if (
+      this.draining.has(sessionId) ||
+      this.steering.has(sessionId) ||
+      this.pendingInputs.hasPendingTurnInput(sessionId)
+    ) {
+      return true
+    }
+    const instance = this.instances.get(sessionId)?.instance
+    if (!instance) return false
+    const snapshot = await instance.snapshot()
+    return (
+      snapshot.active ||
+      snapshot.remoteOperation === true ||
+      snapshot.status === 'generating' ||
+      snapshot.status === 'initializing'
+    )
   }
 
   async cancel(sessionId: AppSessionId): Promise<void> {
@@ -207,6 +281,12 @@ export class AcpAgentRuntime {
       if (!instance || current?.instance === instance) this.instances.delete(sessionId)
       this.draining.delete(sessionId)
       this.steering.delete(sessionId)
+      for (const [submissionId, entry] of this.submissionItems) {
+        if (entry.sessionId === sessionId) this.submissionItems.delete(submissionId)
+      }
+      for (const [itemId, entry] of this.pendingOpenOptions) {
+        if (entry.sessionId === sessionId) this.pendingOpenOptions.delete(itemId)
+      }
     }
   }
 
@@ -233,6 +313,8 @@ export class AcpAgentRuntime {
       this.instances.clear()
       this.draining.clear()
       this.steering.clear()
+      this.pendingOpenOptions.clear()
+      this.submissionItems.clear()
     })()
     return await this.closeAllPromise
   }
@@ -253,21 +335,36 @@ export class AcpAgentRuntime {
 
   async queuePendingInput(
     input: AcpAgentRuntimeSessionInput,
-    content: SendMessageInput
+    content: SendMessageInput,
+    openOptions?: AcpSessionOpenOptions
   ): Promise<PendingSessionInputRecord> {
-    const instance = await this.getOrHydrate(input)
+    const instance = await this.getOrHydrate(input, openOptions)
     this.assertAccepting()
     const pending = this.pendingInputs
     const snapshot = await instance.snapshot()
     const claimImmediately =
       !snapshot.active &&
+      snapshot.remoteOperation !== true &&
       snapshot.status !== 'initializing' &&
       snapshot.status !== 'closed' &&
       !this.draining.has(input.sessionId) &&
+      !this.steering.has(input.sessionId) &&
       !pending.hasPendingTurnInput(input.sessionId)
+    if (!claimImmediately && openOptions?.requireIdle) {
+      throw new SessionBusyError(input.sessionId)
+    }
     const record = pending.queuePendingInput(input.sessionId, content, {
       state: claimImmediately ? 'claimed' : 'pending'
     })
+    if (openOptions) {
+      this.pendingOpenOptions.set(record.id, { sessionId: input.sessionId, options: openOptions })
+      if (openOptions.submissionId) {
+        this.submissionItems.set(openOptions.submissionId, {
+          sessionId: input.sessionId,
+          itemId: record.id
+        })
+      }
+    }
     if (claimImmediately) {
       this.draining.add(input.sessionId)
       this.startClaimedInput(input.sessionId, instance, pending, record)
@@ -282,9 +379,17 @@ export class AcpAgentRuntime {
     if (!instance) throw new Error('ACP session is not initialized')
     return this.trackOperation(
       sessionId,
-      instance.runIdleOperation(() =>
-        this.owner.getOrCreate().sessionController.readHistory(sessionId)
-      )
+      instance
+        .runIdleOperation(() => this.owner.getOrCreate().sessionController.readHistory(sessionId))
+        .finally(() => {
+          if (this.pendingInputs.hasPendingTurnInput(sessionId)) {
+            void this.drainPendingInputs(sessionId, 'completed').then((started) => {
+              if (!started) void this.notifyIdleIfReady(sessionId)
+            })
+          } else {
+            void this.notifyIdleIfReady(sessionId)
+          }
+        })
     )
   }
 
@@ -298,11 +403,21 @@ export class AcpAgentRuntime {
     if (!instance) throw new Error('ACP session is not initialized')
     return this.trackOperation(
       sourceId,
-      instance.runIdleOperation(() =>
-        this.owner
-          .getOrCreate()
-          .sessionController.forkSession(sourceId, targetId, turnId, operationId)
-      )
+      instance
+        .runIdleOperation(() =>
+          this.owner
+            .getOrCreate()
+            .sessionController.forkSession(sourceId, targetId, turnId, operationId)
+        )
+        .finally(() => {
+          if (this.pendingInputs.hasPendingTurnInput(sourceId)) {
+            void this.drainPendingInputs(sourceId, 'completed').then((started) => {
+              if (!started) void this.notifyIdleIfReady(sourceId)
+            })
+          } else {
+            void this.notifyIdleIfReady(sourceId)
+          }
+        })
     )
   }
 
@@ -319,8 +434,13 @@ export class AcpAgentRuntime {
       return
     }
     const operation = instance.controlGoal(action, objective).finally(() => {
-      if (this.pendingInputs.hasPendingTurnInput(sessionId))
-        void this.drainPendingInputs(sessionId, 'completed')
+      if (this.pendingInputs.hasPendingTurnInput(sessionId)) {
+        void this.drainPendingInputs(sessionId, 'completed').then((started) => {
+          if (!started) void this.notifyIdleIfReady(sessionId)
+        })
+      } else {
+        void this.notifyIdleIfReady(sessionId)
+      }
     })
     void this.trackOperation(sessionId, operation).catch(() =>
       console.warn('[ACP] Goal prompt failed')
@@ -434,7 +554,30 @@ export class AcpAgentRuntime {
   }
 
   deletePendingInput(sessionId: AppSessionId, itemId: string): void {
+    const openOptions = this.pendingOpenOptions.get(itemId)?.options
+    this.pendingOpenOptions.delete(itemId)
+    if (openOptions?.submissionId) {
+      this.submissionItems.delete(openOptions.submissionId)
+    }
     this.pendingInputs.deletePendingInput(sessionId, itemId)
+    void this.notifyIdleIfReady(sessionId)
+  }
+
+  async cancelSubmission(sessionId: AppSessionId, submissionId: string): Promise<boolean> {
+    const instance = this.instances.get(sessionId)?.instance
+    if (instance && (await instance.cancelGenerationBySubmissionId(submissionId))) {
+      return true
+    }
+    const tracked = this.submissionItems.get(submissionId)
+    if (!tracked || tracked.sessionId !== sessionId) return false
+    const pendingItem = this.pendingInputs
+      .listPendingInputs(sessionId)
+      .find((item) => item.id === tracked.itemId)
+    if (pendingItem && pendingItem.state === 'pending') {
+      this.deletePendingInput(sessionId, tracked.itemId)
+      return true
+    }
+    return false
   }
 
   private async drainPendingInputs(
@@ -449,6 +592,7 @@ export class AcpAgentRuntime {
     const snapshot = await instance.snapshot()
     if (
       snapshot.active ||
+      snapshot.remoteOperation === true ||
       snapshot.status === 'initializing' ||
       snapshot.status === 'closed' ||
       (snapshot.status === 'error' && reason === 'completed')
@@ -489,33 +633,66 @@ export class AcpAgentRuntime {
             assistantMessageId: claimed.assistantMessageId!
           }
         : undefined
+    const openOptions = this.pendingOpenOptions.get(claimed.id)?.options
+    this.pendingOpenOptions.delete(claimed.id)
+    let releasedOnBusy = false
     const operation = instance
-      .send(claimed.payload, projectionContext)
+      .send(claimed.payload, projectionContext, openOptions)
       .then(async () => {
         const completed = await instance.snapshot()
         if (claimed.mode === 'steer') {
           pending.consumeSteerInput(sessionId, claimed.id)
         } else if (completed.status === 'error') {
-          pending.releaseClaimedInput(sessionId, claimed.id)
+          if (openOptions?.discardOnFailure) {
+            pending.consumeQueuedInput(sessionId, claimed.id)
+          } else {
+            pending.releaseClaimedInput(sessionId, claimed.id)
+          }
         } else {
           pending.consumeQueuedInput(sessionId, claimed.id)
         }
       })
       .catch((error) => {
+        const busyRejection =
+          error instanceof SessionBusyError ||
+          (error instanceof Error &&
+            (error.message.includes('already generating') ||
+              error.message.includes('busy with another operation')))
         if (claimed.mode === 'steer') {
           pending.consumeSteerInput(sessionId, claimed.id)
+        } else if (busyRejection && !openOptions?.requireIdle) {
+          releasedOnBusy = true
+          if (openOptions) {
+            this.pendingOpenOptions.set(claimed.id, { sessionId, options: openOptions })
+          }
+          pending.releaseClaimedInput(sessionId, claimed.id)
+        } else if (openOptions?.discardOnFailure || (busyRejection && openOptions?.requireIdle)) {
+          pending.consumeQueuedInput(sessionId, claimed.id)
         } else {
           pending.releaseClaimedInput(sessionId, claimed.id)
         }
         console.error('[ACP] Pending input failed:', error)
       })
       .finally(() => {
+        if (!releasedOnBusy && openOptions?.submissionId) {
+          this.submissionItems.delete(openOptions.submissionId)
+        }
         this.draining.delete(sessionId)
         if (pending.hasPendingTurnInput(sessionId)) {
-          void this.drainPendingInputs(sessionId, 'completed')
+          void this.drainPendingInputs(sessionId, 'completed').then((started) => {
+            if (!started) void this.notifyIdleIfReady(sessionId)
+          })
+        } else {
+          void this.notifyIdleIfReady(sessionId)
         }
       })
     void this.trackOperation(sessionId, operation)
+  }
+
+  private async notifyIdleIfReady(sessionId: AppSessionId): Promise<void> {
+    if (!this.onSessionIdle || !this.accepting) return
+    if (await this.isBusy(sessionId)) return
+    this.onSessionIdle(sessionId)
   }
 
   private trackOperation<T>(sessionId: AppSessionId, operation: Promise<T>): Promise<T> {

@@ -2010,7 +2010,19 @@
       "scheduleMonthDay": "每月日期",
       "scheduleMinute": "每小时的第几分钟",
       "createEnabled": "创建后启用",
-      "createEnabledHint": "创建后立即按计划运行。"
+      "createEnabledHint": "创建后立即按计划运行。",
+      "session": "会话",
+      "sessionMode": "会话模式",
+      "newSessionEachRun": "每次新建会话",
+      "reuseSession": "复用同一会话",
+      "targetSession": "目标会话",
+      "createSessionOnFirstRun": "首次运行时创建",
+      "sessionUnavailable": "会话不可用",
+      "searchSessionPlaceholder": "搜索会话…",
+      "clearSessionSearch": "清除搜索",
+      "noMatchingSessions": "未找到「{query}」相关会话",
+      "noReusableSessions": "暂无可复用会话",
+      "loadMoreSessions": "加载更多"
     },
     "presets": {
       "custom": "自定义",

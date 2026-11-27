@@ -3029,7 +3029,19 @@
       "scheduleMonthDay": "Tag des Monats",
       "scheduleMinute": "Minute",
       "createEnabled": "Nach dem Erstellen aktivieren",
-      "createEnabledHint": "Startet direkt nach dem Erstellen nach Zeitplan."
+      "createEnabledHint": "Startet direkt nach dem Erstellen nach Zeitplan.",
+      "session": "Sitzung",
+      "sessionMode": "Sitzungsmodus",
+      "newSessionEachRun": "Neue Sitzung bei jedem Lauf",
+      "reuseSession": "Eine Sitzung wiederverwenden",
+      "targetSession": "Zielsitzung",
+      "createSessionOnFirstRun": "Beim ersten Lauf erstellen",
+      "sessionUnavailable": "Sitzung nicht verfügbar",
+      "searchSessionPlaceholder": "Sitzungen suchen…",
+      "clearSessionSearch": "Suche zurücksetzen",
+      "noMatchingSessions": "Keine Sitzungen für \"{query}\" gefunden",
+      "noReusableSessions": "Noch keine wiederverwendbaren Sitzungen",
+      "loadMoreSessions": "Mehr laden"
     },
     "presets": {
       "custom": "Benutzerdefiniert",

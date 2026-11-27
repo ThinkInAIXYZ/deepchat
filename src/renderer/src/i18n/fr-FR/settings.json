@@ -1637,7 +1637,19 @@
       "scheduleMonthDay": "Jour du mois",
       "scheduleMinute": "Minute",
       "createEnabled": "Activer après création",
-      "createEnabledHint": "Démarre selon la planification dès la création."
+      "createEnabledHint": "Démarre selon la planification dès la création.",
+      "session": "Session",
+      "sessionMode": "Mode de session",
+      "newSessionEachRun": "Nouvelle session à chaque exécution",
+      "reuseSession": "Réutiliser une session",
+      "targetSession": "Session cible",
+      "createSessionOnFirstRun": "Créer lors de la première exécution",
+      "sessionUnavailable": "Session indisponible",
+      "searchSessionPlaceholder": "Rechercher des sessions…",
+      "clearSessionSearch": "Effacer la recherche",
+      "noMatchingSessions": "Aucune session correspondant à « {query} »",
+      "noReusableSessions": "Aucune session réutilisable",
+      "loadMoreSessions": "Charger plus"
     },
     "presets": {
       "custom": "Personnalisé",

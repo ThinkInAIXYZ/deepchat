@@ -35,6 +35,22 @@ export interface SessionTurnDependencies {
   projection: SessionTurnProjectionPort
 }
 
+export class SessionBusyError extends Error {
+  readonly code = 'SESSION_BUSY'
+
+  constructor(readonly sessionId: string) {
+    super(`Session ${sessionId} is currently busy.`)
+    this.name = 'SessionBusyError'
+  }
+}
+
+export function isSessionBusyError(error: unknown): error is SessionBusyError {
+  return (
+    error instanceof SessionBusyError ||
+    (error instanceof Error && (error as { code?: unknown }).code === 'SESSION_BUSY')
+  )
+}
+
 function isAbortError(error: unknown, signal?: AbortSignal): boolean {
   return signal?.aborted === true || (error instanceof Error && error.name === 'AbortError')
 }
@@ -127,7 +143,14 @@ export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
   async sendMessage(
     sessionId: string,
     content: string | SendMessageInput,
-    options?: { maxProviderRounds?: number; signal?: AbortSignal; submissionId?: string }
+    options?: {
+      maxProviderRounds?: number
+      signal?: AbortSignal
+      submissionId?: string
+      rejectIfBusy?: boolean
+      requireAcpResume?: boolean
+      onBeforeSubmit?: () => void
+    }
   ): Promise<MessageStartResult> {
     return await this.dependencies.workdir.runWithSessionOperationGate(
       sessionId,
@@ -138,29 +161,68 @@ export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
   private async sendMessageUnderSessionGate(
     sessionId: string,
     content: string | SendMessageInput,
-    options?: { maxProviderRounds?: number; signal?: AbortSignal; submissionId?: string }
+    options?: {
+      maxProviderRounds?: number
+      signal?: AbortSignal
+      submissionId?: string
+      rejectIfBusy?: boolean
+      requireAcpResume?: boolean
+      onBeforeSubmit?: () => void
+    }
   ): Promise<MessageStartResult> {
+    options?.signal?.throwIfAborted()
     let session = this.requireSession(sessionId)
     const wasDraft = session.isDraft
     const normalizedInput = normalizeSendMessageInput(content)
 
-    const runtime = this.dependencies.runtime.resolveSession(toAppSessionId(sessionId))
+    const appSessionId = toAppSessionId(sessionId)
+    const runtime = this.dependencies.runtime.resolveSession(appSessionId)
     assertSessionReferencesSupported(runtime.kind, normalizedInput)
     const state = await runtime.snapshot()
+    if (options?.rejectIfBusy) {
+      const pendingInputs = await runtime.pending.list()
+      const hasPendingInput = pendingInputs.some(
+        (item) => item.state === 'pending' || item.state === 'claimed'
+      )
+      const acpBusy = runtime.kind === 'acp' && (await runtime.isBusy?.()) === true
+      const activeGeneration = this.dependencies.runtime.getActiveGeneration?.(appSessionId) ?? null
+      if (state?.status === 'generating' || hasPendingInput || acpBusy || activeGeneration) {
+        throw new SessionBusyError(sessionId)
+      }
+    }
     const hadMessages = await this.dependencies.transcript.hasMessages(sessionId)
     const providerId = this.resolveProviderId(runtime.kind, state?.providerId)
     this.dependencies.workdir.assertAcpSessionHasWorkdir(providerId, session.projectDir ?? null)
-    await this.dependencies.workdir.syncAcpSessionWorkdir(
-      providerId,
-      sessionId,
-      session.agentId,
-      session.projectDir ?? null
-    )
+    if (options?.requireAcpResume && runtime.kind === 'acp') {
+      await runtime.prepare?.({
+        ...(options.rejectIfBusy ? { requireIdle: true } : {}),
+        requireResume: true,
+        requirePersistedSession: hadMessages
+      })
+    } else {
+      await this.dependencies.workdir.syncAcpSessionWorkdir(
+        providerId,
+        sessionId,
+        session.agentId,
+        session.projectDir ?? null
+      )
+    }
+    options?.signal?.throwIfAborted()
+    options?.onBeforeSubmit?.()
     const result = await runtime.send({
       content: normalizedInput,
       context: {
         projectDir: session.projectDir ?? null,
         maxProviderRounds: options?.maxProviderRounds,
+        ...(options?.rejectIfBusy ? { requireIdle: true } : {}),
+        ...(options?.requireAcpResume && runtime.kind === 'acp'
+          ? {
+              acpResumePolicy: {
+                requirePersistedSession: hadMessages,
+                discardOnFailure: true
+              }
+            }
+          : {}),
         ...(options?.signal ? { signal: options.signal } : {})
       },
       queue: {
@@ -499,6 +561,37 @@ export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
   async cancelGeneration(sessionId: string): Promise<void> {
     if (!this.dependencies.sessions.get(sessionId)) return
     await this.dependencies.runtime.resolveSession(toAppSessionId(sessionId)).cancel()
+  }
+
+  async cancelGenerationByEventId(sessionId: string, eventId: string): Promise<boolean> {
+    if (!this.dependencies.sessions.get(sessionId)) return false
+    if (!this.dependencies.runtime.cancelGenerationByEventId) return false
+    return await this.dependencies.runtime.cancelGenerationByEventId(
+      toAppSessionId(sessionId),
+      eventId
+    )
+  }
+
+  async cancelSubmission(sessionId: string, submissionId: string): Promise<boolean> {
+    if (!this.dependencies.sessions.get(sessionId)) return false
+    if (!this.dependencies.runtime.cancelSubmission) return false
+    return await this.dependencies.runtime.cancelSubmission(toAppSessionId(sessionId), submissionId)
+  }
+
+  async isSessionBusy(sessionId: string): Promise<boolean> {
+    if (!this.dependencies.sessions.get(sessionId)) return false
+    const appSessionId = toAppSessionId(sessionId)
+    const runtime = this.dependencies.runtime.resolveSession(appSessionId)
+    if (runtime.isBusy) {
+      return await runtime.isBusy()
+    }
+    const state = await runtime.snapshot()
+    if (state?.status === 'generating') return true
+    const pendingInputs = await runtime.pending.list()
+    if (pendingInputs.some((item) => item.state === 'pending' || item.state === 'claimed')) {
+      return true
+    }
+    return Boolean(this.dependencies.runtime.getActiveGeneration?.(appSessionId))
   }
 
   async respondToolInteraction(

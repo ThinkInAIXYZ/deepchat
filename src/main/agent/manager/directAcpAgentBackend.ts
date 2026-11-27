@@ -258,11 +258,32 @@ export const createDirectAcpAgentBackend = (
         if (input.context?.projectDir !== undefined) {
           resolved.workdir = input.context.projectDir?.trim() ?? ''
         }
+        const resumePolicy = input.context?.acpResumePolicy
+        const openOptions =
+          input.context?.requireIdle || resumePolicy || input.queue?.submissionId
+            ? {
+                ...(input.context?.requireIdle ? { requireIdle: true } : {}),
+                ...(resumePolicy
+                  ? {
+                      requireResume: true,
+                      requirePersistedSession: resumePolicy.requirePersistedSession,
+                      discardOnFailure: resumePolicy.discardOnFailure
+                    }
+                  : {}),
+                ...(input.queue?.submissionId ? { submissionId: input.queue.submissionId } : {})
+              }
+            : undefined
         if (input.queue) {
-          await runtime.queuePendingInput(resolved, input.content)
+          if (openOptions) {
+            await runtime.queuePendingInput(resolved, input.content, openOptions)
+          } else {
+            await runtime.queuePendingInput(resolved, input.content)
+          }
           return { requestId: null, messageId: null }
         }
-        return await runtime.send(resolved, input.content)
+        return openOptions
+          ? await runtime.send(resolved, input.content, openOptions)
+          : await runtime.send(resolved, input.content)
       },
       cancel: () => runtime.cancel(sessionId),
       snapshot: async (snapshotOptions) => {
@@ -280,9 +301,10 @@ export const createDirectAcpAgentBackend = (
         await (await resolve(sessionId, descriptor)).instance.waitForFirstTurnReady(waitOptions),
       close: () => close(sessionId),
       acp: {
-        async prepare() {
-          await runtime.prepare(await options.resolveInput(sessionId, descriptor))
+        async prepare(prepareOptions) {
+          await runtime.prepare(await options.resolveInput(sessionId, descriptor), prepareOptions)
         },
+        isBusy: () => runtime.isBusy(sessionId),
         async updateWorkdir(workdir) {
           await sessionState.setSessionProjectDir(sessionId, workdir)
           const input = await options.resolveInput(sessionId, descriptor)
@@ -347,6 +369,9 @@ export const createDirectAcpAgentBackend = (
         runtime.getHydrated(sessionId)?.getActiveGeneration() ?? null,
       async cancelGenerationByEventId(sessionId, eventId) {
         return await (runtime.getHydrated(sessionId)?.cancelGenerationByEventId(eventId) ?? false)
+      },
+      async cancelSubmission(sessionId, submissionId) {
+        return await runtime.cancelSubmission(sessionId, submissionId)
       }
     }
   }

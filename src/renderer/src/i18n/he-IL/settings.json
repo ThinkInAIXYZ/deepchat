@@ -1637,7 +1637,19 @@
       "scheduleMonthDay": "יום בחודש",
       "scheduleMinute": "דקה",
       "createEnabled": "הפעל לאחר היצירה",
-      "createEnabledHint": "התחל לרוץ לפי התזמון מיד לאחר היצירה."
+      "createEnabledHint": "התחל לרוץ לפי התזמון מיד לאחר היצירה.",
+      "session": "שיחה",
+      "sessionMode": "מצב שיחה",
+      "newSessionEachRun": "שיחה חדשה בכל הרצה",
+      "reuseSession": "שימוש חוזר בשיחה אחת",
+      "targetSession": "שיחת יעד",
+      "createSessionOnFirstRun": "יצירה בהרצה הראשונה",
+      "sessionUnavailable": "השיחה אינה זמינה",
+      "searchSessionPlaceholder": "חיפוש שיחות…",
+      "clearSessionSearch": "נקה חיפוש",
+      "noMatchingSessions": "לא נמצאו שיחות התואמות ל-\"{query}\"",
+      "noReusableSessions": "אין עדיין שיחות לשימוש חוזר",
+      "loadMoreSessions": "טען עוד"
     },
     "presets": {
       "custom": "מותאם אישית",

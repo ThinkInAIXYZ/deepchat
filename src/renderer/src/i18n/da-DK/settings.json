@@ -1570,7 +1570,19 @@
       "scheduleMonthDay": "Dag i måneden",
       "scheduleMinute": "Minut",
       "createEnabled": "Aktivér efter oprettelse",
-      "createEnabledHint": "Begynd at køre efter tidsplanen straks efter oprettelsen."
+      "createEnabledHint": "Begynd at køre efter tidsplanen straks efter oprettelsen.",
+      "session": "Session",
+      "sessionMode": "Sessionstilstand",
+      "newSessionEachRun": "Ny session ved hver kørsel",
+      "reuseSession": "Genbrug én session",
+      "targetSession": "Målsession",
+      "createSessionOnFirstRun": "Opret ved første kørsel",
+      "sessionUnavailable": "Session utilgængelig",
+      "searchSessionPlaceholder": "Søg i sessioner…",
+      "clearSessionSearch": "Ryd søgning",
+      "noMatchingSessions": "Ingen sessioner matcher \"{query}\"",
+      "noReusableSessions": "Ingen genbrugelige sessioner endnu",
+      "loadMoreSessions": "Indlæs flere"
     },
     "presets": {
       "custom": "Brugerdefineret",

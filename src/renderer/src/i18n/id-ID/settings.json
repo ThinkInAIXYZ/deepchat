@@ -3029,7 +3029,19 @@
       "scheduleMonthDay": "Tanggal",
       "scheduleMinute": "Menit",
       "createEnabled": "Aktifkan setelah dibuat",
-      "createEnabledHint": "Langsung berjalan sesuai jadwal setelah dibuat."
+      "createEnabledHint": "Langsung berjalan sesuai jadwal setelah dibuat.",
+      "session": "Sesi",
+      "sessionMode": "Mode sesi",
+      "newSessionEachRun": "Sesi baru setiap kali dijalankan",
+      "reuseSession": "Gunakan kembali satu sesi",
+      "targetSession": "Sesi target",
+      "createSessionOnFirstRun": "Buat pada eksekusi pertama",
+      "sessionUnavailable": "Sesi tidak tersedia",
+      "searchSessionPlaceholder": "Cari sesi…",
+      "clearSessionSearch": "Hapus pencarian",
+      "noMatchingSessions": "Tidak ada sesi yang cocok dengan \"{query}\"",
+      "noReusableSessions": "Belum ada sesi yang dapat digunakan kembali",
+      "loadMoreSessions": "Muat lebih banyak"
     },
     "presets": {
       "custom": "Kustom",

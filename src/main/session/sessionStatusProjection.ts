@@ -8,7 +8,17 @@ export function createSessionStatusProjection(ports: {
   publishSessionUpdate(update: DeepChatInternalSessionUpdate): void
   sessionUiPort: SessionUiPort
 }): SessionStatusPublisherPorts['publishStatus'] {
-  return ({ sessionId, status, usage, updatedAt, changed }) => {
+  return ({
+    sessionId,
+    status,
+    usage,
+    updatedAt,
+    changed,
+    messageId,
+    requestId,
+    submissionId,
+    error
+  }) => {
     if (changed) {
       ports.publishEvent('sessions.status.changed', { sessionId, status, version: updatedAt })
       ports.publishEvent('sessions.updated', { sessionIds: [sessionId], reason: 'updated' })
@@ -18,6 +28,10 @@ export function createSessionStatusProjection(ports: {
       kind: 'status',
       status,
       updatedAt,
+      ...(messageId ? { messageId } : {}),
+      ...(requestId ? { requestId } : {}),
+      ...(submissionId ? { submissionId } : {}),
+      ...(error ? { error } : {}),
       ...(usage === undefined ? {} : { usage })
     })
     if (changed) ports.sessionUiPort.refreshSessionUi()

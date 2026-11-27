@@ -3029,7 +3029,19 @@
       "scheduleMonthDay": "Hari dalam bulan",
       "scheduleMinute": "Minit",
       "createEnabled": "Dayakan selepas dicipta",
-      "createEnabledHint": "Mula berjalan mengikut jadual sebaik sahaja dicipta."
+      "createEnabledHint": "Mula berjalan mengikut jadual sebaik sahaja dicipta.",
+      "session": "Sesi",
+      "sessionMode": "Mod sesi",
+      "newSessionEachRun": "Sesi baharu setiap larian",
+      "reuseSession": "Guna semula satu sesi",
+      "targetSession": "Sesi sasaran",
+      "createSessionOnFirstRun": "Cipta pada larian pertama",
+      "sessionUnavailable": "Sesi tidak tersedia",
+      "searchSessionPlaceholder": "Cari sesi…",
+      "clearSessionSearch": "Kosongkan carian",
+      "noMatchingSessions": "Tiada sesi yang sepadan dengan \"{query}\"",
+      "noReusableSessions": "Tiada sesi boleh guna semula lagi",
+      "loadMoreSessions": "Muat lagi"
     },
     "presets": {
       "custom": "Tersuai",

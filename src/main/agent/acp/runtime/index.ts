@@ -7,7 +7,11 @@ export {
   type PermissionResolver,
   type ProcessExitHandler
 } from './acpProcessManager'
-export { AcpSessionManager, type AcpSessionRecord } from './acpSessionManager'
+export {
+  AcpSessionManager,
+  type AcpSessionOpenOptions,
+  type AcpSessionRecord
+} from './acpSessionManager'
 export { AcpSessionPersistence } from './acpSessionPersistence'
 export {
   buildCapabilitySnapshot,

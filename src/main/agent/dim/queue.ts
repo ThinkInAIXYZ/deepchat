@@ -124,7 +124,8 @@ export class DimQueue {
           }
         : {}),
       representation: prepared.representation,
-      maxProviderRounds: options?.maxProviderRounds
+      maxProviderRounds: options?.maxProviderRounds,
+      ...(options?.requireIdle ? { requireIdle: true } : {})
     })
     // The owner may consume it before this response. Admission still succeeded.
     return (

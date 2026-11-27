@@ -10,6 +10,7 @@ import {
   CRON_JOB_RUNTIME_POLICIES,
   CRON_JOB_RUN_REASONS,
   CRON_JOB_RUN_STATUSES,
+  CRON_JOB_SESSION_MODES,
   CRON_JOB_STATUSES,
   CRON_JOBS_SCHEDULER_STATES
 } from '../../cronJobs'
@@ -24,6 +25,7 @@ export const cronJobOutputModeSchema = z.enum(CRON_JOB_OUTPUT_MODES)
 export const cronJobModelPolicySchema = z.enum(CRON_JOB_MODEL_POLICIES)
 export const cronJobRuntimePolicySchema = z.enum(CRON_JOB_RUNTIME_POLICIES)
 export const cronJobConcurrencyPolicySchema = z.enum(CRON_JOB_CONCURRENCY_POLICIES)
+export const cronJobSessionModeSchema = z.enum(CRON_JOB_SESSION_MODES)
 export const cronJobDeliveryTargetTypeSchema = z.enum(CRON_JOB_DELIVERY_TARGET_TYPES)
 export const cronJobDeliveryStatusSchema = z.enum(CRON_JOB_DELIVERY_STATUSES)
 export const cronJobsSchedulerStateSchema = z.enum(CRON_JOBS_SCHEDULER_STATES)
@@ -77,6 +79,8 @@ export const cronJobSchema = z.object({
   modelPolicy: cronJobModelPolicySchema,
   toolPolicy: cronJobRuntimePolicySchema,
   permissionPolicy: cronJobRuntimePolicySchema,
+  sessionMode: cronJobSessionModeSchema,
+  reuseSessionId: z.string().min(1).nullable(),
   runtime: cronJobRuntimeSchema,
   agentSnapshot: cronJobAgentSnapshotSchema.nullable(),
   delivery: cronJobDeliverySchema,
@@ -160,6 +164,8 @@ export const cronJobsUpsertInputSchema = cronJobSchema
     modelPolicy: cronJobModelPolicySchema.optional(),
     toolPolicy: cronJobRuntimePolicySchema.optional(),
     permissionPolicy: cronJobRuntimePolicySchema.optional(),
+    sessionMode: cronJobSessionModeSchema.optional(),
+    reuseSessionId: z.string().min(1).nullable().optional(),
     runtime: cronJobRuntimeSchema.optional(),
     agentSnapshot: cronJobAgentSnapshotSchema.nullable().optional(),
     delivery: cronJobDeliverySchema.optional()

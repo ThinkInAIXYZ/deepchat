@@ -2010,7 +2010,19 @@
       "scheduleMonthDay": "ئاي كۈنى",
       "scheduleMinute": "مىنۇت",
       "createEnabled": "قۇرۇلغاندىن كېيىن ئېچىش",
-      "createEnabledHint": "قۇرۇلغاندىن كېيىن دەرھال ۋاقىت جەدۋىلى بويىچە ئىجرا قىلىش."
+      "createEnabledHint": "قۇرۇلغاندىن كېيىن دەرھال ۋاقىت جەدۋىلى بويىچە ئىجرا قىلىش.",
+      "session": "سۆھبەت",
+      "sessionMode": "سۆھبەت ھالىتى",
+      "newSessionEachRun": "ھەر قېتىم يېڭى سۆھبەت قۇرۇش",
+      "reuseSession": "بىر سۆھبەتنى قايتا ئىشلىتىش",
+      "targetSession": "نىشان سۆھبەت",
+      "createSessionOnFirstRun": "تۇنجى ئىجرا قىلغاندا قۇرۇش",
+      "sessionUnavailable": "سۆھبەتنى ئىشلەتكىلى بولمايدۇ",
+      "searchSessionPlaceholder": "سۆھبەت ئىزدەش…",
+      "clearSessionSearch": "ئىزدەشنى تازىلاش",
+      "noMatchingSessions": "«{query}» غا ماس سۆھبەت تېپىلمىدى",
+      "noReusableSessions": "قايتا ئىشلەتكىلى بولىدىغان سۆھبەت يوق",
+      "loadMoreSessions": "تېخىمۇ كۆپ يۈكلەش"
     },
     "presets": {
       "custom": "خاس",

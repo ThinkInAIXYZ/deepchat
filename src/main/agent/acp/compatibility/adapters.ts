@@ -8,6 +8,7 @@ import type {
   AcpProjectionHandle,
   AcpProjectionSettlement,
   AcpRequestTracePort,
+  AcpStatusMeta,
   AcpViewManifestInput
 } from '@/agent/acp/instance/ports'
 import { accumulate } from '@/agent/shared/streamAccumulator'
@@ -39,7 +40,7 @@ export interface AcpCompatibilityProjectionAdapterOptions {
   messageStore: SessionTranscript
   tapeReconciliation: TapeReconciliationPort
   writeViewManifest: (input: AcpViewManifestInput) => void | Promise<void>
-  setStatus: (status: 'generating' | 'idle' | 'error') => void
+  setStatus: (status: 'generating' | 'idle' | 'error', meta?: AcpStatusMeta) => void
   output: DeepChatOutputPort
 }
 
@@ -48,8 +49,8 @@ export class AcpCompatibilityProjectionAdapter implements AcpCompatibilityProjec
 
   constructor(private readonly options: AcpCompatibilityProjectionAdapterOptions) {}
 
-  setStatus(status: 'generating' | 'idle' | 'error'): void {
-    this.options.setStatus(status)
+  setStatus(status: 'generating' | 'idle' | 'error', meta?: AcpStatusMeta): void {
+    this.options.setStatus(status, meta)
   }
 
   begin(input: Parameters<AcpCompatibilityProjectionPort['begin']>[0]): AcpProjectionHandle {

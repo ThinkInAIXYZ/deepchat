@@ -42,9 +42,24 @@ export type SessionListPageResult = {
   hasMore: boolean
 }
 
+const foldSearchText = (text: string): string => text.toLowerCase().toUpperCase()
+
 export class NewSessionsTable extends BaseTable {
+  private unicodeLowerRegistered = false
+
   constructor(db: Database.Database) {
     super(db, 'new_sessions')
+  }
+
+  private ensureUnicodeLower(): void {
+    if (this.unicodeLowerRegistered) {
+      return
+    }
+    // SQLite lower() only folds ASCII; toLowerCase().toUpperCase() also normalizes contextual forms like Greek sigma.
+    this.db.function('deepchat_session_lower', { deterministic: true }, (text: unknown) =>
+      typeof text === 'string' ? foldSearchText(text) : null
+    )
+    this.unicodeLowerRegistered = true
   }
 
   getCreateTableSQL(): string {
@@ -277,6 +292,7 @@ export class NewSessionsTable extends BaseTable {
     includeDrafts?: boolean
     includeSubagents?: boolean
     parentSessionId?: string
+    query?: string
   }): SessionListPageResult {
     const requestedLimit = Math.max(1, Math.min(options?.limit ?? 30, 100))
     let sql = 'SELECT * FROM new_sessions'
@@ -314,6 +330,16 @@ export class NewSessionsTable extends BaseTable {
     if (options?.parentSessionId !== undefined) {
       conditions.push('parent_session_id = ?')
       params.push(options.parentSessionId)
+    }
+
+    const normalizedQuery = options?.query?.trim()
+    if (normalizedQuery) {
+      this.ensureUnicodeLower()
+      const foldedQuery = foldSearchText(normalizedQuery)
+      conditions.push(
+        "(instr(deepchat_session_lower(title), ?) > 0 OR instr(deepchat_session_lower(COALESCE(project_dir, '')), ?) > 0)"
+      )
+      params.push(foldedQuery, foldedQuery)
     }
 
     if (options?.cursor) {

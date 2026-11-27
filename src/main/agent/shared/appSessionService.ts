@@ -116,6 +116,7 @@ export class AppSessionService implements AppSessionReadPort {
     includeDrafts?: boolean
     includeSubagents?: boolean
     parentSessionId?: string
+    query?: string
   }): {
     records: SessionRecord[]
     nextCursor: SessionPageCursor | null
@@ -130,7 +131,8 @@ export class AppSessionService implements AppSessionReadPort {
       isPinned: options?.isPinned,
       includeDrafts: options?.includeDrafts,
       includeSubagents: options?.includeSubagents,
-      parentSessionId: options?.parentSessionId
+      parentSessionId: options?.parentSessionId,
+      query: options?.query
     })
     const records = page.rows.map((row) => this.mapRowToRecord(row))
     const lastRecord = records.at(-1)

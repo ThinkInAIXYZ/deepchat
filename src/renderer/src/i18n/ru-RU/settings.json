@@ -1637,7 +1637,19 @@
       "scheduleMonthDay": "День месяца",
       "scheduleMinute": "Минута часа",
       "createEnabled": "Включить после создания",
-      "createEnabledHint": "Начать работу по расписанию сразу после создания."
+      "createEnabledHint": "Начать работу по расписанию сразу после создания.",
+      "session": "Сессия",
+      "sessionMode": "Режим сессии",
+      "newSessionEachRun": "Новая сессия при каждом запуске",
+      "reuseSession": "Использовать одну сессию повторно",
+      "targetSession": "Целевая сессия",
+      "createSessionOnFirstRun": "Создать при первом запуске",
+      "sessionUnavailable": "Сессия недоступна",
+      "searchSessionPlaceholder": "Поиск сессий…",
+      "clearSessionSearch": "Очистить поиск",
+      "noMatchingSessions": "Сессии по запросу «{query}» не найдены",
+      "noReusableSessions": "Нет доступных сессий для повторного использования",
+      "loadMoreSessions": "Загрузить ещё"
     },
     "presets": {
       "custom": "Настраиваемый",

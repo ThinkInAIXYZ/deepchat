@@ -1637,7 +1637,19 @@
       "scheduleMonthDay": "روز ماه",
       "scheduleMinute": "دقیقه",
       "createEnabled": "پس از ایجاد فعال شود",
-      "createEnabledHint": "بلافاصله پس از ایجاد، طبق زمان‌بندی اجرا شود."
+      "createEnabledHint": "بلافاصله پس از ایجاد، طبق زمان‌بندی اجرا شود.",
+      "session": "نشست",
+      "sessionMode": "حالت نشست",
+      "newSessionEachRun": "نشست جدید در هر اجرا",
+      "reuseSession": "استفاده مجدد از یک نشست",
+      "targetSession": "نشست هدف",
+      "createSessionOnFirstRun": "ایجاد در اولین اجرا",
+      "sessionUnavailable": "نشست در دسترس نیست",
+      "searchSessionPlaceholder": "جستجوی نشست‌ها…",
+      "clearSessionSearch": "پاک کردن جستجو",
+      "noMatchingSessions": "نشستی مطابق با «{query}» یافت نشد",
+      "noReusableSessions": "هنوز نشست قابل استفاده مجددی وجود ندارد",
+      "loadMoreSessions": "بارگذاری بیشتر"
     },
     "presets": {
       "custom": "سفارشی",

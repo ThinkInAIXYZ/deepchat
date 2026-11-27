@@ -115,9 +115,20 @@ function createHarness(
   const isPendingQueueResumeAvailable = vi.fn().mockResolvedValue(true)
   const resumePendingQueue = vi.fn().mockResolvedValue(true)
   const retryPendingQueueInput = vi.fn().mockResolvedValue({ accepted: true, started: false })
+  const isBusy = vi.fn().mockResolvedValue(false)
+  const prepare = vi.fn().mockResolvedValue(undefined)
   const runtimeSession =
     options.kind === 'acp'
-      ? ({ kind: 'acp', pending, toolInteractions, send, cancel, snapshot } as const)
+      ? ({
+          kind: 'acp',
+          pending,
+          toolInteractions,
+          send,
+          cancel,
+          snapshot,
+          isBusy,
+          prepare
+        } as const)
       : ({
           kind: 'deepchat',
           pending,
@@ -189,6 +200,8 @@ function createHarness(
     isPendingQueueResumeAvailable,
     resumePendingQueue,
     retryPendingQueueInput,
+    isBusy,
+    prepare,
     transcript,
     workdir,
     projection
@@ -941,5 +954,69 @@ describe('SessionTurn', () => {
     expect(consoleError).toHaveBeenCalledWith('[SessionTurn] initial send failed:', error)
     expect(harness.projection.scheduleTitleGeneration).not.toHaveBeenCalled()
     consoleError.mockRestore()
+  })
+
+  it('rejects sendMessage with SessionBusyError when rejectIfBusy sees generating, pending, or busy ACP state', async () => {
+    const generating = createHarness()
+    generating.pending.list.mockResolvedValue([])
+    generating.snapshot.mockResolvedValueOnce({
+      status: 'generating',
+      providerId: 'openai',
+      modelId: 'model-1',
+      permissionMode: 'full_access'
+    })
+    await expect(
+      generating.coordinator.sendMessage('s1', 'Cron prompt', { rejectIfBusy: true })
+    ).rejects.toMatchObject({ name: 'SessionBusyError' })
+    expect(generating.send).not.toHaveBeenCalled()
+
+    const pendingHarness = createHarness()
+    await expect(
+      pendingHarness.coordinator.sendMessage('s1', 'Cron prompt', { rejectIfBusy: true })
+    ).rejects.toMatchObject({ name: 'SessionBusyError' })
+    expect(pendingHarness.send).not.toHaveBeenCalled()
+
+    const acpBusy = createHarness({ kind: 'acp' })
+    acpBusy.pending.list.mockResolvedValue([])
+    acpBusy.isBusy.mockResolvedValueOnce(true)
+    await expect(
+      acpBusy.coordinator.sendMessage('s1', 'Cron prompt', { rejectIfBusy: true })
+    ).rejects.toMatchObject({ name: 'SessionBusyError' })
+    expect(acpBusy.send).not.toHaveBeenCalled()
+  })
+
+  it('forwards requireIdle and acpResumePolicy during strict ACP resume sends', async () => {
+    const harness = createHarness({ kind: 'acp', hasMessages: true })
+    harness.pending.list.mockResolvedValue([])
+
+    await harness.coordinator.sendMessage('s1', 'Cron prompt', {
+      rejectIfBusy: true,
+      requireAcpResume: true,
+      submissionId: 'cron-sub-1'
+    })
+
+    expect(harness.workdir.syncAcpSessionWorkdir).not.toHaveBeenCalled()
+    expect(harness.prepare).toHaveBeenCalledWith({
+      requireIdle: true,
+      requireResume: true,
+      requirePersistedSession: true
+    })
+    expect(harness.send).toHaveBeenCalledWith({
+      content: { text: 'Cron prompt', files: [] },
+      context: {
+        projectDir: '/repo',
+        maxProviderRounds: undefined,
+        requireIdle: true,
+        acpResumePolicy: {
+          requirePersistedSession: true,
+          discardOnFailure: true
+        }
+      },
+      queue: {
+        source: 'send',
+        projectDir: '/repo',
+        submissionId: 'cron-sub-1'
+      }
+    })
   })
 })
