@@ -152,6 +152,7 @@ describe('PR Check workflow contracts', () => {
       'pnpm run installRuntime:dim',
       'rustup toolchain install 1.98.1 --profile minimal',
       'pnpm run build:dim-host --dev',
+      'cargo test --manifest-path native/dim-host/Cargo.toml',
       'pnpm run test:main',
       'pnpm run test:harness:node'
     ])

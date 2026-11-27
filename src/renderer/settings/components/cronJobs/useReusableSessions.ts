@@ -351,6 +351,9 @@ export function useReusableSessions(options: UseReusableSessionsOptions) {
   const setPickerOpen = (open: boolean) => {
     pickerOpen = open
     if (!open) {
+      if (openReloadTimer !== null) {
+        staleOnOpen = true
+      }
       cancelOpenReload()
       return
     }
