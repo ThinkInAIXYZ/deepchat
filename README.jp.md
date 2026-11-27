@@ -490,6 +490,13 @@ DeepChatはメッセージアプリからリモート操作できるため、デ
     </td>
   </tr>
 
+  <tr align="center">
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/llmtr.svg" width="50" height="50" alt="LLMTR Icon"><br/>
+      <a href="https://llmtr.com/?utm_source=deepchat">LLMTR</a>
+    </td>
+  </tr>
+
 </table>
 
 ### OpenAI/Gemini/Anthropic API形式の任意のモデルプロバイダーと互換性あり
