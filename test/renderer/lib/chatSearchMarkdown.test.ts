@@ -127,6 +127,19 @@ describe('chat search and rendered Markdown', () => {
     await expectSearchMatches(content, 'TypeScript', ['pre', 'p'], 'success', 'TypeScript')
   })
 
+  it('indexes the displayed label of an incomplete link and the formatted label once finished', async () => {
+    const loading = 'before <a href="https://example.com"><b>needle</b>'
+    const complete = loading + '</a>'
+    await expectSearchMatches(loading, '<b>needle</b>', ['p'], 'loading')
+    await expectSearchMatches(complete, '<b>needle</b>', [])
+    await expectSearchMatches(complete, 'needle', ['b'])
+    await expectSearchMatches(loading, 'https://example.com', [], 'loading')
+  })
+
+  it('keeps a citation number and the same number in prose in rendered search order', async () => {
+    await expectSearchMatches('See [123] and 123.', '123', ['.reference-node', 'p'])
+  })
+
   it('uses the live parse, independently of a cached final parse of the same string', async () => {
     await expectSearchMatches('hello **wor', 'hello wor', [])
     await expectSearchMatches('hello **wor', 'hello wor', ['p'], 'loading')

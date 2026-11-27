@@ -588,6 +588,7 @@ const getMarkdownSearchChunks = (source: string, final: boolean): string[] => {
   const visit = (node: ParsedNode): void => {
     const {
       children,
+      id,
       items,
       header,
       rows,
@@ -609,6 +610,7 @@ const getMarkdownSearchChunks = (source: string, final: boolean): string[] => {
       attrs
     } = node as {
       children?: ParsedNode[]
+      id?: string
       items?: ParsedNode[]
       header?: ParsedNode
       rows?: ParsedNode[]
@@ -641,8 +643,12 @@ const getMarkdownSearchChunks = (source: string, final: boolean): string[] => {
         inline += code ?? ''
         return
       case 'link':
-        if (children?.length) children.forEach(visit)
+        // Incomplete links render a literal label until the nested nodes are ready.
+        if (!loading && children?.length) children.forEach(visit)
         else if (typeof text === 'string') inline += text
+        return
+      case 'reference':
+        if (typeof id === 'string') inline += id
         return
       case 'image':
       case 'footnote_reference':
