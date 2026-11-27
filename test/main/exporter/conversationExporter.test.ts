@@ -60,3 +60,36 @@ describe('buildConversationExportContent html', () => {
     expect(html).not.toMatch(/\{\{(?:attachmentsSection|linksSection|assistantBlocks|caption)\}\}/)
   })
 })
+
+describe('buildConversationExportContent markdown', () => {
+  it('keeps nested fences inside reasoning and tool output without consuming the answer', () => {
+    const nested = ['before', '````js', 'const value = 42', '````', 'after'].join('\n')
+    const md = buildConversationExportContent(
+      conversation,
+      [
+        {
+          role: 'assistant',
+          timestamp: 2,
+          content: [
+            { type: 'reasoning_content', content: nested },
+            { type: 'artifact-thinking', content: nested },
+            { type: 'tool_call', tool_call: { name: 'tool', params: nested, response: nested } },
+            { type: 'content', content: 'The final answer is normal Markdown.' }
+          ]
+        }
+      ] as never,
+      'markdown'
+    )
+
+    const fenced = ['\n`````\n', nested, '\n`````\n'].join('')
+    const jsonFenced = fenced.replace('\n`````\n', '\n`````json\n')
+    expect(md.split(fenced)).toHaveLength(4)
+    expect(md).toContain(jsonFenced)
+    expect(md).toContain(`${fenced}\nThe final answer is normal Markdown.\n\n---`)
+  })
+
+  it('keeps three backticks and the JSON info string for ordinary tool parameters', () => {
+    const md = buildConversationExportContent(conversation, messages('ordinary'), 'markdown')
+    expect(md).toContain('\n```json\n{\n  "t": "ordinary"\n}\n```\n')
+  })
+})
