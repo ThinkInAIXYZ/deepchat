@@ -14,6 +14,43 @@ import {
 } from '@/lib/chatSearch'
 
 describe('chatSearch', () => {
+  it('uses original Unicode offsets when case folding changes the text length', () => {
+    const container = document.createElement('div')
+    container.innerHTML = '<div data-message-id="m1"><p>İ hello world</p></div>'
+
+    const [match] = applyChatSearchHighlights(container, 'hello')
+    expect(match?.textContent).toBe('hello')
+    expect(container.textContent).toBe('İ hello world')
+  })
+
+  it('counts and activates visible Markdown matches across inline elements', () => {
+    const message = {
+      id: 'm1',
+      content: [
+        {
+          type: 'content',
+          content: 'hello **world** [Docs](https://example.org/needle) hello *world*'
+        }
+      ]
+    }
+    const root = document.createElement('div')
+    root.innerHTML =
+      '<div data-message-id="m1"><p class="markdown-renderer-root">hello <strong>world</strong> <a href="https://example.org/needle">Docs</a> hello <em>world</em></p></div>'
+
+    expect(collectChatSearchResults([message], 'needle')).toEqual([])
+    expect(collectChatSearchResults([message], 'Docs')).toEqual([
+      { messageId: 'm1', matchIndex: 0 }
+    ])
+    const results = collectChatSearchResults([message], 'hello world')
+    expect(results).toEqual([0, 1].map((matchIndex) => ({ messageId: 'm1', matchIndex })))
+    expect(applyChatSearchHighlights(root, 'hello world')).toHaveLength(2)
+    expect(setActiveChatSearchResult(root, results[1], { scroll: false })?.textContent).toBe(
+      'hello '
+    )
+    expect(root.querySelector('em mark')?.dataset.chatSearchActive).toBe('true')
+    expect(root.querySelector('strong mark')?.dataset.chatSearchActive).toBeUndefined()
+  })
+
   it('keeps reference labels, search counts and active DOM marks in the same order', () => {
     const blocks: DisplayUserMessageInlineBlock[] = [
       {

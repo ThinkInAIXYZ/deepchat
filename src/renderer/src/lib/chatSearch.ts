@@ -1,4 +1,18 @@
-import type { DisplayUserMessageContent } from '@/features/chat-page/model/displayMessage'
+import katex from 'katex'
+import {
+  getMarkdown,
+  isHtmlTagBlocked,
+  parseMarkdownToStructure,
+  sanitizeHtmlAttrs,
+  sanitizeHtmlContent,
+  type ParsedNode
+} from 'markstream-vue'
+import { generatePart } from '@/composables/useArtifacts'
+import { normalizeMarkstreamCodeFenceLanguages } from '@/lib/markstreamLanguage'
+import type {
+  DisplayAssistantMessageBlock,
+  DisplayUserMessageContent
+} from '@/features/chat-page/model/displayMessage'
 import { getReferencePathLabels } from '@shared/messageInlineItems'
 import {
   getVisibleMentionLabel,
@@ -9,6 +23,12 @@ const HIGHLIGHT_SELECTOR = '[data-chat-search-match]'
 const ACTIVE_HIGHLIGHT_SELECTOR = '[data-chat-search-active]'
 const HIGHLIGHTED_QUERY_ATTRIBUTE = 'data-chat-search-highlighted-query'
 const MESSAGE_ROW_SELECTOR = '[data-message-id]'
+const MARKDOWN_BLOCK_SELECTOR =
+  'p, h1, h2, h3, h4, h5, h6, li, td, th, pre, dt, dd, [data-markstream-math], .admonition-title'
+const MARKDOWN_CHROME_SELECTOR =
+  '.code-header-main, .code-header-title, .code-header-caption, .code-diff-stats, .mermaid-block-header, .footnote-reference, .footnote-anchor, .math-inline__loading, .math-loading-overlay, .katex-mathml'
+const continuationHighlights = new WeakSet<HTMLElement>()
+const highlightParts = new WeakMap<HTMLElement, HTMLElement[]>()
 type HighlightObserverState = {
   observer: MutationObserver
   frame: number | null
@@ -18,19 +38,23 @@ type HighlightObserverState = {
 
 const highlightedRowObservers = new WeakMap<ParentNode, HighlightObserverState>()
 
+// A match spanning inline elements is represented by its first mark.
 export type ChatSearchMatch = HTMLElement
 export type ChatSearchResult = {
   messageId: string
   matchIndex: number
 }
 
-const isIgnoredElement = (element: HTMLElement | null): boolean => {
+const isIgnoredElement = (element: Element | null): boolean => {
   if (
     element?.closest(
       'input, textarea, select, [contenteditable="true"], [data-chat-search-exclude], [data-chat-search-match]'
     )
   )
     return true
+  if (element?.closest('.markdown-renderer-root') && element.closest(MARKDOWN_CHROME_SELECTOR)) {
+    return true
+  }
   const button = element?.closest('button')
   // Only message labels opt in. Tool/action buttons and composer controls stay excluded.
   return Boolean(button && !button.contains(element?.closest('[data-chat-search-text]') ?? null))
@@ -40,7 +64,21 @@ const isElementVisible = (element: HTMLElement | null): boolean => {
   let currentElement = element
 
   while (currentElement) {
-    if (currentElement.hidden || currentElement.getAttribute('aria-hidden') === 'true') {
+    // KaTeX hides the visual copy from assistive technology when it also renders
+    // MathML. Search only the visual copy, not its duplicate accessible markup.
+    if (
+      currentElement.matches('details:not([open])') &&
+      !currentElement.querySelector(':scope > summary')?.contains(element)
+    ) {
+      return false
+    }
+    const visibleKatex =
+      currentElement.classList.contains('katex-html') &&
+      currentElement.closest('[data-markstream-math]')
+    if (
+      currentElement.hidden ||
+      (currentElement.getAttribute('aria-hidden') === 'true' && !visibleKatex)
+    ) {
       return false
     }
 
@@ -76,22 +114,18 @@ const isInsideSearchableMessageContent = (element: HTMLElement): boolean => {
   )
 }
 
-const collectSearchableTextNodes = (root: ParentNode): Text[] => {
+const collectSearchableTextNodes = (root: ParentNode): Array<Text | HTMLBRElement> => {
   if (typeof document === 'undefined') {
     return []
   }
 
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, {
     acceptNode(node) {
-      if (!(node instanceof Text)) {
-        return NodeFilter.FILTER_REJECT
+      if (!(node instanceof Text || node instanceof HTMLBRElement)) {
+        return NodeFilter.FILTER_SKIP
       }
 
-      if (!node.nodeValue?.trim()) {
-        return NodeFilter.FILTER_REJECT
-      }
-
-      const parentElement = node.parentElement
+      const parentElement = node instanceof Text ? node.parentElement : node
       if (
         !parentElement ||
         isIgnoredElement(parentElement) ||
@@ -105,10 +139,10 @@ const collectSearchableTextNodes = (root: ParentNode): Text[] => {
     }
   })
 
-  const nodes: Text[] = []
+  const nodes: Array<Text | HTMLBRElement> = []
   let currentNode = walker.nextNode()
   while (currentNode) {
-    if (currentNode instanceof Text) {
+    if (currentNode instanceof Text || currentNode instanceof HTMLBRElement) {
       nodes.push(currentNode)
     }
     currentNode = walker.nextNode()
@@ -221,12 +255,7 @@ const highlightRow = (row: HTMLElement, query: string): void => {
   clearHighlightsInRoot(row)
   row.removeAttribute(HIGHLIGHTED_QUERY_ATTRIBUTE)
 
-  collectSearchableTextNodes(row).forEach((node) => {
-    const fragment = buildHighlightedFragment(node.nodeValue ?? '', query)
-    if (fragment && node.parentNode) {
-      node.parentNode.replaceChild(fragment, node)
-    }
-  })
+  highlightSearchableText(row, query)
 
   row.setAttribute(HIGHLIGHTED_QUERY_ATTRIBUTE, query)
 }
@@ -303,41 +332,123 @@ const observeHighlightedRows = (root: ParentNode, query: string): void => {
   highlightedRowObservers.set(root, state)
 }
 
-const buildHighlightedFragment = (value: string, query: string): DocumentFragment | null => {
-  const fragment = document.createDocumentFragment()
+type SearchRange = { start: number; end: number }
+
+const findSearchRanges = (value: string, lowerQuery: string): SearchRange[] => {
   const lowerValue = value.toLowerCase()
+  let index = lowerValue.indexOf(lowerQuery)
+  if (index === -1) return []
+
+  // toLowerCase() can expand a character (e.g. İ becomes i + combining dot).
+  // Match folded text, but mark the original UTF-16 offsets.
+  let offsets: SearchRange[] | undefined
+  if (lowerValue.length !== value.length) {
+    offsets = []
+    let original = 0
+    for (const character of value) {
+      const span = { start: original, end: original + character.length }
+      const foldedWidth = character.toLowerCase().length
+      for (let unit = 0; unit < foldedWidth; unit += 1) {
+        // Keep code-unit positions for unchanged-width characters.
+        offsets.push(
+          foldedWidth === character.length
+            ? { start: original + unit, end: original + unit + 1 }
+            : span
+        )
+      }
+      original = span.end
+    }
+  }
+
+  const ranges: SearchRange[] = []
+  while (index !== -1) {
+    const end = index + lowerQuery.length
+    const startInOriginal = offsets?.[index]?.start ?? index
+    const endInOriginal = offsets?.[end - 1]?.end ?? end
+    if (startInOriginal >= (ranges.at(-1)?.end ?? 0)) {
+      ranges.push({ start: startInOriginal, end: endInOriginal })
+    }
+    index = lowerValue.indexOf(lowerQuery, end)
+  }
+  return ranges
+}
+
+const highlightTextGroup = (nodes: Text[], lowerQuery: string): void => {
+  const ranges = findSearchRanges(nodes.map((node) => node.data).join(''), lowerQuery)
+  if (!ranges.length) return
+
+  const parts: HTMLElement[][] = ranges.map(() => [])
+  let rangeIndex = 0
+  let nodeOffset = 0
+  for (const node of nodes) {
+    const endOffset = nodeOffset + node.data.length
+    let fragment: DocumentFragment | undefined
+    let offset = 0
+    while (rangeIndex < ranges.length && ranges[rangeIndex].start < endOffset) {
+      const range = ranges[rangeIndex]
+      const start = Math.max(range.start - nodeOffset, 0)
+      const end = Math.min(range.end - nodeOffset, node.data.length)
+      if (start < end) {
+        fragment ??= document.createDocumentFragment()
+        if (offset < start) fragment.append(node.data.slice(offset, start))
+
+        const mark = document.createElement('mark')
+        mark.dataset.chatSearchMatch = 'true'
+        mark.className = 'chat-search-highlight'
+        mark.textContent = node.data.slice(start, end)
+        parts[rangeIndex].push(mark)
+        fragment.append(mark)
+        offset = end
+      }
+      if (range.end > endOffset) break
+      rangeIndex += 1
+    }
+    if (fragment) {
+      if (offset < node.data.length) fragment.append(node.data.slice(offset))
+      node.parentNode?.replaceChild(fragment, node)
+    }
+    nodeOffset = endOffset
+  }
+
+  for (const [first, ...rest] of parts) {
+    if (first && rest.length) {
+      highlightParts.set(first, rest)
+      rest.forEach((mark) => continuationHighlights.add(mark))
+    }
+  }
+}
+
+const highlightSearchableText = (root: ParentNode, query: string): void => {
   const lowerQuery = query.toLowerCase()
-  let searchIndex = 0
-  let matchIndex = lowerValue.indexOf(lowerQuery)
-  let hasMatch = false
+  let group: Text[] = []
+  let previousBlock: Element | null = null
+  const flush = () => {
+    if (group.length) highlightTextGroup(group, lowerQuery)
+    group = []
+  }
 
-  while (matchIndex !== -1) {
-    hasMatch = true
-
-    if (matchIndex > searchIndex) {
-      fragment.appendChild(document.createTextNode(value.slice(searchIndex, matchIndex)))
+  for (const node of collectSearchableTextNodes(root)) {
+    if (node instanceof HTMLBRElement) {
+      flush()
+      previousBlock = null
+      continue
     }
 
-    const highlight = document.createElement('mark')
-    highlight.dataset.chatSearchMatch = 'true'
-    highlight.className = 'chat-search-highlight'
-    highlight.textContent = value.slice(matchIndex, matchIndex + query.length)
-    fragment.appendChild(highlight)
-
-    searchIndex = matchIndex + query.length
-    matchIndex = lowerValue.indexOf(lowerQuery, searchIndex)
+    const parent = node.parentElement
+    const block = parent?.closest('.markdown-renderer-root')
+      ? parent.closest(MARKDOWN_BLOCK_SELECTOR)
+      : null
+    if (!block || block !== previousBlock) flush()
+    if (node.data.trim() || (block && node.data.length)) group.push(node)
+    previousBlock = block
   }
-
-  if (!hasMatch) {
-    return null
-  }
-
-  if (searchIndex < value.length) {
-    fragment.appendChild(document.createTextNode(value.slice(searchIndex)))
-  }
-
-  return fragment
+  flush()
 }
+
+const getSearchMatches = (root: ParentNode): HTMLElement[] =>
+  Array.from(root.querySelectorAll<HTMLElement>(HIGHLIGHT_SELECTOR)).filter(
+    (mark) => !continuationHighlights.has(mark)
+  )
 
 const getSearchRootElement = (root: ParentNode | null | undefined): Element | null => {
   if (!root) return null
@@ -416,37 +527,236 @@ export const applyChatSearchHighlights = (
   }
 
   const rootsToHighlight = getRowsToHighlight(root, normalizedQuery, isSameQuery)
-  rootsToHighlight.forEach((highlightRoot) => {
-    const searchableNodes = collectSearchableTextNodes(highlightRoot)
-    searchableNodes.forEach((node) => {
-      const value = node.nodeValue ?? ''
-      const fragment = buildHighlightedFragment(value, normalizedQuery)
-      if (!fragment || !node.parentNode) {
-        return
-      }
-
-      node.parentNode.replaceChild(fragment, node)
-    })
-  })
+  rootsToHighlight.forEach((highlightRoot) =>
+    highlightSearchableText(highlightRoot, normalizedQuery)
+  )
 
   markRowsHighlighted(rootsToHighlight, normalizedQuery)
   setAppliedSearchQuery(root, normalizedQuery)
   observeHighlightedRows(root, normalizedQuery)
-  return Array.from(root.querySelectorAll<HTMLElement>(HIGHLIGHT_SELECTOR))
+  return getSearchMatches(root)
 }
 
-const countOccurrences = (value: string, query: string): number => {
-  const normalizedQuery = query.trim().toLowerCase()
-  if (!normalizedQuery) return 0
+let markdownParser: ReturnType<typeof getMarkdown> | undefined
+// Search can rerun on each keystroke. Reuse a bounded set of recent projections.
+const markdownSearchCache = new Map<string, string[]>()
 
-  const normalizedValue = value.toLowerCase()
-  let count = 0
-  let index = normalizedValue.indexOf(normalizedQuery)
-  while (index !== -1) {
-    count += 1
-    index = normalizedValue.indexOf(normalizedQuery, index + normalizedQuery.length)
+const getMarkdownSearchChunks = (source: string, final: boolean): string[] => {
+  const cacheKey = (final ? 'final:' : 'live:') + source
+  const cached = markdownSearchCache.get(cacheKey)
+  if (cached) return cached
+
+  const chunks: string[] = []
+  let inline = ''
+  const flush = () => {
+    if (inline) chunks.push(inline)
+    inline = ''
   }
-  return count
+
+  const visitHtml = (html: string, block: boolean) => {
+    // Use the renderer's safe policy and inspect a detached, inert fragment.
+    // Never attach message HTML or use attribute values as searchable text.
+    const template = document.createElement('template')
+    template.innerHTML = sanitizeHtmlContent(html, 'safe')
+    const walk = (parent: ParentNode, grouped: boolean) => {
+      for (const node of Array.from(parent.childNodes)) {
+        if (node.nodeType === Node.TEXT_NODE) {
+          if (grouped || node.textContent?.trim()) inline += node.textContent ?? ''
+          if (!grouped) flush()
+        } else if (node instanceof Element) {
+          if (
+            node.matches('[hidden], [aria-hidden="true"]') ||
+            isIgnoredElement(node) ||
+            node.matches(MARKDOWN_CHROME_SELECTOR)
+          ) {
+            continue
+          }
+          const boundary = node.matches(MARKDOWN_BLOCK_SELECTOR)
+          if (boundary || node.tagName === 'BR') flush()
+          const collapsed = node.tagName === 'DETAILS' && !node.hasAttribute('open')
+          const body = collapsed ? node.querySelector(':scope > summary') : node
+          if (body) walk(body, grouped || boundary)
+          if (boundary) flush()
+        }
+      }
+    }
+    if (block) flush()
+    walk(template.content, !block)
+    if (block) flush()
+  }
+
+  const visit = (node: ParsedNode): void => {
+    const {
+      children,
+      id,
+      items,
+      header,
+      rows,
+      cells,
+      term,
+      definition,
+      content,
+      code,
+      name,
+      text,
+      kind,
+      title,
+      collapsible,
+      open,
+      loading,
+      autoClosed,
+      markup,
+      tag,
+      attrs
+    } = node as {
+      children?: ParsedNode[]
+      id?: string
+      items?: ParsedNode[]
+      header?: ParsedNode
+      rows?: ParsedNode[]
+      cells?: ParsedNode[]
+      term?: ParsedNode[]
+      definition?: ParsedNode[]
+      content?: string
+      code?: string
+      name?: string
+      text?: string
+      kind?: string
+      title?: string
+      collapsible?: boolean
+      open?: boolean
+      loading?: boolean
+      autoClosed?: boolean
+      markup?: string
+      tag?: string
+      attrs?: [string, string][]
+    }
+
+    switch (node.type) {
+      case 'text':
+        if (typeof content === 'string') inline += content
+        return
+      case 'emoji':
+        if (typeof name === 'string') inline += name
+        return
+      case 'inline_code':
+        inline += code ?? ''
+        return
+      case 'link':
+        // Incomplete links render a literal label until the nested nodes are ready.
+        if (!loading && children?.length) children.forEach(visit)
+        else if (typeof text === 'string') inline += text
+        return
+      case 'reference':
+        if (typeof id === 'string') inline += id
+        return
+      case 'image':
+      case 'footnote_reference':
+      case 'footnote_anchor':
+        return
+      case 'math_inline':
+      case 'math_block': {
+        flush()
+        if (loading || typeof content !== 'string') return
+        const template = document.createElement('template')
+        // Index the visible glyphs. TeX commands and the hidden MathML
+        // annotation are not visible text and cannot be highlighted.
+        try {
+          template.innerHTML = katex.renderToString(content, {
+            displayMode: node.type === 'math_block' || markup === '$$',
+            output: 'html',
+            throwOnError: false,
+            strict: 'ignore'
+          })
+          const mathText = template.content.textContent
+          if (mathText) chunks.push(mathText)
+        } catch {
+          // Markstream falls back to literal source if KaTeX cannot render.
+          if (node.raw) chunks.push(node.raw)
+        }
+        return
+      }
+      case 'html_inline':
+      case 'html_block':
+        if (node.type === 'html_inline' && loading && !autoClosed) inline += content ?? ''
+        else if (
+          node.type === 'html_block' &&
+          tag &&
+          children?.length &&
+          !isHtmlTagBlocked(tag, 'safe')
+        ) {
+          const attributes = sanitizeHtmlAttrs(Object.fromEntries(attrs ?? []), 'safe', tag)
+          if (Object.hasOwn(attributes, 'hidden') || attributes['aria-hidden'] === 'true') return
+          flush()
+          const visibleChildren =
+            tag === 'details' && !Object.hasOwn(attributes, 'open')
+              ? children
+                  .filter((child) => child.type === 'html_block' && child.tag === 'summary')
+                  .slice(0, 1)
+              : children
+          visibleChildren.forEach(visit)
+          flush()
+        } else if (typeof content === 'string') visitHtml(content, node.type === 'html_block')
+        return
+      case 'admonition': {
+        flush()
+        const label = kind || 'note'
+        chunks.push(title?.trim() ? title : label.charAt(0).toUpperCase() + label.slice(1))
+        if (!(collapsible && open === false)) children?.forEach(visit)
+        flush()
+        return
+      }
+      case 'definition_item':
+        flush()
+        term?.forEach(visit)
+        flush()
+        definition?.forEach(visit)
+        flush()
+        return
+      case 'code_block':
+        flush()
+        if (code) chunks.push(code)
+        return
+      case 'hardbreak':
+      case 'thematic_break':
+        flush()
+        return
+    }
+
+    // Walk structural child fields, including new containers. Never fall back
+    // to raw source, URLs, attributes, or arbitrary custom component strings.
+    const block = [
+      'paragraph',
+      'heading',
+      'blockquote',
+      'list_item',
+      'table_cell',
+      'footnote'
+    ].includes(node.type)
+    if (block) flush()
+    if (node.type === 'heading' && !children?.length && typeof text === 'string') inline += text
+    if (header) visit(header)
+    for (const group of [children, items, rows, cells]) {
+      if (Array.isArray(group)) group.forEach(visit)
+    }
+    if (block) flush()
+  }
+
+  markdownParser ??= getMarkdown('chat-search')
+  parseMarkdownToStructure(normalizeMarkstreamCodeFenceLanguages(source), markdownParser, {
+    final
+  }).forEach(visit)
+  flush()
+
+  // Do not retain large streamed snapshots in the cache.
+  if (source.length <= 16_384) {
+    if (markdownSearchCache.size >= 200) {
+      const oldest = markdownSearchCache.keys().next().value
+      if (oldest !== undefined) markdownSearchCache.delete(oldest)
+    }
+    markdownSearchCache.set(cacheKey, chunks)
+  }
+  return chunks
 }
 
 const isDisplayUserMessageContent = (content: unknown): content is DisplayUserMessageContent => {
@@ -458,7 +768,7 @@ const isDisplayUserMessageContent = (content: unknown): content is DisplayUserMe
   return typeof value.text === 'string'
 }
 
-const appendDisplayContentText = (content: unknown, output: string[]): void => {
+const appendDisplayContentText = (content: unknown, output: string[], search = false): void => {
   if (!content || typeof content !== 'object') return
 
   if (Array.isArray(content)) {
@@ -472,7 +782,24 @@ const appendDisplayContentText = (content: unknown, output: string[]): void => {
         return
       }
       if (typeof record.content === 'string') {
-        output.push(record.content)
+        if (search && record.type === 'content') {
+          const { status, artifact } = record as DisplayAssistantMessageBlock
+          if (artifact) {
+            // LegacyArtifactSource displays a title and a separate literal code block.
+            output.push(artifact.title, record.content)
+            return
+          }
+          const streaming = status === 'pending' || status === 'loading'
+          for (const part of generatePart(record.content, status)) {
+            if (part.type === 'text') {
+              output.push(...getMarkdownSearchChunks(part.content, !streaming && !part.loading))
+            } else if (part.type === 'artifact' && part.artifact) {
+              output.push(part.artifact.title, part.content)
+            }
+          }
+        } else {
+          output.push(record.content)
+        }
       }
     })
     return
@@ -526,16 +853,16 @@ export const collectChatSearchResults = (
   messages: Array<{ id: string; content: unknown }>,
   query: string
 ): ChatSearchResult[] => {
-  const normalizedQuery = query.trim()
+  const normalizedQuery = query.trim().toLowerCase()
   if (!normalizedQuery) return []
 
   const results: ChatSearchResult[] = []
   for (const message of messages) {
     const chunks: string[] = []
-    appendDisplayContentText(message.content, chunks)
+    appendDisplayContentText(message.content, chunks, true)
     let matchIndex = 0
     for (const chunk of chunks) {
-      const count = countOccurrences(chunk, normalizedQuery)
+      const count = findSearchRanges(chunk, normalizedQuery).length
       for (let index = 0; index < count; index += 1) {
         results.push({ messageId: message.id, matchIndex })
         matchIndex += 1
@@ -545,6 +872,17 @@ export const collectChatSearchResults = (
   return results
 }
 
+const setMatchActive = (match: HTMLElement, active: boolean): void => {
+  for (const mark of [match, ...(highlightParts.get(match) ?? [])]) {
+    if (active) {
+      mark.dataset.chatSearchActive = 'true'
+    } else {
+      mark.removeAttribute('data-chat-search-active')
+    }
+    mark.classList.toggle('chat-search-highlight--active', active)
+  }
+}
+
 export const setActiveChatSearchResult = (
   root: ParentNode | null | undefined,
   target: ChatSearchResult | null,
@@ -552,7 +890,7 @@ export const setActiveChatSearchResult = (
 ): ChatSearchMatch | null => {
   if (!root || !target) return null
 
-  const matches = Array.from(root.querySelectorAll<HTMLElement>(HIGHLIGHT_SELECTOR))
+  const matches = getSearchMatches(root)
   const seenByMessageId = new Map<string, number>()
   let activeMatch: ChatSearchMatch | null = null
 
@@ -565,14 +903,8 @@ export const setActiveChatSearchResult = (
     }
 
     const isActive = messageId === target.messageId && indexInMessage === target.matchIndex
-    if (isActive) {
-      match.dataset.chatSearchActive = 'true'
-      match.classList.add('chat-search-highlight--active')
-      activeMatch = match
-    } else {
-      match.removeAttribute('data-chat-search-active')
-      match.classList.remove('chat-search-highlight--active')
-    }
+    setMatchActive(match, isActive)
+    if (isActive) activeMatch = match
   }
 
   if (activeMatch && options.scroll !== false) {
@@ -591,15 +923,7 @@ export const setActiveChatSearchMatch = (
   index: number,
   options: { scroll?: boolean; behavior?: ScrollBehavior } = {}
 ): ChatSearchMatch | null => {
-  matches.forEach((match, matchIndex) => {
-    if (matchIndex === index) {
-      match.dataset.chatSearchActive = 'true'
-      match.classList.add('chat-search-highlight--active')
-    } else {
-      match.removeAttribute('data-chat-search-active')
-      match.classList.remove('chat-search-highlight--active')
-    }
-  })
+  matches.forEach((match, matchIndex) => setMatchActive(match, matchIndex === index))
 
   const activeMatch = matches[index] ?? null
   if (activeMatch && options.scroll !== false) {
