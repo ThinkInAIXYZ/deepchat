@@ -93,6 +93,7 @@
       "updateFailed": "Không thể cập nhật chế độ công cụ."
     },
     "sendFailed": "Không gửi được tin nhắn",
+    "sendUnconfirmed": "Chưa thể xác nhận tin nhắn đã được gửi hay chưa",
     "fileUploadFailed": "Tệp đính kèm không thành công",
     "fileUploadFailedDesc": "Không thể xử lý tệp {count}: {names}",
     "fileUploadFailedMore": " và {count} khác",

@@ -93,6 +93,7 @@
       "updateFailed": "無法更新工具模式。"
     },
     "sendFailed": "訊息傳送失敗",
+    "sendUnconfirmed": "暫時無法確認訊息是否已傳送",
     "fileUploadFailed": "附件處理失敗",
     "fileUploadFailedDesc": "無法處理 {count} 個文件：{names}",
     "fileUploadFailedMore": " 等 {count} 個",

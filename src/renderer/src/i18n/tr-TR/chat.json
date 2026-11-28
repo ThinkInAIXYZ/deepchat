@@ -93,6 +93,7 @@
       "updateFailed": "Araç modu güncellenemedi."
     },
     "sendFailed": "Mesaj gönderilmedi",
+    "sendUnconfirmed": "Mesajın gönderilip gönderilmediği doğrulanamadı",
     "fileUploadFailed": "Ek başarısız oldu",
     "fileUploadFailedDesc": "{count} dosyaları işlenemedi: {names}",
     "fileUploadFailedMore": "ve {count} daha",

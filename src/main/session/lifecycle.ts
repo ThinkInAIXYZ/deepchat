@@ -5,7 +5,6 @@ import type {
   CreateDetachedSessionInput,
   CreateSessionInput,
   DeepChatSubagentMeta,
-  MessageStartResult,
   PermissionMode,
   SessionRecord,
   SessionWithState
@@ -14,6 +13,7 @@ import type {
   SessionAssignmentPolicyPort,
   SessionAssignmentWorkdirPort,
   SessionInitialTurnPort,
+  SessionLifecycleCreateResult,
   SessionLifecycleDeletionPort,
   SessionLifecycleDesktopPort,
   SessionLifecyclePort,
@@ -139,7 +139,7 @@ export class SessionLifecycle implements SessionLifecyclePort {
     input: CreateSessionInput,
     webContentsId: number,
     options?: { signal?: AbortSignal }
-  ): Promise<SessionWithState & { initialTurn?: MessageStartResult }> {
+  ): Promise<SessionLifecycleCreateResult> {
     const assignment = await this.dependencies.assignmentPolicy.resolveCreateAssignment({
       agentId: input.agentId || 'deepchat',
       providerId: input.providerId,
@@ -195,7 +195,7 @@ export class SessionLifecycle implements SessionLifecyclePort {
     webContentsId: number,
     options: { signal?: AbortSignal } | undefined,
     assignment: ResolvedSessionAssignment
-  ): Promise<SessionWithState & { initialTurn?: MessageStartResult }> {
+  ): Promise<SessionLifecycleCreateResult> {
     const { agentId, providerId, modelId, projectDir } = assignment
     logger.info(`[SessionLifecycle] createSession agent=${agentId} webContentsId=${webContentsId}`)
     const normalizedInput = normalizeCreateSessionInput(input)
@@ -220,9 +220,11 @@ export class SessionLifecycle implements SessionLifecyclePort {
       webContentsId
     })
 
+    let createdSession: SessionWithState | undefined
     try {
       const result = await this.materializeCreatedSession(sessionId, assignment)
       options?.signal?.throwIfAborted()
+      createdSession = result
 
       const initialTurn = await this.dependencies.initialTurn.startInitialTurn({
         sessionId,
@@ -235,7 +237,14 @@ export class SessionLifecycle implements SessionLifecyclePort {
       })
       return { ...result, ...(initialTurn ? { initialTurn } : {}) }
     } catch (error) {
-      if (!input.draftSessionId) await this.cleanupFailedNewSession(sessionId, webContentsId)
+      const preserve = await this.hasInitialTurnInput(sessionId)
+      // A lost first-turn acknowledgement must not make the caller create another session.
+      if (createdSession && preserve) {
+        return { ...createdSession, initialTurnUnconfirmed: true }
+      }
+      if (!input.draftSessionId && !preserve) {
+        await this.cleanupFailedNewSession(sessionId, webContentsId)
+      }
       throw error
     }
   }
@@ -771,8 +780,6 @@ export class SessionLifecycle implements SessionLifecyclePort {
   }
 
   private async cleanupFailedNewSession(sessionId: string, webContentsId: number): Promise<void> {
-    if (await this.hasInitialTurnInput(sessionId)) return
-
     try {
       if (this.dependencies.desktop.getActiveId(webContentsId) === sessionId) {
         this.dependencies.desktop.unbind(webContentsId)

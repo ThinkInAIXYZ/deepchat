@@ -93,6 +93,7 @@
       "updateFailed": "Mod alat tidak dapat dikemas kini."
     },
     "sendFailed": "Mesej tidak dihantar",
+    "sendUnconfirmed": "Tidak dapat mengesahkan sama ada mesej telah dihantar",
     "fileUploadFailed": "Pemprosesan lampiran gagal",
     "fileUploadFailedDesc": "Tidak dapat memproses fail {count}: {names}",
     "fileUploadFailedMore": "Tunggu {count}",

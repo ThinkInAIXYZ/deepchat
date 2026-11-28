@@ -1138,6 +1138,36 @@ describe('sessionStore onboarding progress', () => {
     }
   )
 
+  it.each(['create reply', 'restore after lost reply'] as const)(
+    'opens a preserved session with an unconfirmed first message via %s without resending',
+    async (source) => {
+      const { chatSession, store, sessionClient, pageRouter, onboardingClient } = await setupStore({
+        onboardingCurrentStepId: 'first-chat'
+      })
+      const session = createSession({ status: 'none' })
+      const result = { session, initialTurnUnconfirmed: true as const }
+      if (source === 'create reply') {
+        sessionClient.create.mockResolvedValueOnce(result)
+      } else {
+        sessionClient.create.mockRejectedValueOnce(new Error('Reply lost'))
+        sessionClient.restore.mockResolvedValueOnce({ session, messages: [] })
+      }
+
+      await expect(
+        chatSession.createSession({
+          agentId: 'deepchat',
+          ...(source === 'restore after lost reply' ? { draftSessionId: session.id } : {}),
+          message: 'Review the project'
+        })
+      ).resolves.toEqual(result)
+      expect(pageRouter.goToChat).toHaveBeenCalledWith(session.id)
+      expect(store.activeSession?.status).toBe('none')
+      expect(store.error).toBeNull()
+      expect(sessionClient.create).toHaveBeenCalledOnce()
+      expect(onboardingClient.setStepStatus).not.toHaveBeenCalled()
+    }
+  )
+
   it('keeps an unused draft retryable when a failed submission has no accepted message', async () => {
     const { chatSession, store, sessionClient, pageRouter } = await setupStore()
     const failure = new Error('Preparation failed')

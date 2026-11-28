@@ -96,6 +96,7 @@
       "updateFailed": "Impossible de mettre à jour le mode des outils."
     },
     "sendFailed": "Message non envoyé",
+    "sendUnconfirmed": "Impossible de confirmer l’envoi du message",
     "fileUploadFailed": "Échec du traitement de la pièce jointe",
     "fileUploadFailedDesc": "Impossible de traiter {count} fichiers : {names}",
     "fileUploadFailedMore": " et {count} de plus",

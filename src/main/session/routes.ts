@@ -203,10 +203,11 @@ export function createSessionRoutes(deps: {
               ? await sessionService.createSession(createInput, caller, { signal })
               : await sessionService.createSession(createInput, caller)
         )
-        const { initialTurn, ...session } = created
+        const { initialTurn, initialTurnUnconfirmed, ...session } = created
         return sessionsCreateRoute.output.parse({
           session,
-          ...(initialTurn ? { initialTurn } : {})
+          ...(initialTurn ? { initialTurn } : {}),
+          ...(initialTurnUnconfirmed ? { initialTurnUnconfirmed } : {})
         })
       }
     ],

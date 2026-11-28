@@ -92,6 +92,7 @@
       "updateFailed": "ᠶᠢᠨ ᠠᠷᠭ᠎ᠠ ᠬᠡᠮᠵᠢᠶ᠎ᠡ ᠶᠢ ᠰᠢᠨᠡᠳᠬᠡᠬᠦ ᠦᠭᠡᠢ ᠃"
     },
     "sendFailed": "ᠵᠠᠬᠢᠳᠠᠯ ᠢᠯᠡᠭᠡᠵᠦ ᠴᠢᠳᠠᠭᠰᠠᠨ ᠦᠭᠡᠢ",
+    "sendUnconfirmed": "ᠵᠠᠬᠢᠳᠠᠯ ᠢᠯᠡᠭᠡᠭᠰᠡᠨ ᠡᠰᠡᠬᠦ ᠶᠢ ᠪᠠᠲᠤᠯᠠᠵᠤ ᠴᠢᠳᠠᠬᠤ ᠦᠭᠡᠢ",
     "fileUploadFailed": "ᠶᠢᠨ ᠳᠠᠭᠠᠯᠳᠤᠭᠤᠯᠤᠯ ᠢ ᠰᠢᠢᠳᠪᠦᠷᠢᠯᠡᠵᠦ ᠴᠢᠳᠠᠭᠰᠠᠨ ᠦᠭᠡᠢ",
     "fileUploadFailedDesc": "ᠪᠢᠴᠢᠭ᠌ ᠮᠠᠲ᠋ᠧᠷᠢᠶᠠᠯ {count} ᠰᠢᠢᠳᠪᠦᠷᠢᠯᠡᠬᠦ ᠶᠢᠨ ᠠᠷᠭ᠎ᠠ ᠦᠭᠡᠢ ᠄ {names}",
     "fileUploadFailedMore": "ᠶᠢ ᠬᠦᠯᠢᠶᠡᠵᠦ {count}",

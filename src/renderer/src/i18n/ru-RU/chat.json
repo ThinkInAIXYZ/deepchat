@@ -93,6 +93,7 @@
       "updateFailed": "Не удалось обновить режим инструментов."
     },
     "sendFailed": "Сообщение не отправлено",
+    "sendUnconfirmed": "Не удалось подтвердить отправку сообщения",
     "fileUploadFailed": "Не удалось обработать вложение",
     "fileUploadFailedDesc": "Не удалось обработать {count} файлов: {names}",
     "fileUploadFailedMore": " и ещё {count}",

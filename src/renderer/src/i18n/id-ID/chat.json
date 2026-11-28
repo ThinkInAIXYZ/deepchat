@@ -93,6 +93,7 @@
       "updateFailed": "Mode alat tidak dapat diperbarui."
     },
     "sendFailed": "Pesan tidak terkirim",
+    "sendUnconfirmed": "Tidak dapat memastikan apakah pesan telah terkirim",
     "fileUploadFailed": "Pemrosesan lampiran gagal",
     "fileUploadFailedDesc": "Tidak dapat memproses file {count}: {names}",
     "fileUploadFailedMore": " Tunggu {count}",

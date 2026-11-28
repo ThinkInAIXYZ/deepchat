@@ -1,6 +1,6 @@
 import { computed, ref, watch } from 'vue'
 import { projectPendingInteraction } from '@shared/chat/pendingInteraction'
-import { DEEPCHAT_ROUTE_INVOKE_CHANNEL } from '@shared/contracts/channels'
+import { getRouteErrorMessage } from '@/lib/errors'
 import { staleDimInteractionMessages } from '@shared/dimQuestions'
 import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
 import type { useMessageStore } from '@/stores/ui/message'
@@ -66,10 +66,8 @@ function parseSubagentProgress(value: unknown): SubagentProgressPayload | null {
 
 function isStaleDimInteraction(error: unknown): boolean {
   if (!(error instanceof Error)) return false
-  const prefix = `Error invoking remote method '${DEEPCHAT_ROUTE_INVOKE_CHANNEL}': Error: `
-  return Object.values(staleDimInteractionMessages).some(
-    (message) => error.message === message || error.message === prefix + message
-  )
+  const reason = getRouteErrorMessage(error)
+  return Object.values(staleDimInteractionMessages).some((message) => reason === message)
 }
 
 /**

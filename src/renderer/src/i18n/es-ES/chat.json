@@ -93,6 +93,7 @@
       "updateFailed": "No se pudo actualizar el modo de herramientas."
     },
     "sendFailed": "No se pudo enviar el mensaje",
+    "sendUnconfirmed": "No se pudo confirmar si se envió el mensaje",
     "fileUploadFailed": "No se ha podido adjuntar",
     "fileUploadFailedDesc": "No se han podido procesar {count} archivos: {names}",
     "fileUploadFailedMore": " y {count} más",

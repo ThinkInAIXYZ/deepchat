@@ -1406,12 +1406,17 @@ async function submitText(
     submittingWorkspaceDraftId = targetLocalDraftId
     let accepted = false
     try {
-      if (submissionOptions) {
-        await chatSessionStore.createSession(createInput, submissionOptions)
-      } else {
-        await chatSessionStore.createSession(createInput)
-      }
+      const result = submissionOptions
+        ? await chatSessionStore.createSession(createInput, submissionOptions)
+        : await chatSessionStore.createSession(createInput)
       accepted = true
+      if (result?.initialTurnUnconfirmed) {
+        notifyRenderer({
+          kind: 'warning',
+          code: 'chat.message.sendUnconfirmed',
+          title: t('chat.input.sendUnconfirmed')
+        })
+      }
     } finally {
       submittingWorkspaceDraftId = null
       if (

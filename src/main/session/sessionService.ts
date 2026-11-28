@@ -1,12 +1,12 @@
 import type {
   ChatMessagePageResult,
   CreateSessionInput,
-  MessageStartResult,
   MessagePageCursor,
   SessionWithState
 } from '@shared/types/agent-interface'
 import type { Scheduler } from '@/routes/scheduler'
 import type { RendererRouteCaller } from '@/routes/routeRegistry'
+import type { SessionLifecycleCreateResult } from './contracts'
 
 const SESSION_OPERATION_TIMEOUT_MS = 5_000
 const SESSION_LIST_TIMEOUT_MS = 15_000
@@ -26,7 +26,7 @@ export interface SessionServiceLifecyclePort {
     input: CreateSessionInput,
     webContentsId: number,
     options?: { signal?: AbortSignal }
-  ): Promise<SessionWithState & { initialTurn?: MessageStartResult }>
+  ): Promise<SessionLifecycleCreateResult>
 }
 
 export interface SessionServiceProjectionPort {
@@ -58,7 +58,7 @@ export class SessionService {
     input: CreateSessionInput,
     context: SessionRouteContext,
     options?: { signal?: AbortSignal }
-  ): Promise<SessionWithState & { initialTurn?: MessageStartResult }> {
+  ): Promise<SessionLifecycleCreateResult> {
     // Creation mutates durable/session runtime state. Scheduler.timeout only races the promise and
     // cannot cancel the underlying operation, so timing out here could publish a late duplicate.
     return options

@@ -93,6 +93,7 @@
       "updateFailed": "无法更新工具模式。"
     },
     "sendFailed": "消息发送失败",
+    "sendUnconfirmed": "暂时无法确认消息是否已发送",
     "fileUploadFailed": "附件处理失败",
     "fileUploadFailedDesc": "无法处理 {count} 个文件：{names}",
     "fileUploadFailedMore": " 等 {count} 个",

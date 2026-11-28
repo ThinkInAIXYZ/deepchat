@@ -335,7 +335,7 @@ describe('SessionLifecycle', () => {
         { agentId: 'deepchat', draftSessionId: id, message: 'Review' },
         42
       )
-    ).rejects.toBe(failure)
+    ).resolves.toMatchObject({ id, isDraft: false, initialTurnUnconfirmed: true })
     expect(harness.records.get(id)?.isDraft).toBe(false)
     expect(harness.coordinator.ownsDraftSession(id, 42)).toBe(false)
     expect(await harness.coordinator.discardDraftSession(id, 42)).toBe(false)
@@ -431,7 +431,7 @@ describe('SessionLifecycle', () => {
   )
 
   it.each([false, true])(
-    'preserves a new session with an unprojected admitted or unresolved input (draft: %s)',
+    'returns the preserved session with an unprojected admitted or unresolved input (draft: %s)',
     async (adoptDraft) => {
       const harness = createHarness()
       const id = adoptDraft
@@ -446,8 +446,9 @@ describe('SessionLifecycle', () => {
           { agentId: 'deepchat', ...(adoptDraft ? { draftSessionId: id } : {}), message: 'Hi' },
           42
         )
-      ).rejects.toBe(error)
+      ).resolves.toMatchObject({ id, isDraft: false, title: 'Hi', initialTurnUnconfirmed: true })
 
+      expect(harness.initialTurn.startInitialTurn).toHaveBeenCalledOnce()
       expect(harness.records.get(id)).toMatchObject({ isDraft: false, title: 'Hi' })
       expect(harness.runtime.hasAdmittedOrUnresolvedInput).toHaveBeenCalledWith(id)
       expect(harness.desktop.unbind).not.toHaveBeenCalled()
@@ -890,7 +891,7 @@ describe('SessionLifecycle', () => {
   })
 
   it.each(['messages already exist', 'message inspection fails'])(
-    'preserves a rejected new session when %s',
+    'returns the preserved session with an unconfirmed first turn when %s',
     async (reason) => {
       const harness = createHarness()
       const error = new Error('Initial turn failed')
@@ -905,7 +906,7 @@ describe('SessionLifecycle', () => {
       try {
         await expect(
           harness.coordinator.createSession({ agentId: 'deepchat', message: 'Hello' }, 42)
-        ).rejects.toBe(error)
+        ).resolves.toMatchObject({ id: 'session-1', initialTurnUnconfirmed: true })
 
         expect(harness.transcript.hasMessages).toHaveBeenCalledWith('session-1')
         expect(harness.deletion.deleteSessionTree).not.toHaveBeenCalled()
@@ -960,7 +961,7 @@ describe('SessionLifecycle', () => {
     })
   })
 
-  it('preserves a cancelled new session once its user fact exists', async () => {
+  it('returns the preserved session when cancelled after its user fact exists', async () => {
     const harness = createHarness()
     const controller = new AbortController()
     harness.transcript.hasMessages.mockResolvedValueOnce(true)
@@ -975,7 +976,7 @@ describe('SessionLifecycle', () => {
         42,
         { signal: controller.signal }
       )
-    ).rejects.toMatchObject({ name: 'AbortError' })
+    ).resolves.toMatchObject({ id: 'session-1', initialTurnUnconfirmed: true })
 
     expect(harness.deletion.deleteSessionTree).not.toHaveBeenCalled()
     expect(harness.desktop.unbind).not.toHaveBeenCalled()

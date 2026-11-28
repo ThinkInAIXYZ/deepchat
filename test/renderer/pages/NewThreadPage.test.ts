@@ -10,7 +10,7 @@ const setup = async (
     environments?: Array<{ path: string; exists: boolean }>
     modelInitialized?: boolean
     initializeModel?: () => Promise<void>
-    createSession?: () => Promise<void>
+    createSession?: () => Promise<{ initialTurnUnconfirmed?: true } | void>
     resolveDeepChatAgentConfig?: () => Promise<{
       defaultModelPreset?: { providerId: string; modelId: string }
       defaultProjectPath?: string
@@ -314,6 +314,25 @@ describe('NewThreadPage start deeplink prefill', () => {
       code: 'chat.message.sendFailed',
       title: 'chat.input.sendFailed',
       description: reason
+    })
+    wrapper.unmount()
+  })
+
+  it('reports an unconfirmed first message without leaving it queued for another submit', async () => {
+    const { wrapper, sessionStore, notify } = await setup('deepseek-chat')
+    sessionStore.createSession.mockResolvedValueOnce({ initialTurnUnconfirmed: true })
+    const input = wrapper.findComponent({ name: 'ChatInputBox' })
+    input.vm.$emit('update:modelValue', 'first message')
+    await flushPromises()
+    input.vm.$emit('submit')
+    await flushPromises()
+
+    expect(sessionStore.createSession).toHaveBeenCalledOnce()
+    expect(input.props('modelValue')).toBe('')
+    expect(notify).toHaveBeenCalledWith({
+      kind: 'warning',
+      code: 'chat.message.sendUnconfirmed',
+      title: 'chat.input.sendUnconfirmed'
     })
     wrapper.unmount()
   })

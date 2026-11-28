@@ -92,6 +92,7 @@
       "updateFailed": "قورال ۋەزىپە مودېلىنى يېڭىلاشتا مەغلۇپ بولدى."
     },
     "sendFailed": "ئۇچۇر ئەۋەتىلمىدى",
+    "sendUnconfirmed": "ئۇچۇرنىڭ ئەۋەتىلگەن-ئەۋەتىلمىگەنلىكىنى جەزملەشتۈرگىلى بولمىدى",
     "fileUploadFailed": "قوشۇمچە ئىشلەش مەغلۇپ بولدى",
     "fileUploadFailedDesc": "{count} ھۆججەتنى ئىشلەلمەيدۇ: {names}",
     "fileUploadFailedMore": "{count}نى كۈتۈش",

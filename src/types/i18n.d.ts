@@ -131,6 +131,7 @@ declare module 'vue-i18n' {
         updateFailed: string
       }
       sendFailed: string
+      sendUnconfirmed: string
       fileUploadFailed: string
       fileUploadFailedDesc: string
       fileUploadFailedMore: string
