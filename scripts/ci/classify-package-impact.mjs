@@ -60,6 +60,8 @@ const windowsPackagePaths = new Set([
 
 const linuxPackagePaths = new Set([
   '.github/workflows/_package-linux.yml',
+  'scripts/ci/build-linux-native.sh',
+  'scripts/ci/smoke-linux-deb.sh',
   'build/icon.png',
   'resources/linux_tray.png'
 ])

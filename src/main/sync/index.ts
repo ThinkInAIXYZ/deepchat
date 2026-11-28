@@ -5,7 +5,7 @@ import path from 'path'
 import fs from 'fs'
 import Database from 'better-sqlite3-multiple-ciphers'
 import type { SyncBackupInfo, CloudSyncResult } from '@shared/types/sync'
-import { CloudStorageService } from './cloudStorageService'
+import type { CloudStorageService } from './cloudStorageService'
 import type { DeepchatEventPublisher } from '@shared/contracts/events'
 import { DataImporter } from './dataImporter'
 import {
@@ -164,11 +164,16 @@ export class SyncService {
 
   // === Cloud sync (S3-compatible) ===
 
-  private buildCloudService(): CloudStorageService {
+  private async buildCloudService(): Promise<CloudStorageService> {
     const resolved = this.settings.getResolvedCloudConfig()
     if (!resolved) {
       throw new Error('sync.error.cloudNotConfigured')
     }
+    const { CloudStorageService } = await import('./cloudStorageService').catch(
+      (cause: unknown) => {
+        throw new Error('sync.error.cloudComponentUnavailable', { cause })
+      }
+    )
     return new CloudStorageService(resolved)
   }
 
@@ -206,7 +211,7 @@ export class SyncService {
 
   public async testCloudConnection(): Promise<CloudSyncResult> {
     try {
-      const service = this.buildCloudService()
+      const service = await this.buildCloudService()
       await service.testConnection()
       return { success: true, message: 'sync.success.cloudConnected' }
     } catch (error) {
@@ -217,7 +222,7 @@ export class SyncService {
 
   public async uploadLatestBackupToCloud(): Promise<CloudSyncResult> {
     try {
-      const service = this.buildCloudService()
+      const service = await this.buildCloudService()
       const backups = (await this.listBackups()).filter(({ fileName }) =>
         BACKUP_FILE_NAME_REGEX.test(fileName)
       )
@@ -251,7 +256,7 @@ export class SyncService {
 
   public async downloadLatestBackupFromCloud(): Promise<CloudSyncResult> {
     try {
-      const service = this.buildCloudService()
+      const service = await this.buildCloudService()
       const { path: syncFolderPath } = await this.checkSyncFolder()
       const backupsDir = this.getBackupsDirectory(syncFolderPath)
       const fileName = await service.downloadLatest(backupsDir)

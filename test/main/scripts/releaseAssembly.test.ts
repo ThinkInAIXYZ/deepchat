@@ -17,7 +17,7 @@ import { assembleRelease } from '../../../scripts/ci/assemble-release.mjs'
 import {
   createDefaultPackageSizePolicy,
   getMeasuredRoles,
-  getUpdaterPayloadRole,
+  getUpdaterPayloadRoles,
   PACKAGE_MANIFEST_SCHEMA_VERSION,
   RELEASE_INDEX_SCHEMA_VERSION,
   TARGET_DEFINITIONS
@@ -63,8 +63,9 @@ interface PackageManifest {
 
 interface FinalUpdaterMetadata {
   releaseDate: unknown
-  files: Array<{ url: string; blockMapSize?: number }>
+  files: Array<{ url: string; sha512: string; blockMapSize?: number }>
   path: string
+  sha512: string
 }
 
 describe('fail-closed release assembly', () => {
@@ -149,12 +150,12 @@ describe('fail-closed release assembly', () => {
     ) as FinalUpdaterMetadata
   }
 
-  it('assembles six manifests into exactly 19 public release assets', async () => {
+  it('assembles six manifests into exactly 21 public release assets', async () => {
     const releaseIndex = await assemble()
     const entries = (await readdir(outputDirectory)).sort()
-    expect(entries).toHaveLength(19)
+    expect(entries).toHaveLength(21)
     expect(entries).toContain('release-index.json')
-    expect(releaseIndex.assets).toHaveLength(18)
+    expect(releaseIndex.assets).toHaveLength(20)
     expect(releaseIndex).toMatchObject({
       version,
       sourceCommit: sourceSha,
@@ -187,12 +188,16 @@ describe('fail-closed release assembly', () => {
     expect(macOS.files.every(({ url }) => !url.endsWith('.dmg'))).toBe(true)
     expect(macOS.path).toBe(macOS.files[0].url)
 
-    expect(linuxX64.files).toHaveLength(1)
+    expect(linuxX64.files).toHaveLength(2)
     expect(linuxX64.files[0].url).toMatch(/-linux-x64\.AppImage$/)
     expect(linuxX64.files[0]).toHaveProperty('blockMapSize')
-    expect(linuxArm64.files).toHaveLength(1)
+    expect(linuxArm64.files).toHaveLength(2)
     expect(linuxArm64.files[0].url).toMatch(/-linux-arm64\.AppImage$/)
     expect(linuxArm64.files[0]).toHaveProperty('blockMapSize')
+    expect(linuxX64.files[1].url).toMatch(/-linux-amd64\.deb$/)
+    expect(linuxArm64.files[1].url).toMatch(/-linux-arm64\.deb$/)
+    expect(linuxX64.path).toBe(linuxX64.files[0].url)
+    expect(linuxArm64.path).toBe(linuxArm64.files[0].url)
 
     const windowsTarget = releaseIndex.targets.find(({ id }) => id === 'win32-x64')
     const macTarget = releaseIndex.targets.find(({ id }) => id === 'darwin-x64')
@@ -263,7 +268,7 @@ describe('fail-closed release assembly', () => {
       workflowRunId,
       workflowRunAttempt
     })
-    expect(verified.files).toHaveLength(19)
+    expect(verified.files).toHaveLength(21)
 
     const releaseIndexPath = path.join(outputDirectory, 'release-index.json')
     const originalReleaseIndex = await readFile(releaseIndexPath, 'utf8')
@@ -457,6 +462,20 @@ describe('fail-closed release assembly', () => {
     await expect(assemble()).rejects.toThrow(/SHA-512 mismatch/)
   })
 
+  it('publishes the AppImage as the legacy updater even if the deb finishes first', async () => {
+    await updateRawMetadata('linux-x64', (metadata) => {
+      const files = metadata.files as Array<{ url: string; sha512: string }>
+      files.reverse()
+      metadata.path = files[0].url
+      metadata.sha512 = files[0].sha512
+    })
+    await assemble()
+    const metadata = await readFinalMetadata('latest-linux.yml')
+    expect(metadata.files[0].url).toMatch(/\.AppImage$/)
+    expect(metadata.path).toBe(metadata.files[0].url)
+    expect(metadata.sha512).toBe(metadata.files[0].sha512)
+  })
+
   it('rejects incomplete updater metadata and invalid macOS evidence', async () => {
     await updateRawMetadata('darwin-x64', (metadata) => {
       const files = metadata.files as Array<Record<string, unknown>>
@@ -477,7 +496,7 @@ describe('fail-closed release assembly', () => {
       const files = metadata.files as Array<Record<string, unknown>>
       metadata.files = [files[0], { ...files[0] }]
     })
-    await expect(assemble()).rejects.toThrow(/exactly one updater file/)
+    await expect(assemble()).rejects.toThrow(/URL mismatch/)
 
     await resetFixtures()
     await updateManifest('darwin-arm64', (manifest) => {
@@ -555,29 +574,26 @@ async function createOnePackageArtifact(
     })
   }
 
-  const updaterRole = getUpdaterPayloadRole(definition)
-  const updaterPayload = fileRecords.find(({ role }) => role === updaterRole.name)!
-  const updaterInspected = await inspectRegularFile(
-    path.join(root, updaterPayload.storagePath),
-    root
+  const updateFiles = await Promise.all(
+    getUpdaterPayloadRoles(definition).map(async (role) => {
+      const payload = fileRecords.find((file) => file.role === role.name)!
+      const { sha512, bytes } = await inspectRegularFile(path.join(root, payload.storagePath), root)
+      return {
+        url: payload.name,
+        sha512,
+        size: bytes,
+        ...(payload.name.endsWith('.AppImage') ? { blockMapSize: Math.max(1, bytes - 1) } : {})
+      }
+    })
   )
   const metadataPath = path.join(metadataDirectory, definition.metadataName)
   await writeFile(
     metadataPath,
     stringify({
       version,
-      files: [
-        {
-          url: updaterPayload.name,
-          sha512: updaterInspected.sha512,
-          size: updaterInspected.bytes,
-          ...(definition.platform === 'linux'
-            ? { blockMapSize: Math.max(1, updaterInspected.bytes - 1) }
-            : {})
-        }
-      ],
-      path: updaterPayload.name,
-      sha512: updaterInspected.sha512,
+      files: updateFiles,
+      path: updateFiles[0].url,
+      sha512: updateFiles[0].sha512,
       releaseDate: generatedAt
     })
   )

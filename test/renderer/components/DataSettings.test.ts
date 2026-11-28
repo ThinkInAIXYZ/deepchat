@@ -464,7 +464,7 @@ describe('DataSettings', () => {
     const { wrapper, syncStore, notifyRenderer } = await setup()
     syncStore.testCloud.mockResolvedValueOnce({
       success: false,
-      message: 'sync.error.cloudConnectionFailed'
+      message: 'sync.error.cloudComponentUnavailable'
     })
 
     await wrapper.get('#cloud-endpoint').setValue('https://account.r2.cloudflarestorage.com/')
@@ -477,9 +477,7 @@ describe('DataSettings', () => {
     expect(notifyRenderer).not.toHaveBeenCalledWith(
       expect.objectContaining({ code: 'settings.data.cloud.testFailed' })
     )
-    expect(wrapper.get('[role="alert"]').text()).toContain(
-      'settings.data.cloudSync.testFailedTitle'
-    )
+    expect(wrapper.get('[role="alert"]').text()).toContain('sync.error.cloudComponentUnavailable')
   })
 
   it('reports a failed cloud save as an inline error and preserves the unsaved draft', async () => {

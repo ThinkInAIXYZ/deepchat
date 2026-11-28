@@ -22,6 +22,7 @@
     "cloudNotConfigured": "Cloud is not configured. Fill in and save the cloud connection first.",
     "cloudNoBackup": "No backup available in the cloud bucket",
     "cloudDownloadFailed": "Failed to download backup from cloud",
+    "cloudComponentUnavailable": "Komponen sandaran S3 gagal dimuatkan. Pada Linux amd64, komponen ini memerlukan glibc 2.38 atau lebih baharu.",
     "cloudOperationFailed": "Cloud operation failed",
     "noLocalBackup": "No local backup to upload. Run a backup first.",
     "safeStorageUnavailable": "Keychain sistem tidak tersedia; kunci rahsia tidak boleh disimpan dengan selamat.",

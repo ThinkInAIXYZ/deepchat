@@ -101,11 +101,11 @@ assembly fails closed against an explicit six-target contract.
 - macOS publishes `latest-mac.yml` with x64 and ARM64 ZIP entries plus both ZIP blockmaps.
 - DMG remains a manual installer and is excluded from updater metadata and blockmap generation.
 - Linux publishes separate `latest-linux.yml` and `latest-linux-arm64.yml` files that reference the
-  corresponding AppImage.
+  corresponding AppImage and Debian package, with the AppImage first for legacy clients.
 - Every metadata URL resolves to a staged release file, and its SHA-512 and byte size match that file.
 - Windows and macOS entries are ordered x64 before ARM64, with legacy `path` and `sha512` fields
   pointing to x64.
-- The workflow uploads exactly nineteen assets under the current package target configuration,
+- The workflow uploads exactly twenty-one assets under the current package target configuration,
   including `release-index.json`.
 
 ### AC-6 — Package Regression
@@ -116,6 +116,7 @@ assembly fails closed against an explicit six-target contract.
 - The initial baseline records successful run `29978292769` and source commit
   `dfb4ba0f34c008c27cfb6bd98a08fdbd36f7b343`.
 - Windows EXE, Linux AppImage and tarball, and macOS ZIP and DMG enforce upper and lower delta bounds.
+- Add Debian installers to the next size baseline once both architectures have distribution artifact sizes and digests.
 - `package-regression.yml` supports reusable, manual, and scheduled execution, always covers all six
   targets, and uploads reports rather than complete unsigned installers.
 - A scheduled failure opens or updates one package-regression issue; the next fully successful
@@ -183,7 +184,7 @@ assembly fails closed against an explicit six-target contract.
 - Package manifest and release index schema version 2 intentionally reject version 1 producers and
   consumers. All release jobs execute from one immutable source SHA, so no mixed-version migration
   path is supported or required.
-- The exact nineteen-asset allowlist intentionally rejects new package formats until the contract,
+- The exact twenty-one-asset allowlist intentionally rejects new package formats until the contract,
   tests, and release index are updated together.
 - Verification-mode macOS package sizes can differ slightly from signed distribution sizes. The
   initial 90 MiB delta bounds tolerate signing overhead while still catching material omissions.

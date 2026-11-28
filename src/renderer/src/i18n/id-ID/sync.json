@@ -22,6 +22,7 @@
     "cloudNotConfigured": "Cloud belum dikonfigurasi. Isi dan simpan koneksi cloud terlebih dahulu.",
     "cloudNoBackup": "Tidak ada cadangan yang tersedia di bucket cloud",
     "cloudDownloadFailed": "Gagal mengunduh cadangan dari cloud",
+    "cloudComponentUnavailable": "Komponen pencadangan S3 gagal dimuat. Di Linux amd64, komponen ini memerlukan glibc 2.38 atau yang lebih baru.",
     "cloudOperationFailed": "Operasi cloud gagal",
     "noLocalBackup": "Tidak ada cadangan lokal untuk diunggah. Jalankan pencadangan terlebih dahulu.",
     "safeStorageUnavailable": "Keychain sistem tidak tersedia; kunci rahasia tidak dapat disimpan dengan aman.",

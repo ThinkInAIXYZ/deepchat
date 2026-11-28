@@ -22,6 +22,7 @@
     "cloudNotConfigured": "Cloud is not configured. Fill in and save the cloud connection first.",
     "cloudNoBackup": "No backup available in the cloud bucket",
     "cloudDownloadFailed": "Failed to download backup from cloud",
+    "cloudComponentUnavailable": "S3-sikkerhedskopiering kunne ikke indlæses. På Linux amd64 kræver den glibc 2.38 eller nyere.",
     "cloudOperationFailed": "Cloud operation failed",
     "noLocalBackup": "No local backup to upload. Run a backup first.",
     "safeStorageUnavailable": "Systemets nøglering er ikke tilgængelig; den hemmelige nøgle kan ikke gemmes sikkert.",

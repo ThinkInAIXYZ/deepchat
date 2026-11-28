@@ -88,7 +88,7 @@ This document defines the maintainer release flow for DeepChat without rewriting
    - The workflow writes the draft only after fail-closed assembly and local revalidation, then
      verifies the uploaded assets through the GitHub API. Treat the run as successful only after
      that remote size and digest verification passes. Do not add ad hoc assets to the draft.
-   - The draft must contain exactly nineteen assets: fourteen target files, four updater metadata
+   - The draft must contain twenty-one assets, including sixteen target files, four updater metadata
      files, and `release-index.json`.
    - If a release run must be retried after a native job has completed, rerun all jobs. Package
      manifests bind `GITHUB_RUN_ATTEMPT`, so mixing artifacts from different attempts intentionally
@@ -158,7 +158,7 @@ Use this sequence when the automatic helper is unavailable, especially on Window
    git push origin refs/tags/v1.0.0-beta.4
    ```
 
-8. Wait for the Release workflow, review the exact nineteen-asset draft using the checks in the
+8. Wait for the Release workflow, review the exact twenty-one-asset draft using the checks in the
    standard sequence, and publish it manually.
 
 9. Delete the temporary release branch after the release is published.
@@ -193,8 +193,8 @@ x64 and ARM64. It recomputes file digests, rejects incomplete checks or unknown 
 
 - `latest.yml` for Windows x64 and ARM64 NSIS payloads;
 - `latest-mac.yml` for macOS x64 and ARM64 ZIP payloads, never DMGs;
-- separate `latest-linux.yml` and `latest-linux-arm64.yml` AppImage metadata;
-- `release-index.json` with six-target evidence and SHA-256 for the other eighteen public files.
+- separate `latest-linux.yml` and `latest-linux-arm64.yml` AppImage and Debian metadata;
+- `release-index.json` with six-target evidence and SHA-256 for the other twenty public files.
 
 Windows ARM64 uses the `build:win:arm64` script, installs only runtime payloads available for
 `win32/arm64`, and packages only plugins whose manifest declares that target. Artifact names and

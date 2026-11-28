@@ -96,6 +96,8 @@ Download the latest version for your system from the [GitHub Releases](https://g
 - macOS: `.dmg` installation file
 - Linux: `.AppImage` or `.deb` installation file
 
+On Linux, bundled Light OCR on amd64 and arm64 requires glibc 2.38 and libstdc++ with `GLIBCXX_3.4.32`. S3-compatible cloud backup on amd64 also requires glibc 2.38.
+
 **Option 2: Official Website**
 
 Download from the [official website](https://deepchatai.cn/#/download).

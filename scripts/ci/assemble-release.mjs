@@ -12,7 +12,6 @@ import {
   expectedReleaseAssetCount,
   getPublicRoles,
   getRoleDefinition,
-  getUpdaterPayloadRole,
   matchesRoleFileName,
   PACKAGE_MANIFEST_SCHEMA_VERSION,
   RELEASE_INDEX_SCHEMA_VERSION,
@@ -336,8 +335,6 @@ async function loadTargetPackage(artifactsDirectory, definition, expected) {
   )
   await validatePackageLayout(artifactRoot, manifest, definition)
   const metadataFile = files.find(({ role }) => role === 'update-metadata')
-  const updaterRole = getUpdaterPayloadRole(definition)
-  const updaterPayload = files.find(({ role }) => role === updaterRole.name)
   const rawMetadata = validateRawUpdateMetadata({
     metadata: parseYamlObject(
       await readFile(metadataFile.path, 'utf8'),
@@ -346,7 +343,7 @@ async function loadTargetPackage(artifactsDirectory, definition, expected) {
     metadataName: metadataFile.name,
     target: definition,
     version: expected.version,
-    updaterPayload
+    packageFiles: files
   })
   for (const sidecar of definition.roles.filter(({ sidecarFor }) => sidecarFor)) {
     const payload = files.find(({ role }) => role === sidecar.sidecarFor)
@@ -421,11 +418,11 @@ function mergeArchitectureMetadata(packages, version) {
   return metadata
 }
 
-function normalizeSingleArchitectureMetadata(packageEntry, version) {
-  const file = packageEntry.rawMetadata.files[0]
+function normalizeLinuxMetadata(packageEntry, version) {
+  const file = packageEntry.rawMetadata.files.find(({ url }) => url.endsWith('.AppImage'))
   const metadata = {
     version,
-    files: [file],
+    files: packageEntry.rawMetadata.files,
     path: file.url,
     sha512: file.sha512,
     releaseDate: selectReleaseDate([packageEntry]),
@@ -485,10 +482,8 @@ async function validateFinalMetadata(
   ) {
     throw new Error(`${name} releaseDate must be a canonical ISO string`)
   }
-  const expectedEntries =
-    name === 'latest-linux.yml' || name === 'latest-linux-arm64.yml' ? 1 : 2
-  if (!Array.isArray(metadata.files) || metadata.files.length !== expectedEntries) {
-    throw new Error(`${name} must contain ${expectedEntries} updater files`)
+  if (!Array.isArray(metadata.files) || metadata.files.length !== 2) {
+    throw new Error(`${name} must contain two updater files`)
   }
   for (const file of metadata.files) {
     const publicAsset = publicAssets.find(({ name: assetName }) => assetName === file.url)
@@ -624,11 +619,11 @@ export async function assembleRelease({
     },
     {
       name: 'latest-linux.yml',
-      metadata: normalizeSingleArchitectureMetadata(linuxX64, version)
+      metadata: normalizeLinuxMetadata(linuxX64, version)
     },
     {
       name: 'latest-linux-arm64.yml',
-      metadata: normalizeSingleArchitectureMetadata(linuxArm64, version)
+      metadata: normalizeLinuxMetadata(linuxArm64, version)
     }
   ]
   const metadataAssets = await Promise.all(

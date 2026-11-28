@@ -22,6 +22,7 @@
     "cloudNotConfigured": "Le cloud n'est pas configuré. Renseignez et enregistrez d'abord la connexion cloud.",
     "cloudNoBackup": "Aucune sauvegarde disponible dans le bucket cloud",
     "cloudDownloadFailed": "Échec du téléchargement de la sauvegarde depuis le cloud",
+    "cloudComponentUnavailable": "Impossible de charger le composant de sauvegarde S3. Sous Linux amd64, il nécessite glibc 2.38 ou une version ultérieure.",
     "cloudOperationFailed": "Échec de l'opération cloud",
     "noLocalBackup": "Aucune sauvegarde locale à envoyer. Lancez d'abord une sauvegarde.",
     "safeStorageUnavailable": "Le trousseau système est indisponible ; impossible de stocker la clé secrète en toute sécurité.",
