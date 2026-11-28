@@ -417,25 +417,6 @@ describe('DEFAULT_PROVIDERS', () => {
     )
   })
 
-  it('includes TeamoRouter as a disabled built-in OpenAI-compatible provider', () => {
-    expect(DEFAULT_PROVIDERS).toContainEqual(
-      expect.objectContaining({
-        id: 'teamorouter',
-        name: 'TeamoRouter',
-        apiType: 'openai-completions',
-        baseUrl: 'https://api.teamorouter.com/v1',
-        enable: false,
-        websites: expect.objectContaining({
-          official: 'https://teamorouter.com/?utm_source=deepchat',
-          apiKey: 'https://teamorouter.com/dashboard?utm_source=deepchat',
-          docs: 'https://teamorouter.com/docs?utm_source=deepchat',
-          models: 'https://teamorouter.com/models?utm_source=deepchat',
-          defaultBaseUrl: 'https://api.teamorouter.com/v1'
-        })
-      })
-    )
-  })
-
   it('includes LLMTR as a disabled built-in OpenAI-compatible provider', () => {
     expect(DEFAULT_PROVIDERS).toContainEqual(
       expect.objectContaining({
@@ -450,6 +431,25 @@ describe('DEFAULT_PROVIDERS', () => {
           docs: 'https://llmtr.com/?utm_source=deepchat',
           models: 'https://llmtr.com/?utm_source=deepchat',
           defaultBaseUrl: 'https://llmtr.com/v1'
+        })
+      })
+    )
+  })
+
+  it('includes TeamoRouter as a disabled built-in OpenAI-compatible provider', () => {
+    expect(DEFAULT_PROVIDERS).toContainEqual(
+      expect.objectContaining({
+        id: 'teamorouter',
+        name: 'TeamoRouter',
+        apiType: 'openai-completions',
+        baseUrl: 'https://api.teamorouter.com/v1',
+        enable: false,
+        websites: expect.objectContaining({
+          official: 'https://teamorouter.com/?utm_source=deepchat',
+          apiKey: 'https://teamorouter.com/dashboard?utm_source=deepchat',
+          docs: 'https://teamorouter.com/docs?utm_source=deepchat',
+          models: 'https://teamorouter.com/models?utm_source=deepchat',
+          defaultBaseUrl: 'https://api.teamorouter.com/v1'
         })
       })
     )

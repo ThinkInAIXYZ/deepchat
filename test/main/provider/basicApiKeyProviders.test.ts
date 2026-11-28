@@ -899,25 +899,6 @@ describe('basic API-key provider registrations', () => {
     })
   })
 
-  it('resolves TeamoRouter through authenticated OpenAI-compatible model discovery', () => {
-    expect(
-      resolveAiSdkProviderDefinition(
-        createProvider({
-          id: 'teamorouter',
-          name: 'TeamoRouter',
-          baseUrl: 'https://api.teamorouter.com/v1'
-        })
-      )
-    ).toMatchObject({
-      runtimeKind: 'openai-compatible',
-      modelSource: 'openai',
-      checkStrategy: 'fetch-models',
-      credentialStrategy: 'api-key',
-      routeStrategy: 'none',
-      embeddingStrategy: 'none'
-    })
-  })
-
   it('resolves LLMTR through a chat check because the model catalog is public', () => {
     expect(
       resolveAiSdkProviderDefinition(
@@ -935,6 +916,25 @@ describe('basic API-key provider registrations', () => {
       routeStrategy: 'none',
       embeddingStrategy: 'none',
       checkModelId: 'qwen/qwen3.8-27b-free'
+    })
+  })
+
+  it('resolves TeamoRouter through authenticated OpenAI-compatible model discovery', () => {
+    expect(
+      resolveAiSdkProviderDefinition(
+        createProvider({
+          id: 'teamorouter',
+          name: 'TeamoRouter',
+          baseUrl: 'https://api.teamorouter.com/v1'
+        })
+      )
+    ).toMatchObject({
+      runtimeKind: 'openai-compatible',
+      modelSource: 'openai',
+      checkStrategy: 'fetch-models',
+      credentialStrategy: 'api-key',
+      routeStrategy: 'none',
+      embeddingStrategy: 'none'
     })
   })
 

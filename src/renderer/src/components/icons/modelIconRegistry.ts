@@ -64,8 +64,8 @@ import uberllmColorIcon from '@/assets/llm-icons/uberllm-color.svg?url'
 import wiroIcon from '@/assets/llm-icons/wiro.svg?url'
 import cheapaimodelIcon from '@/assets/llm-icons/cheapaimodel.svg?url'
 import onomeoIcon from '@/assets/llm-icons/onomeo.svg?url'
-import teamorouterIcon from '@/assets/llm-icons/teamorouter.svg?url'
 import llmtrIcon from '@/assets/llm-icons/llmtr.svg?url'
+import teamorouterIcon from '@/assets/llm-icons/teamorouter.svg?url'
 import obscurifyIcon from '@/assets/llm-icons/obscurify.svg?url'
 import demonrouteColorIcon from '@/assets/llm-icons/demonroute.svg?url'
 import orcarouterColorIcon from '@/assets/llm-icons/orcarouter.svg?url'
@@ -231,8 +231,8 @@ export const modelIcons = {
   wiro: wiroIcon,
   cheapaimodel: cheapaimodelIcon,
   onomeo: onomeoIcon,
-  teamorouter: teamorouterIcon,
   llmtr: llmtrIcon,
+  teamorouter: teamorouterIcon,
   obscurify: obscurifyIcon,
   demonroute: demonrouteColorIcon,
   orcarouter: orcarouterColorIcon,
