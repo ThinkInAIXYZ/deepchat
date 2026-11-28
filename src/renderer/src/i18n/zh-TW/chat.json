@@ -92,6 +92,7 @@
       "locked": "本次回覆結束後可切換模式。",
       "updateFailed": "無法更新工具模式。"
     },
+    "sendFailed": "訊息傳送失敗",
     "fileUploadFailed": "附件處理失敗",
     "fileUploadFailedDesc": "無法處理 {count} 個檔案：{names}",
     "fileUploadFailedMore": " 等 {count} 個",

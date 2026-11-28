@@ -92,6 +92,7 @@
       "locked": "Der Modus kann nach Abschluss dieser Antwort gewechselt werden.",
       "updateFailed": "Der Werkzeugmodus konnte nicht aktualisiert werden."
     },
+    "sendFailed": "Nachricht wurde nicht gesendet",
     "fileUploadFailed": "Anhang konnte nicht verarbeitet werden",
     "fileUploadFailedDesc": "{count} Dateien konnten nicht verarbeitet werden: {names}",
     "fileUploadFailedMore": " und {count} weitere",

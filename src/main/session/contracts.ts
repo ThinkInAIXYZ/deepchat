@@ -598,6 +598,7 @@ export interface SessionLifecycleRuntimeSession {
 
 export interface SessionLifecycleRuntimePort {
   resolveSession(sessionId: AppSessionId): SessionLifecycleRuntimeSession
+  hasAdmittedOrUnresolvedInput(sessionId: string): boolean
 }
 
 export type SessionLifecycleTranscriptPort = Pick<SessionTranscriptReadPort, 'hasMessages'> &

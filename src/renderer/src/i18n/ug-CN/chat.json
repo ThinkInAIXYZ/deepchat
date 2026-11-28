@@ -91,6 +91,7 @@
       "locked": "بۇ جاۋابقا ئاخىر قىلغاندىن كېيىن مودېلنى ئالماشتۇرغىلى بولىدۇ.",
       "updateFailed": "قورال ۋەزىپە مودېلىنى يېڭىلاشتا مەغلۇپ بولدى."
     },
+    "sendFailed": "ئۇچۇر ئەۋەتىلمىدى",
     "fileUploadFailed": "قوشۇمچە ئىشلەش مەغلۇپ بولدى",
     "fileUploadFailedDesc": "{count} ھۆججەتنى ئىشلەلمەيدۇ: {names}",
     "fileUploadFailedMore": "{count}نى كۈتۈش",

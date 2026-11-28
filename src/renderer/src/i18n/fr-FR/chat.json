@@ -95,6 +95,7 @@
       "locked": "Vous pourrez changer de mode après cette réponse.",
       "updateFailed": "Impossible de mettre à jour le mode des outils."
     },
+    "sendFailed": "Message non envoyé",
     "fileUploadFailed": "Échec du traitement de la pièce jointe",
     "fileUploadFailedDesc": "Impossible de traiter {count} fichiers : {names}",
     "fileUploadFailedMore": " et {count} de plus",

@@ -92,6 +92,7 @@
       "locked": "Anda boleh menukar mod selepas respons ini selesai.",
       "updateFailed": "Mod alat tidak dapat dikemas kini."
     },
+    "sendFailed": "Mesej tidak dihantar",
     "fileUploadFailed": "Pemprosesan lampiran gagal",
     "fileUploadFailedDesc": "Tidak dapat memproses fail {count}: {names}",
     "fileUploadFailedMore": "Tunggu {count}",

@@ -92,6 +92,7 @@
       "locked": "پس از پایان این پاسخ می‌توانید حالت را تغییر دهید.",
       "updateFailed": "حالت ابزار به‌روزرسانی نشد."
     },
+    "sendFailed": "پیام ارسال نشد",
     "fileUploadFailed": "خطا در پردازش پیوست",
     "fileUploadFailedDesc": "امکان پردازش {count} فایل وجود نداشت: {names}",
     "fileUploadFailedMore": " و {count} مورد دیگر",

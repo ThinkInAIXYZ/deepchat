@@ -130,6 +130,7 @@ declare module 'vue-i18n' {
         locked: string
         updateFailed: string
       }
+      sendFailed: string
       fileUploadFailed: string
       fileUploadFailedDesc: string
       fileUploadFailedMore: string

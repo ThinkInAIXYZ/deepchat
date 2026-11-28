@@ -7,7 +7,7 @@ import type { useModelStore } from '@/stores/modelStore'
 import type { usePendingInputStore } from '@/stores/ui/pendingInput'
 import { isManualCompactionCommand } from '@/components/chat/mentions/utils'
 import { prepareFilesForModel } from '@/lib/audioInputSupport'
-import { isAbortError } from '@/lib/errors'
+import { getRouteErrorMessage, isAbortError } from '@/lib/errors'
 import type {
   AttachmentFallbackPolicy,
   AttachmentPreparationSummary,
@@ -927,9 +927,9 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
         )
         notify({
           kind: 'error',
-          code: 'chat.attachment.uploadFailed',
-          title: t('chat.input.fileUploadFailed'),
-          description: error instanceof Error ? error.message : String(error)
+          code: 'chat.message.sendFailed',
+          title: t('chat.input.sendFailed'),
+          description: getRouteErrorMessage(error)
         })
       }
       return false

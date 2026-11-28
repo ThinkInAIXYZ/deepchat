@@ -92,6 +92,7 @@
       "locked": "Você poderá trocar de modo após o fim desta resposta.",
       "updateFailed": "Não foi possível atualizar o modo de ferramentas."
     },
+    "sendFailed": "Mensagem não enviada",
     "fileUploadFailed": "Falha ao processar anexo",
     "fileUploadFailedDesc": "Não foi possível processar {count} arquivos: {names}",
     "fileUploadFailedMore": " e mais {count} arquivos",

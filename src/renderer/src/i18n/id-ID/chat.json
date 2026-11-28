@@ -92,6 +92,7 @@
       "locked": "Anda dapat mengganti mode setelah respons ini selesai.",
       "updateFailed": "Mode alat tidak dapat diperbarui."
     },
+    "sendFailed": "Pesan tidak terkirim",
     "fileUploadFailed": "Pemrosesan lampiran gagal",
     "fileUploadFailedDesc": "Tidak dapat memproses file {count}: {names}",
     "fileUploadFailedMore": " Tunggu {count}",

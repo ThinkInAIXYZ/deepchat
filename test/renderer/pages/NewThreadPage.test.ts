@@ -295,6 +295,29 @@ const setup = async (
 describe('NewThreadPage start deeplink prefill', () => {
   beforeEach(() => localStorage.clear())
 
+  it('keeps the first message and explains why sending failed', async () => {
+    const { wrapper, sessionStore, notify } = await setup('deepseek-chat')
+    const reason = 'Native provider grant cannot be repointed'
+    sessionStore.createSession.mockRejectedValueOnce(
+      new Error(`Error invoking remote method 'deepchat:route:invoke': Error: ${reason}`)
+    )
+    const input = wrapper.findComponent({ name: 'ChatInputBox' })
+    input.vm.$emit('update:modelValue', 'first message')
+    await flushPromises()
+    input.vm.$emit('submit')
+    await flushPromises()
+
+    expect(sessionStore.createSession).toHaveBeenCalledOnce()
+    expect(input.props('modelValue')).toBe('first message')
+    expect(notify).toHaveBeenCalledWith({
+      kind: 'error',
+      code: 'chat.message.sendFailed',
+      title: 'chat.input.sendFailed',
+      description: reason
+    })
+    wrapper.unmount()
+  })
+
   it('prepares audio consistently for supported, unsupported and unavailable capabilities', async () => {
     for (const capability of [true, false, 'error'] as const) {
       const { wrapper, sessionStore, getCapabilities, notify, t } = await setup('deepseek-chat')

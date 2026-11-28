@@ -385,7 +385,7 @@ import {
 import { scheduleStartupDeferredTask } from '@/lib/startupDeferred'
 import { isManualCompactionCommand } from '@/components/chat/mentions/utils'
 import { prepareFilesForModel } from '@/lib/audioInputSupport'
-import { isAbortError } from '@/lib/errors'
+import { getRouteErrorMessage, isAbortError } from '@/lib/errors'
 import { isAttachmentPreparationCandidate } from '@shared/utils/attachmentRepresentation'
 import { normalizeWorkspacePath } from '@shared/utils/filesystem'
 import { useSpeechRecognition } from '@/components/chat/composables/useSpeechRecognition'
@@ -1228,9 +1228,9 @@ async function onSubmit() {
       console.error('[NewThreadPage] submit failed:', e)
       notifyRenderer({
         kind: 'error',
-        code: 'chat.attachment.uploadFailed',
-        title: t('chat.input.fileUploadFailed'),
-        description: e instanceof Error ? e.message : String(e)
+        code: 'chat.message.sendFailed',
+        title: t('chat.input.sendFailed'),
+        description: getRouteErrorMessage(e)
       })
     }
   } finally {
@@ -1276,9 +1276,9 @@ async function onCommandSubmit(command: string) {
       console.error('[NewThreadPage] submit failed:', e)
       notifyRenderer({
         kind: 'error',
-        code: 'chat.attachment.uploadFailed',
-        title: t('chat.input.fileUploadFailed'),
-        description: e instanceof Error ? e.message : String(e)
+        code: 'chat.message.sendFailed',
+        title: t('chat.input.sendFailed'),
+        description: getRouteErrorMessage(e)
       })
     }
   } finally {

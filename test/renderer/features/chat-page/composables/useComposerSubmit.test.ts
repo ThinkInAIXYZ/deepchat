@@ -590,22 +590,23 @@ describe('useComposerSubmit attachment preflight', () => {
     harness.stop()
   })
 
-  it('reports a semantic attachment error for non-cancellation failures', async () => {
+  it('keeps a text-only draft and explains why sending failed', async () => {
     const harness = createHarness()
-    harness.chatClient.sendMessage.mockRejectedValueOnce(new Error('OCR runtime unavailable'))
-    harness.actions.message.value = 'read this'
-    harness.actions.attachedFiles.value = [imageFile()]
+    const reason = 'Native provider grant cannot be repointed'
+    harness.chatClient.sendMessage.mockRejectedValueOnce(
+      new Error(`Error invoking remote method 'deepchat:route:invoke': Error: ${reason}`)
+    )
+    harness.actions.message.value = 'hello again'
 
     await harness.actions.onSubmit()
 
     expect(harness.notify).toHaveBeenCalledWith({
       kind: 'error',
-      code: 'chat.attachment.uploadFailed',
-      title: 'chat.input.fileUploadFailed',
-      description: 'OCR runtime unavailable'
+      code: 'chat.message.sendFailed',
+      title: 'chat.input.sendFailed',
+      description: reason
     })
-    expect(harness.actions.message.value).toBe('read this')
-    expect(harness.actions.attachedFiles.value).toEqual([imageFile()])
+    expect(harness.actions.message.value).toBe('hello again')
     harness.stop()
   })
 
@@ -624,8 +625,8 @@ describe('useComposerSubmit attachment preflight', () => {
 
     expect(harness.notify).toHaveBeenCalledWith({
       kind: 'error',
-      code: 'chat.attachment.uploadFailed',
-      title: 'chat.input.fileUploadFailed',
+      code: 'chat.message.sendFailed',
+      title: 'chat.input.sendFailed',
       description: 'OCR runtime unavailable'
     })
     expect(harness.actions.message.value).toBe('keep this draft')
@@ -1036,8 +1037,8 @@ describe('useComposerSubmit attachment preflight', () => {
     expect(harness.actions.message.value).toBe('keep this draft')
     expect(harness.notify).toHaveBeenCalledWith({
       kind: 'error',
-      code: 'chat.attachment.uploadFailed',
-      title: 'chat.input.fileUploadFailed',
+      code: 'chat.message.sendFailed',
+      title: 'chat.input.sendFailed',
       description: 'boom'
     })
     harness.stop()

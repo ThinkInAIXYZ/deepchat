@@ -175,8 +175,8 @@ export class SessionLifecycle implements SessionLifecyclePort {
         this.releaseDraftOwner(draftSessionId)
         return result
       } catch (error) {
-        // Preserve the browser and draft only when no message was accepted.
-        if (!(await this.hasSessionMessages(draftSessionId))) {
+        // Revert to a draft only when the initial input could not have been admitted.
+        if (!(await this.hasInitialTurnInput(draftSessionId))) {
           this.dependencies.sessions.update(draftSessionId, { isDraft: true, title: 'New Chat' })
           if (this.dependencies.desktop.getActiveId(webContentsId) === draftSessionId) {
             this.dependencies.desktop.unbind(webContentsId)
@@ -754,16 +754,24 @@ export class SessionLifecycle implements SessionLifecyclePort {
     }
   }
 
-  private async cleanupFailedNewSession(sessionId: string, webContentsId: number): Promise<void> {
+  private async hasInitialTurnInput(sessionId: string): Promise<boolean> {
     try {
-      if (await this.dependencies.transcript.hasMessages(sessionId)) return
+      // An input may have reached Dim even if its user message has not projected yet.
+      return (
+        (await this.dependencies.transcript.hasMessages(sessionId)) ||
+        this.dependencies.runtime.hasAdmittedOrUnresolvedInput(sessionId)
+      )
     } catch (error) {
       console.warn(
         `[SessionLifecycle] Failed to inspect failed new session ${sessionId}; preserving it:`,
         error
       )
-      return
+      return true
     }
+  }
+
+  private async cleanupFailedNewSession(sessionId: string, webContentsId: number): Promise<void> {
+    if (await this.hasInitialTurnInput(sessionId)) return
 
     try {
       if (this.dependencies.desktop.getActiveId(webContentsId) === sessionId) {

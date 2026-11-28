@@ -849,51 +849,33 @@ describe('SessionTurn', () => {
     }
   )
 
-  it('contains rejected DeepChat initial-turn acceptance', async () => {
-    const harness = createHarness()
-    const error = new Error('send failed')
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
-    harness.send.mockRejectedValue(error)
+  it.each(['resolve', 'send'] as const)(
+    'reports a failed DeepChat initial text submission (%s)',
+    async (stage) => {
+      const harness = createHarness()
+      const error = new Error('initial submission failed')
+      if (stage === 'resolve') {
+        harness.resolveSession.mockImplementationOnce(() => {
+          throw error
+        })
+      } else {
+        harness.send.mockRejectedValueOnce(error)
+      }
 
-    await expect(
-      harness.coordinator.startInitialTurn({
-        sessionId: 's1',
-        content: { text: 'Initial', files: [] },
-        projectDir: '/repo',
-        initialTitle: 'Initial',
-        fallbackProviderId: 'openai',
-        fallbackModelId: 'model-1'
-      })
-    ).resolves.toBeUndefined()
+      await expect(
+        harness.coordinator.startInitialTurn({
+          sessionId: 's1',
+          content: { text: 'Initial', files: [] },
+          projectDir: '/repo',
+          initialTitle: 'Initial',
+          fallbackProviderId: 'openai',
+          fallbackModelId: 'model-1'
+        })
+      ).rejects.toBe(error)
 
-    expect(consoleError).toHaveBeenCalledWith('[SessionTurn] initial send failed:', error)
-    expect(harness.projection.scheduleTitleGeneration).not.toHaveBeenCalled()
-    consoleError.mockRestore()
-  })
-
-  it('contains synchronous runtime resolution failure during initial preflight', async () => {
-    const harness = createHarness()
-    const error = new Error('resolve failed')
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
-    harness.resolveSession.mockImplementation(() => {
-      throw error
-    })
-
-    await expect(
-      harness.coordinator.startInitialTurn({
-        sessionId: 's1',
-        content: { text: 'Initial', files: [] },
-        projectDir: '/repo',
-        initialTitle: 'Initial',
-        fallbackProviderId: 'openai',
-        fallbackModelId: 'model-1'
-      })
-    ).resolves.toBeUndefined()
-
-    expect(consoleError).toHaveBeenCalledWith('[SessionTurn] initial send failed:', error)
-    expect(harness.projection.scheduleTitleGeneration).not.toHaveBeenCalled()
-    consoleError.mockRestore()
-  })
+      expect(harness.projection.scheduleTitleGeneration).not.toHaveBeenCalled()
+    }
+  )
 
   it('returns a recoverable result when initial attachment acceptance fails unexpectedly', async () => {
     const harness = createHarness()
@@ -928,30 +910,6 @@ describe('SessionTurn', () => {
       error
     )
     expect(harness.send).toHaveBeenCalledOnce()
-    expect(harness.projection.scheduleTitleGeneration).not.toHaveBeenCalled()
-    consoleError.mockRestore()
-  })
-
-  it('contains synchronous send invocation failure during acceptance', async () => {
-    const harness = createHarness()
-    const error = new Error('send invocation failed')
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
-    harness.send.mockImplementation(() => {
-      throw error
-    })
-
-    await expect(
-      harness.coordinator.startInitialTurn({
-        sessionId: 's1',
-        content: { text: 'Initial', files: [] },
-        projectDir: '/repo',
-        initialTitle: 'Initial',
-        fallbackProviderId: 'openai',
-        fallbackModelId: 'model-1'
-      })
-    ).resolves.toBeUndefined()
-
-    expect(consoleError).toHaveBeenCalledWith('[SessionTurn] initial send failed:', error)
     expect(harness.projection.scheduleTitleGeneration).not.toHaveBeenCalled()
     consoleError.mockRestore()
   })

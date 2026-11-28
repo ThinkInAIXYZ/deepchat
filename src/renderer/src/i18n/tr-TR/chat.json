@@ -92,6 +92,7 @@
       "locked": "Bu yanıt bittikten sonra mod değiştirebilirsiniz.",
       "updateFailed": "Araç modu güncellenemedi."
     },
+    "sendFailed": "Mesaj gönderilmedi",
     "fileUploadFailed": "Ek başarısız oldu",
     "fileUploadFailedDesc": "{count} dosyaları işlenemedi: {names}",
     "fileUploadFailedMore": "ve {count} daha",
