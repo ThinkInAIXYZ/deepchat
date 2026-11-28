@@ -492,8 +492,6 @@ Common commands include `/start`, `/help`, `/pair`, `/new`, `/sessions`, `/use`,
       <img src="./src/renderer/src/assets/llm-icons/teamorouter.svg" width="50" height="50" alt="TeamoRouter Icon"><br/>
       <a href="https://teamorouter.com/?utm_source=deepchat">TeamoRouter</a>
     </td>
-  </tr>
-  <tr align="center">
     <td>
       <img src="./src/renderer/src/assets/llm-icons/straitly.svg" width="50" height="50" alt="Straitly Icon"><br/>
       <a href="https://straitly.ai/">Straitly</a>
