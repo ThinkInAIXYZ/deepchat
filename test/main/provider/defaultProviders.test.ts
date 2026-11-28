@@ -428,8 +428,8 @@ describe('DEFAULT_PROVIDERS', () => {
         websites: expect.objectContaining({
           official: 'https://llmtr.com/?utm_source=deepchat',
           apiKey: 'https://llmtr.com/dashboard/keys?utm_source=deepchat',
-          docs: 'https://llmtr.com/?utm_source=deepchat',
-          models: 'https://llmtr.com/?utm_source=deepchat',
+          docs: 'https://llmtr.com/docs/?utm_source=deepchat',
+          models: 'https://llmtr.com/models?utm_source=deepchat',
           defaultBaseUrl: 'https://llmtr.com/v1'
         })
       })

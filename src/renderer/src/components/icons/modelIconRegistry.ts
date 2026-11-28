@@ -313,6 +313,7 @@ const monoIconUrls = new Set<string>([
   rwkvColorIcon,
   moonshotColorIcon,
   openrouterColorIcon,
+  llmtrIcon,
   atlascloudIcon,
   openllmIcon,
   opperColorIcon,
