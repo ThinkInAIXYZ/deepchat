@@ -899,6 +899,36 @@ describe('basic API-key provider registrations', () => {
     })
   })
 
+  it('discovers JembatanAI models with the configured key', async () => {
+    const defaults = DEFAULT_PROVIDERS.find((provider) => provider.id === 'jembatanai')!
+    expect(defaults).toMatchObject({
+      name: 'JembatanAI',
+      enable: false,
+      apiType: 'openai-completions'
+    })
+    const config = { ...defaults, apiKey: 'test-key' }
+    expect(resolveAiSdkProviderDefinition(config)).toMatchObject({
+      runtimeKind: 'openai-compatible',
+      checkStrategy: 'fetch-models',
+      credentialStrategy: 'api-key',
+      embeddingStrategy: 'none'
+    })
+    const fetchMock = vi.fn().mockResolvedValue(Response.json({ data: [{ id: 'catalog-model' }] }))
+    global.fetch = fetchMock
+    const provider = new AiSdkProvider(config, createProviderSettings())
+
+    await expect(provider.fetchModels({ suppressErrors: false })).resolves.toEqual([
+      expect.objectContaining({ id: 'catalog-model', providerId: 'jembatanai' })
+    ])
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://freeai.jembatanai.com/v1/models',
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({ Authorization: 'Bearer test-key' })
+      })
+    )
+  })
+
   it('resolves LLMTR through a chat check because the model catalog is public', () => {
     expect(
       resolveAiSdkProviderDefinition(

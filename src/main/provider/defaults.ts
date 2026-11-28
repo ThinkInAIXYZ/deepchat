@@ -833,6 +833,20 @@ const PROVIDER_DEFAULTS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'jembatanai',
+    name: 'JembatanAI',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://freeai.jembatanai.com/v1',
+    enable: false,
+    websites: {
+      official: 'https://jembatanai.com/en/',
+      apiKey: 'https://jembatanai.com/en/checkout.html',
+      docs: 'https://jembatanai.com/en/docs.html',
+      models: 'https://jembatanai.com/en/models.html'
+    }
+  },
+  {
     id: 'llmtr',
     name: 'LLMTR',
     apiType: 'openai-completions',
