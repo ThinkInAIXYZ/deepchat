@@ -833,6 +833,20 @@ const PROVIDER_DEFAULTS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'llmtr',
+    name: 'LLMTR',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://llmtr.com/v1',
+    enable: false,
+    websites: {
+      official: 'https://llmtr.com/?utm_source=deepchat',
+      apiKey: 'https://llmtr.com/dashboard/keys?utm_source=deepchat',
+      docs: 'https://llmtr.com/docs/?utm_source=deepchat',
+      models: 'https://llmtr.com/models?utm_source=deepchat'
+    }
+  },
+  {
     id: 'teamorouter',
     name: 'TeamoRouter',
     apiType: 'openai-completions',

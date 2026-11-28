@@ -437,6 +437,25 @@ describe('DEFAULT_PROVIDERS', () => {
     )
   })
 
+  it('includes LLMTR as a disabled built-in OpenAI-compatible provider', () => {
+    expect(DEFAULT_PROVIDERS).toContainEqual(
+      expect.objectContaining({
+        id: 'llmtr',
+        name: 'LLMTR',
+        apiType: 'openai-completions',
+        baseUrl: 'https://llmtr.com/v1',
+        enable: false,
+        websites: expect.objectContaining({
+          official: 'https://llmtr.com/?utm_source=deepchat',
+          apiKey: 'https://llmtr.com/dashboard/keys?utm_source=deepchat',
+          docs: 'https://llmtr.com/docs/?utm_source=deepchat',
+          models: 'https://llmtr.com/models?utm_source=deepchat',
+          defaultBaseUrl: 'https://llmtr.com/v1'
+        })
+      })
+    )
+  })
+
   it('includes TeamoRouter as a disabled built-in OpenAI-compatible provider', () => {
     expect(DEFAULT_PROVIDERS).toContainEqual(
       expect.objectContaining({

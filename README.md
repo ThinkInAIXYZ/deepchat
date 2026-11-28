@@ -506,6 +506,13 @@ Common commands include `/start`, `/help`, `/pair`, `/new`, `/sessions`, `/use`,
     </td>
   </tr>
 
+  <tr align="center">
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/llmtr.svg" width="50" height="50" alt="LLMTR Icon"><br/>
+      <a href="https://llmtr.com/?utm_source=deepchat">LLMTR</a>
+    </td>
+  </tr>
+
 </table>
 
 ### Compatible with any model provider in OpenAI/Gemini/Anthropic API format

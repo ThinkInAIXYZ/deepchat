@@ -899,6 +899,26 @@ describe('basic API-key provider registrations', () => {
     })
   })
 
+  it('resolves LLMTR through a chat check because the model catalog is public', () => {
+    expect(
+      resolveAiSdkProviderDefinition(
+        createProvider({
+          id: 'llmtr',
+          name: 'LLMTR',
+          baseUrl: 'https://llmtr.com/v1'
+        })
+      )
+    ).toMatchObject({
+      runtimeKind: 'openai-compatible',
+      modelSource: 'openai',
+      checkStrategy: 'generate-text',
+      credentialStrategy: 'api-key',
+      routeStrategy: 'none',
+      embeddingStrategy: 'none',
+      checkModelId: 'qwen/qwen3.8-27b-free'
+    })
+  })
+
   it('resolves TeamoRouter through authenticated OpenAI-compatible model discovery', () => {
     expect(
       resolveAiSdkProviderDefinition(
