@@ -505,6 +505,10 @@ DeepChatはメッセージアプリからリモート操作できるため、デ
       <img src="./src/renderer/src/assets/llm-icons/llmtr.svg" width="50" height="50" alt="LLMTR Icon"><br/>
       <a href="https://llmtr.com/?utm_source=deepchat">LLMTR</a>
     </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/jembatanai.svg" width="50" height="50" alt="JembatanAI Icon"><br/>
+      <a href="https://jembatanai.com/en/">JembatanAI</a>
+    </td>
   </tr>
 
 </table>
