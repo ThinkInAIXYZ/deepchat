@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import logger from '@shared/logger'
 import type {
   DeepChatSessionState,
   SessionGenerationSettings,
@@ -143,9 +144,9 @@ function createHarness(initialSessions: SessionRecord[] = []) {
       records.delete(sessionId)
     })
   }
+  const hasAdmittedOrUnresolvedInput = vi.fn(() => false)
   const runtime = {
-    resolveSession: vi.fn((sessionId: string) => getRuntime(sessionId)),
-    hasAdmittedOrUnresolvedInput: vi.fn(() => false)
+    resolveSession: vi.fn((sessionId: string) => getRuntime(sessionId))
   }
   const transcript = {
     hasMessages: vi.fn().mockResolvedValue(false),
@@ -271,6 +272,7 @@ function createHarness(initialSessions: SessionRecord[] = []) {
     assignmentPolicy,
     workdir,
     initialTurn,
+    hasAdmittedOrUnresolvedInput,
     projection,
     desktop,
     deletion,
@@ -293,6 +295,7 @@ function createHarness(initialSessions: SessionRecord[] = []) {
     assignmentPolicy,
     workdir,
     initialTurn,
+    hasAdmittedOrUnresolvedInput,
     projection,
     desktop,
     deletion,
@@ -439,7 +442,7 @@ describe('SessionLifecycle', () => {
         : 'session-1'
       const error = new Error('Initial input outcome must be reconciled')
       harness.initialTurn.startInitialTurn.mockRejectedValueOnce(error)
-      harness.runtime.hasAdmittedOrUnresolvedInput.mockReturnValueOnce(true)
+      harness.hasAdmittedOrUnresolvedInput.mockReturnValueOnce(true)
 
       await expect(
         harness.coordinator.createSession(
@@ -450,7 +453,8 @@ describe('SessionLifecycle', () => {
 
       expect(harness.initialTurn.startInitialTurn).toHaveBeenCalledOnce()
       expect(harness.records.get(id)).toMatchObject({ isDraft: false, title: 'Hi' })
-      expect(harness.runtime.hasAdmittedOrUnresolvedInput).toHaveBeenCalledWith(id)
+      expect(harness.hasAdmittedOrUnresolvedInput).toHaveBeenCalledWith(id)
+      expect(logger.warn).toHaveBeenLastCalledWith(expect.any(String), { sessionId: id, error })
       expect(harness.desktop.unbind).not.toHaveBeenCalled()
       expect(harness.deletion.deleteSessionTree).not.toHaveBeenCalled()
       expect(harness.coordinator.ownsDraftSession(id, 42)).toBe(false)
@@ -843,7 +847,7 @@ describe('SessionLifecycle', () => {
       harness.coordinator.createSession({ agentId: 'deepchat', message: 'Hi' }, 42)
     ).rejects.toBe(error)
 
-    expect(harness.runtime.hasAdmittedOrUnresolvedInput).toHaveBeenCalledWith('session-1')
+    expect(harness.hasAdmittedOrUnresolvedInput).toHaveBeenCalledWith('session-1')
     expect(harness.desktop.unbind).toHaveBeenCalledWith(42)
     expect(harness.records.has('session-1')).toBe(false)
   })

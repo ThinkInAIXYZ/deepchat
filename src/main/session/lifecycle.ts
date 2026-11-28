@@ -48,6 +48,7 @@ export interface SessionLifecycleDependencies {
   assignmentPolicy: SessionAssignmentPolicyPort
   workdir: SessionAssignmentWorkdirPort
   initialTurn: SessionInitialTurnPort
+  hasAdmittedOrUnresolvedInput(sessionId: string): boolean
   projection: SessionLifecycleProjectionPort
   desktop: SessionLifecycleDesktopPort
   deletion: SessionLifecycleDeletionPort
@@ -240,6 +241,7 @@ export class SessionLifecycle implements SessionLifecyclePort {
       const preserve = await this.hasInitialTurnInput(sessionId)
       // A lost first-turn acknowledgement must not make the caller create another session.
       if (createdSession && preserve) {
+        logger.warn('[SessionLifecycle] Could not confirm initial turn', { sessionId, error })
         return { ...createdSession, initialTurnUnconfirmed: true }
       }
       if (!input.draftSessionId && !preserve) {
@@ -768,7 +770,7 @@ export class SessionLifecycle implements SessionLifecyclePort {
       // An input may have reached Dim even if its user message has not projected yet.
       return (
         (await this.dependencies.transcript.hasMessages(sessionId)) ||
-        this.dependencies.runtime.hasAdmittedOrUnresolvedInput(sessionId)
+        this.dependencies.hasAdmittedOrUnresolvedInput(sessionId)
       )
     } catch (error) {
       console.warn(

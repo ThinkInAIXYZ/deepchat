@@ -2914,9 +2914,7 @@ export async function createMainProcessControl(dependencies: {
           setPermissionMode: (mode) => handle.settings.setPermissionMode(mode),
           close: () => handle.close()
         }
-      },
-      hasAdmittedOrUnresolvedInput: (sessionId) =>
-        sessionData.database.dimInputIntentsTable.hasAdmittedOrUnresolvedInput(sessionId)
+      }
     },
     transcript: {
       hasMessages: (sessionId) => sessionData.transcript.hasMessages(sessionId),
@@ -2935,6 +2933,8 @@ export async function createMainProcessControl(dependencies: {
     assignmentPolicy: sessionAssignmentPolicy,
     workdir: sessionAssignment,
     initialTurn: sessionTurn,
+    hasAdmittedOrUnresolvedInput: (sessionId) =>
+      sessionData.database.dimInputIntentsTable.hasAdmittedOrUnresolvedInput(sessionId),
     projection: sessionQuery,
     desktop: desktopSessionBinding,
     deletion: sessionDeletion,

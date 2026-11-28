@@ -163,8 +163,7 @@ export const createSessionFixture = (input: {
           setPermissionMode: (mode) => handle.settings.setPermissionMode(mode),
           close: () => handle.close()
         }
-      },
-      hasAdmittedOrUnresolvedInput: () => false
+      }
     },
     transcript: {
       hasMessages: (sessionId) => input.sharedData.transcript.hasMessages(sessionId),
@@ -183,6 +182,7 @@ export const createSessionFixture = (input: {
     assignmentPolicy: policy,
     workdir: assignment,
     initialTurn: turn,
+    hasAdmittedOrUnresolvedInput: () => false,
     projection: input.projection,
     desktop,
     deletion,
