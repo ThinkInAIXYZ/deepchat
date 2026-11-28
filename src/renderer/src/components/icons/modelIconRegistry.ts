@@ -66,6 +66,7 @@ import wiroIcon from '@/assets/llm-icons/wiro.svg?url'
 import cheapaimodelIcon from '@/assets/llm-icons/cheapaimodel.svg?url'
 import onomeoIcon from '@/assets/llm-icons/onomeo.svg?url'
 import teamorouterIcon from '@/assets/llm-icons/teamorouter.svg?url'
+import straitlyIcon from '@/assets/llm-icons/straitly.svg?url'
 import obscurifyIcon from '@/assets/llm-icons/obscurify.svg?url'
 import demonrouteColorIcon from '@/assets/llm-icons/demonroute.svg?url'
 import orcarouterColorIcon from '@/assets/llm-icons/orcarouter.svg?url'
@@ -233,6 +234,7 @@ export const modelIcons = {
   cheapaimodel: cheapaimodelIcon,
   onomeo: onomeoIcon,
   teamorouter: teamorouterIcon,
+  straitly: straitlyIcon,
   obscurify: obscurifyIcon,
   demonroute: demonrouteColorIcon,
   orcarouter: orcarouterColorIcon,
@@ -327,6 +329,7 @@ const monoIconUrls = new Set<string>([
   llmbuzzIcon,
   worldrouterIcon,
   aigrowIcon,
+  straitlyIcon,
   obscurifyIcon,
   demonrouteColorIcon,
   githubColorIcon,

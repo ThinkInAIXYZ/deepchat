@@ -688,6 +688,20 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
     })
   ],
   [
+    'straitly',
+    // The public /v1/models catalog answers without a key, so check with a chat request.
+    createDefinition({
+      ...OPENAI_BASE,
+      checkStrategy: 'generate-text',
+      credentialStrategy: 'api-key',
+      embeddingStrategy: 'none',
+      checkModelId: 'claude-haiku-5-5',
+      checkPrompt: 'Hello',
+      checkTemperature: 0.2,
+      checkMaxTokens: 16
+    })
+  ],
+  [
     'standardcompute',
     // The public /v1/models catalog answers without a key, so check with a chat request.
     createDefinition({

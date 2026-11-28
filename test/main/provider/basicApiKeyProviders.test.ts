@@ -918,6 +918,43 @@ describe('basic API-key provider registrations', () => {
     })
   })
 
+  it('resolves Straitly with OpenAI-compatible discovery and a text-generation check', async () => {
+    const defaults = DEFAULT_PROVIDERS.find((provider) => provider.id === 'straitly')!
+    expect(defaults).toBeDefined()
+    const config = { ...defaults, apiKey: 'test-key' }
+    expect(resolveAiSdkProviderDefinition(config)).toMatchObject({
+      runtimeKind: 'openai-compatible',
+      modelSource: 'openai',
+      checkStrategy: 'generate-text',
+      credentialStrategy: 'api-key',
+      routeStrategy: 'none',
+      embeddingStrategy: 'none',
+      checkModelId: 'claude-haiku-5-5'
+    })
+    const fetchMock = vi.fn().mockImplementation(async () =>
+      Response.json({
+        data: [
+          { id: 'claude-haiku-5-5', name: 'Claude Haiku 5.5' },
+          { id: 'deepseek/deepseek-v4-1-flash-1017', name: 'DeepSeek V4.1 Flash' }
+        ]
+      })
+    )
+    global.fetch = fetchMock as unknown as typeof fetch
+    const provider = new AiSdkProvider(config, createProviderSettings())
+
+    await expect(provider.fetchModels({ suppressErrors: false })).resolves.toEqual([
+      expect.objectContaining({ id: 'claude-haiku-5-5', providerId: 'straitly' }),
+      expect.objectContaining({ id: 'deepseek/deepseek-v4-1-flash-1017', providerId: 'straitly' })
+    ])
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.straitly.ai/v1/models',
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({ Authorization: 'Bearer test-key' })
+      })
+    )
+  })
+
   it('resolves AtmoRouter through authenticated OpenAI-compatible model discovery', () => {
     expect(
       resolveAiSdkProviderDefinition(

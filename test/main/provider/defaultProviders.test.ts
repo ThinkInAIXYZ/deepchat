@@ -456,6 +456,25 @@ describe('DEFAULT_PROVIDERS', () => {
     )
   })
 
+  it('includes Straitly as a disabled built-in OpenAI-compatible provider', () => {
+    expect(DEFAULT_PROVIDERS).toContainEqual(
+      expect.objectContaining({
+        id: 'straitly',
+        name: 'Straitly',
+        apiType: 'openai-completions',
+        baseUrl: 'https://api.straitly.ai/v1',
+        enable: false,
+        websites: expect.objectContaining({
+          official: 'https://straitly.ai/',
+          apiKey: 'https://straitly.ai/app/keys',
+          docs: 'https://straitly.ai/docs/quickstart',
+          models: 'https://straitly.ai/models',
+          defaultBaseUrl: 'https://api.straitly.ai/v1'
+        })
+      })
+    )
+  })
+
   it('includes AtmoRouter as a disabled built-in OpenAI-compatible provider', () => {
     expect(DEFAULT_PROVIDERS).toContainEqual(
       expect.objectContaining({
