@@ -178,6 +178,27 @@ it('commits input acceptance with its projection and retains only an immutable r
   )
 })
 
+it('finds unprojected input that must survive failed session creation', () => {
+  const { data } = database()
+  const intents = data.dimInputIntentsTable
+  expect(intents.hasAdmittedOrUnresolvedInput('app')).toBe(false)
+  intents.begin({
+    submissionId: 'initial',
+    sessionId: 'app',
+    dimSessionId: 'native',
+    branchId: 'main',
+    payload: { content: [{ type: 'text', text: 'hi' }] }
+  })
+  expect(intents.hasAdmittedOrUnresolvedInput('another-session')).toBe(false)
+  expect(intents.hasAdmittedOrUnresolvedInput('app')).toBe(true)
+  intents.settle('initial', 'unknown')
+  expect(intents.hasAdmittedOrUnresolvedInput('app')).toBe(true)
+  intents.settle('initial', 'rejected')
+  expect(intents.hasAdmittedOrUnresolvedInput('app')).toBe(false)
+  intents.settle('initial', 'accepted', { inputId: 'event-1', sequence: 1 })
+  expect(intents.hasAdmittedOrUnresolvedInput('app')).toBe(true)
+})
+
 it('keeps queued input out of the transcript until dim applies it, preserving conversation order', () => {
   const { data, binding, projection } = database()
   projection.apply(

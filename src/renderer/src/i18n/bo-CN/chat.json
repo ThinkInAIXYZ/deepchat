@@ -91,6 +91,8 @@
       "locked": "ལན་འདི་མཇུག་རྫོགས་རྗེས་རྣམ་པ་བརྗེ་ཆོག",
       "updateFailed": "ལག་ཆའི་རྣམ་པ་གསར་སྒྱུར་མ་ཐུབ།"
     },
+    "sendFailed": "འཕྲིན་ལན་གཏོང་མ་ཐུབ།",
+    "sendUnconfirmed": "འཕྲིན་ལན་བཏང་ཡོད་མེད་གཏན་ཁེལ་བྱེད་མི་ཐུབ།",
     "fileUploadFailed": "ཟུར་སྣོན་ཐག་གཅོད་མ་ཐུབ།",
     "fileUploadFailedDesc": "ཡིག་ཆ་ {count} ཐག་གཅོད་མ་ཐུབ། {names}",
     "fileUploadFailedMore": " སོགས་བསྡོམས་ {count}",

@@ -636,6 +636,11 @@ export interface SessionLifecycleSubagentInput {
   preserveExecutionConfig?: boolean
 }
 
+export type SessionLifecycleCreateResult = SessionWithState & {
+  initialTurn?: MessageStartResult
+  initialTurnUnconfirmed?: true
+}
+
 export interface SessionLifecyclePort {
   createDraftSession(
     agentId: string,
@@ -648,7 +653,7 @@ export interface SessionLifecyclePort {
     input: CreateSessionInput,
     webContentsId: number,
     options?: { signal?: AbortSignal }
-  ): Promise<SessionWithState & { initialTurn?: MessageStartResult }>
+  ): Promise<SessionLifecycleCreateResult>
   createDetachedSession(input: CreateDetachedSessionInput): Promise<SessionWithState>
   createSubagentSession(input: SessionLifecycleSubagentInput): Promise<SessionWithState>
   ensureAcpDraftSession(

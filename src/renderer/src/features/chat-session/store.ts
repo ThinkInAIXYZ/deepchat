@@ -139,7 +139,8 @@ export const useChatSessionStore = defineStore('chat-session', () => {
         input.inlineItems?.some((item) => item.type === 'session') === true
       const attachmentPreparation = result.initialTurn?.attachmentPreparation
       const initialTurnNeedsUserAction = attachmentPreparation?.status === 'needs_user_action'
-      const hasAcceptedInitialTurn = hasInitialTurn && !initialTurnNeedsUserAction
+      const hasAcceptedInitialTurn =
+        hasInitialTurn && !initialTurnNeedsUserAction && !result.initialTurnUnconfirmed
       if (initialTurnNeedsUserAction) {
         attachmentPreparationStore.stageInitialDraftRecovery({
           sessionId: session.id,
@@ -169,10 +170,10 @@ export const useChatSessionStore = defineStore('chat-session', () => {
     } catch (createError) {
       if (input.draftSessionId) {
         try {
-          // A failed reply can still leave an accepted first message; open its conversation.
+          // The reply can be lost after the draft was promoted, before any message is projected.
           const recovered = await sessionClient.restore(input.draftSessionId, 1)
           const session = recovered.session
-          if (session && !session.isDraft && recovered.messages.length > 0) {
+          if (session && !session.isDraft) {
             commitSessionSnapshot(session)
             setSearchIntent(session.id, input.search === true)
             if (activationNavigationRequestId === requestId) {
@@ -180,6 +181,9 @@ export const useChatSessionStore = defineStore('chat-session', () => {
               applyRestoredSession(session)
               syncSelectedAgentToSession(session.id)
               pageRouter.goToChat(session.id)
+            }
+            if (recovered.messages.length === 0) {
+              return { session, initialTurnUnconfirmed: true as const }
             }
             await completeOnboardingStep('first-chat')
             return { session }

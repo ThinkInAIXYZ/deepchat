@@ -92,6 +92,8 @@
       "locked": "この応答の完了後にモードを切り替えられます。",
       "updateFailed": "ツールモードを更新できませんでした。"
     },
+    "sendFailed": "メッセージを送信できませんでした",
+    "sendUnconfirmed": "メッセージが送信されたか確認できません",
     "fileUploadFailed": "添付ファイルの処理に失敗しました",
     "fileUploadFailedDesc": "次の {count} 件のファイルを処理できませんでした: {names}",
     "fileUploadFailedMore": " ほか {count} 件",

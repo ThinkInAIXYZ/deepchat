@@ -102,6 +102,15 @@ export class DimInputIntentsTable extends BaseTable {
       WHERE submission_id = ? AND state != 'accepted'`)
       .run(state, receipt ? JSON.stringify(receipt) : null, state, Date.now(), id)
   }
+  hasAdmittedOrUnresolvedInput(sessionId: string): boolean {
+    return Boolean(
+      this.db
+        .prepare(
+          "SELECT 1 FROM dim_input_intents WHERE session_id = ? AND state IN ('sending', 'unknown', 'accepted') LIMIT 1"
+        )
+        .get(sessionId)
+    )
+  }
   pending(sessionId: string): DimInputIntent[] {
     return (
       this.db

@@ -4542,6 +4542,24 @@ describe('dispatchDeepchatRoute', () => {
     expect(sessionLifecyclePort.discardDraftSession).toHaveBeenCalledWith('draft-1', 88)
   })
 
+  it('returns the preserved session when first-turn admission is unconfirmed', async () => {
+    const { runtime, sessionLifecyclePort, sessionProjectionPort } = createRuntime()
+    const session = await sessionProjectionPort.getSession('session-1')
+    sessionLifecyclePort.createSession.mockResolvedValueOnce({
+      ...session,
+      initialTurnUnconfirmed: true
+    })
+
+    const result = await dispatchDeepchatRoute(
+      runtime,
+      'sessions.create',
+      { agentId: 'deepchat', message: 'hello world' },
+      createRendererRouteContext(88, 3)
+    )
+
+    expect(result).toMatchObject({ session, initialTurnUnconfirmed: true })
+  })
+
   it('dispatches session and chat routes with renderer context', async () => {
     const { runtime, sessionLifecyclePort, sessionTurnPort } = createRuntime()
 

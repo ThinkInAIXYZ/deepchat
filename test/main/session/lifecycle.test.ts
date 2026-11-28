@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import logger from '@shared/logger'
 import type {
   DeepChatSessionState,
   SessionGenerationSettings,
@@ -143,7 +144,10 @@ function createHarness(initialSessions: SessionRecord[] = []) {
       records.delete(sessionId)
     })
   }
-  const runtime = { resolveSession: vi.fn((sessionId: string) => getRuntime(sessionId)) }
+  const hasAdmittedOrUnresolvedInput = vi.fn(() => false)
+  const runtime = {
+    resolveSession: vi.fn((sessionId: string) => getRuntime(sessionId))
+  }
   const transcript = {
     hasMessages: vi.fn().mockResolvedValue(false),
     forkSessionFromMessage: vi.fn().mockResolvedValue(undefined)
@@ -268,6 +272,7 @@ function createHarness(initialSessions: SessionRecord[] = []) {
     assignmentPolicy,
     workdir,
     initialTurn,
+    hasAdmittedOrUnresolvedInput,
     projection,
     desktop,
     deletion,
@@ -290,6 +295,7 @@ function createHarness(initialSessions: SessionRecord[] = []) {
     assignmentPolicy,
     workdir,
     initialTurn,
+    hasAdmittedOrUnresolvedInput,
     projection,
     desktop,
     deletion,
@@ -332,7 +338,7 @@ describe('SessionLifecycle', () => {
         { agentId: 'deepchat', draftSessionId: id, message: 'Review' },
         42
       )
-    ).rejects.toBe(failure)
+    ).resolves.toMatchObject({ id, isDraft: false, initialTurnUnconfirmed: true })
     expect(harness.records.get(id)?.isDraft).toBe(false)
     expect(harness.coordinator.ownsDraftSession(id, 42)).toBe(false)
     expect(await harness.coordinator.discardDraftSession(id, 42)).toBe(false)
@@ -424,6 +430,34 @@ describe('SessionLifecycle', () => {
         id,
         isDraft: false
       })
+    }
+  )
+
+  it.each([false, true])(
+    'returns the preserved session with an unprojected admitted or unresolved input (draft: %s)',
+    async (adoptDraft) => {
+      const harness = createHarness()
+      const id = adoptDraft
+        ? await harness.coordinator.createDraftSession('deepchat', '/repo', 42)
+        : 'session-1'
+      const error = new Error('Initial input outcome must be reconciled')
+      harness.initialTurn.startInitialTurn.mockRejectedValueOnce(error)
+      harness.hasAdmittedOrUnresolvedInput.mockReturnValueOnce(true)
+
+      await expect(
+        harness.coordinator.createSession(
+          { agentId: 'deepchat', ...(adoptDraft ? { draftSessionId: id } : {}), message: 'Hi' },
+          42
+        )
+      ).resolves.toMatchObject({ id, isDraft: false, title: 'Hi', initialTurnUnconfirmed: true })
+
+      expect(harness.initialTurn.startInitialTurn).toHaveBeenCalledOnce()
+      expect(harness.records.get(id)).toMatchObject({ isDraft: false, title: 'Hi' })
+      expect(harness.hasAdmittedOrUnresolvedInput).toHaveBeenCalledWith(id)
+      expect(logger.warn).toHaveBeenLastCalledWith(expect.any(String), { sessionId: id, error })
+      expect(harness.desktop.unbind).not.toHaveBeenCalled()
+      expect(harness.deletion.deleteSessionTree).not.toHaveBeenCalled()
+      expect(harness.coordinator.ownsDraftSession(id, 42)).toBe(false)
     }
   )
 
@@ -800,6 +834,24 @@ describe('SessionLifecycle', () => {
     expect(harness.skills.setActiveSkills).not.toHaveBeenCalled()
   })
 
+  it('cleans up an empty new session when its first text is rejected before admission', async () => {
+    const harness = createHarness()
+    const error = new Error('Model unavailable')
+    harness.initialTurn.startInitialTurn.mockRejectedValueOnce(error)
+    harness.deletion.deleteSessionTree.mockImplementationOnce(async (sessionId) => {
+      harness.sessions.delete(sessionId)
+      return [sessionId]
+    })
+
+    await expect(
+      harness.coordinator.createSession({ agentId: 'deepchat', message: 'Hi' }, 42)
+    ).rejects.toBe(error)
+
+    expect(harness.hasAdmittedOrUnresolvedInput).toHaveBeenCalledWith('session-1')
+    expect(harness.desktop.unbind).toHaveBeenCalledWith(42)
+    expect(harness.records.has('session-1')).toBe(false)
+  })
+
   it('cleans up an empty ACP session when its initial reference input is rejected', async () => {
     const harness = createHarness()
     const error = new Error('Session references are unavailable for ACP sessions.')
@@ -843,7 +895,7 @@ describe('SessionLifecycle', () => {
   })
 
   it.each(['messages already exist', 'message inspection fails'])(
-    'preserves a rejected new session when %s',
+    'returns the preserved session with an unconfirmed first turn when %s',
     async (reason) => {
       const harness = createHarness()
       const error = new Error('Initial turn failed')
@@ -858,7 +910,7 @@ describe('SessionLifecycle', () => {
       try {
         await expect(
           harness.coordinator.createSession({ agentId: 'deepchat', message: 'Hello' }, 42)
-        ).rejects.toBe(error)
+        ).resolves.toMatchObject({ id: 'session-1', initialTurnUnconfirmed: true })
 
         expect(harness.transcript.hasMessages).toHaveBeenCalledWith('session-1')
         expect(harness.deletion.deleteSessionTree).not.toHaveBeenCalled()
@@ -913,7 +965,7 @@ describe('SessionLifecycle', () => {
     })
   })
 
-  it('preserves a cancelled new session once its user fact exists', async () => {
+  it('returns the preserved session when cancelled after its user fact exists', async () => {
     const harness = createHarness()
     const controller = new AbortController()
     harness.transcript.hasMessages.mockResolvedValueOnce(true)
@@ -928,7 +980,7 @@ describe('SessionLifecycle', () => {
         42,
         { signal: controller.signal }
       )
-    ).rejects.toMatchObject({ name: 'AbortError' })
+    ).resolves.toMatchObject({ id: 'session-1', initialTurnUnconfirmed: true })
 
     expect(harness.deletion.deleteSessionTree).not.toHaveBeenCalled()
     expect(harness.desktop.unbind).not.toHaveBeenCalled()

@@ -100,6 +100,8 @@
       "locked": "Du kan skifte tilstand, når dette svar er færdigt.",
       "updateFailed": "Værktøjstilstanden kunne ikke opdateres."
     },
+    "sendFailed": "Beskeden blev ikke sendt",
+    "sendUnconfirmed": "Kunne ikke bekræfte, om beskeden blev sendt",
     "fileUploadFailed": "Vedhæftning mislykkedes",
     "fileUploadFailedDesc": "Kunne ikke behandle {count} filer: {names}",
     "fileUploadFailedMore": " og {count} flere",

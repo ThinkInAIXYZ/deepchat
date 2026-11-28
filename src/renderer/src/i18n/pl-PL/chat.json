@@ -92,6 +92,8 @@
       "locked": "Tryb można zmienić po zakończeniu tej odpowiedzi.",
       "updateFailed": "Nie udało się zaktualizować trybu narzędzi."
     },
+    "sendFailed": "Wiadomość nie została wysłana",
+    "sendUnconfirmed": "Nie udało się potwierdzić, czy wiadomość została wysłana",
     "fileUploadFailed": "Załącznik nie powiódł się",
     "fileUploadFailedDesc": "Nie można przetworzyć plików {count}: {names}",
     "fileUploadFailedMore": " i {count} więcej",

@@ -92,6 +92,8 @@
       "locked": "You can switch modes after this response finishes.",
       "updateFailed": "The tool mode could not be updated."
     },
+    "sendFailed": "Message not sent",
+    "sendUnconfirmed": "Message status unconfirmed",
     "fileUploadFailed": "Attachment failed",
     "fileUploadFailedDesc": "Could not process {count} files: {names}",
     "fileUploadFailedMore": " and {count} more",

@@ -92,6 +92,8 @@
       "locked": "이 응답이 끝나면 모드를 전환할 수 있습니다.",
       "updateFailed": "도구 모드를 업데이트하지 못했습니다."
     },
+    "sendFailed": "메시지를 보내지 못했습니다",
+    "sendUnconfirmed": "메시지 전송 여부를 확인할 수 없습니다",
     "fileUploadFailed": "첨부 파일 처리 실패",
     "fileUploadFailedDesc": "파일 {count}개를 처리할 수 없습니다: {names}",
     "fileUploadFailedMore": " 외 {count}개",

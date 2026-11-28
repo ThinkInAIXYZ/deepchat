@@ -5,7 +5,6 @@ import type {
   CreateDetachedSessionInput,
   CreateSessionInput,
   DeepChatSubagentMeta,
-  MessageStartResult,
   PermissionMode,
   SessionRecord,
   SessionWithState
@@ -14,6 +13,7 @@ import type {
   SessionAssignmentPolicyPort,
   SessionAssignmentWorkdirPort,
   SessionInitialTurnPort,
+  SessionLifecycleCreateResult,
   SessionLifecycleDeletionPort,
   SessionLifecycleDesktopPort,
   SessionLifecyclePort,
@@ -48,6 +48,7 @@ export interface SessionLifecycleDependencies {
   assignmentPolicy: SessionAssignmentPolicyPort
   workdir: SessionAssignmentWorkdirPort
   initialTurn: SessionInitialTurnPort
+  hasAdmittedOrUnresolvedInput(sessionId: string): boolean
   projection: SessionLifecycleProjectionPort
   desktop: SessionLifecycleDesktopPort
   deletion: SessionLifecycleDeletionPort
@@ -139,7 +140,7 @@ export class SessionLifecycle implements SessionLifecyclePort {
     input: CreateSessionInput,
     webContentsId: number,
     options?: { signal?: AbortSignal }
-  ): Promise<SessionWithState & { initialTurn?: MessageStartResult }> {
+  ): Promise<SessionLifecycleCreateResult> {
     const assignment = await this.dependencies.assignmentPolicy.resolveCreateAssignment({
       agentId: input.agentId || 'deepchat',
       providerId: input.providerId,
@@ -175,8 +176,8 @@ export class SessionLifecycle implements SessionLifecyclePort {
         this.releaseDraftOwner(draftSessionId)
         return result
       } catch (error) {
-        // Preserve the browser and draft only when no message was accepted.
-        if (!(await this.hasSessionMessages(draftSessionId))) {
+        // Revert to a draft only when the initial input could not have been admitted.
+        if (!(await this.hasInitialTurnInput(draftSessionId))) {
           this.dependencies.sessions.update(draftSessionId, { isDraft: true, title: 'New Chat' })
           if (this.dependencies.desktop.getActiveId(webContentsId) === draftSessionId) {
             this.dependencies.desktop.unbind(webContentsId)
@@ -195,7 +196,7 @@ export class SessionLifecycle implements SessionLifecyclePort {
     webContentsId: number,
     options: { signal?: AbortSignal } | undefined,
     assignment: ResolvedSessionAssignment
-  ): Promise<SessionWithState & { initialTurn?: MessageStartResult }> {
+  ): Promise<SessionLifecycleCreateResult> {
     const { agentId, providerId, modelId, projectDir } = assignment
     logger.info(`[SessionLifecycle] createSession agent=${agentId} webContentsId=${webContentsId}`)
     const normalizedInput = normalizeCreateSessionInput(input)
@@ -220,9 +221,11 @@ export class SessionLifecycle implements SessionLifecyclePort {
       webContentsId
     })
 
+    let createdSession: SessionWithState | undefined
     try {
       const result = await this.materializeCreatedSession(sessionId, assignment)
       options?.signal?.throwIfAborted()
+      createdSession = result
 
       const initialTurn = await this.dependencies.initialTurn.startInitialTurn({
         sessionId,
@@ -235,7 +238,15 @@ export class SessionLifecycle implements SessionLifecyclePort {
       })
       return { ...result, ...(initialTurn ? { initialTurn } : {}) }
     } catch (error) {
-      if (!input.draftSessionId) await this.cleanupFailedNewSession(sessionId, webContentsId)
+      const preserve = await this.hasInitialTurnInput(sessionId)
+      // A lost first-turn acknowledgement must not make the caller create another session.
+      if (createdSession && preserve) {
+        logger.warn('[SessionLifecycle] Could not confirm initial turn', { sessionId, error })
+        return { ...createdSession, initialTurnUnconfirmed: true }
+      }
+      if (!input.draftSessionId && !preserve) {
+        await this.cleanupFailedNewSession(sessionId, webContentsId)
+      }
       throw error
     }
   }
@@ -754,17 +765,23 @@ export class SessionLifecycle implements SessionLifecyclePort {
     }
   }
 
-  private async cleanupFailedNewSession(sessionId: string, webContentsId: number): Promise<void> {
+  private async hasInitialTurnInput(sessionId: string): Promise<boolean> {
     try {
-      if (await this.dependencies.transcript.hasMessages(sessionId)) return
+      // An input may have reached Dim even if its user message has not projected yet.
+      return (
+        (await this.dependencies.transcript.hasMessages(sessionId)) ||
+        this.dependencies.hasAdmittedOrUnresolvedInput(sessionId)
+      )
     } catch (error) {
       console.warn(
         `[SessionLifecycle] Failed to inspect failed new session ${sessionId}; preserving it:`,
         error
       )
-      return
+      return true
     }
+  }
 
+  private async cleanupFailedNewSession(sessionId: string, webContentsId: number): Promise<void> {
     try {
       if (this.dependencies.desktop.getActiveId(webContentsId) === sessionId) {
         this.dependencies.desktop.unbind(webContentsId)

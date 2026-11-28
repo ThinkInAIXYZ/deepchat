@@ -92,6 +92,8 @@
       "locked": "ניתן להחליף מצב לאחר סיום התשובה הזאת.",
       "updateFailed": "לא ניתן לעדכן את מצב הכלים."
     },
+    "sendFailed": "ההודעה לא נשלחה",
+    "sendUnconfirmed": "לא ניתן לאשר שההודעה נשלחה",
     "fileUploadFailed": "עיבוד הקובץ המצורף נכשל",
     "fileUploadFailedDesc": "לא ניתן לעבד {count} קבצים: {names}",
     "fileUploadFailedMore": " ועוד {count} נוספים",

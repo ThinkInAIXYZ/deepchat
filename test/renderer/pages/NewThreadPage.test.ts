@@ -10,7 +10,7 @@ const setup = async (
     environments?: Array<{ path: string; exists: boolean }>
     modelInitialized?: boolean
     initializeModel?: () => Promise<void>
-    createSession?: () => Promise<void>
+    createSession?: () => Promise<{ initialTurnUnconfirmed?: true } | void>
     resolveDeepChatAgentConfig?: () => Promise<{
       defaultModelPreset?: { providerId: string; modelId: string }
       defaultProjectPath?: string
@@ -294,6 +294,48 @@ const setup = async (
 
 describe('NewThreadPage start deeplink prefill', () => {
   beforeEach(() => localStorage.clear())
+
+  it('keeps the first message and explains why sending failed', async () => {
+    const { wrapper, sessionStore, notify } = await setup('deepseek-chat')
+    const reason = 'Native provider grant cannot be repointed'
+    sessionStore.createSession.mockRejectedValueOnce(
+      new Error(`Error invoking remote method 'deepchat:route:invoke': Error: ${reason}`)
+    )
+    const input = wrapper.findComponent({ name: 'ChatInputBox' })
+    input.vm.$emit('update:modelValue', 'first message')
+    await flushPromises()
+    input.vm.$emit('submit')
+    await flushPromises()
+
+    expect(sessionStore.createSession).toHaveBeenCalledOnce()
+    expect(input.props('modelValue')).toBe('first message')
+    expect(notify).toHaveBeenCalledWith({
+      kind: 'error',
+      code: 'chat.message.sendFailed',
+      title: 'chat.input.sendFailed',
+      description: reason
+    })
+    wrapper.unmount()
+  })
+
+  it('reports an unconfirmed first message without leaving it queued for another submit', async () => {
+    const { wrapper, sessionStore, notify } = await setup('deepseek-chat')
+    sessionStore.createSession.mockResolvedValueOnce({ initialTurnUnconfirmed: true })
+    const input = wrapper.findComponent({ name: 'ChatInputBox' })
+    input.vm.$emit('update:modelValue', 'first message')
+    await flushPromises()
+    input.vm.$emit('submit')
+    await flushPromises()
+
+    expect(sessionStore.createSession).toHaveBeenCalledOnce()
+    expect(input.props('modelValue')).toBe('')
+    expect(notify).toHaveBeenCalledWith({
+      kind: 'warning',
+      code: 'chat.message.sendUnconfirmed',
+      title: 'chat.input.sendUnconfirmed'
+    })
+    wrapper.unmount()
+  })
 
   it('prepares audio consistently for supported, unsupported and unavailable capabilities', async () => {
     for (const capability of [true, false, 'error'] as const) {

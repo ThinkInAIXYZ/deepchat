@@ -2933,6 +2933,8 @@ export async function createMainProcessControl(dependencies: {
     assignmentPolicy: sessionAssignmentPolicy,
     workdir: sessionAssignment,
     initialTurn: sessionTurn,
+    hasAdmittedOrUnresolvedInput: (sessionId) =>
+      sessionData.database.dimInputIntentsTable.hasAdmittedOrUnresolvedInput(sessionId),
     projection: sessionQuery,
     desktop: desktopSessionBinding,
     deletion: sessionDeletion,

@@ -74,70 +74,48 @@ export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
     if (isSendMessageInputEmpty(content)) return undefined
     input.signal?.throwIfAborted()
 
-    let runtime
-    try {
-      runtime = this.dependencies.runtime.resolveSession(toAppSessionId(input.sessionId))
-    } catch (error) {
-      if (isAbortError(error, input.signal)) throw error
-      console.error('[SessionTurn] initial send failed:', error)
-      return undefined
-    }
+    const runtime = this.dependencies.runtime.resolveSession(toAppSessionId(input.sessionId))
     assertSessionReferencesSupported(runtime.kind, content)
-    try {
-      let result: MessageStartResult = { requestId: null, messageId: null }
-      if (runtime.kind === 'deepchat') {
-        try {
-          result = await runtime.send({
-            content,
-            context: {
-              projectDir: input.projectDir,
-              ...(input.signal ? { signal: input.signal } : {})
-            },
-            queue: { source: 'send', projectDir: input.projectDir }
-          })
-        } catch (error) {
-          if (isAbortError(error, input.signal)) throw error
-          if ((content.files?.length ?? 0) === 0) throw error
-          console.error('[SessionTurn] initial attachment acceptance failed:', error)
-          return {
-            requestId: null,
-            messageId: null,
-            attachmentPreparation: {
-              status: 'needs_user_action',
-              issues: [],
-              suggestedActions: ['retry', 'send_without_image_content']
-            }
+    const sendInput = {
+      content,
+      context: {
+        projectDir: input.projectDir,
+        ...(input.signal ? { signal: input.signal } : {})
+      },
+      queue: { source: 'send' as const, projectDir: input.projectDir }
+    }
+    let result: MessageStartResult = { requestId: null, messageId: null }
+    if (runtime.kind === 'deepchat') {
+      try {
+        result = await runtime.send(sendInput)
+      } catch (error) {
+        if (isAbortError(error, input.signal) || (content.files?.length ?? 0) === 0) throw error
+        console.error('[SessionTurn] initial attachment acceptance failed:', error)
+        return {
+          requestId: null,
+          messageId: null,
+          attachmentPreparation: {
+            status: 'needs_user_action',
+            issues: [],
+            suggestedActions: ['retry', 'send_without_image_content']
           }
         }
-        if (result.attachmentPreparation?.status === 'needs_user_action') {
-          return result
-        }
-      } else {
-        void runtime
-          .send({
-            content,
-            context: {
-              projectDir: input.projectDir,
-              ...(input.signal ? { signal: input.signal } : {})
-            },
-            queue: { source: 'send', projectDir: input.projectDir }
-          })
-          .catch((error) => {
-            console.error('[SessionTurn] initial send failed:', error)
-          })
       }
-      this.dependencies.projection.scheduleTitleGeneration({
-        sessionId: input.sessionId,
-        initialTitle: input.initialTitle,
-        fallbackProviderId: input.fallbackProviderId,
-        fallbackModelId: input.fallbackModelId
+      if (result.attachmentPreparation?.status === 'needs_user_action') {
+        return result
+      }
+    } else {
+      void runtime.send(sendInput).catch((error) => {
+        console.error('[SessionTurn] initial send failed:', error)
       })
-      return result
-    } catch (error) {
-      if (isAbortError(error, input.signal)) throw error
-      console.error('[SessionTurn] initial send failed:', error)
-      return undefined
     }
+    this.dependencies.projection.scheduleTitleGeneration({
+      sessionId: input.sessionId,
+      initialTitle: input.initialTitle,
+      fallbackProviderId: input.fallbackProviderId,
+      fallbackModelId: input.fallbackModelId
+    })
+    return result
   }
 
   async sendMessage(

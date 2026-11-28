@@ -384,7 +384,8 @@ export const sessionsCreateRoute = defineRouteContract({
         messageId: EntityIdSchema.nullable(),
         attachmentPreparation: AttachmentPreparationSummarySchema.optional()
       })
-      .optional()
+      .optional(),
+    initialTurnUnconfirmed: z.literal(true).optional()
   })
 })
 

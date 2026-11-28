@@ -92,6 +92,8 @@
       "locked": "Puoi cambiare modalità al termine di questa risposta.",
       "updateFailed": "Impossibile aggiornare la modalità degli strumenti."
     },
+    "sendFailed": "Messaggio non inviato",
+    "sendUnconfirmed": "Impossibile confermare l’invio del messaggio",
     "fileUploadFailed": "Elaborazione allegati non riuscita",
     "fileUploadFailedDesc": "Impossibile elaborare {count} file: {names}",
     "fileUploadFailedMore": " e altri {count}",

@@ -182,6 +182,7 @@ export const createSessionFixture = (input: {
     assignmentPolicy: policy,
     workdir: assignment,
     initialTurn: turn,
+    hasAdmittedOrUnresolvedInput: () => false,
     projection: input.projection,
     desktop,
     deletion,
